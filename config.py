@@ -1,5 +1,3 @@
-
-
 # "constant" paths and values for TNO
 tnoCamsPath = "/input/TNOMACC/CO2/TNO_CAMS_CO2_emissions_"
 tnoMACCIIIPath = "/input/TNOMACC/MACCIII/TNO_MACC_III_emissions_"
@@ -23,7 +21,7 @@ snap = [1,2,34,5,6,70,8,9,10] #70 corresponds to all 7*
 maccversion = 'III'           # use this version for TNO/MACC data
 year = 2015
 gridname = 'Berlin-coarse'
-output_path ="./"
+output_path ="./testdata/"
 #invs = ['CH4_TNO','CO2_TNO','CO_TNO','NOx_TNO','Berlin']
 
 
@@ -33,8 +31,8 @@ dx = 0.1
 dy = 0.1
 xmin = -1.4-2*dx
 ymin = 2.5-2*dy
-nx = 74
-ny = 64
+nx = 70+4
+ny = 60+4
 pollon = -170.0
 pollat = 43.0
 

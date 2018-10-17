@@ -268,6 +268,7 @@ def main(path):
     mean = True
     # read all data
     countries, snaps, daily, weekly, annual = read_all_data(TRACERS)
+    countries = [0]+countries
     n_countries = len(countries)
     
     
@@ -279,8 +280,10 @@ def main(path):
     hod = np.ones((24, n_countries))
     
     country_tz = get_country_tz(countries)
+
+    
     for (tracer,snap) in itertools.product(TRACERS, snaps):
-        for i, country in enumerate(countries):
+        for i, country in enumerate(countries):            
             try:
                 hod[:,i] = permute_cycle_tz(country_tz[country],daily[snap])
             except KeyError:
