@@ -17,11 +17,18 @@ tno_dy = 1/16.
 #case specific parameters
 species = ['CO2']#, 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'] #among 'CO2', 'PM2.5', 'CO', 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'
 
+cat_kind="SNAP"
 snap = [1,2,34,5,6,70,8,9,10] #70 corresponds to all 7*
-maccversion = 'III'           # use this version for TNO/MACC data
+#maccversion = 'III'           # use this version for TNO/MACC data
+tno_snap = [ 1,2,34,5,6,71,72,73,8,9,10]
 year = 2015
-gridname = 'Berlin-coarse'
-output_path ="./testdata/"
+gridname = 'Berlin-coarse_redo'
+
+is60= True
+if is60:
+    output_path ="./testdata/temp_to_del_60/"
+else:
+    output_path ="./testdata/temp_to_del_64/"
 #invs = ['CH4_TNO','CO2_TNO','CO_TNO','NOx_TNO','Berlin']
 
 
@@ -29,10 +36,16 @@ output_path ="./testdata/"
 #Berlin-coarse
 dx = 0.1
 dy = 0.1
-xmin = -1.4-2*dx
-ymin = 2.5-2*dy
-nx = 70+4
-ny = 60+4
+if is60:
+    xmin = -1.4
+    ymin = 2.5
+    nx = 70
+    ny = 60
+else:
+    xmin = -1.4-2*dx
+    ymin = 2.5-2*dy
+    nx = 70+4
+    ny = 60+4
 pollon = -170.0
 pollat = 43.0
 

@@ -13,7 +13,7 @@ import sys
 import cartopy.io.shapereader as shpreader
 
 from country_code import country_codes
-
+import os
 
 
 # constants to convert from kg/yr to kg/s/m2
@@ -45,6 +45,7 @@ def get_country_mask():
     cosmo_ylocs = np.arange(cfg.ymin, cfg.ymin+cfg.dy*cfg.ny, cfg.dy)
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
     incr=0
+    no_country_code=[]
     for (a,x) in enumerate(cosmo_xlocs):
         for (b,y) in enumerate(cosmo_ylocs):
             # Progress bar 
@@ -89,8 +90,11 @@ def get_country_mask():
 
             # Convert the name to ID
             if len(mask)==1:
-                mask = [country_codes[mask[0]]]
-
+                try:
+                    mask = [country_codes[mask[0]]]
+                except KeyError:
+                    mask=[-1]
+                    no_country_code.append(mask[0])
             # If no country (ocean), then assign the ID 0            
             if len(mask)==0:
                 mask=[0]
@@ -100,29 +104,42 @@ def get_country_mask():
     print("\nCountry mask is done")
     end= time.time()
     print("it took",end-start,"seconds")
+    if len(no_country_code)>0:
+        print("The following countries were found, but didn't have a corresponding code") #MAR, MNE, SRB, -99, TUN, DZA
+        print(set(no_country_code))
+    np.save(os.path.join(cfg.output_path,"country_mask.npy"),country_mask)
     return country_mask
 
 
 # Returns the name of a variable for a given species and snap 
-def var_name(s,snap):
+def var_name(s,snap,cat_kind):
     out_var_name = s+"_"
-    if snap==70:                        
-        out_var_name += "07_"
-    else:
-        if snap>9:
-            out_var_name += str(snap)+"_"
+    if cat_kind=="SNAP":
+        if snap==70:                        
+            out_var_name += "07_"
         else:
-            out_var_name += "0"+str(snap)+"_"
+            if snap>9:
+                out_var_name += str(snap)+"_"
+            else:
+                out_var_name += "0"+str(snap)+"_"
+    elif cat_kind=="NFR":
+        out_var_name += snap+"_"
+    else:
+        print("Wrong cat_kind in the config file. Must be SNAP or NFR")
+        raise ValueError
     return out_var_name
 
 # Returns the path to the TNO file for a given species
-def tno_file(species):
+def tno_file(species):    
     # get the TNO inventory
     if species=="CO2":
         tno_path = cfg.tnoCamsPath
     else:
         tno_path = cfg.tnoMACCIIIPath
-    
+
+    if os.path.isfile(tno_path):
+        return tno_path
+
     first_year = 2000
     last_year = 2011
 
@@ -158,8 +175,8 @@ def interpolate_tno_to_cosmo_point(source,tno):
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
     point = transform.transform_point(lon_source,lat_source,ccrs.PlateCarree())
 
-    cosmo_indx = int((point[0]-cfg.xmin)/cfg.dx)
-    cosmo_indy = int((point[1]-cfg.xmin)/cfg.dx)
+    cosmo_indx = int(np.floor((point[0]-cfg.xmin)/cfg.dx))
+    cosmo_indy = int(np.floor((point[1]-cfg.xmin)/cfg.dx))
 
     return (cosmo_indx,cosmo_indy)
     
@@ -204,7 +221,6 @@ def interpolate_tno_to_cosmo_grid(tno,out):
                 sys.stdout.write('\r')
                 sys.stdout.write(" {:.1f}%".format((100/((tno_lon*tno_lat)-1)*((i*tno_lat)+j))))
                 sys.stdout.flush()            
-                #print(incr,end-start)
 
             # Get the middle of the tno cell
             # x_tno=tno["longitude_source"][i]
@@ -249,6 +265,7 @@ def interpolate_tno_to_cosmo_grid(tno,out):
     print("\nInterpolation is over")
     print("it took ",end-start,"seconds")
     #return var_out
+    np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
     return mapping
         
 
@@ -296,19 +313,39 @@ def main(cfg_path): #path to the config file
         
         # Calculate the country mask
         add_country_mask = True
+        cmask_path = os.path.join(cfg.output_path,"country_mask.npy")
+        if os.path.isfile(cmask_path):
+            print("Do you wanna overwite the country mask found in %s ?" % cmask_path)
+            s = input("y/n \n")
+            add_country_mask = (s=="y")
+       
         if add_country_mask:
             country_mask = get_country_mask()
-            mask_name = "country_ids"
-            out.createVariable(mask_name,"short",(latname,lonname))
-            out[mask_name].long_name = "EMEP_country_code"
-            out[mask_name][:] = country_mask.T
+        else:
+            country_mask = np.load(cmask_path)
+
+        mask_name = "country_ids"
+        out.createVariable(mask_name,"short",(latname,lonname))
+        out[mask_name].long_name = "EMEP_country_code"
+        out[mask_name][:] = country_mask.T
 
         list_input_files = set([tno_file(s) for s in cfg.species])
         for f in list_input_files:
             print(f)            
             with nc.Dataset(f) as tno:
                 # retrieve the interpolation between the tno and cosmo grids.
-                interpolation = interpolate_tno_to_cosmo_grid(tno,out)
+                make_interpolate = True            
+                mapping_path = os.path.join(cfg.output_path,"mapping.npy")
+                if os.path.isfile(mapping_path):
+                    print("Do you wanna overwite the mapping found in %s ?" % mapping_path)
+                    s = input("y/n \n")
+                    make_interpolate = (s=="y")
+                 
+                if make_interpolate:
+                    interpolation = interpolate_tno_to_cosmo_grid(tno,out)
+                else:
+                    interpolation = np.load(mapping_path)
+
                 ## FOR DEBUGGING
                 # interpolation = np.empty((720,672),dtype=object)
                 # for i in range(720):
@@ -321,17 +358,20 @@ def main(cfg_path): #path to the config file
                 selection_point = tno["source_type_index"][:]==2
 
                 # SNAP ID 
-                tno_snap = tno["emis_cat_shortsnap"][:].tolist() #[1,2,34,5,6,71,72,73,74,75,8,9,10]
-                #outsnaps = [ 1,2,34,5,6,7,7,7,7,7,8,9,10]
+                #tno_snap = tno[cfg.tno_cat_var][:].tolist() 
+                tno_snap = cfg.tno_snap
                     
                 for snap in cfg.snap:
                     # In emission_category_index, we have the index of the category, starting with 1.
                     # It means that if the emission is of SNAP1, it will have index 1, SNAP34 index 3
                     if snap==70:
                         snap_list=[i for i in range(70,80) if i in tno_snap]
+                    elif snap=="F":
+                        snap_list=["F1","F2","F3"]
                     else:
                         snap_list=[snap]
                     
+                    print(snap_list, tno_snap)
                     # mask corresponding to the given snap category
                     selection_snap = np.array([tno["emission_category_index"][:] == tno_snap.index(i)+1 for i in snap_list])
                     
@@ -345,10 +385,12 @@ def main(cfg_path): #path to the config file
                         out_var_area = np.zeros((cfg.ny,cfg.nx))
                         out_var_point = np.zeros((cfg.ny,cfg.nx))
 
-                        #print("area",s,snap,snap_list,sum(var_snap_area))
                         if s=="CO2":
                             # add fossil and bio fuel CO2
                             var = tno["co2_ff"][:]+tno["co2_bf"][:]
+                        elif s=="CO":
+                            # add fossil and bio fuel CO
+                            var = tno["co_ff"][:]+tno["co_bf"][:]                      
                         elif s=="PM2.5":
                             var = tno["pm2_5"]
                         else:
@@ -365,6 +407,7 @@ def main(cfg_path): #path to the config file
                                 (indx,indy) = interpolate_tno_to_cosmo_point(i,tno)
                                 if indx>=0 and indx<cfg.nx and indy>=0 and indy<cfg.ny:
                                     out_var_point[indy,indx]+=var[i]
+
                         end = time.time()
                         print("it takes ",end-start,"sec")                     
                         ## TO DO : 
@@ -378,7 +421,7 @@ def main(cfg_path): #path to the config file
                         out_var_point*= cosmo_area.T*convfac
                         out_var_area *= cosmo_area.T*convfac
 
-                        out_var_name = var_name(s,snap)
+                        out_var_name = var_name(s,snap,cfg.cat_kind)
                         for (t,sel,out_var) in zip(["AREA","POINT"],
                                            [selection_snap_area,selection_snap_point],
                                            [out_var_area,out_var_point]):
@@ -392,5 +435,5 @@ def main(cfg_path): #path to the config file
     return interpolation
 
 if __name__ == "__main__":
-    mapping = main("./config.py")
+    mapping = main("./config_che.py")
     #mask = get_country_mask()
