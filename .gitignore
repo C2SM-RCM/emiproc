@@ -1,0 +1,7 @@
+*.pyc
+*.npy
+*.png
+*~
+*output*
+testdata/
+hourly_emissions/*.nc
