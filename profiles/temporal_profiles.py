@@ -74,6 +74,7 @@ from country_code import country_codes as cc
 # weekly and annual profiles are availble for these tracers
 #TRACERS = ['CO', 'CO2', 'NH3', 'NMVOC', 'NO', 'NO2', 'NOx', 'P10', 'P25', 'SOx']
 TRACERS = ['CO2']
+only_ones = False
 
 def permute_cycle_tz(tz,cycle):
     # tz in the shape "+0400"
@@ -283,23 +284,24 @@ def main(path):
 
     
     for (tracer,snap) in itertools.product(TRACERS, snaps):
-        for i, country in enumerate(countries):            
-            try:
-                hod[:,i] = permute_cycle_tz(country_tz[country],daily[snap])
-            except KeyError:
-                pass
+        if not only_ones:
+            for i, country in enumerate(countries):            
+                try:
+                    hod[:,i] = permute_cycle_tz(country_tz[country],daily[snap])
+                except KeyError:
+                    pass
 
-            try:
-                dow[:,i] = weekly[tracer][country, snap]
-                if mean:
-                    dow[:5,i] = np.ones(5)*weekly[tracer][country, snap][:5].mean()
-            except KeyError:
-                pass
+                try:
+                    dow[:,i] = weekly[tracer][country, snap]
+                    if mean:
+                        dow[:5,i] = np.ones(5)*weekly[tracer][country, snap][:5].mean()
+                except KeyError:
+                    pass
 
-            try:
-                moy[:,i] = annual[tracer][country, snap]
-            except KeyError:
-                pass
+                try:
+                    moy[:,i] = annual[tracer][country, snap]
+                except KeyError:
+                    pass
 
         write_single_variable(path,"hourofday",hod,tracer,snap)                
         write_single_variable(path,"dayofweek",dow,tracer,snap)
