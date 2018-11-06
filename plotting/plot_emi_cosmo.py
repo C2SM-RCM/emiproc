@@ -40,12 +40,12 @@ def gridbox_area(dx,dy,ymin,nx,ny):
 ##  COSMO GRID  ##
 ##################
 # Lets say these are the bottom corner
-cosmo_lon= -1.6
-cosmo_lat = 2.3
 cosmo_dx = 0.1
 cosmo_dy = 0.1
-cosmo_nx = 74
-cosmo_ny = 64
+cosmo_lon= -1.4#-2*cosmo_dx
+cosmo_lat = 2.5#-2*cosmo_dy
+cosmo_nx = 70#+4
+cosmo_ny = 60#+4
 pole_lon = -170
 pole_lat = 43
 
@@ -57,23 +57,31 @@ cosmo_areas = gridbox_area(cosmo_dx,cosmo_dy,cosmo_lat,cosmo_nx,cosmo_ny)
 
 
 
-cosmo_2 = nc.Dataset("../emis_2015_brd.nc")
-cosmo_1 = nc.Dataset("../emis_2015_Berlin-coarse.nc")
+# cosmo_2 = nc.Dataset("../testdata/emis_2015_Berlin-coarse_64_74.nc")
+# cosmo_1 = nc.Dataset("../testdata/emis_2015_Berlin-coarse_60_70.nc")
+#cosmo_2 = nc.Dataset("../hourly_emissions/output/CO2_CO_NOX_Berlin-coarse_2015010100.nc")
+# cosmo_1 = nc.Dataset("../testdata/emi_int2lm_2d.nc")
+# cosmo_2 = nc.Dataset("../testdata/emi_2d.nc")
+cosmo_1 = nc.Dataset("../testdata/oae_outputs/test_1.nc")
+cosmo_2 = nc.Dataset("../testdata/oae_outputs/test_2.nc")
 
-co2= (cosmo_1["CO2_02_AREA"][:]-cosmo_2["CO2_02_AREA"][:])/np.ma.masked_where(cosmo_1["CO2_02_AREA"][:]<pow(10,-12),cosmo_1["CO2_02_AREA"][:])
+
+var = "CO2_A"
+#var = "CO2_"
+co2=(cosmo_1[var][0,-1,:]-cosmo_2[var][0,-1,:])#/np.ma.masked_where(cosmo_1[var][0,-1,:]<pow(10,-12),cosmo_1[var][0,-1,:])
+#co2 = cosmo_2[var][0,-1,:]-cosmo_1[var][0,-1,:]
 
 to_plot = abs(co2 )
 #to_plot = cosmo_1["CO2_02_AREA"][:]
 
 
-
 # If i want discrete values
-bounds = [ 0.,  0.01,  0.1,  0.3,  0.5 ]
-cmap   = matplotlib.colors.ListedColormap( [ 'r', 'y', 'g', 'b' ] )
-norm   = matplotlib.colors.BoundaryNorm( bounds, cmap.N )
+bounds = [ 0.,0.001,  0.01,  0.1,  0.3,  0.5, 1. ]
+cmap   = matplotlib.colors.ListedColormap( [ 'b', 'g', 'y', 'r' ] )
+norm   = matplotlib.colors.BoundaryNorm( bounds, ncolors=256 )
 
-plot_map=False
-plot_hist=True
+plot_map=True
+plot_hist=False
 if plot_hist:
     bins=np.arange(0,0.5,0.01)
     ax = plt.axes()
@@ -106,11 +114,15 @@ if plot_map:
     log=False
     if log:
         to_plot_mask = np.ma.masked_where(to_plot<=0, to_plot)
-        mesh = ax.pcolormesh(cosmo_xlocs,cosmo_ylocs,to_plot_mask,norm=colors.LogNorm())#,vmax=1,vmin=0.01)
-        #plt.colorbar(mesh,ticks=[pow(10,i) for i in range(-15,-5)])
+        mesh = ax.pcolor(cosmo_xlocs,cosmo_ylocs,to_plot_mask,norm=colors.LogNorm(),vmin=pow(10,-15))#vmin=pow(10,-7),vmax=5*pow(10,-5))
+        plt.colorbar(mesh,ticks=[pow(10,i) for i in range(-15,-3)])
     else:   
         #to_plot_mask = np.ma.masked_where(np.logical_not(np.isfinite(to_plot)), to_plot)
-        mesh = ax.pcolormesh(cosmo_xlocs,cosmo_ylocs,to_plot, cmap = cmap, norm = norm )#,vmax=0.5)#_mask)
-        plt.colorbar(mesh)
+        mesh = ax.pcolor(cosmo_xlocs,cosmo_ylocs,to_plot)#, norm = norm)# ,vmin=0,vmax=0.8)
+        plt.colorbar(mesh)#,norm=norm,boundaries = bounds)
+
+    # plt.savefig("emi.png")
+    # plt.clf()
+    plt.show()
 
    

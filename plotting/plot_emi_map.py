@@ -59,7 +59,7 @@ tno_ylocs= np.arange(tno_lat,tno_lat+tno_dy*tno_ny,tno_dy)
 #tno_xlocs += tno_dx
 #tno_ylocs += tno_dy
 
-tno = nc.Dataset("./TNO_CAMS_CO2_emissions_2011.nc")
+tno = nc.Dataset("../testdata/TNO_CAMS_CO2_emissions_2011.nc")
 
 co2= tno["co2_bf"][:]+tno["co2_ff"][:]
 
@@ -79,7 +79,9 @@ for (i,c) in enumerate(co2):
         to_plot[lon,lat]+= c/(tno_areas[lon,lat]*sec_per_year)
 to_plot_mask = np.ma.masked_where(to_plot==0, to_plot)
 mesh = ax.pcolormesh(tno_xlocs,tno_ylocs,to_plot_mask.T,norm=colors.LogNorm())
-plt.colorbar(mesh,ticks=[pow(10,i) for i in range(-15,-5)])
+plt.tight_layout()
+plt.savefig("emi.png")
+#plt.colorbar(mesh,ticks=[pow(10,i) for i in range(-15,-5)])
 
 
 
