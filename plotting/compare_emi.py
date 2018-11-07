@@ -28,31 +28,40 @@ def gridcell_area(x,y,dx,dy): #bottom left corner of the cell
 
 
 
-me = nc.Dataset("./emis_2015_Berlin-coarse.nc")
-brd = nc.Dataset("./emis_2015_brd.nc")
+##################
+## The issue that script script is checking is the following:
+##  
+##   If I divide a tno cell in two halves, they have the same area in degree^2.
+## -----
+## ¦   ¦
+## -----
+## ¦   ¦
+## -----
+##   But in reality, in high latitude, they would look like this instead:
+##   -
+##  / \
+##  ---
+## /   \
+## -----
+##   which shows they don't have the same area at all.
+##  What is the impact of calculating the area ratio of an intersection in degree^2 ?
 
-tc_1 =  me["CO2_02_AREA"][:]
-tc_2 = brd["CO2_02_AREA"][:]
+## Other way to look at it:
+##   ________
+##   |  |    |
+##   |  |____|
+##   |  |    |
+##   |__|____|
+##
+## In that case, they all have the same area (2*4 cells) in degree^2.
+## But actually, at high latitude, 2*4 cells (left) is different than 4*2 (right)
+## Because 1deg lon is much bigger than 1deg latitude
 
 
-
-if False:
-    ##################
-    ##  COSMO GRID  ##
-    ##################
-    # Lets say these are the bottom corner
-    cosmo_lon= -1.6
-    cosmo_lat = 2.3
-    cosmo_dx = 0.1
-    cosmo_dy = 0.1
-    cosmo_nx = 74
-    cosmo_ny = 64
-    pole_lon = -170
-    pole_lat = 43
+if True:
     ################
     ##  TNO GRID  ##
     ################
-    transform = ccrs.RotatedPole(pole_longitude=pole_lon, pole_latitude=pole_lat)
     molly = ccrs.Mollweide()
     # Lets say these are the bottom corner
     tno_lon = -30
@@ -63,17 +72,23 @@ if False:
     tno_ny = 42*16
     
     x_tno=15
-    y_tno=60
+    y_tno=80
     tno_cell_x= np.array([x_tno+tno_dx/2,x_tno+tno_dx/2,x_tno-tno_dx/2,x_tno-tno_dx/2])
     tno_cell_y= np.array([y_tno+tno_dy/2,y_tno-tno_dy/2,y_tno-tno_dy/2,y_tno+tno_dy/2])
     
-    # cosmo cell 1, touches the bottom of the tno_cell
-    cosmo_cell_1_x = np.array([x_tno+tno_dx/2,x_tno+tno_dx/2,x_tno-tno_dx/2,x_tno-tno_dx/2])
-    cosmo_cell_1_y = np.array([y_tno+tno_dy/2,y_tno-tno_dy/2,y_tno-tno_dy/2,y_tno+tno_dy/2])-1./32.
+
+    # cosmo cell 1, the left cell
+    cosmo_cell_1_x = np.array([x_tno-tno_dx/6,x_tno-tno_dx/6,x_tno-tno_dx/2,x_tno-tno_dx/2])
+    cosmo_cell_1_y = np.array([y_tno+tno_dy/2,y_tno-tno_dy/2,y_tno-tno_dy/2,y_tno+tno_dy/2])
     
-    # cosmo cell 1, touches the bottom of the tno_cell
-    cosmo_cell_2_x = np.array([x_tno+tno_dx/2,x_tno+tno_dx/2,x_tno-tno_dx/2,x_tno-tno_dx/2])
-    cosmo_cell_2_y = np.array([y_tno+tno_dy/2,y_tno-tno_dy/2,y_tno-tno_dy/2,y_tno+tno_dy/2])+1./32.
+    # cosmo cell 2, the bottom right cell
+    cosmo_cell_2_x = np.array([x_tno+tno_dx/2,x_tno+tno_dx/2,x_tno-tno_dx/6,x_tno-tno_dx/6])
+    cosmo_cell_2_y = np.array([y_tno,y_tno-tno_dy/2,y_tno-tno_dy/2,y_tno])
+
+    # cosmo cell 3, the top right cell
+    cosmo_cell_3_x = np.array([x_tno+tno_dx/2,x_tno+tno_dx/2,x_tno-tno_dx/6,x_tno-tno_dx/6])
+    cosmo_cell_3_y = np.array([y_tno,y_tno-tno_dy/2,y_tno-tno_dy/2,y_tno])+tno_dy/2
+
     
     # Make a polygon out of it, 
     polygon_tno = Polygon([i for i in zip(tno_cell_x,tno_cell_y)])
@@ -85,20 +100,28 @@ if False:
     polygon_cosmo_2 = Polygon([i for i in zip(cosmo_cell_2_x,cosmo_cell_2_y)])
     inter_2 = polygon_cosmo_2.intersection(polygon_tno)
     area_2 = inter_2.area
-    
-    print("bottom area:", area_1/tno_area,"top area:",area_2/tno_area)
-    
+    polygon_cosmo_3 = Polygon([i for i in zip(cosmo_cell_3_x,cosmo_cell_3_y)])
+    inter_3 = polygon_cosmo_3.intersection(polygon_tno)
+    area_3 = inter_3.area
+
+    print("left area:", area_1/tno_area, "bottom right area:",area_2/tno_area, "top right area:",area_3/tno_area)
+
     # With Molly
     polygon_tno = Polygon(molly.transform_points(ccrs.PlateCarree(),tno_cell_x,tno_cell_y))
     tno_area = polygon_tno.area
     polygon_cosmo_1 = Polygon(molly.transform_points(ccrs.PlateCarree(),cosmo_cell_1_x,cosmo_cell_1_y))
     polygon_cosmo_2 = Polygon(molly.transform_points(ccrs.PlateCarree(),cosmo_cell_2_x,cosmo_cell_2_y))
+    polygon_cosmo_3 = Polygon(molly.transform_points(ccrs.PlateCarree(),cosmo_cell_3_x,cosmo_cell_3_y))
     area_1 = polygon_cosmo_1.intersection(polygon_tno).area
     area_2 = polygon_cosmo_2.intersection(polygon_tno).area
-    print("bottom area:", area_1/tno_area,"top area:",area_2/tno_area)
-    
+    area_3 = polygon_cosmo_3.intersection(polygon_tno).area
+
+    print("left area:", area_1/tno_area, "bottom right area:",area_2/tno_area, "top right area:",area_3/tno_area)
+
     # With area
     tno_area = gridcell_area(x_tno,y_tno,tno_dx,tno_dy)
-    area_1 = gridcell_area(x_tno,y_tno,tno_dx,tno_dy/2)
-    area_2 = gridcell_area(x_tno, y_tno+tno_dy/2, tno_dx, tno_dy/2)
-    print("bottom area:", area_1/tno_area,"top area:",area_2/tno_area)
+    area_1 = gridcell_area(x_tno, y_tno, tno_dx/3, tno_dy)
+    area_2 = gridcell_area(x_tno, y_tno-tno_dy/4, 2/3*tno_dx, tno_dy/2)
+    area_3 = gridcell_area(x_tno, y_tno+tno_dy/4, 2/3*tno_dx, tno_dy/2)
+    
+    print("left area:", area_1/tno_area, "bottom right area:",area_2/tno_area, "top right area:",area_3/tno_area)
