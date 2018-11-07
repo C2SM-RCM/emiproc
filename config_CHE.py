@@ -15,7 +15,7 @@ tno_dy = 1/20.
 
 
 #case specific parameters
-species = ['CO2']#,'CH4','CO','NOX']#, 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'] #among 'CO2', 'PM2.5', 'CO', 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'
+species = ['CO2','CH4','CO','NOX']#, 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'] #among 'CO2', 'PM2.5', 'CO', 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'
 
 cat_kind="NFR"
 # snap = ["A", "B", "C", "D", "E", 

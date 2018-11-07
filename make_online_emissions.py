@@ -3,7 +3,7 @@
 
 import importlib
 import netCDF4 as nc
-import config as cfg
+#import config as cfg
 import numpy as np
 import cartopy.crs as ccrs
 from shapely.geometry import Polygon
@@ -23,15 +23,25 @@ sec_per_day = 86400
 convfac = 1./(day_per_yr*sec_per_day)
 
 
+def check_country(country,points):
+    bounds = country.bounds #(minx, miny, maxx, maxy)
+    if ((bounds[0]>max([k[0] for k in points])) or 
+        (bounds[2]<min([k[0] for k in points])) or
+        (bounds[1]>max([k[1] for k in points])) or 
+        (bounds[3]<min([k[1] for k in points]))):
+        return False
+    else:
+        return True
+
 # Returns the name of the country for each cosmo grid cell
-def get_country_mask():
+def get_country_mask(cfg):
     start = time.time()
     print("Creating the country mask")
     natural_earth = True
     if natural_earth:
         shpfilename = shpreader.natural_earth(resolution='110m',
                                               category='cultural', name='admin_0_countries')
-        iso3 = "ISO_A3"
+        iso3 = "ADM0_A3"
     else:
         shpfilename = "/usr/local/exelis/idl82/resource/maps/shape/cntry08.shp"
         iso3 = "ISO_3DIGIT"
@@ -46,6 +56,15 @@ def get_country_mask():
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
     incr=0
     no_country_code=[]
+
+    european = []
+    non_euro = []
+    for country in reader.records():
+        if country.attributes["CONTINENT"]=="Europe":
+            european.append(country)
+        else:
+            non_euro.append(country)
+
     for (a,x) in enumerate(cosmo_xlocs):
         for (b,y) in enumerate(cosmo_ylocs):
             # Progress bar 
@@ -67,17 +86,23 @@ def get_country_mask():
             points = ccrs.PlateCarree().transform_points(transform,cosmo_cell_x,cosmo_cell_y)
             polygon_cosmo = Polygon(points)
 
-            for country in reader.records():
-                bounds = country.bounds #(minx, miny, maxx, maxy)
-                if ((bounds[0]>max([k[0] for k in points])) or 
-                    (bounds[2]<min([k[0] for k in points])) or
-                    (bounds[1]>max([k[1] for k in points])) or 
-                    (bounds[3]<min([k[1] for k in points]))):
-                    continue
-                # if x+cfg.dx<bounds[0] or y+cfg.dy<bounds[1] or x>bounds[2] or y>bounds[3]:
-                #     continue
-                if polygon_cosmo.intersects(country.geometry):
-                    mask.append(country.attributes[iso3])
+            # To be faster, only check european countries at first
+            for country in european:#reader.records():
+                if check_country(country,points):
+                    # if x+cfg.dx<bounds[0] or y+cfg.dy<bounds[1] or x>bounds[2] or y>bounds[3]:
+                    #     continue
+                    if polygon_cosmo.intersects(country.geometry):
+                        mask.append(country.attributes[iso3])
+
+            # If not found among the european countries, check elsewhere
+            if len(mask)==0:
+                for country in non_euro:#reader.records():
+                    if check_country(country,points):
+                        # if x+cfg.dx<bounds[0] or y+cfg.dy<bounds[1] or x>bounds[2] or y>bounds[3]:
+                        #     continue
+                        if polygon_cosmo.intersects(country.geometry):
+                            mask.append(country.attributes[iso3])
+                
 
             if len(mask)>1:
                 area = 0
@@ -93,8 +118,9 @@ def get_country_mask():
                 try:
                     mask = [country_codes[mask[0]]]
                 except KeyError:
-                    mask=[-1]
                     no_country_code.append(mask[0])
+                    mask=[-1]
+
             # If no country (ocean), then assign the ID 0            
             if len(mask)==0:
                 mask=[0]
@@ -105,7 +131,7 @@ def get_country_mask():
     end= time.time()
     print("it took",end-start,"seconds")
     if len(no_country_code)>0:
-        print("The following countries were found, but didn't have a corresponding code") #MAR, MNE, SRB, -99, TUN, DZA
+        print("The following countries were found, but didn't have a corresponding code")
         print(set(no_country_code))
     np.save(os.path.join(cfg.output_path,"country_mask.npy"),country_mask)
     return country_mask
@@ -130,7 +156,7 @@ def var_name(s,snap,cat_kind):
     return out_var_name
 
 # Returns the path to the TNO file for a given species
-def tno_file(species):    
+def tno_file(species,cfg):
     # get the TNO inventory
     if species=="CO2":
         tno_path = cfg.tnoCamsPath
@@ -155,7 +181,7 @@ def tno_file(species):
 
 
 # calculate 2D array of the areas (m^^2) of the COSMO grid
-def gridbox_area():
+def gridbox_area(cfg):
     radius=6375000. #the earth radius in meters
     deg2rad=np.pi/180.
     dlat = cfg.dy*deg2rad
@@ -168,7 +194,7 @@ def gridbox_area():
 
 
 ## This function returns the indices of the cosmo grid cell that contains the source
-def interpolate_tno_to_cosmo_point(source,tno):
+def interpolate_tno_to_cosmo_point(source,tno,cfg):
     lon_source = tno["longitude_source"][source]
     lat_source = tno["latitude_source"][source]
 
@@ -188,7 +214,7 @@ def interpolate_tno_to_cosmo_point(source,tno):
 ## - r : ratio of the area of the intersection compared to the area of the tno cell.
 ## To avoid having a lot of r=0, we only keep the cosmo cells that intersect the tno cell.
 ## For a TNO grid of (720,672) and a Berlin domain with resolution 0.1°, it takes 5min to run
-def interpolate_tno_to_cosmo_grid(tno,out):
+def interpolate_tno_to_cosmo_grid(tno,out,cfg):
     print("Retrieving the interpolation between the cosmo and the tno grids")
     start = time.time()
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
@@ -270,16 +296,17 @@ def interpolate_tno_to_cosmo_grid(tno,out):
         
 
 def main(cfg_path): #path to the config file
-    # try to load config file
-    # try:
-    #     cfg = importlib.import_module(cfg_path)
-    # except IndexError:
-    #     print('ERROR: no config file provided!')
-    #     sys.exit(1)
-    # except ImportError:
-    #     print('ERROR: failed to import config module "%s"!' % path)
-    #     sys.exit(1)
-    # 
+    #try to load config file
+    try:
+        sys.path.append(os.path.dirname(os.path.realpath(cfg_path)))
+        cfg = importlib.import_module(os.path.basename(cfg_path))
+    except IndexError:
+        print('ERROR: no config file provided!')
+        sys.exit(1)
+    except ImportError:
+        print('ERROR: failed to import config module "%s"!' % os.path.basename(cfg_path))
+        sys.exit(1)
+
 
     output_path = cfg.output_path+"emis_"+str(cfg.year)+"_"+cfg.gridname+".nc"
     with nc.Dataset(output_path,"w") as out:
@@ -320,7 +347,7 @@ def main(cfg_path): #path to the config file
             add_country_mask = (s=="y")
        
         if add_country_mask:
-            country_mask = get_country_mask()
+            country_mask = get_country_mask(cfg)
         else:
             country_mask = np.load(cmask_path)
 
@@ -329,7 +356,7 @@ def main(cfg_path): #path to the config file
         out[mask_name].long_name = "EMEP_country_code"
         out[mask_name][:] = country_mask.T
 
-        list_input_files = set([tno_file(s) for s in cfg.species])
+        list_input_files = set([tno_file(s,cfg) for s in cfg.species])
         for f in list_input_files:
             print(f)            
             with nc.Dataset(f) as tno:
@@ -342,7 +369,7 @@ def main(cfg_path): #path to the config file
                     make_interpolate = (s=="y")
                  
                 if make_interpolate:
-                    interpolation = interpolate_tno_to_cosmo_grid(tno,out)
+                    interpolation = interpolate_tno_to_cosmo_grid(tno,out,cfg)
                 else:
                     interpolation = np.load(mapping_path)
 
@@ -379,7 +406,7 @@ def main(cfg_path): #path to the config file
                     selection_snap_area  = np.array([selection_snap.any(0),selection_area]).all(0)
                     selection_snap_point = np.array([selection_snap.any(0),selection_point]).all(0)
                     
-                    species_list = [s for s in cfg.species if tno_file(s)==f]
+                    species_list = [s for s in cfg.species if tno_file(s,cfg)==f]
                     for s in species_list:
                         print("Species",s,"SNAP",snap)
                         out_var_area = np.zeros((cfg.ny,cfg.nx))
@@ -404,7 +431,7 @@ def main(cfg_path): #path to the config file
                                 for (x,y,r) in interpolation[lon_ind,lat_ind]:
                                         out_var_area[y,x]+=var[i]*r
                             if selection_snap_point[i]:
-                                (indx,indy) = interpolate_tno_to_cosmo_point(i,tno)
+                                (indx,indy) = interpolate_tno_to_cosmo_point(i,tno,cfg)
                                 if indx>=0 and indx<cfg.nx and indy>=0 and indy<cfg.ny:
                                     out_var_point[indy,indx]+=var[i]
 
@@ -417,7 +444,7 @@ def main(cfg_path): #path to the config file
                         ## convert unit from kg.year-1.cell-1 to kg.m-2.s-1
 
                         # # calculate the areas (m^^2) of the COSMO grid
-                        cosmo_area = 1./gridbox_area()
+                        cosmo_area = 1./gridbox_area(cfg)
                         out_var_point*= cosmo_area.T*convfac
                         out_var_area *= cosmo_area.T*convfac
 
@@ -435,5 +462,5 @@ def main(cfg_path): #path to the config file
     return interpolation
 
 if __name__ == "__main__":
-    mapping = main("./config_che.py")
+    mapping = main("./config_CHE")
     #mask = get_country_mask()

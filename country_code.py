@@ -103,6 +103,7 @@ country_codes = {
     'KZ': 53, # Kazakhstan in the former official EMEP domain
     'GE': 54, # Georgia
     'CY': 55, # Cyprus
+    'CYN': 55, # Cyprus (HJM)
     'AM': 56, # Armenia
     'MT': 57, # Malta
     'ASI': 58, # Remaining Asian areas
@@ -111,6 +112,9 @@ country_codes = {
     'RU': 61, # Russian Federation in the former official EMEP domain
     'MC': 62, # Monaco
     'NOA': 63, # North Africa
+    'MAR': 63, # Maroko (HJM)
+    'TUN': 63, # Tunisia
+    'DZA': 63, # Algeria (HJM)
     'EU': 64, # European Community
     'US': 65, # United States
     'CA': 66, # Canada
@@ -120,7 +124,10 @@ country_codes = {
     'ATX': 70, # EMEP-external Remaining North-East Atlantic Ocean
     'RUX': 71, # EMEP-external part of Russian Federation
     'RS': 72, # Serbia
+    'SRB': 72, # Serbia (HJM)
+    'KOS': 72, # Kosovo (HJM)
     'ME': 73, # Montenegro
+    'MNE':73, # Montenegro (HJM)
     'RFE': 74, # Rest of Russian Federation in the extended EMEP domain
     'KZE': 75, # Rest of Kazakhstan in the extended EMEP domain
     'UZO': 76, # Uzbekistan in the former official EMEP domain
