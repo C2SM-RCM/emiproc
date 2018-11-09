@@ -23,37 +23,25 @@ from matplotlib.patches import Polygon
 import matplotlib.colors as colors
 import matplotlib
 
-# calculate 2D array of the areas (m^^2) of the COSMO grid
-def gridbox_area(dx,dy,ymin,nx,ny):
-    radius=6375000. #the earth radius in meters
-    deg2rad=np.pi/180.
-    dlat = dy*deg2rad
-    dlon = dx*deg2rad
-
-    # box area at equator
-    dd=2.*pow(radius,2)*dlon*np.sin(0.5*dlat)
-    areas = np.array([[dd*np.cos(deg2rad*ymin+j*dlat) for j in range(ny)] for foo in range(nx)])
-    return areas 
-
-
 ##################
 ##  COSMO GRID  ##
 ##################
-# Lets say these are the bottom corner
-cosmo_dx = 0.1
-cosmo_dy = 0.1
-cosmo_lon= -1.4#-2*cosmo_dx
-cosmo_lat = 2.5#-2*cosmo_dy
-cosmo_nx = 70#+4
-cosmo_ny = 60#+4
+# cosmo_dx = 0.1
+# cosmo_dy = 0.1
+# cosmo_lon= -1.4#-2*cosmo_dx
+# cosmo_lat = 2.5#-2*cosmo_dy
+# cosmo_nx = 70#+4
+# cosmo_ny = 60#+4
+# ############################
+# cosmo_dx = 0.05
+# cosmo_dy = 0.05
+# cosmo_lon= -17#-2*cosmo_dx
+# cosmo_lat = -11#-2*cosmo_dy
+# cosmo_nx = 760#+4
+# cosmo_ny = 610#+4
+
 pole_lon = -170
 pole_lat = 43
-
-
-
-# Variables to convert unit
-sec_per_year = 365.25*24*3600
-cosmo_areas = gridbox_area(cosmo_dx,cosmo_dy,cosmo_lat,cosmo_nx,cosmo_ny)
 
 
 
@@ -62,13 +50,14 @@ cosmo_areas = gridbox_area(cosmo_dx,cosmo_dy,cosmo_lat,cosmo_nx,cosmo_ny)
 #cosmo_2 = nc.Dataset("../hourly_emissions/output/CO2_CO_NOX_Berlin-coarse_2015010100.nc")
 # cosmo_1 = nc.Dataset("../testdata/emi_int2lm_2d.nc")
 # cosmo_2 = nc.Dataset("../testdata/emi_2d.nc")
-cosmo_1 = nc.Dataset("../testdata/oae_outputs/test_1.nc")
-cosmo_2 = nc.Dataset("../testdata/oae_outputs/test_2.nc")
+#cosmo_1 = nc.Dataset("../testdata/oae_outputs/test_1.nc")
+#cosmo_2 = nc.Dataset("../testdata/oae_outputs/test_2.nc")
+cosmo_1 = nc.Dataset("../testdata/CHE_TNO/emis_2015_Europe.nc")
 
 
-var = "CO2_A"
+var = "CO2_G_AREA"
 #var = "CO2_"
-co2=(cosmo_1[var][0,-1,:]-cosmo_2[var][0,-1,:])#/np.ma.masked_where(cosmo_1[var][0,-1,:]<pow(10,-12),cosmo_1[var][0,-1,:])
+co2=(cosmo_1[var][:])#-cosmo_2[var][0,-1,:])#/np.ma.masked_where(cosmo_1[var][0,-1,:]<pow(10,-12),cosmo_1[var][0,-1,:])
 #co2 = cosmo_2[var][0,-1,:]-cosmo_1[var][0,-1,:]
 
 to_plot = abs(co2 )
@@ -105,13 +94,15 @@ if plot_map:
     ax.add_feature(cartopy.feature.BORDERS)
     
     # plot the cosmo grid
-    cosmo_xlocs = np.arange(cosmo_lon,cosmo_lon+cosmo_dx*cosmo_nx,cosmo_dx)
-    cosmo_ylocs= np.arange(cosmo_lat,cosmo_lat+cosmo_dy*cosmo_ny,cosmo_dy)
+    cosmo_xlocs = cosmo_1["rlon"]#np.arange(cosmo_lon,cosmo_lon+cosmo_dx*cosmo_nx,cosmo_dx)
+    cosmo_ylocs= cosmo_1["rlat"]#np.arange(cosmo_lat,cosmo_lat+cosmo_dy*cosmo_ny,cosmo_dy)
+
     #ax.gridlines(crs= ccrs.PlateCarree(), xlocs=cosmo_xlocs,ylocs = cosmo_ylocs, color="r")
     # Add half a cell to be centered
-    cosmo_xlocs += cosmo_dx/2
-    cosmo_ylocs += cosmo_dy/2
-    log=False
+    # cosmo_xlocs += cosmo_dx/2
+    # cosmo_ylocs += cosmo_dy/2
+
+    log=True
     if log:
         to_plot_mask = np.ma.masked_where(to_plot<=0, to_plot)
         mesh = ax.pcolor(cosmo_xlocs,cosmo_ylocs,to_plot_mask,norm=colors.LogNorm(),vmin=pow(10,-15))#vmin=pow(10,-7),vmax=5*pow(10,-5))
