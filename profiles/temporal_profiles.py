@@ -79,8 +79,13 @@ only_ones = False
 def permute_cycle_tz(tz,cycle):
     # tz in the shape "+0400"
     shift = int(int(tz[1:3])*((tz[0]=="+")-0.5)*2)
+
     # for now I don't consider half hours for the time zone
-    answer = [cycle[shift-i] for i in range(len(cycle),0,-1)]
+    try:
+        answer = [cycle[shift-i] for i in range(len(cycle),0,-1)]
+    except IndexError:
+        answer = [cycle[shift-i+24] for i in range(len(cycle),0,-1)]
+
     return answer
 
 def get_country_tz(countries):
@@ -112,7 +117,8 @@ def get_country_tz(countries):
             if country_name=="":
                 for name in country_names:
                     try:
-                        all_tz[country]= country_exception[name]
+                        print("exception : ",name,country_exception[name])
+                        country_name = name
                         continue
                     except KeyError:
                         pass
@@ -153,7 +159,27 @@ def read_daily_profiles(path):
 
     return snaps, data
 
+def read_temporal_profile_simple(path):
+    started = False
+    data = []
+    snaps = []
+    with open(path,encoding="latin") as prof:
+        for l in prof:
+            splitted = l.split(";")
+            if splitted[0]=="1":
+                started=True
+            if splitted[0]=="11":
+                started=False
+            if started:
+                if splitted[1]=="F1":
+                    snaps.append("F")
+                elif "F" in splitted[1]:
+                    continue
+                else:
+                    snaps.append(splitted[1])
+                data.append([float(i) for i in splitted[3:]])
 
+    return snaps,np.array(data)
 
 def read_temporal_profiles(tracer, kind, path='timeprofiles'):
     """\
@@ -256,7 +282,10 @@ def write_single_variable(path, profile, values, tracer, snap):
         #     nc_var = nc.createVariable(tracer+"_"+snap, 'f4', (profile))
         # else:
         nc_var = nc.createVariable(tracer+"_"+snap, 'f4', (profile, 'country'))
-        nc_var.long_name = "%s for species %s and SNAP %s" % (descr,tracer,snap)
+        if complex_profile:
+            nc_var.long_name = "%s for species %s and SNAP %s" % (descr,tracer,snap)
+        else:
+            nc_var.long_name = "%s for GNFR %s" % (descr,snap)
         nc_var.units = '1'
         nc_var[:]= values
 
@@ -264,15 +293,15 @@ def write_single_variable(path, profile, values, tracer, snap):
 
 
 
-def main(path):
+def main_complex(path):
 
     mean = True
+
     # read all data
     countries, snaps, daily, weekly, annual = read_all_data(TRACERS)
-    countries = [0]+countries
+    countries = [0]+countries        
     n_countries = len(countries)
-    
-    
+
     create_netcdf(path,countries)
 
     # day of week and month of year
@@ -281,7 +310,7 @@ def main(path):
     hod = np.ones((24, n_countries))
     
     country_tz = get_country_tz(countries)
-
+    
     
     for (tracer,snap) in itertools.product(TRACERS, snaps):
         if not only_ones:
@@ -302,7 +331,6 @@ def main(path):
                     moy[:,i] = annual[tracer][country, snap]
                 except KeyError:
                     pass
-
         write_single_variable(path,"hourofday",hod,tracer,snap)                
         write_single_variable(path,"dayofweek",dow,tracer,snap)
         write_single_variable(path,"monthofyear",moy,tracer,snap) 
@@ -310,9 +338,61 @@ def main(path):
     # TODO: hour of year
     hours_in_year = np.arange(0, 8784)
 
+def main_simple(path):
+    mean = False
 
+    #snaps = ["A","B","C","D","E","F","G","H","I","J"]
+
+    countries = np.arange(74)
+    # remove all countries not known, and not worth an exception
+    countries = np.delete(countries,
+                          [5,26,28,29,30,31,32,33,34,35,58,64,67,70,71])
+    n_countries = len(countries)
+    country_tz = get_country_tz(countries)
+
+
+    create_netcdf(path,countries)
+
+    snaps,daily = read_temporal_profile_simple("CHE_input/timeprofiles-hour-in-day_GNFR.csv")
+    snaps,weekly = read_temporal_profile_simple("CHE_input/timeprofiles-day-in-week_GNFR.csv")
+    snaps,monthly = read_temporal_profile_simple("CHE_input/timeprofiles-month-in-year_GNFR.csv")
+
+    print(snaps)
+    # day of week and month of year
+    dow = np.ones((7, n_countries))
+    moy = np.ones((12, n_countries))
+    hod = np.ones((24, n_countries))
+
+    for snap_ind,snap in enumerate(snaps):
+        for i, country in enumerate(countries):            
+            try:
+                hod[:,i] = permute_cycle_tz(country_tz[country],daily[snap_ind,:])
+            except KeyError:
+                pass
+
+            try:
+                dow[:,i] = weekly[snap_ind,:]
+                if mean:
+                    dow[:5,i] = np.ones(5)*weekly[snap_ind,:5].mean()
+            except KeyError:
+                pass
+
+            try:
+                moy[:,i] = monthly[snap_ind]
+            except KeyError:
+                pass
+
+        write_single_variable(path,"hourofday",hod,"GNFR",snap)
+        write_single_variable(path,"dayofweek",dow,"GNFR",snap)
+        write_single_variable(path,"monthofyear",moy,"GNFR",snap) 
+    
+    
 
 if __name__ == "__main__":
-    main("./output")
+    complex_profile=False
+    if complex_profile:
+        main_complex("./output")
+    else:
+        main_simple("./CHE_output")
 
 

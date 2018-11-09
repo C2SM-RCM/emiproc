@@ -28,18 +28,26 @@ tno_snap = [ "A", "B", "C", "D", "E", "F1","F2","F3",
         "G", "H", "I", "J", "K", "L" ]
 year = 2015
 gridname = 'Europe'
-output_path ="./testdata/CHE_TNO/"
+output_path ="./testdata/CHE_TNO_offline/"
 #invs = ['CH4_TNO','CO2_TNO','CO_TNO','NOx_TNO','Berlin']
 
+offline=True
 
 # Domain
 #Berlin-coarse
 dx = 0.05
 dy = 0.05
-xmin = -17#-2*dx
-ymin = -11#-2*dy
-nx = 760#+4
-ny = 610#+4
 pollon = -170.0
 pollat = 43.0
+
+if offline:
+    xmin = -17#-2*dx
+    ymin = -11#-2*dy
+    nx = 760#+4
+    ny = 610#+4
+else:
+    xmin = -17-2*dx
+    ymin = -11-2*dy
+    nx = 760+4
+    ny = 610+4
 

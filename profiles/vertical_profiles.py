@@ -31,7 +31,7 @@ def get_all_levels(levels): #levels are the top of the layer
         
 
 
-def write_netcdf(filename, categories, levels, scale_factors):
+def write_netcdf(filename, categories, cat_name, levels, scale_factors):
     layer_bot,layer_mid,layer_top = get_all_levels(levels)  
 
     with netCDF4.Dataset(filename, 'w') as nc:
@@ -67,7 +67,7 @@ def write_netcdf(filename, categories, levels, scale_factors):
         nc_top[:] =  layer_top
 
         for (i,cat) in enumerate(categories):            
-            nc_sca = nc.createVariable('SNAP-'+cat, 'f4', ('level'))
+            nc_sca = nc.createVariable(cat_name+cat, 'f4', ('level'))
             nc_sca.long_name = 'vertical scale factor for sources of SNAP-%s category' % cat
             nc_sca.units = '1'
             nc_sca[:] = scale_factors[i]
@@ -96,6 +96,11 @@ def read_profiles(filename, nlevel=16):
                 all_sevens.append([float(i) for i in profile])
             elif "7." in cat:
                 all_sevens.append([float(i) for i in profile])
+            elif cat=="F1":
+                categories.append("F")
+                all_sevens.append([float(i) for i in profile])
+            elif "F" in cat:
+                all_sevens.append([float(i) for i in profile])
             else:
                 categories.append(cat)
                 if len(all_sevens)>0:
@@ -110,10 +115,10 @@ def read_profiles(filename, nlevel=16):
 
 
 def main(filename):
-    categories, profiles,levels = read_profiles('vert_profiles/vert_prof_che.dat')    
-    write_netcdf(filename, categories, levels, profiles)
+    categories, profiles,levels = read_profiles('vert_profiles/vert_prof_che_gnfr.dat')
+    write_netcdf(filename, categories, "GNFR_", levels, profiles)
 
 
 
 if __name__ == "__main__":
-    main('output/vertical_profiles.nc')
+    main('CHE_output/vertical_profiles.nc')
