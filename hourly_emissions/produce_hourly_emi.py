@@ -1,23 +1,24 @@
 import netCDF4 as nc
 import numpy as np
 import datetime as dt
+import time as tm
 
 #################
 # Berlin testcase
-path_emi = "../testdata/emis_2015_Berlin-coarse_64_74.nc"
-path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
-output_path = "./output/"
-output_name = "CO2_CO_NOX_Berlin-coarse_"
-prof_path = "./input_profiles/"
-rlon = 74
-rlat = 64
-var_list = ["CO2_A_E","CO2_07_E"]
-catlist = [['CO2_02_AREA','CO2_34_AREA','CO2_05_AREA','CO2_06_AREA','CO2_07_AREA','CO2_08_AREA','CO2_09_AREA','CO2_10_AREA'],
-           ["CO2_07_AREA"]]
-tplist = [['CO2_2','CO2_4','CO2_5','CO2_6','CO2_7','CO2_8','CO2_9','CO2_10'],
-          ["CO2_7"]]
-vplist = [['SNAP-2','SNAP-4','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-9','SNAP-10'],
-          ["SNAP-7"]]
+# path_emi = "../testdata/emis_2015_Berlin-coarse_64_74.nc"
+# path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
+# output_path = "./output/"
+# output_name = "CO2_CO_NOX_Berlin-coarse_"
+# prof_path = "./input_profiles/"
+# rlon = 74
+# rlat = 64
+# var_list = ["CO2_A_E","CO2_07_E"]
+# catlist = [['CO2_02_AREA','CO2_34_AREA','CO2_05_AREA','CO2_06_AREA','CO2_07_AREA','CO2_08_AREA','CO2_09_AREA','CO2_10_AREA'],
+#            ["CO2_07_AREA"]]
+# tplist = [['CO2_2','CO2_4','CO2_5','CO2_6','CO2_7','CO2_8','CO2_9','CO2_10'],
+#           ["CO2_7"]]
+# vplist = [['SNAP-2','SNAP-4','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-9','SNAP-10'],
+#           ["SNAP-7"]]
 
 ################
 
@@ -135,8 +136,8 @@ vplist = tplist
 ###########
 
 
-levels = 7
-apply_prof = True
+levels = 7  # Removed if-statement in inner loop
+# apply_prof = True  # Removed if-statement in inner loop
 
 # catlist = ['CO2_01_POINT','CO2_02_AREA','CO2_34_AREA','CO2_34_POINT','CO2_05_AREA','CO2_05_POINT','CO2_06_AREA','CO2_07_AREA','CO2_08_AREA','CO2_08_POINT','CO2_09_AREA','CO2_09_POINT','CO2_10_AREA']
 # tplist = ['CO2_1','CO2_2','CO2_4','CO2_4','CO2_5','CO2_5','CO2_6','CO2_7','CO2_8','CO2_8','CO2_9','CO2_9','CO2_10']
@@ -158,66 +159,69 @@ month=0
 with nc.Dataset(path_emi) as emi:
     for day in range(3,7):
         for hour in range(24):
-            time = dt.datetime(year=2015,day=day-2,hour=hour,month=month+1)
+            time = dt.datetime(year=2015,
+                               day=day-2,
+                               hour=hour,
+                               month=month+1)
             print(time.strftime("%D"))
-            with nc.Dataset(output_path+output_name+time.strftime(format="%Y%m%d%H")+".nc","w") as of:
+            with nc.Dataset(output_path +
+                            output_name +
+                            time.strftime(format="%Y%m%d%H") +
+                            ".nc","w") as of:
                 of.createDimension("time")
-                of.createDimension("rlon",rlon)
-                of.createDimension("rlat",rlat)
-                of.createDimension("bnds",2)
-                of.createDimension("level",levels)
+                of.createDimension("rlon", rlon)
+                of.createDimension("rlat", rlat)
+                of.createDimension("bnds", 2)
+                of.createDimension("level", levels)
                 with nc.Dataset(path_org) as inf:
                     for var in ["time","rotated_pole","level","level_bnds"]:
-                        of.createVariable(var,inf[var].datatype,inf[var].dimensions)
+                        of.createVariable(var,
+                                          inf[var].datatype,
+                                          inf[var].dimensions)
                         of[var].setncatts(inf[var].__dict__)
                         if var in ["time"]:
                             of[var][:] = inf[var][:]
 
                 with nc.Dataset(path_emi) as inf:
                     for var in ["rlon","rlat"]:
-                        of.createVariable(var,inf[var].datatype,inf[var].dimensions)
+                        of.createVariable(var,
+                                          inf[var].datatype,
+                                          inf[var].dimensions)
                         of[var].setncatts(inf[var].__dict__)
+
                 for var in var_list:
-                    of.createVariable(var,"float32",("time","level","rlat","rlon"))
+                    of.createVariable(var,
+                                      "float32",
+                                      ("time","level","rlat","rlon"))
 
-
-                if levels==1:
-                    of["level"][:] = [10]
-                    of["level_bnds"][:] = [0,20]
-                else:
-                    of["level"][:] = ver["layer_mid"][:]
-                    of["level_bnds"][:] = np.array([ver["layer_bot"][:],ver["layer_top"][:]])
+                of["level"][:] = ver["layer_mid"][:]
+                of["level_bnds"][:] = np.array([ver["layer_bot"][:],
+                                                ver["layer_top"][:]])
 
                 for i in range(rlat): #range(2,62): #
                     print(i)
                     for j in range(rlon): #range(2,72):
-                        print("Loading entry country_ids[{},{}]".format(i,j))
+                        if j == 0:
+                            start = tm.time()
                         country_id = emi["country_ids"][i,j]
                         try:
                             country_index = np.where(moy["country"][:]==country_id)[0][0]
                         except IndexError:
                             print("Country number %s was not found in the list of countries" %country_id )
                         for k in range(levels):
-                            for v,var in enumerate(var_list):
+                            for v, var in enumerate(var_list):
                                 oae_to_add = 0
-                                for (cat,tp,vp) in zip(catlist[v],tplist[v],vplist[v]):
-                                    if apply_prof :
-                                        if levels==1:
-                                            oae_to_add += emi[cat][i,j] * hod[tp][hour,country_index] * dow[tp][day,country_index] * moy[tp][month,country_index]#*ver[vp][k]
-                                            # if tp=="CO2_2":
-                                            #     print(i-1,j-1,country_index,
-                                            #           hour,hod[tp][hour,country_index],
-                                            #           day,dow[tp][day,country_index],
-                                            #           month,moy[tp][month,country_index],
-                                            #           hod[tp][hour,country_index] * dow[tp][day,country_index] * moy[tp][month,country_index])
-                                            #     print(caca)
-                                        else:
-                                            oae_to_add += emi[cat][i,j] * hod[tp][hour,country_index] * dow[tp][day,country_index] * moy[tp][month,country_index]*ver[vp][k]
-                                    else:
-                                        oae_to_add += emi[cat][i,j]
+                                for (cat, tp, vp) in zip(catlist[v],
+                                                         tplist[v],
+                                                         vplist[v]):
+                                    oae_to_add += (emi[cat][i,j] *
+                                                   hod[tp][hour,country_index] *
+                                                   dow[tp][day,country_index] *
+                                                   moy[tp][month,country_index])
+                                of[var][0,k,i,j] = oae_to_add
 
-                                of[var][0,k,i,j] = oae_to_add #6-k ?
+                        stop = tm.time()
+                        if j == 9:
+                            print("Processed 10 rlon-iterations in {}"
+                                  .format(stop-start))
                                 #of["CO2_07_E"][0,k,i,j] = emi["CO2_07_AREA"][i,j]
-
-
-
