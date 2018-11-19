@@ -19,7 +19,6 @@ import time as tm
 #           ["CO2_7"]]
 # vplist = [['SNAP-2','SNAP-4','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-9','SNAP-10'],
 #           ["SNAP-7"]]
-
 ################
 
 ##########
@@ -30,8 +29,12 @@ path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
 output_path = "./output_CHE/"
 output_name = "Europe_CHE_"
 prof_path = "./input_profiles_CHE/"
-rlon = 760+4
-rlat = 610+4
+# rlon = 760+4
+# rlat = 610+4
+# TESTING
+rlon = 10
+rlat = 10
+
 var_list= []
 for (s,nfr) in [(s,nfr) for s in ["CO2","CO","CH4"] for nfr in ["A","B","C","F","O","ALL"]]:
     var_list.append(s+"_"+nfr+"_E") #["CO2_ALL_E","CO2_A_E"]
@@ -143,20 +146,25 @@ levels = 7  # Removed if-statement in inner loop
 # tplist = ['CO2_1','CO2_2','CO2_4','CO2_4','CO2_5','CO2_5','CO2_6','CO2_7','CO2_8','CO2_8','CO2_9','CO2_9','CO2_10']
 # vplist = ['SNAP-1','SNAP-2','SNAP-4','SNAP-4','SNAP-5','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-8','SNAP-9','SNAP-9','SNAP-10']
 
-
-
-
-
-
-
-dow = nc.Dataset(prof_path+"dayofweek.nc")
-hod = nc.Dataset(prof_path+"hourofday.nc")
-moy = nc.Dataset(prof_path+"monthofyear.nc")
-ver  = nc.Dataset(prof_path+"vertical_profiles.nc")
-
+dow = nc.Dataset(prof_path + "dayofweek.nc")
+hod = nc.Dataset(prof_path + "hourofday.nc")
+moy = nc.Dataset(prof_path + "monthofyear.nc")
+ver  = nc.Dataset(prof_path + "vertical_profiles.nc")
 
 month=0
 with nc.Dataset(path_emi) as emi:
+    # Mapping country_ids (from emi) to country-indices (from moy)
+    # Only gives minor speedboost
+    country_ids = np.array(
+        [
+            [
+                np.where(moy["country"][:] == emi["country_ids"][i,j])[0][0]
+                for j in range(rlon)
+            ]
+            for i in range(rlat)
+        ],
+        dtype = np.int16)
+
     for day in range(3,7):
         for hour in range(24):
             time = dt.datetime(year=2015,
@@ -198,16 +206,19 @@ with nc.Dataset(path_emi) as emi:
                 of["level_bnds"][:] = np.array([ver["layer_bot"][:],
                                                 ver["layer_top"][:]])
 
-                for i in range(rlat): #range(2,62): #
+                for i in range(rlat):
                     print(i)
-                    for j in range(rlon): #range(2,72):
-                        if j == 0:
-                            start = tm.time()
-                        country_id = emi["country_ids"][i,j]
-                        try:
-                            country_index = np.where(moy["country"][:]==country_id)[0][0]
-                        except IndexError:
-                            print("Country number %s was not found in the list of countries" %country_id )
+                    start = tm.time()
+                    for j in range(rlon):
+                        country_index = country_ids[i,j]
+
+                        # country_id = emi["country_ids"][i,j]
+                        # try:
+                        #     country_index = np.where(moy["country"][:]==country_id)[0][0]
+                        # except IndexError:
+                        #     print("Country number %s was not found in the list of countries" %country_id )
+
+
                         for k in range(levels):
                             for v, var in enumerate(var_list):
                                 oae_to_add = 0
@@ -217,11 +228,10 @@ with nc.Dataset(path_emi) as emi:
                                     oae_to_add += (emi[cat][i,j] *
                                                    hod[tp][hour,country_index] *
                                                    dow[tp][day,country_index] *
-                                                   moy[tp][month,country_index])
+                                                   moy[tp][month,country_index] *
+                                                   ver[vp][k])
                                 of[var][0,k,i,j] = oae_to_add
 
-                        stop = tm.time()
-                        if j == 9:
-                            print("Processed 10 rlon-iterations in {}"
-                                  .format(stop-start))
-                                #of["CO2_07_E"][0,k,i,j] = emi["CO2_07_AREA"][i,j]
+                    stop = tm.time()
+                    print("Processed 10 rlon-iterations in {}"
+                          .format(stop-start))
