@@ -3,6 +3,26 @@ import numpy as np
 import datetime as dt
 import time as tm
 
+
+def add_trail_dim(arr, size):
+    """Add a trailing dimension by copying the values of arr size times"""
+    return np.stack([np.copy(arr) for _ in range(size)], axis=-1)
+
+
+def extract_to_grid(country_ids, country_vals):
+    """Extract the values from country_vals [1D] on gridpoints given by
+    country_ids (2D)
+    
+    >>> res = extract_to_grid(x, y)
+    >>> res[i,j] == y[x[i,j]]
+    True forall i,j
+    """
+    res = np.zeros_like(country_ids)
+    for i in range(country_ids.shape[0]):
+        for j in range(country_ids.shape[1]):
+            res[i,j] = country_vals[country_ids[i,j]]
+    return res
+
 #################
 # Berlin testcase
 # path_emi = "../testdata/emis_2015_Berlin-coarse_64_74.nc"
@@ -29,11 +49,11 @@ path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
 output_path = "./output_CHE/"
 output_name = "Europe_CHE_"
 prof_path = "./input_profiles_CHE/"
-# rlon = 760+4
-# rlat = 610+4
+rlon = 760+4
+rlat = 610+4
 # TESTING
-rlon = 10
-rlat = 10
+# rlon = 10
+# rlat = 10
 
 var_list= []
 for (s,nfr) in [(s,nfr) for s in ["CO2","CO","CH4"] for nfr in ["A","B","C","F","O","ALL"]]:
@@ -213,17 +233,21 @@ with nc.Dataset(path_emi) as emi:
                     for (cat, tp, vp) in zip(catlist[v],
                                              tplist[v],
                                              vplist[v]):
-                        for i in range(rlat):
-                            for j in range(rlon):
-                                country_index = country_ids[i,j]
-                                for k in range(levels):
-                                    oae_vals[i,j,k] += (
-                                        emi[cat][i,j] *
-                                        hod[tp][hour,country_index] *
-                                        dow[tp][day,country_index] *
-                                        moy[tp][month,country_index] *
-                                        ver[vp][k])
+                        emi_mat = add_trail_dim(emi[cat][:rlat, :rlon],
+                                            levels)
+                        hod_mat = add_trail_dim(extract_to_grid(country_ids,
+                                                            hod[tp][hour, :]),
+                                            levels)
+                        dow_mat = add_trail_dim(extract_to_grid(country_ids,
+                                                            dow[tp][day, :]),
+                                            levels)
+                        moy_mat = add_trail_dim(extract_to_grid(country_ids,
+                                                            moy[tp][month, :]),
+                                            levels)
+                        ver_mat = ver[vp]
+                        oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
+
                     of[var][0,:] = oae_vals
                 stop = tm.time()
-                print("Processed 100 datapoints in {}"
-                      .format(stop-start))
+                print("Processed {} datapoints in {}"
+                      .format(rlon * rlat, stop-start))
