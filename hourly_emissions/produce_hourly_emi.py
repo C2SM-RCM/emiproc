@@ -24,7 +24,7 @@ vplist = [['SNAP-2','SNAP-4','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-9','SNAP-
 ##########
 # CHE
 #path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
-path_emi = "../testdata/CHE_TNO/emis_2015_Europe.nc"
+path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
 path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
 output_path = "./output_CHE/"
 output_name = "Europe_CHE_"
@@ -190,7 +190,8 @@ with nc.Dataset(path_emi) as emi:
 
                 for i in range(rlat): #range(2,62): #
                     print(i)
-                    for j in range(rlon): #range(2,72): 
+                    for j in range(rlon): #range(2,72):
+                        print("Loading entry country_ids[{},{}]".format(i,j))
                         country_id = emi["country_ids"][i,j]
                         try:
                             country_index = np.where(moy["country"][:]==country_id)[0][0]
