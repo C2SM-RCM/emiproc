@@ -206,32 +206,24 @@ with nc.Dataset(path_emi) as emi:
                 of["level_bnds"][:] = np.array([ver["layer_bot"][:],
                                                 ver["layer_top"][:]])
 
-                for i in range(rlat):
-                    print(i)
-                    start = tm.time()
-                    for j in range(rlon):
-                        country_index = country_ids[i,j]
-
-                        # country_id = emi["country_ids"][i,j]
-                        # try:
-                        #     country_index = np.where(moy["country"][:]==country_id)[0][0]
-                        # except IndexError:
-                        #     print("Country number %s was not found in the list of countries" %country_id )
-
-
-                        for k in range(levels):
-                            for v, var in enumerate(var_list):
-                                oae_to_add = 0
-                                for (cat, tp, vp) in zip(catlist[v],
-                                                         tplist[v],
-                                                         vplist[v]):
-                                    oae_to_add += (emi[cat][i,j] *
-                                                   hod[tp][hour,country_index] *
-                                                   dow[tp][day,country_index] *
-                                                   moy[tp][month,country_index] *
-                                                   ver[vp][k])
-                                of[var][0,k,i,j] = oae_to_add
-
-                    stop = tm.time()
-                    print("Processed 10 rlon-iterations in {}"
-                          .format(stop-start))
+                start = tm.time()
+                # print("Handling " + var)
+                for v, var in enumerate(var_list):
+                    oae_vals = np.zeros((rlat, rlon, levels))
+                    for (cat, tp, vp) in zip(catlist[v],
+                                             tplist[v],
+                                             vplist[v]):
+                        for i in range(rlat):
+                            for j in range(rlon):
+                                country_index = country_ids[i,j]
+                                for k in range(levels):
+                                    oae_vals[i,j,k] += (
+                                        emi[cat][i,j] *
+                                        hod[tp][hour,country_index] *
+                                        dow[tp][day,country_index] *
+                                        moy[tp][month,country_index] *
+                                        ver[vp][k])
+                    of[var][0,:] = oae_vals
+                stop = tm.time()
+                print("Processed 100 datapoints in {}"
+                      .format(stop-start))
