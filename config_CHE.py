@@ -40,7 +40,7 @@ dy = 0.05
 pollon = -170.0
 pollat = 43.0
 
-if offline:
+if not offline:
     xmin = -17#-2*dx
     ymin = -11#-2*dy
     nx = 760#+4
