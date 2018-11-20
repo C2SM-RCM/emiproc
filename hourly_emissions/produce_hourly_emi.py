@@ -4,15 +4,10 @@ import datetime as dt
 import time as tm
 
 
-def add_trail_dim(arr, size):
-    """Add a trailing dimension by copying the values of arr size times"""
-    return np.stack([np.copy(arr) for _ in range(size)], axis=-1)
-
-
 def extract_to_grid(country_ids, country_vals):
     """Extract the values from country_vals [1D] on gridpoints given by
     country_ids (2D)
-    
+
     >>> res = extract_to_grid(x, y)
     >>> res[i,j] == y[x[i,j]]
     True forall i,j
@@ -174,7 +169,7 @@ ver  = nc.Dataset(prof_path + "vertical_profiles.nc")
 month=0
 with nc.Dataset(path_emi) as emi:
     # Mapping country_ids (from emi) to country-indices (from moy)
-    # Only gives minor speedboost
+    # Only gives minor speedboost, but is kind of necessary for matmul
     country_ids = np.array(
         [
             [
@@ -227,24 +222,22 @@ with nc.Dataset(path_emi) as emi:
                                                 ver["layer_top"][:]])
 
                 start = tm.time()
-                # print("Handling " + var)
                 for v, var in enumerate(var_list):
                     oae_vals = np.zeros((rlat, rlon, levels))
                     for (cat, tp, vp) in zip(catlist[v],
                                              tplist[v],
                                              vplist[v]):
-                        emi_mat = add_trail_dim(emi[cat][:rlat, :rlon],
-                                            levels)
-                        hod_mat = add_trail_dim(extract_to_grid(country_ids,
-                                                            hod[tp][hour, :]),
-                                            levels)
-                        dow_mat = add_trail_dim(extract_to_grid(country_ids,
-                                                            dow[tp][day, :]),
-                                            levels)
-                        moy_mat = add_trail_dim(extract_to_grid(country_ids,
-                                                            moy[tp][month, :]),
-                                            levels)
+                        # Adding dimension to allow numpy to broadcast
+                        emi_mat = np.expand_dims(
+                            emi[cat][:rlat, :rlon], -1)
+                        hod_mat = np.expand_dims(
+                            extract_to_grid(country_ids, hod[tp][hour, :]), -1)
+                        dow_mat = np.expand_dims(
+                            extract_to_grid(country_ids, dow[tp][day, :]), -1)
+                        moy_mat = np.expand_dims(
+                            extract_to_grid(country_ids, moy[tp][month, :]), -1)
                         ver_mat = ver[vp]
+
                         oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
 
                     of[var][0,:] = oae_vals
