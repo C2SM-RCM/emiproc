@@ -30,7 +30,7 @@ def country_id_mapping(country_codes, grid):
         in country_codes
     """
     # There are 134 different EMEP country-codes, this fits in an uint8
-    res = np.empty_like(grid)
+    res = np.empty(shape=grid.shape, dtype=np.uint8)
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
             location = np.where(country_codes[:] == grid[i,j])
