@@ -3,20 +3,42 @@ import numpy as np
 import datetime as dt
 import time as tm
 
+def extract_to_grid(grid_to_index, country_vals):
+    """Extract the values from each country_vals [1D] on gridpoints given
+    by grid_to_index (2D)
 
-def extract_to_grid(country_ids, country_vals):
-    """Extract the values from country_vals [1D] on gridpoints given by
-    country_ids (2D)
+    Parameters
+    ----------
+    grid_to_index : np.array(dtype=int)
+        grid_to_index has at every gridpoint an integer which serves as an
+        index into country_vals.
+        grid_to_index.shape == (x, y)
+        grid_to_index[i,j] < n_k forall i < x, j < y, k < len(country_vals)
+    *country_vals : list(np.array(dtype=float))
+        country_vals[i].shape == (n_i,)
 
-    >>> res = extract_to_grid(x, y)
-    >>> res[i,j] == y[x[i,j]]
-    True forall i,j
+    Returns
+    -------
+    tuple(np.array(dtype=float))
+        Tuple of np.arrays, each of them the containing at (i,j) the value
+        in the corresponding country_vals-array indicated by the grid_to_index-
+        array.
+
+        >>> res1, res2 = extract_to_grid(x, y, z)
+        >>> y.dtype == res1.dtype
+        True
+        >>> x.shape == res2.shape
+        >>> res1[i,j] == y[x[i,j]]
+        True
+        >>> res2[i,j] == z[x[i,j]]
+        True
     """
-    res = np.zeros_like(country_ids)
-    for i in range(country_ids.shape[0]):
-        for j in range(country_ids.shape[1]):
-            res[i,j] = country_vals[country_ids[i,j]]
+    res = np.zeros_like(grid_to_index)
+    for i in range(grid_to_index.shape[0]):
+        for j in range(grid_to_index.shape[1]):
+            res[i,j] = country_vals[grid_to_index[i,j]]
     return res
+
 
 #################
 # Berlin testcase
@@ -169,7 +191,7 @@ ver  = nc.Dataset(prof_path + "vertical_profiles.nc")
 month=0
 with nc.Dataset(path_emi) as emi:
     # Mapping country_ids (from emi) to country-indices (from moy)
-    # Only gives minor speedboost, but is kind of necessary for matmul
+    # Only gives minor speedboost
     country_ids = np.array(
         [
             [
@@ -179,6 +201,7 @@ with nc.Dataset(path_emi) as emi:
             for i in range(rlat)
         ],
         dtype = np.int16)
+    print(type(country_ids))
 
     for day in range(3,7):
         for hour in range(24):
@@ -227,15 +250,15 @@ with nc.Dataset(path_emi) as emi:
                     for (cat, tp, vp) in zip(catlist[v],
                                              tplist[v],
                                              vplist[v]):
+
                         # Adding dimension to allow numpy to broadcast
-                        emi_mat = np.expand_dims(
-                            emi[cat][:rlat, :rlon], -1)
+                        emi_mat = np.expand_dims(emi[cat][:rlat, :rlon], -1)
                         hod_mat = np.expand_dims(
-                            extract_to_grid(country_ids, hod[tp][hour, :]), -1)
+                            extract_to_grid(grid_to_index, hod[tp][hour, :]), -1)
                         dow_mat = np.expand_dims(
-                            extract_to_grid(country_ids, dow[tp][day, :]), -1)
-                        moy_mat = np.expand_dims(
-                            extract_to_grid(country_ids, moy[tp][month, :]), -1)
+                            extract_to_grid(grid_to_index, dow[tp][day, :]), -1)
+                        moy_mat = add_trail_dim(
+                            extract_to_grid(grid_to_index, moy[tp][hour, :]), -1)
                         ver_mat = ver[vp]
 
                         oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
