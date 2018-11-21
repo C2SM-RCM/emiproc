@@ -3,6 +3,45 @@ import numpy as np
 import datetime as dt
 import time as tm
 
+
+def country_id_mapping(country_codes, grid):
+    """Map a country index to each gridpoint
+
+    grid contains an EMEP country code at each gridpoint.
+    country_codes is a 1D-array with all EMEP country codes.
+    Assign to each gridpoint the index in country_codes
+    of the EMEP-code given at that gridpoint by grid-mapping.
+
+    This is useful as profiles belonging to countries are stored
+    in the same order as the country_codes.
+
+    Parameters
+    ----------
+    country_codes : np.array(dtype=int, shape=(n, ))
+        Contains EMEP country codes
+    grid : np.array(dtype=int)
+        Each element points is a EMEP code which should be present in
+        country_codes
+
+    Returns
+    -------
+    np.array(dtype=int, shape=grid.shape)
+        Contains at each gridpoint the position of the EMEP code (from grid)
+        in country_codes
+    """
+    # There are 134 different EMEP country-codes, this fits in an uint8
+    res = np.empty_like(grid)
+    for i in range(grid.shape[0]):
+        for j in range(grid.shape[1]):
+            location = np.where(country_codes[:] == grid[i,j])
+            try:
+                res[i,j] = location[0][0]
+            except IndexError:
+                raise IndexError("Country-ID not found")
+
+    return res
+
+
 def extract_to_grid(grid_to_index, country_vals):
     """Extract the values from each country_vals [1D] on gridpoints given
     by grid_to_index (2D)
@@ -192,16 +231,8 @@ month=0
 with nc.Dataset(path_emi) as emi:
     # Mapping country_ids (from emi) to country-indices (from moy)
     # Only gives minor speedboost
-    country_ids = np.array(
-        [
-            [
-                np.where(moy["country"][:] == emi["country_ids"][i,j])[0][0]
-                for j in range(rlon)
-            ]
-            for i in range(rlat)
-        ],
-        dtype = np.int16)
-    print(type(country_ids))
+    # Assuming that the order in moy, hod and dow is the same
+    grid_to_index = country_id_mapping(moy['country'], emi['country_ids'])
 
     for day in range(3,7):
         for hour in range(24):
