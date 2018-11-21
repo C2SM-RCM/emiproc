@@ -72,11 +72,75 @@ def extract_to_grid(grid_to_index, country_vals):
         >>> res2[i,j] == z[x[i,j]]
         True
     """
-    res = np.zeros_like(grid_to_index)
+    res = np.empty(shape=grid_to_index.shape, dtype=np.float32)
     for i in range(grid_to_index.shape[0]):
         for j in range(grid_to_index.shape[1]):
             res[i,j] = country_vals[grid_to_index[i,j]]
     return res
+
+
+def write_metadata(outfile, org_file, emi_file, ver_file, variables):
+    """Write the metadata of the outfile.
+
+    Determine rlat, rlon from emi_file, levels from ver_file.
+
+    Create "time", "rlon", "rlat", "bnds", "level" dimensions.
+
+    Create "time", "rotated_pole", "level", "level_bnds" variables from
+    org_file.
+
+    Create "rlon", "rlat" variables from emi_file.
+
+    Create an emtpy variable with dimensions ("time", "level", "rlat", "rlon")
+    for element of varaibles.
+
+    Copy "level" & "level_bnds" values from ver_file "time" values from org_file.
+
+    Parameters
+    ----------
+    outfile : netCDF4.Dataset
+        Opened with 'w'-option. Where the data is written to.
+    org_file : netCDF4.Dataset
+        Containing variables "time", "rotated_pole", "level", "level_bnds"
+    emi_file : netCDF4.Dataset
+        Containing dimensions "rlon", "rlat"
+    ver_file : netCDF4.Dataset
+        Containing the variable "level_bnds" and varaible & dimension "level"
+    variables : list(str)
+        List of variable-names to be created
+    """
+    rlat = emi_file.dimensions['rlat'].size
+    rlon = emi_file.dimensions['rlon'].size
+    level = ver_file.dimensions['level'].size
+
+    outfile.createDimension('time')
+    outfile.createDimension('rlon', rlon)
+    outfile.createDimension('rlat', rlat)
+    outfile.createDimension('bnds', 2)
+    outfile.createDimension('level', level)
+
+    var_srcfile = [('time', org_file),
+                   ('rotated_pole', org_file),
+                   ('level', org_file),
+                   ('level_bnds', org_file),
+                   ('rlon', emi_file),
+                   ('rlat', emi_file)]
+
+    for varname, src_file in var_srcfile:
+        outfile.createVariable(varname = varname,
+                               datatype = src_file[varname].datatype,
+                               dimensions = src_file[varname].dimensions)
+        outfile[varname].setncatts(src_file[varname].__dict__)
+
+    outfile['time'][:] = org_file['time'][:]
+    outfile['level'][:] = ver_file['layer_mid'][:]
+    outfile['level_bnds'][:] = (
+        np.array([ver_file['layer_bot'][:], ver_file['layer_top'][:]]))
+
+    for varname in variables:
+        outfile.createVariable(varname = varname,
+                               datatype = 'float32',
+                               dimensions = ('time', 'level', 'rlat', 'rlon'))
 
 
 #################
@@ -227,12 +291,16 @@ hod = nc.Dataset(prof_path + "hourofday.nc")
 moy = nc.Dataset(prof_path + "monthofyear.nc")
 ver  = nc.Dataset(prof_path + "vertical_profiles.nc")
 
-month=0
+month = 0
+
+name_template = output_path + output_name + "%Y%m%d%H.nc"
+
 with nc.Dataset(path_emi) as emi:
     # Mapping country_ids (from emi) to country-indices (from moy)
     # Only gives minor speedboost
     # Assuming that the order in moy, hod and dow is the same
-    grid_to_index = country_id_mapping(moy['country'], emi['country_ids'])
+    print("Creating gridpoint->index mapping")
+    grid_to_index = country_id_mapping(moy['country'][:], emi['country_ids'][:])
 
     for day in range(3,7):
         for hour in range(24):
@@ -240,40 +308,15 @@ with nc.Dataset(path_emi) as emi:
                                day=day-2,
                                hour=hour,
                                month=month+1)
-            print(time.strftime("%D"))
-            with nc.Dataset(output_path +
-                            output_name +
-                            time.strftime(format="%Y%m%d%H") +
-                            ".nc","w") as of:
-                of.createDimension("time")
-                of.createDimension("rlon", rlon)
-                of.createDimension("rlat", rlat)
-                of.createDimension("bnds", 2)
-                of.createDimension("level", levels)
-                with nc.Dataset(path_org) as inf:
-                    for var in ["time","rotated_pole","level","level_bnds"]:
-                        of.createVariable(var,
-                                          inf[var].datatype,
-                                          inf[var].dimensions)
-                        of[var].setncatts(inf[var].__dict__)
-                        if var in ["time"]:
-                            of[var][:] = inf[var][:]
-
-                with nc.Dataset(path_emi) as inf:
-                    for var in ["rlon","rlat"]:
-                        of.createVariable(var,
-                                          inf[var].datatype,
-                                          inf[var].dimensions)
-                        of[var].setncatts(inf[var].__dict__)
-
-                for var in var_list:
-                    of.createVariable(var,
-                                      "float32",
-                                      ("time","level","rlat","rlon"))
-
-                of["level"][:] = ver["layer_mid"][:]
-                of["level_bnds"][:] = np.array([ver["layer_bot"][:],
-                                                ver["layer_top"][:]])
+            print(time.strftime("Processing %D, %H:%M"))
+            of_name = time.strftime(name_template)
+            with nc.Dataset(of_name, "w") as of:
+                with nc.Dataset(path_org) as org:
+                    write_metadata(outfile = of,
+                                   org_file = org,
+                                   emi_file = emi,
+                                   ver_file = ver,
+                                   variables = var_list)
 
                 start = tm.time()
                 for v, var in enumerate(var_list):
@@ -288,7 +331,7 @@ with nc.Dataset(path_emi) as emi:
                             extract_to_grid(grid_to_index, hod[tp][hour, :]), -1)
                         dow_mat = np.expand_dims(
                             extract_to_grid(grid_to_index, dow[tp][day, :]), -1)
-                        moy_mat = add_trail_dim(
+                        moy_mat = np.expand_dims(
                             extract_to_grid(grid_to_index, moy[tp][hour, :]), -1)
                         ver_mat = ver[vp]
 
