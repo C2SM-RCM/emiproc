@@ -324,7 +324,6 @@ with nc.Dataset(path_emi) as emi:
                     for (cat, tp, vp) in zip(catlist[v],
                                              tplist[v],
                                              vplist[v]):
-
                         # Adding dimension to allow numpy to broadcast
                         emi_mat = np.expand_dims(emi[cat][:rlat, :rlon], -1)
                         hod_mat = np.expand_dims(
@@ -332,7 +331,7 @@ with nc.Dataset(path_emi) as emi:
                         dow_mat = np.expand_dims(
                             extract_to_grid(grid_to_index, dow[tp][day, :]), -1)
                         moy_mat = np.expand_dims(
-                            extract_to_grid(grid_to_index, moy[tp][hour, :]), -1)
+                            extract_to_grid(grid_to_index, moy[tp][month, :]), -1)
                         ver_mat = ver[vp]
 
                         oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
