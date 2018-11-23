@@ -320,23 +320,25 @@ with nc.Dataset(path_emi) as emi:
 
                 start = tm.time()
                 for v, var in enumerate(var_list):
-                    oae_vals = np.zeros((rlat, rlon, levels))
+                    oae_vals = np.zeros((levels, rlat, rlon))
                     for (cat, tp, vp) in zip(catlist[v],
                                              tplist[v],
                                              vplist[v]):
                         # Adding dimension to allow numpy to broadcast
-                        emi_mat = np.expand_dims(emi[cat][:rlat, :rlon], -1)
-                        hod_mat = np.expand_dims(
-                            extract_to_grid(grid_to_index, hod[tp][hour, :]), -1)
-                        dow_mat = np.expand_dims(
-                            extract_to_grid(grid_to_index, dow[tp][day, :]), -1)
-                        moy_mat = np.expand_dims(
-                            extract_to_grid(grid_to_index, moy[tp][month, :]), -1)
-                        ver_mat = ver[vp]
+                        emi_mat = np.array(emi[cat][:])
+                        hod_mat = np.array(
+                            extract_to_grid(grid_to_index, hod[tp][hour, :]))
+                        dow_mat = np.array(
+                            extract_to_grid(grid_to_index, dow[tp][day, :]))
+                        moy_mat = np.array(
+                            extract_to_grid(grid_to_index, moy[tp][month, :]))
+                        ver_mat = np.array(ver[vp][:])
+                        ver_mat.shape = (levels, 1, 1)
 
                         oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
-
+                    # Careful, automatic reshaping!
                     of[var][0,:] = oae_vals
+
                 stop = tm.time()
                 print("Processed {} datapoints in {}"
                       .format(rlon * rlat, stop-start))
