@@ -1,7 +1,31 @@
+import time
+import datetime
+
 import netCDF4 as nc
 import numpy as np
-import datetime as dt
-import time as tm
+
+# ATM: rlat, rlon determined by dimensions in emi_file
+#      levels determined by dimensions in ver_file
+#      Would be nice if a subset could be specified by slicing
+
+def daterange(start_date, end_date):
+    """Yield a range containing dates from [start_date, end_date).
+
+    From https://stackoverflow.com/a/1060330.
+
+    Parameters
+    ----------
+    start_date : datetime.date
+    end_date : datetime.date
+
+    Yields
+    ------
+    datetime.date
+        Consecutive dates, starting from start_date and ending the day
+        before end_date.
+    """
+    for n in range(int ((end_date - start_date).days)):
+        yield start_date + datetime.timedelta(n)
 
 
 def country_id_mapping(country_codes, grid):
@@ -348,11 +372,14 @@ hod = nc.Dataset(prof_path + "hourofday.nc")
 moy = nc.Dataset(prof_path + "monthofyear.nc")
 ver  = nc.Dataset(prof_path + "vertical_profiles.nc")
 
-month = 0
+start_date = datetime.date(2015, 1, 1)
+end_date = datetime.date(2015, 1, 7)
 
 name_template = output_path + output_name + "%Y%m%d%H.nc"
 
 with nc.Dataset(path_emi) as emi:
+    # Time- and (grid-country-mapping)-independent data
+    print("Extracting emissions and vertical profiles...")
     emi_mats = extract_matrices(infile = emi,
                                 var_list = catlist,
                                 indices = np.s_[:])
@@ -364,41 +391,43 @@ with nc.Dataset(path_emi) as emi:
                                     lambda x: np.reshape(x,(levels, 1, 1))))
 
     # Mapping country_ids (from emi) to country-indices (from moy)
-    # Only gives minor speedboost
     # Assuming that the order in moy, hod and dow is the same
     print("Creating gridpoint -> index mapping...")
     emigrid_to_index = country_id_mapping(
         moy['country'][:], emi['country_ids'][:])
     val_on_emigrid = lambda x: extract_to_grid(emigrid_to_index, x)
 
+    # Time dependent data
     # Need only 1 month
+    print("Extracting month-profile...")
+    assert start_date.month == end_date.month
+    month_id  = start_date.month - 1 
     moy_mats = extract_matrices(infile = moy,
                                 var_list = tplist,
-                                indices = np.s_[month, :],
+                                indices = np.s_[month_id, :],
                                 transform = val_on_emigrid)
 
-    # List of dicts (containing huge 2D matrices) is not ideal, but I'm
-    # too lazy atm to change it (dict of 3D matrices would be better)
+    print("Extracting day-profile...")
     dow_mats = [extract_matrices(infile = dow,
                                  var_list = tplist,
-                                 indices = np.s_[day, :],
+                                 indices = np.s_[day_of_week, :],
                                  transform = val_on_emigrid)
-                for day in range(3,7)]
+                for day_of_week in range(7)]  # always extract whole week
+    # List of dicts (containing 2D matrices) is not ideal, but I'm
+    # too lazy atm to change it (dict of 3D matrices would be better)
+    print("Extracting hour-profile...")
     hod_mats = [extract_matrices(infile = hod,
                                  var_list = tplist,
                                  indices = np.s_[hour, :],
                                  transform = val_on_emigrid)
                 for hour in range(24)]
 
-    for day in range(3,7):
-        start = tm.time()
+    for day in daterange(start_date, end_date):
+        start = time.time()
         for hour in range(24):
-            time = dt.datetime(year=2015,
-                               day=day-2,
-                               hour=hour,
-                               month=month+1)
-            print(time.strftime("Processing %D, %H:%M"))
-            of_name = time.strftime(name_template)
+            day_hour = datetime.datetime.combine(day, datetime.time(hour))
+            print(day_hour.strftime("Processing %D, %H:%M"))
+            of_name = day_hour.strftime(name_template)
             with nc.Dataset(of_name, "w") as of:
                 with nc.Dataset(path_org) as org:
                     write_metadata(outfile = of,
@@ -414,7 +443,7 @@ with nc.Dataset(path_emi) as emi:
                                            vplist[v]):
                         emi_mat = emi_mats[cat]
                         hod_mat = hod_mats[hour][tp]
-                        dow_mat = dow_mats[day-3][tp]
+                        dow_mat = dow_mats[day.weekday()][tp]
                         moy_mat = moy_mats[tp]
                         ver_mat = ver_mats[vp]
 
@@ -422,6 +451,6 @@ with nc.Dataset(path_emi) as emi:
                     # Careful, automatic reshaping!
                     of[var][0,:] = oae_vals
 
-        stop = tm.time()
+        stop = time.time()
         print("Processed day {} in {}"
               .format(day, stop-start))
