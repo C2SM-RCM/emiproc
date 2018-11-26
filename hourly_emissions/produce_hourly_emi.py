@@ -143,6 +143,47 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
                                dimensions = ('time', 'level', 'rlat', 'rlon'))
 
 
+def extract_matrices(infile, var_list, indices, transform=None):
+    """Extract the array specified by indices for each variable in var_list
+    from infile.
+
+    If transform is not none, it is applied to the extracted array.
+
+    Parameters
+    ----------
+    infile : netCDF4.Dataset
+    var_list : list(list(str))
+    indices : slice()
+    transform : function
+        Takes as input the extracted array (infile[var][indices]).
+        Default: None (== identity)
+
+    Returns
+    -------
+    dict()
+        Return a dictionary of varname : np.array() pairs.
+
+        >>> mats = extract_matrices(if, ['myvar'], np.s_[0, :])
+        >>> np.allclose(mats['myvar'], if['myvar'][0, :], rtol=0, atol=0)
+        True
+        >>> mats2 = extract_matrics(if, ['myvar'], np.s_[0, :], np.max)
+        >>> mats2['myvar'] == np.max(if['myvar'][0, :])
+        True
+    """
+    res = dict()
+
+    if transform is None:
+        for subvar_list in var_list:
+            for var in subvar_list:
+                res[var] = np.array(infile[var][indices])
+    else:
+        for subvar_list in var_list:
+            for var in subvar_list:
+                res[var] = np.array(transform(infile[var][indices]))
+
+    return res
+
+
 #################
 # Berlin testcase
 # path_emi = "../testdata/emis_2015_Berlin-coarse_64_74.nc"
@@ -178,7 +219,7 @@ rlat = 610+4
 var_list= []
 for (s,nfr) in [(s,nfr) for s in ["CO2","CO","CH4"] for nfr in ["A","B","C","F","O","ALL"]]:
     var_list.append(s+"_"+nfr+"_E") #["CO2_ALL_E","CO2_A_E"]
-catlist= [
+catlist_prelim = [
     ["CO2_A_AREA","CO2_A_POINT"], # for CO2_A_E
     ["CO2_B_AREA","CO2_B_POINT"], # for CO2_B_E
     ["CO2_C_AREA"],               # for CO2_C_E
@@ -247,7 +288,7 @@ catlist= [
  ]
 ]
 
-tplist_1 = [
+tplist_prelim = [
     ['GNFR_A','GNFR_A'], # for s_A_E
     ['GNFR_B','GNFR_B'], # for s_B_E
     ['GNFR_C'],          # for s_C_E
@@ -272,9 +313,25 @@ tplist_1 = [
      'GNFR_J','GNFR_J',
  ]          # for s_ALL_E
 ]
-tplist= tplist_1+tplist_1+tplist_1
+tplist_prelim *= 3
+vplist_prelim = tplist_prelim
 
-vplist = tplist
+# Make sure catlist, tplist, vplist have the same shape
+catlist, tplist, vplist = [], [], []
+for v in range(len(var_list)):
+    subcat = []
+    subtp = []
+    subvp = []
+    for cat, tp, vp in zip(catlist_prelim[v],
+                           tplist_prelim[v],
+                           vplist_prelim[v]):
+        subcat.append(cat)
+        subtp.append(tp)
+        subvp.append(vp)
+    catlist.append(subcat)
+    tplist.append(subtp)
+    vplist.append(subvp)
+
 
 ###########
 
@@ -296,13 +353,45 @@ month = 0
 name_template = output_path + output_name + "%Y%m%d%H.nc"
 
 with nc.Dataset(path_emi) as emi:
+    emi_mats = extract_matrices(infile = emi,
+                                var_list = catlist,
+                                indices = np.s_[:])
+
+    ver_mats = extract_matrices(infile = ver,
+                                var_list = vplist,
+                                indices = np.s_[:],
+                                transform = (
+                                    lambda x: np.reshape(x,(levels, 1, 1))))
+
     # Mapping country_ids (from emi) to country-indices (from moy)
     # Only gives minor speedboost
     # Assuming that the order in moy, hod and dow is the same
-    print("Creating gridpoint->index mapping")
-    grid_to_index = country_id_mapping(moy['country'][:], emi['country_ids'][:])
+    print("Creating gridpoint -> index mapping...")
+    emigrid_to_index = country_id_mapping(
+        moy['country'][:], emi['country_ids'][:])
+    val_on_emigrid = lambda x: extract_to_grid(emigrid_to_index, x)
+
+    # Need only 1 month
+    moy_mats = extract_matrices(infile = moy,
+                                var_list = tplist,
+                                indices = np.s_[month, :],
+                                transform = val_on_emigrid)
+
+    # List of dicts (containing huge 2D matrices) is not ideal, but I'm
+    # too lazy atm to change it (dict of 3D matrices would be better)
+    dow_mats = [extract_matrices(infile = dow,
+                                 var_list = tplist,
+                                 indices = np.s_[day, :],
+                                 transform = val_on_emigrid)
+                for day in range(3,7)]
+    hod_mats = [extract_matrices(infile = hod,
+                                 var_list = tplist,
+                                 indices = np.s_[hour, :],
+                                 transform = val_on_emigrid)
+                for hour in range(24)]
 
     for day in range(3,7):
+        start = tm.time()
         for hour in range(24):
             time = dt.datetime(year=2015,
                                day=day-2,
@@ -318,27 +407,21 @@ with nc.Dataset(path_emi) as emi:
                                    ver_file = ver,
                                    variables = var_list)
 
-                start = tm.time()
                 for v, var in enumerate(var_list):
                     oae_vals = np.zeros((levels, rlat, rlon))
-                    for (cat, tp, vp) in zip(catlist[v],
-                                             tplist[v],
-                                             vplist[v]):
-                        # Adding dimension to allow numpy to broadcast
-                        emi_mat = np.array(emi[cat][:])
-                        hod_mat = np.array(
-                            extract_to_grid(grid_to_index, hod[tp][hour, :]))
-                        dow_mat = np.array(
-                            extract_to_grid(grid_to_index, dow[tp][day, :]))
-                        moy_mat = np.array(
-                            extract_to_grid(grid_to_index, moy[tp][month, :]))
-                        ver_mat = np.array(ver[vp][:])
-                        ver_mat.shape = (levels, 1, 1)
+                    for cat, tp, vp in zip(catlist[v],
+                                           tplist[v],
+                                           vplist[v]):
+                        emi_mat = emi_mats[cat]
+                        hod_mat = hod_mats[hour][tp]
+                        dow_mat = dow_mats[day-3][tp]
+                        moy_mat = moy_mats[tp]
+                        ver_mat = ver_mats[vp]
 
                         oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
                     # Careful, automatic reshaping!
                     of[var][0,:] = oae_vals
 
-                stop = tm.time()
-                print("Processed {} datapoints in {}"
-                      .format(rlon * rlat, stop-start))
+        stop = tm.time()
+        print("Processed day {} in {}"
+              .format(day, stop-start))
