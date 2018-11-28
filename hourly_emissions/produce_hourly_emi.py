@@ -28,7 +28,7 @@ def daterange(start_date, end_date):
         Consecutive dates, starting from start_date and ending the day
         before end_date.
     """
-    for n in range(int ((end_date - start_date).days)):
+    for n in range(int((end_date - start_date).days)):
         yield start_date + datetime.timedelta(n)
 
 
@@ -61,9 +61,9 @@ def country_id_mapping(country_codes, grid):
     res = np.empty(shape=grid.shape, dtype=np.uint8)
     for i in range(grid.shape[0]):
         for j in range(grid.shape[1]):
-            location = np.where(country_codes[:] == grid[i,j])
+            location = np.where(country_codes[:] == grid[i, j])
             try:
-                res[i,j] = location[0][0]
+                res[i, j] = location[0][0]
             except IndexError:
                 raise IndexError("Country-ID not found")
 
@@ -101,7 +101,7 @@ def extract_to_grid(grid_to_index, country_vals):
     res = np.empty(shape=grid_to_index.shape, dtype=np.float32)
     for i in range(grid_to_index.shape[0]):
         for j in range(grid_to_index.shape[1]):
-            res[i,j] = country_vals[grid_to_index[i,j]]
+            res[i, j] = country_vals[grid_to_index[i, j]]
     return res
 
 
@@ -138,7 +138,8 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
     Create an emtpy variable with dimensions ("time", "level", "rlat", "rlon")
     for element of varaibles.
 
-    Copy "level" & "level_bnds" values from ver_file "time" values from org_file.
+    Copy "level" & "level_bnds" values from ver_file "time" values from
+    org_file.
 
     Parameters
     ----------
@@ -171,9 +172,9 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
                    ('rlat', emi_file)]
 
     for varname, src_file in var_srcfile:
-        outfile.createVariable(varname = varname,
-                               datatype = src_file[varname].datatype,
-                               dimensions = src_file[varname].dimensions)
+        outfile.createVariable(varname=varname,
+                               datatype=src_file[varname].datatype,
+                               dimensions=src_file[varname].dimensions)
         outfile[varname].setncatts(src_file[varname].__dict__)
 
     outfile['time'][:] = org_file['time'][:]
@@ -182,9 +183,9 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
         np.array([ver_file['layer_bot'][:], ver_file['layer_top'][:]]))
 
     for varname in variables:
-        outfile.createVariable(varname = varname,
-                               datatype = 'float32',
-                               dimensions = ('time', 'level', 'rlat', 'rlon'))
+        outfile.createVariable(varname=varname,
+                               datatype='float32',
+                               dimensions=('time', 'level', 'rlat', 'rlon'))
 
 
 def extract_matrices(infile, var_list, indices, transform=None):
@@ -236,9 +237,9 @@ def process_day(date, path_template, lists, matrices, datasets):
     Loop over all hours of the day, create one file for each hour.
 
     For each file, the netcdf-file is created with the name specified by
-    name_template. The metadata is written by write_metadata() using information
-    from datasets (possible bottleneck as all processes read from the same
-    netcdf files).
+    name_template. The metadata is written by write_metadata() using
+    information from datasets (possible bottleneck as all processes read from
+    the same netcdf files).
 
     Then, for each variable it's values at all points are computed using data
     from the matrices. The variables are specified in lists.
@@ -256,11 +257,11 @@ def process_day(date, path_template, lists, matrices, datasets):
                 List of all the variable names.
         -   'cats' : list(str)
                 List of all categories (used as key for matrices.emi_mats).
-        -   'tps' : list(str) 
-                List of all temporal profiles (used as key for 
+        -   'tps' : list(str)
+                List of all temporal profiles (used as key for
                 matrices.hod_mats, matrices.dow_mats, matrices.moy_mats).
                 Should have the same shape as cat_list.
-        -   'vps' : list(str) 
+        -   'vps' : list(str)
                 List of all vertical profiles (used as key for
                 matrices.vp_mats). Should have the same shape as cat_list.
     matrices : dict
@@ -278,18 +279,17 @@ def process_day(date, path_template, lists, matrices, datasets):
                 profile-values for each gridpoint. Shape of the arrays:
                 (rlat, rlon).
         -   'moy_mats' : dict(str: np.array)
-                Dict mapping temporal profiles to 2D np.arrays containing month-
-                profile-values for each gridpoint. Shape of the arrays:
+                Dict mapping temporal profiles to 2D np.arrays containing
+                month-profile-values for each gridpoint. Shape of the arrays:
                 (rlat, rlon).
         -   'ver_mats' : dict(str: np.array)
-                Dict mapping vertical profiles to 3D np.arrays containg vertical
-                profile-values for each level. Shape of the arrays: (7, 1, 1).
-                This way numpy can broadcast them together with the other
-                matrices.
+                Dict mapping vertical profiles to 1D np.arrays containg
+                vertical profile-values for each level.
+                Shape of the arrays: (7, ).
     datasets : dict
         A dict containing paths to netcdf-files with information about the
         metadata of the produced emissions-file, most importantly rlat, rlon,
-        and levels. See the detailed usage of these datasets in write_metadata()
+        and levels. See the detailed usage of these datasets in write_metadata
         -   'org_path' : str
                 Dataset containing organisational values, such as time.
         -   'emi_path' : str
@@ -315,11 +315,11 @@ def process_day(date, path_template, lists, matrices, datasets):
             day_hour = datetime.datetime.combine(date, datetime.time(hour))
             of_path = day_hour.strftime(path_template)
             with Dataset(of_path, "w") as of:
-                write_metadata(outfile = of,
-                               org_file = org,
-                               emi_file = emi,
-                               ver_file = ver,
-                               variables = lists['variables'])
+                write_metadata(outfile=of,
+                               org_file=org,
+                               emi_file=emi,
+                               ver_file=ver,
+                               variables=lists['variables'])
 
                 for v, var in enumerate(lists['variables']):
                     oae_vals = np.zeros((levels, rlat, rlon))
@@ -335,9 +335,13 @@ def process_day(date, path_template, lists, matrices, datasets):
                         # Add dimensions so numpy can broadcast
                         ver_mat = np.reshape(ver_mat, (levels, 1, 1))
 
-                        oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
-                        # Careful, automatic reshaping!
-                    of[var][0,:] = oae_vals
+                        oae_vals += (emi_mat *
+                                     hod_mat *
+                                     dow_mat *
+                                     moy_mat *
+                                     ver_mat)
+                    # Careful, automatic reshaping!
+                    of[var][0, :] = oae_vals
 
     return date
 
@@ -434,12 +438,11 @@ def generate_arguments(start_date, end_date,
         val_on_emigrid = CountryToGridTranslator(emigrid_to_index)
         print("... finished gridpoint -> index mapping")
 
-
         # Time- and (grid-country-mapping)-dependent data
         assert start_date.month == end_date.month, ("Adjust the script to "
-                                                    "prepare data for multiple "
-                                                    "months.")
-        month_id = start_date.month -1
+                                                    "prepare data for multiple"
+                                                    " months.")
+        month_id = start_date.month - 1
         args_dep = [(moy_path,
                      tplist,
                      np.s_[month_id, :],
@@ -466,8 +469,6 @@ def generate_arguments(start_date, end_date,
         hod_mats = res_dep[8:]
         print("... finished temporal profiles")
 
-        assert len(hod_mats) == 24  # sanity check
-
     lists = {'variables': var_list,
              'cats': catlist,
              'tps': tplist,
@@ -488,202 +489,180 @@ def generate_arguments(start_date, end_date,
         yield (day_date, path_template, lists, matrices, datasets)
 
 
-#################
-# Berlin testcase
-# path_emi = "../testdata/emis_2015_Berlin-coarse_64_74.nc"
-# path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
-# output_path = "./output/"
-# output_name = "CO2_CO_NOX_Berlin-coarse_"
-# prof_path = "./input_profiles/"
-# rlon = 74
-# rlat = 64
-# var_list = ["CO2_A_E","CO2_07_E"]
-# catlist = [['CO2_02_AREA','CO2_34_AREA','CO2_05_AREA','CO2_06_AREA','CO2_07_AREA','CO2_08_AREA','CO2_09_AREA','CO2_10_AREA'],
-#            ["CO2_07_AREA"]]
-# tplist = [['CO2_2','CO2_4','CO2_5','CO2_6','CO2_7','CO2_8','CO2_9','CO2_10'],
-#           ["CO2_7"]]
-# vplist = [['SNAP-2','SNAP-4','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-9','SNAP-10'],
-#           ["SNAP-7"]]
-################
+def create_lists():
+    """Create var_list, catlist, tplist, vplist"""
+    tracers = ["CO2", "CO", "CH4"]
+    categories = ["A", "B", "C", "F", "O", "ALL"]
+    var_list = []
+    for (s, nfr) in [(s, nfr) for s in tracers for nfr in categories]:
+        var_list.append(s + "_" + nfr + "_E")
 
-##########
-# CHE
-#path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
-path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
-path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
-output_path = "./output_CHE/"
-output_name = "Europe_CHE_"
-prof_path = "./input_profiles_CHE/"
-# rlon = 760+4
-# rlat = 610+4
-# TESTING
-# rlon = 10
-# rlat = 10
+    catlist_prelim = (
+        [
+            ["CO2_A_AREA", "CO2_A_POINT"],   # for CO2_A_E
+            ["CO2_B_AREA", "CO2_B_POINT"],   # for CO2_B_E
+            ["CO2_C_AREA"],                  # for CO2_C_E
+            ["CO2_F_AREA"],                  # for CO2_F_E
+            ["CO2_D_AREA", "CO2_D_POINT",
+             "CO2_E_AREA",
+             "CO2_G_AREA",
+             "CO2_H_AREA", "CO2_H_POINT",
+             "CO2_I_AREA",
+             "CO2_J_AREA", "CO2_J_POINT"],  # for CO2_O_E
+            ["CO2_A_AREA", "CO2_A_POINT",
+             "CO2_B_AREA", "CO2_B_POINT",
+             "CO2_C_AREA",
+             "CO2_F_AREA",
+             "CO2_D_AREA", "CO2_D_POINT",
+             "CO2_E_AREA",
+             "CO2_G_AREA",
+             "CO2_H_AREA", "CO2_H_POINT",
+             "CO2_I_AREA",
+             "CO2_J_AREA", "CO2_J_POINT"],  # for CO2_ALL_E
+            ["CO_A_AREA", "CO_A_POINT"],    # for CO_A_E
+            ["CO_B_AREA", "CO_B_POINT"],    # for CO_B_E
+            ["CO_C_AREA"],                  # for CO_C_E
+            ["CO_F_AREA"],                  # for CO_F_E
+            ["CO_D_AREA", "CO_D_POINT",
+             "CO_E_AREA",
+             "CO_G_AREA",
+             "CO_H_AREA", "CO_H_POINT",
+             "CO_I_AREA",
+             "CO_J_AREA", "CO_J_POINT"],    # for CO_O_E
+            ["CO_A_AREA", "CO_A_POINT",
+             "CO_B_AREA", "CO_B_POINT",
+             "CO_C_AREA",
+             "CO_F_AREA",
+             "CO_D_AREA", "CO_D_POINT",
+             "CO_E_AREA",
+             "CO_G_AREA",
+             "CO_H_AREA", "CO_H_POINT",
+             "CO_I_AREA",
+             "CO_J_AREA", "CO_J_POINT"],    # for CO_ALL_E
+            ["CH4_A_AREA", "CH4_A_POINT"],  # for CH4_A_E
+            ["CH4_B_AREA", "CH4_B_POINT"],  # for CH4_B_E
+            ["CH4_C_AREA"],                 # for CH4_C_E
+            ["CH4_F_AREA"],                 # for CH4_F_E
+            ["CH4_D_AREA", "CH4_D_POINT",
+             "CH4_E_AREA",
+             "CH4_G_AREA",
+             "CH4_H_AREA", "CH4_H_POINT",
+             "CH4_I_AREA",
+             "CH4_J_AREA", "CH4_J_POINT"],  # for CH4_O_E
+            ["CH4_A_AREA", "CH4_A_POINT",
+             "CH4_B_AREA", "CH4_B_POINT",
+             "CH4_C_AREA",
+             "CH4_F_AREA",
+             "CH4_D_AREA", "CH4_D_POINT",
+             "CH4_E_AREA",
+             "CH4_G_AREA",
+             "CH4_H_AREA", "CH4_H_POINT",
+             "CH4_I_AREA",
+             "CH4_J_AREA", "CH4_J_POINT"]   # for CH4_ALL_E
+        ])
 
-var_list= []
-for (s,nfr) in [(s,nfr) for s in ["CO2","CO","CH4"] for nfr in ["A","B","C","F","O","ALL"]]:
-    var_list.append(s+"_"+nfr+"_E") #["CO2_ALL_E","CO2_A_E"]
-catlist_prelim = [
-    ["CO2_A_AREA","CO2_A_POINT"], # for CO2_A_E
-    ["CO2_B_AREA","CO2_B_POINT"], # for CO2_B_E
-    ["CO2_C_AREA"],               # for CO2_C_E
-    ["CO2_F_AREA"],               # for CO2_F_E
-    ["CO2_D_AREA","CO2_D_POINT",
-     "CO2_E_AREA",
-     "CO2_G_AREA",
-     "CO2_H_AREA","CO2_H_POINT", 
-     "CO2_I_AREA",     
-     "CO2_J_AREA","CO2_J_POINT",  # for CO2_O_E
- ],
-    ["CO2_A_AREA","CO2_A_POINT",
-     "CO2_B_AREA","CO2_B_POINT",
-     "CO2_C_AREA",
-     "CO2_F_AREA",
-     "CO2_D_AREA","CO2_D_POINT",
-     "CO2_E_AREA",
-     "CO2_G_AREA",
-     "CO2_H_AREA","CO2_H_POINT", 
-     "CO2_I_AREA",     
-     "CO2_J_AREA","CO2_J_POINT",  # for CO2_ALL_E
-],
-    ["CO_A_AREA","CO_A_POINT"],   # for CO_A_E
-    ["CO_B_AREA","CO_B_POINT"],   # for CO_B_E
-    ["CO_C_AREA"],                # for CO_C_E
-    ["CO_F_AREA"],                # for CO_F_E
-    ["CO_D_AREA","CO_D_POINT",
-     "CO_E_AREA",
-     "CO_G_AREA",
-     "CO_H_AREA","CO_H_POINT", 
-     "CO_I_AREA",     
-     "CO_J_AREA","CO_J_POINT",    # for CO_O_E
-],
-    ["CO_A_AREA","CO_A_POINT",
-     "CO_B_AREA","CO_B_POINT",
-     "CO_C_AREA",
-     "CO_F_AREA",
-     "CO_D_AREA","CO_D_POINT",
-     "CO_E_AREA",
-     "CO_G_AREA",
-     "CO_H_AREA","CO_H_POINT", 
-     "CO_I_AREA",     
-     "CO_J_AREA","CO_J_POINT",    # for CO_ALL_E
-],
-    ["CH4_A_AREA","CH4_A_POINT"], # for CH4_A_E
-    ["CH4_B_AREA","CH4_B_POINT"], # for CH4_B_E
-    ["CH4_C_AREA"],               # for CH4_C_E
-    ["CH4_F_AREA"],               # for CH4_F_E
-    ["CH4_D_AREA","CH4_D_POINT",
-     "CH4_E_AREA",
-     "CH4_G_AREA",
-     "CH4_H_AREA","CH4_H_POINT", 
-     "CH4_I_AREA",     
-     "CH4_J_AREA","CH4_J_POINT",  # for CH4_O_E
-],
-    ["CH4_A_AREA","CH4_A_POINT",
-     "CH4_B_AREA","CH4_B_POINT",
-     "CH4_C_AREA",
-     "CH4_F_AREA",
-     "CH4_D_AREA","CH4_D_POINT",
-     "CH4_E_AREA",
-     "CH4_G_AREA",
-     "CH4_H_AREA","CH4_H_POINT", 
-     "CH4_I_AREA",     
-     "CH4_J_AREA","CH4_J_POINT", # for CH4_ALL_E
- ]
-]
+    tplist_prelim = (
+        [
+            ['GNFR_A', 'GNFR_A'],         # for s_A_E
+            ['GNFR_B', 'GNFR_B'],         # for s_B_E
+            ['GNFR_C'],                   # for s_C_E
+            ['GNFR_F'],                   # for s_F_E
+            ['GNFR_D', 'GNFR_D',
+             'GNFR_E',
+             'GNFR_G',
+             'GNFR_H', 'GNFR_H',
+             'GNFR_I',
+             'GNFR_J', 'GNFR_J',
+             'GNFR_K',
+             'GNFR_L'],                   # for s_O_E
+            ['GNFR_A', 'GNFR_A',
+             'GNFR_B', 'GNFR_B',
+             'GNFR_C',
+             'GNFR_F',
+             'GNFR_D', 'GNFR_D',
+             'GNFR_E',
+             'GNFR_G',
+             'GNFR_H', 'GNFR_H',
+             'GNFR_I',
+             'GNFR_J', 'GNFR_J']          # for s_ALL_E
+        ])
 
-tplist_prelim = [
-    ['GNFR_A','GNFR_A'], # for s_A_E
-    ['GNFR_B','GNFR_B'], # for s_B_E
-    ['GNFR_C'],          # for s_C_E
-    ['GNFR_F'],          # for s_F_E
-    ['GNFR_D','GNFR_D', 
-     'GNFR_E',
-     'GNFR_G',
-     'GNFR_H','GNFR_H',
-     'GNFR_I',
-     'GNFR_J','GNFR_J',
-     'GNFR_K',
-     'GNFR_L',],         # for s_O_E
-    ['GNFR_A','GNFR_A',
-     'GNFR_B','GNFR_B',
-     'GNFR_C',
-     'GNFR_F',
-     'GNFR_D','GNFR_D',
-     'GNFR_E',
-     'GNFR_G',
-     'GNFR_H','GNFR_H',
-     'GNFR_I',
-     'GNFR_J','GNFR_J',
- ]          # for s_ALL_E
-]
-tplist_prelim *= 3
-vplist_prelim = tplist_prelim
+    tplist_prelim *= 3
+    vplist_prelim = tplist_prelim
 
-# Make sure catlist, tplist, vplist have the same shape
-catlist, tplist, vplist = [], [], []
-for v in range(len(var_list)):
-    subcat = []
-    subtp = []
-    subvp = []
-    for cat, tp, vp in zip(catlist_prelim[v],
-                           tplist_prelim[v],
-                           vplist_prelim[v]):
-        subcat.append(cat)
-        subtp.append(tp)
-        subvp.append(vp)
-    catlist.append(subcat)
-    tplist.append(subtp)
-    vplist.append(subvp)
+    # Make sure catlist, tplist, vplist have the same shape
+    catlist, tplist, vplist = [], [], []
+    for v in range(len(var_list)):
+        subcat = []
+        subtp = []
+        subvp = []
+        for cat, tp, vp in zip(catlist_prelim[v],
+                               tplist_prelim[v],
+                               vplist_prelim[v]):
+            subcat.append(cat)
+            subtp.append(tp)
+            subvp.append(vp)
+        catlist.append(subcat)
+        tplist.append(subtp)
+        vplist.append(subvp)
+
+    return var_list, catlist, tplist, vplist
 
 
-###########
+def main(path_emi, path_org, output_path, output_name, prof_path,
+         start_date, end_date):
+    point1 = time.time()
+
+    var_list, catlist, tplist, vplist = create_lists()
+
+    # Prepare arguments
+    args = generate_arguments(start_date=start_date,
+                              end_date=end_date,
+                              emi_path=path_emi,
+                              org_path=path_org,
+                              ver_path=prof_path + "vertical_profiles.nc",
+                              hod_path=prof_path + "hourofday.nc",
+                              dow_path=prof_path + "dayofweek.nc",
+                              moy_path=prof_path + "monthofyear.nc",
+                              var_list=var_list,
+                              catlist=catlist,
+                              tplist=tplist,
+                              vplist=vplist,
+                              output_path=output_path,
+                              output_prefix=output_name)
+
+    with Pool(14) as pool:  # 2 weeks in parallel
+        # Use imap for smaller memory requirements (arguments are only built
+        # when they are needed)
+        res = pool.imap(func=process_day_one_arg,
+                        iterable=args,
+                        chunksize=1)
+
+        # Iterate through all results to prevent the script from returning
+        # before imap is done
+        for r in res:
+            print(r.strftime("... finished %x"))
+
+    point2 = time.time()
+    print("Overall runtime: {} s".format(point2 - point1))
 
 
-# levels = 7  # Removed if-statement in inner loop
-# apply_prof = True  # Removed if-statement in inner loop
+if __name__ == '__main__':
+    # CHE
+    path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
+    path_org = ("../testdata/hourly_emi_brd/"
+                "CO2_CO_NOX_Berlin-coarse_2015010110.nc")
+    output_path = "./output_CHE/"
+    output_name = "Europe_CHE_"
+    prof_path = "./input_profiles_CHE/"
 
-# catlist = ['CO2_01_POINT','CO2_02_AREA','CO2_34_AREA','CO2_34_POINT','CO2_05_AREA','CO2_05_POINT','CO2_06_AREA','CO2_07_AREA','CO2_08_AREA','CO2_08_POINT','CO2_09_AREA','CO2_09_POINT','CO2_10_AREA']
-# tplist = ['CO2_1','CO2_2','CO2_4','CO2_4','CO2_5','CO2_5','CO2_6','CO2_7','CO2_8','CO2_8','CO2_9','CO2_9','CO2_10']
-# vplist = ['SNAP-1','SNAP-2','SNAP-4','SNAP-4','SNAP-5','SNAP-5','SNAP-6','SNAP-7','SNAP-8','SNAP-8','SNAP-9','SNAP-9','SNAP-10']
+    start_date = datetime.date(2015, 1, 1)
+    end_date = datetime.date(2015, 1, 7)
 
-start_date = datetime.date(2015, 1, 1)
-end_date = datetime.date(2015, 1, 7)
-
-path_ver = prof_path + "vertical_profiles.nc"
-
-point1 = time.time()
-
-# Prepare arguments
-args = generate_arguments(start_date = start_date,
-                          end_date = end_date,
-                          emi_path = path_emi,
-                          org_path = path_org,
-                          ver_path = path_ver,
-                          hod_path = prof_path + "hourofday.nc",
-                          dow_path = prof_path + "dayofweek.nc",
-                          moy_path = prof_path + "monthofyear.nc",
-                          var_list = var_list,
-                          catlist = catlist,
-                          tplist = tplist,
-                          vplist = vplist,
-                          output_path = output_path,
-                          output_prefix = output_name)
-
-point2 = time.time()
-print("Extracted data in {}".format(point2 - point1))
-
-with Pool(14) as pool:  # 2 weeks in parallel
-    # Use imap for smaller memory requirements (arguments are only built
-    # when they are needed)
-    res = pool.imap(func = process_day_one_arg,
-                    iterable = args,
-                    chunksize = 1)
-
-    # Iterate through all results to prevent the script from returning
-    # before imap is done
-    for r in res:
-        print(r.strftime("... finished %x"))
-
-    point3 = time.time()
-    print("Wrote files in {}".format(point3 - point2))
+    main(path_emi=path_emi,
+         path_org=path_org,
+         output_path=output_path,
+         output_name=output_name,
+         prof_path=prof_path,
+         start_date=start_date,
+         end_date=end_date)
