@@ -13,7 +13,7 @@ from multiprocessing import Pool
 
 
 def daterange(start_date, end_date):
-    """Yield a range containing dates from [start_date, end_date).
+    """Yield a consequitve dates from the range [start_date, end_date).
 
     From https://stackoverflow.com/a/1060330.
 
@@ -81,23 +81,21 @@ def extract_to_grid(grid_to_index, country_vals):
         index into country_vals.
         grid_to_index.shape == (x, y)
         grid_to_index[i,j] < n_k forall i < x, j < y, k < len(country_vals)
-    *country_vals : list(np.array(dtype=float))
-        country_vals[i].shape == (n_i,)
+    country_vals : np.array(dtype=float)
+        country_vals.shape == (n,)
 
     Returns
     -------
-    tuple(np.array(dtype=float))
-        Tuple of np.arrays, each of them the containing at (i,j) the value
-        in the corresponding country_vals-array indicated by the grid_to_index-
-        array.
+    np.array(dtype=float)
+        np.array, containing at (i,j) the value from the country_vals-array
+        indicated by the grid_to_indexarray.
 
-        >>> res1, res2 = extract_to_grid(x, y, z)
-        >>> y.dtype == res1.dtype
+        >>> res = extract_to_grid(x, y)
+        >>> y.dtype == res.dtype
         True
-        >>> x.shape == res2.shape
-        >>> res1[i,j] == y[x[i,j]]
+        >>> x.shape == res.shape
         True
-        >>> res2[i,j] == z[x[i,j]]
+        >>> res[i,j] == y[x[i,j]]
         True
     """
     res = np.empty(shape=grid_to_index.shape, dtype=np.float32)
@@ -105,6 +103,24 @@ def extract_to_grid(grid_to_index, country_vals):
         for j in range(grid_to_index.shape[1]):
             res[i,j] = country_vals[grid_to_index[i,j]]
     return res
+
+
+class CountryToGridTranslator():
+    """A wrapper for extract_to_grid that stores the grid_to_index matrix.
+    The job of this class could be done more elegantly by a lambda, but that
+    doesn't work with Pool (lambdas are not pickleable).
+
+        >>> val_on_emigrid = lambda x: extract_to_grid(emigrid_to_index, x)
+
+    behaves the same as
+
+        >>> val_on_emigrid = CountryToGridTranslator(emigrid_to_index)
+    """
+    def __init__(self, grid_to_index):
+        self.grid_to_index = grid_to_index
+
+    def __call__(self, x):
+        return extract_to_grid(self.grid_to_index, x)
 
 
 def write_metadata(outfile, org_file, emi_file, ver_file, variables):
@@ -175,11 +191,12 @@ def extract_matrices(infile, var_list, indices, transform=None):
     """Extract the array specified by indices for each variable in var_list
     from infile.
 
-    If transform is not none, it is applied to the extracted array.
+    If transform is not None, it is applied to the extracted array.
 
     Parameters
     ----------
-    infile : netCDF4.Dataset
+    infile : str
+        Path to netcdf file
     var_list : list(list(str))
     indices : slice()
     transform : function
@@ -200,19 +217,20 @@ def extract_matrices(infile, var_list, indices, transform=None):
     """
     res = dict()
 
-    if transform is None:
-        for subvar_list in var_list:
-            for var in subvar_list:
-                res[var] = np.array(infile[var][indices])
-    else:
-        for subvar_list in var_list:
-            for var in subvar_list:
-                res[var] = np.array(transform(infile[var][indices]))
+    with Dataset(infile) as data:
+        if transform is None:
+            for subvar_list in var_list:
+                for var in subvar_list:
+                    res[var] = np.array(data[var][indices])
+        else:
+            for subvar_list in var_list:
+                for var in subvar_list:
+                    res[var] = np.array(transform(data[var][indices]))
 
     return res
 
 
-def process_day(date, name_template, lists, matrices, datasets):
+def process_day(date, path_template, lists, matrices, datasets):
     """Process one day of emissions, resulting in 24 hour-files.
 
     Loop over all hours of the day, create one file for each hour.
@@ -229,8 +247,9 @@ def process_day(date, name_template, lists, matrices, datasets):
     ----------
     date : datetime.date
         Date for which the emissions are computed.
-    name_template : str
-        String containg date-placeholders (such as  '%Y%m%d%H' for YYYYMMDDHH).
+    path_template : str
+        Path to output-file containg date-placeholders (such as
+        '%Y%m%d%H' for YYYYMMDDHH).
     lists : dict
         A namedtuple containing the following key/value pairs:
         -   'variables' : list(str)
@@ -277,8 +296,13 @@ def process_day(date, name_template, lists, matrices, datasets):
                 Dataset containing grid information, such as rlat, rlon.
         -   'ver_path' : str
                 Dataset containing vertical information, such as levels.
+
+    Returns
+    -------
+    datetime.date
+        Returns the date of the processed day (the first argument)
     """
-    print(date.strftime("Processing %x"))
+    print(date.strftime("Processing %x..."))
 
     with Dataset(datasets['emi_path']) as emi,\
          Dataset(datasets['org_path']) as org,\
@@ -289,7 +313,7 @@ def process_day(date, name_template, lists, matrices, datasets):
 
         for hour in range(24):
             day_hour = datetime.datetime.combine(date, datetime.time(hour))
-            of_path = day_hour.strftime(name_template)
+            of_path = day_hour.strftime(path_template)
             with Dataset(of_path, "w") as of:
                 write_metadata(outfile = of,
                                org_file = org,
@@ -308,18 +332,32 @@ def process_day(date, name_template, lists, matrices, datasets):
                         moy_mat = matrices['moy_mats'][tp]
                         ver_mat = matrices['ver_mats'][vp]
 
+                        # Add dimensions so numpy can broadcast
+                        ver_mat = np.reshape(ver_mat, (levels, 1, 1))
+
                         oae_vals += emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
                         # Careful, automatic reshaping!
                     of[var][0,:] = oae_vals
 
+    return date
 
-def yield_arguments(start_date, end_date,
-                    emi_path, org_path, ver_path,
-                    hod, dow, moy,
-                    var_list, catlist, tplist, vplist,
-                    output_path, output_name):
+
+def process_day_one_arg(arg):
+    """Simple wrapper permitting process_day to be called with one argument -
+    a tuple of it's arguments"""
+    return process_day(*arg)
+
+
+def generate_arguments(start_date, end_date,
+                       emi_path, org_path, ver_path,
+                       hod_path, dow_path, moy_path,
+                       var_list, catlist, tplist, vplist,
+                       output_path, output_prefix):
     """Prepare the arguments for process_day() (mainly extract the relevant data
     from netcdf-files) and yield them as tuples.
+
+    Create the path_template for the output-files from output_path and
+    output_prefix.
 
     Create the namedtuples to hold the argument-groups.
 
@@ -338,12 +376,12 @@ def yield_arguments(start_date, end_date,
         Path to dataset containing organisational parameters, namely time.
     ver_path : str
         Path to dataset containing vertical profiles per country.
-    hod : netCDF4.Dataset
+    hod_path : str
         Dataset containing hour-profiles per country.
-    dow : netCDF4.Dataset
-        Dataset containing day-profiles per country.
-    moy : netCDF4.Dataset
-        Dataset containing month-profiles per country.
+    dow_path : str
+        Path to dataset containing day-profiles per country.
+    moy_path : str
+        Path to dataset containing month-profiles per country.
     var_list : list(str)
         List of variable names to be written into the output file.
         The i-th variable is composed of all the categories in the list
@@ -356,7 +394,7 @@ def yield_arguments(start_date, end_date,
         List containing vertical profile identifiers (keys for ver).
     output_path : str
         Path to directory where the output files are generated.
-    output_name : str
+    output_prefix : str
         Prefix of the filename of the generated files.
         output_name="emis_" -> output_path/emis_YYYYMMDDHH.nc
 
@@ -366,52 +404,69 @@ def yield_arguments(start_date, end_date,
         A tuple containing the arguments for process_day() for each day,
         starting at start_date and ending the day before end_date.
     """
-    # Time- and (grid-country-mapping)-independent data
-    print("Extracting emissions and vertical profiles...")
-    with Dataset(emi_path) as emi:
-        emi_mats = extract_matrices(infile = emi,
-                                    var_list = catlist,
-                                    indices = np.s_[:])
-        # Mapping country_ids (from emi) to country-indices (from moy)
-        # Assuming that the order in moy, hod and dow is the same
+    start = time.time()
+    path_template = output_path + output_prefix + "%Y%m%d%H.nc"
+
+    with Pool(16) as pool:  # have 32 parallel processes later
+        # Create grid-country-mapping
         print("Creating gridpoint -> index mapping...")
-        emigrid_to_index = country_id_mapping(
-            moy['country'][:], emi['country_ids'][:])
-        
-    with Dataset(ver_path) as ver:
-        ver_mats = extract_matrices(infile = ver,
-                                    var_list = vplist,
-                                    indices = np.s_[:],
-                                    transform = (
-                                        lambda x: np.reshape(x,(levels, 1, 1))))
+        with Dataset(emi_path) as emi, Dataset(moy_path) as moy:
+            mapping_result = pool.apply_async(country_id_mapping,
+                                              args=(moy['country'][:],
+                                                    emi['country_ids'][:]))
 
-    val_on_emigrid = lambda x: extract_to_grid(emigrid_to_index, x)
+        # Time- and (grid-country-mapping)-independent data
+        args_indep = [(emi_path,
+                       catlist,
+                       np.s_[:]),
+                      (ver_path,
+                       vplist,
+                       np.s_[:])]
 
-    # Time dependent data
-    # Need only 1 month
-    print("Extracting month-profile...")
-    assert start_date.month == end_date.month, ("Adjust the script to prepare"
-                                                "data for multiple months.")
-    month_id  = start_date.month - 1 
-    moy_mats = extract_matrices(infile = moy,
-                                var_list = tplist,
-                                indices = np.s_[month_id, :],
-                                transform = val_on_emigrid)
+        print("Extracting average emissions and vertical profiles...")
+        res_indep = pool.starmap(extract_matrices, args_indep)
+        emi_mats = res_indep[0]
+        ver_mats = res_indep[1]
+        print("... finished average emissions and vertical profiles")
 
-    # List of dicts (containing 2D matrices) is not ideal, but I'm
-    # too lazy atm to change it (dict of 3D matrices would be better)
-    print("Extracting day-profile...")
-    dow_mats = [extract_matrices(infile = dow,
-                                 var_list = tplist,
-                                 indices = np.s_[day, :],
-                                 transform = val_on_emigrid)
-                for day in range(7)]  # always extract whole week
-    print("Extracting hour-profile...")
-    hod_mats = [extract_matrices(infile = hod,
-                                 var_list = tplist,
-                                 indices = np.s_[hour, :],
-                                 transform = val_on_emigrid)
-                for hour in range(24)]
+        # get() blocks until apply_async is finished
+        emigrid_to_index = mapping_result.get()
+        val_on_emigrid = CountryToGridTranslator(emigrid_to_index)
+        print("... finished gridpoint -> index mapping")
+
+
+        # Time- and (grid-country-mapping)-dependent data
+        assert start_date.month == end_date.month, ("Adjust the script to "
+                                                    "prepare data for multiple "
+                                                    "months.")
+        month_id = start_date.month -1
+        args_dep = [(moy_path,
+                     tplist,
+                     np.s_[month_id, :],
+                     val_on_emigrid)]
+
+        for day in range(7):  # always extract the whole week
+            args_dep.append(tuple([dow_path,
+                                   tplist,
+                                   np.s_[day, :],
+                                   val_on_emigrid]))
+
+        for hour in range(24):
+            args_dep.append(tuple([hod_path,
+                                   tplist,
+                                   np.s_[hour, :],
+                                   val_on_emigrid]))
+
+        print("Extracting month, day and hour profiles...")
+        # List of dicts (containing 2D arrays) is not ideal for cache
+        # locality (dict of 3D arrays would be better)
+        res_dep = pool.starmap(extract_matrices, args_dep)
+        moy_mats = res_dep[0]
+        dow_mats = res_dep[1:8]
+        hod_mats = res_dep[8:]
+        print("... finished temporal profiles")
+
+        assert len(hod_mats) == 24  # sanity check
 
     lists = {'variables': var_list,
              'cats': catlist,
@@ -421,6 +476,8 @@ def yield_arguments(start_date, end_date,
                 'emi_path': emi_path,
                 'ver_path': ver_path}
 
+    stop = time.time()
+    print("Finished extracting data in " + str(stop - start))
     for day_date in daterange(start_date, end_date):
         matrices = {'emi_mats': emi_mats,
                     'hod_mats': hod_mats,
@@ -428,7 +485,7 @@ def yield_arguments(start_date, end_date,
                     'moy_mats': moy_mats,
                     'ver_mats': ver_mats}
 
-        yield (day_date, name_template, lists, matrices, datasets)
+        yield (day_date, path_template, lists, matrices, datasets)
 
 
 #################
@@ -457,8 +514,8 @@ path_org = "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
 output_path = "./output_CHE/"
 output_name = "Europe_CHE_"
 prof_path = "./input_profiles_CHE/"
-rlon = 760+4
-rlat = 610+4
+# rlon = 760+4
+# rlat = 610+4
 # TESTING
 # rlon = 10
 # rlat = 10
@@ -583,7 +640,7 @@ for v in range(len(var_list)):
 ###########
 
 
-levels = 7  # Removed if-statement in inner loop
+# levels = 7  # Removed if-statement in inner loop
 # apply_prof = True  # Removed if-statement in inner loop
 
 # catlist = ['CO2_01_POINT','CO2_02_AREA','CO2_34_AREA','CO2_34_POINT','CO2_05_AREA','CO2_05_POINT','CO2_06_AREA','CO2_07_AREA','CO2_08_AREA','CO2_08_POINT','CO2_09_AREA','CO2_09_POINT','CO2_10_AREA']
@@ -594,37 +651,39 @@ start_date = datetime.date(2015, 1, 1)
 end_date = datetime.date(2015, 1, 7)
 
 path_ver = prof_path + "vertical_profiles.nc"
-name_template = output_path + output_name + "%Y%m%d%H.nc"
 
-with Dataset(prof_path + "dayofweek.nc") as dow,\
-     Dataset(prof_path + "hourofday.nc") as hod,\
-     Dataset(prof_path + "monthofyear.nc") as moy:
+point1 = time.time()
 
-    with Pool(14) as pool:
-        # Prepare arguments
-        # This builds all the arguments in memory (huge!). A better alternative
-        # would be to create a generator here and use Pool.imap below.
-        # For that to work yield_arguments and process_day have to be rewritten
-        # to produce and take only one argument (all the current arguments in a
-        # tuple for example)
-        point1 = time.time()
-        arg_list = [args for args in yield_arguments(start_date = start_date,
-                                                     end_date = end_date,
-                                                     emi_path = path_emi,
-                                                     org_path = path_org,
-                                                     ver_path = path_ver,
-                                                     hod = hod,
-                                                     dow = dow,
-                                                     moy = moy,
-                                                     var_list = var_list,
-                                                     catlist = catlist,
-                                                     tplist = tplist,
-                                                     vplist = vplist,
-                                                     output_path = output_path,
-                                                     output_name = output_name)]
-        point2 = time.time()
-        print("Extracted data in {}".format(point2 - point1))
-        # Handle days in parallel
-        pool.starmap(func = process_day, iterable = arg_list, chunksize = 1)
-        point3 = time.time()
-        print("Wrote files in {}".format(point3 - point2))
+# Prepare arguments
+args = generate_arguments(start_date = start_date,
+                          end_date = end_date,
+                          emi_path = path_emi,
+                          org_path = path_org,
+                          ver_path = path_ver,
+                          hod_path = prof_path + "hourofday.nc",
+                          dow_path = prof_path + "dayofweek.nc",
+                          moy_path = prof_path + "monthofyear.nc",
+                          var_list = var_list,
+                          catlist = catlist,
+                          tplist = tplist,
+                          vplist = vplist,
+                          output_path = output_path,
+                          output_prefix = output_name)
+
+point2 = time.time()
+print("Extracted data in {}".format(point2 - point1))
+
+with Pool(14) as pool:  # 2 weeks in parallel
+    # Use imap for smaller memory requirements (arguments are only built
+    # when they are needed)
+    res = pool.imap(func = process_day_one_arg,
+                    iterable = args,
+                    chunksize = 1)
+
+    # Iterate through all results to prevent the script from returning
+    # before imap is done
+    for r in res:
+        print(r.strftime("... finished %x"))
+
+    point3 = time.time()
+    print("Wrote files in {}".format(point3 - point2))
