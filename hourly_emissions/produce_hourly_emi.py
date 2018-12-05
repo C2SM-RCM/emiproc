@@ -649,12 +649,11 @@ def main(path_emi, path_org, output_path, output_name, prof_path,
 
 if __name__ == '__main__':
     # CHE
-    path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
-    path_org = ("../testdata/hourly_emi_brd/"
-                "CO2_CO_NOX_Berlin-coarse_2015010110.nc")
-    output_path = "./output_CHE/"
+    path_emi = "../../emis_2015_Europe.nc"
+    path_org = ("../../CO2_CO_NOX_Berlin-coarse_2015010110.nc")
+    output_path = "../../../"
     output_name = "Europe_CHE_"
-    prof_path = "./input_profiles_CHE/"
+    prof_path = "../../input_profiles_CHE/"
 
     start_date = datetime.date(2015, 1, 1)
     end_date = datetime.date(2015, 1, 7)
