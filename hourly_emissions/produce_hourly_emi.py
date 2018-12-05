@@ -181,6 +181,8 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
     outfile['level'][:] = ver_file['layer_mid'][:]
     outfile['level_bnds'][:] = (
         np.array([ver_file['layer_bot'][:], ver_file['layer_top'][:]]))
+    outfile['rlat'][:] = emi_file['rlat'][:]
+    outfile['rlon'][:] = emi_file['rlon'][:]
 
     for varname in variables:
         outfile.createVariable(varname=varname,
