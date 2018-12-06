@@ -181,6 +181,8 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
     outfile['level'][:] = ver_file['layer_mid'][:]
     outfile['level_bnds'][:] = (
         np.array([ver_file['layer_bot'][:], ver_file['layer_top'][:]]))
+    outfile['rlat'][:] = emi_file['rlat'][:]
+    outfile['rlon'][:] = emi_file['rlon'][:]
 
     for varname in variables:
         outfile.createVariable(varname=varname,
@@ -649,12 +651,11 @@ def main(path_emi, path_org, output_path, output_name, prof_path,
 
 if __name__ == '__main__':
     # CHE
-    path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
-    path_org = ("../testdata/hourly_emi_brd/"
-                "CO2_CO_NOX_Berlin-coarse_2015010110.nc")
-    output_path = "./output_CHE/"
+    path_emi = "../../emis_2015_Europe.nc"
+    path_org = ("../../CO2_CO_NOX_Berlin-coarse_2015010110.nc")
+    output_path = "../../../"
     output_name = "Europe_CHE_"
-    prof_path = "./input_profiles_CHE/"
+    prof_path = "../../input_profiles_CHE/"
 
     start_date = datetime.date(2015, 1, 1)
     end_date = datetime.date(2015, 1, 7)
