@@ -188,7 +188,7 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
         outfile.createVariable(varname=varname,
                                datatype='float32',
                                dimensions=('time', 'level', 'rlat', 'rlon'))
-
+        outfile[varname].units = "kg m-2 s-1"
 
 def extract_matrices(infile, var_list, indices, transform=None):
     """Extract the array specified by indices for each variable in var_list
