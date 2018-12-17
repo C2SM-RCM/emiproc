@@ -9,7 +9,7 @@ import cartopy.crs as ccrs
 from shapely.geometry import Polygon
 import time
 import itertools
-import sys 
+import sys
 import cartopy.io.shapereader as shpreader
 
 from country_code import country_codes
@@ -25,9 +25,9 @@ convfac = 1./(day_per_yr*sec_per_day)
 
 def check_country(country,points):
     bounds = country.bounds #(minx, miny, maxx, maxy)
-    if ((bounds[0]>max([k[0] for k in points])) or 
+    if ((bounds[0]>max([k[0] for k in points])) or
         (bounds[2]<min([k[0] for k in points])) or
-        (bounds[1]>max([k[1] for k in points])) or 
+        (bounds[1]>max([k[1] for k in points])) or
         (bounds[3]<min([k[1] for k in points]))):
         return False
     else:
@@ -49,8 +49,8 @@ def get_country_mask(cfg):
     reader = shpreader.Reader(shpfilename)
 
     country_mask = np.empty((cfg.nx,cfg.ny))
-   
- 
+
+
     cosmo_xlocs = np.arange(cfg.xmin, cfg.xmin+cfg.dx*cfg.nx, cfg.dx)
     cosmo_ylocs = np.arange(cfg.ymin, cfg.ymin+cfg.dy*cfg.ny, cfg.dy)
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
@@ -67,11 +67,11 @@ def get_country_mask(cfg):
 
     for (a,x) in enumerate(cosmo_xlocs):
         for (b,y) in enumerate(cosmo_ylocs):
-            # Progress bar 
+            # Progress bar
             incr+=1
             sys.stdout.write('\r')
             sys.stdout.write(" {:.1f}%".format((100/((cfg.nx*cfg.ny)-1)*((a*cfg.ny)+b))))
-            sys.stdout.flush()            
+            sys.stdout.flush()
 
             mask = []
 
@@ -102,7 +102,7 @@ def get_country_mask(cfg):
                         #     continue
                         if polygon_cosmo.intersects(country.geometry):
                             mask.append(country.attributes[iso3])
-                
+
 
             if len(mask)>1:
                 area = 0
@@ -121,10 +121,10 @@ def get_country_mask(cfg):
                     no_country_code.append(mask[0])
                     mask=[-1]
 
-            # If no country (ocean), then assign the ID 0            
+            # If no country (ocean), then assign the ID 0
             if len(mask)==0:
                 mask=[0]
-                            
+
             country_mask[a,b]=mask[0]
 
     print("\nCountry mask is done")
@@ -137,11 +137,11 @@ def get_country_mask(cfg):
     return country_mask
 
 
-# Returns the name of a variable for a given species and snap 
+# Returns the name of a variable for a given species and snap
 def var_name(s,snap,cat_kind):
     out_var_name = s+"_"
     if cat_kind=="SNAP":
-        if snap==70:                        
+        if snap==70:
             out_var_name += "07_"
         else:
             if snap>9:
@@ -176,7 +176,7 @@ def tno_file(species,cfg):
     else:
         base_year = str(cfg.year)
     tno_path += base_year+".nc"
-    
+
     return tno_path
 
 
@@ -190,7 +190,7 @@ def gridbox_area(cfg):
     # box area at equator
     dd=2.*pow(radius,2)*dlon*np.sin(0.5*dlat)
     areas = np.array([[dd*np.cos(deg2rad*cfg.ymin+j*dlat) for j in range(cfg.ny)] for foo in range(cfg.nx)])
-    return areas 
+    return areas
 
 
 ## This function returns the indices of the cosmo grid cell that contains the source
@@ -205,11 +205,11 @@ def interpolate_tno_to_cosmo_point(source,tno,cfg):
     cosmo_indy = int(np.floor((point[1]-cfg.xmin)/cfg.dx))
 
     return (cosmo_indx,cosmo_indy)
-    
+
 ## This function determines which COSMO cell coincides with a TNO cell
 ## It produces an array of dimension (tno_lon,tno_lat)
-## Each element will be a list containing triplets (x,y,r) 
-## - x : index of the longitude of cosmo grid cell 
+## Each element will be a list containing triplets (x,y,r)
+## - x : index of the longitude of cosmo grid cell
 ## - y : index of the latitude of cosmo grid cell
 ## - r : ratio of the area of the intersection compared to the area of the tno cell.
 ## To avoid having a lot of r=0, we only keep the cosmo cells that intersect the tno cell.
@@ -230,10 +230,10 @@ def interpolate_tno_to_cosmo_grid(tno,out,cfg):
 
     tno_lon = tno.dimensions["longitude"].size
     tno_lat = tno.dimensions["latitude"].size
-    
+
     # This is the interpolation that will be returned
     mapping = np.empty((tno_lon,tno_lat),dtype=object)
-            
+
     incr = 0
     start = time.time()
     for i in range(tno_lon):
@@ -241,19 +241,19 @@ def interpolate_tno_to_cosmo_grid(tno,out,cfg):
             # Initialization
             mapping[i,j]=[]
 
-            # Progress bar 
+            # Progress bar
             incr+=1
             if int(incr/100) == incr/100.:
                 sys.stdout.write('\r')
                 sys.stdout.write(" {:.1f}%".format((100/((tno_lon*tno_lat)-1)*((i*tno_lat)+j))))
-                sys.stdout.flush()            
+                sys.stdout.flush()
 
             # Get the middle of the tno cell
             # x_tno=tno["longitude_source"][i]
             # y_tno=tno["latitude_source"][i]
             x_tno = tno["longitude"][i]
             y_tno = tno["latitude"][j]
-            
+
             # Get the corners of the tno cell
             tno_cell_x= np.array([x_tno+cfg.tno_dx/2,x_tno+cfg.tno_dx/2,x_tno-cfg.tno_dx/2,x_tno-cfg.tno_dx/2])
             tno_cell_y= np.array([y_tno+cfg.tno_dy/2,y_tno-cfg.tno_dy/2,y_tno-cfg.tno_dy/2,y_tno+cfg.tno_dy/2])
@@ -261,7 +261,7 @@ def interpolate_tno_to_cosmo_grid(tno,out,cfg):
             # Make a polygon out of it, and get its area.
             ####
             # in cosmo grid
-            # Note : the unit/meaning of the area is in degree^2, but it doesn't matter since we only want the ratio. we assume the area is on a flat earth. 
+            # Note : the unit/meaning of the area is in degree^2, but it doesn't matter since we only want the ratio. we assume the area is on a flat earth.
             points = transform.transform_points(ccrs.PlateCarree(),tno_cell_x,tno_cell_y)
 
             polygon_tno = Polygon(points)
@@ -274,7 +274,7 @@ def interpolate_tno_to_cosmo_grid(tno,out,cfg):
                 if (min(cosmo_cell_x)>max([k[0] for k in points])) or (max(cosmo_cell_x)<min([k[0] for k in points])):
                     continue
 
-                for (b,y) in enumerate(cosmo_ylocs):                    
+                for (b,y) in enumerate(cosmo_ylocs):
                     cosmo_cell_y = [y+cfg.dy/2,y-cfg.dy/2,y-cfg.dy/2,y+cfg.dy/2]
 
                     if (min(cosmo_cell_y)>max([k[1] for k in points])) or (max(cosmo_cell_y)<min([k[1] for k in points])):
@@ -293,7 +293,7 @@ def interpolate_tno_to_cosmo_grid(tno,out,cfg):
     #return var_out
     np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
     return mapping
-        
+
 
 def main(cfg_path): #path to the config file
     #try to load config file
@@ -304,11 +304,15 @@ def main(cfg_path): #path to the config file
         print('ERROR: no config file provided!')
         sys.exit(1)
     except ImportError:
-        print('ERROR: failed to import config module "%s"!' % os.path.basename(cfg_path))
+        print('ERROR: failed to import config module "%s"!'
+              % os.path.basename(cfg_path))
         sys.exit(1)
 
+    os.makedirs(cfg.output_path, exist_ok=True)
+    output_path = os.path.join(cfg.output_path, "emis_" + str(cfg.year) + "_" +
+                               cfg.gridname + ".nc")
 
-    output_path = cfg.output_path+"emis_"+str(cfg.year)+"_"+cfg.gridname+".nc"
+
     with nc.Dataset(output_path,"w") as out:
         # Create the dimensions and the rotated pole
         lonname = "rlon"; latname="rlat"
@@ -337,7 +341,7 @@ def main(cfg_path): #path to the config file
         out[latname].standard_name = "latitude"
         out[latname][:] = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy)
 
-        
+
         # Calculate the country mask
         add_country_mask = True
         cmask_path = os.path.join(cfg.output_path,"country_mask.npy")
@@ -345,7 +349,7 @@ def main(cfg_path): #path to the config file
             print("Do you wanna overwite the country mask found in %s ?" % cmask_path)
             s = input("y/n \n")
             add_country_mask = (s=="y")
-       
+
         if add_country_mask:
             country_mask = get_country_mask(cfg)
         else:
@@ -358,16 +362,16 @@ def main(cfg_path): #path to the config file
 
         list_input_files = set([tno_file(s,cfg) for s in cfg.species])
         for f in list_input_files:
-            print(f)            
+            print(f)
             with nc.Dataset(f) as tno:
                 # retrieve the interpolation between the tno and cosmo grids.
-                make_interpolate = True            
+                make_interpolate = True
                 mapping_path = os.path.join(cfg.output_path,"mapping.npy")
                 if os.path.isfile(mapping_path):
                     print("Do you wanna overwite the mapping found in %s ?" % mapping_path)
                     s = input("y/n \n")
                     make_interpolate = (s=="y")
-                 
+
                 if make_interpolate:
                     interpolation = interpolate_tno_to_cosmo_grid(tno,out,cfg)
                 else:
@@ -379,15 +383,15 @@ def main(cfg_path): #path to the config file
                 #     for j in range(672):
                 #         interpolation[i,j]=[(int(74*np.random.rand()),int(64*np.random.rand()),1)]
                 # print(interpolation[0,101])
-                
+
                 # mask corresponding to the area/point sources
                 selection_area  = tno["source_type_index"][:]==1
                 selection_point = tno["source_type_index"][:]==2
 
-                # SNAP ID 
-                #tno_snap = tno[cfg.tno_cat_var][:].tolist() 
+                # SNAP ID
+                #tno_snap = tno[cfg.tno_cat_var][:].tolist()
                 tno_snap = cfg.tno_snap
-                    
+
                 for snap in cfg.snap:
                     # In emission_category_index, we have the index of the category, starting with 1.
                     # It means that if the emission is of SNAP1, it will have index 1, SNAP34 index 3
@@ -397,15 +401,15 @@ def main(cfg_path): #path to the config file
                         snap_list=["F1","F2","F3"]
                     else:
                         snap_list=[snap]
-                    
+
                     print(snap_list, tno_snap)
                     # mask corresponding to the given snap category
                     selection_snap = np.array([tno["emission_category_index"][:] == tno_snap.index(i)+1 for i in snap_list])
-                    
+
                     # mask corresponding to the given snap category for area/point
                     selection_snap_area  = np.array([selection_snap.any(0),selection_area]).all(0)
                     selection_snap_point = np.array([selection_snap.any(0),selection_point]).all(0)
-                    
+
                     species_list = [s for s in cfg.species if tno_file(s,cfg)==f]
                     for s in species_list:
                         print("Species",s,"SNAP",snap)
@@ -415,13 +419,11 @@ def main(cfg_path): #path to the config file
                         if s=="CO2":
                             # add fossil and bio fuel CO2
                             var = tno["co2_ff"][:]+tno["co2_bf"][:]
-                        elif s=="CO":
-                            # add fossil and bio fuel CO
-                            var = tno["co_ff"][:]+tno["co_bf"][:]                      
                         elif s=="PM2.5":
                             var = tno["pm2_5"]
                         else:
                             var = tno[s.lower()][:]
+
 
                         start = time.time()
                         for (i,source) in enumerate(var):
@@ -430,16 +432,17 @@ def main(cfg_path): #path to the config file
                                 lat_ind = tno["latitude_index"][i]-1
                                 for (x,y,r) in interpolation[lon_ind,lat_ind]:
                                         out_var_area[y,x]+=var[i]*r
+                                ycoords, xcoords = np.arange(cfg.ny), np.arange(cfg.nx)
                             if selection_snap_point[i]:
                                 (indx,indy) = interpolate_tno_to_cosmo_point(i,tno,cfg)
                                 if indx>=0 and indx<cfg.nx and indy>=0 and indy<cfg.ny:
                                     out_var_point[indy,indx]+=var[i]
 
                         end = time.time()
-                        print("it takes ",end-start,"sec")                     
-                        ## TO DO : 
+                        print("it takes ",end-start,"sec")
+                        ## TO DO :
                         ## - Add the factor from 2011 to 2015
-                        
+
 
                         ## convert unit from kg.year-1.cell-1 to kg.m-2.s-1
 
@@ -453,14 +456,15 @@ def main(cfg_path): #path to the config file
                                            [selection_snap_area,selection_snap_point],
                                            [out_var_area,out_var_point]):
                             if sel.any():
-                                out.createVariable(out_var_name+t,float,(latname,lonname))
+                                var = out.createVariable(out_var_name+t,float,(latname,lonname))
                                 out[out_var_name+t].units = "kg m-2 s-1"
                                 out[out_var_name+t][:] = out_var
+                                var.grid_mapping = 'rotated_pole'
 
-                        
+
 
     return interpolation
 
 if __name__ == "__main__":
-    mapping = main("./config_CHE")
+    mapping = main("./config_Carbosense")
     #mask = get_country_mask()

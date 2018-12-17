@@ -389,10 +389,10 @@ def main_simple(path):
     
 
 if __name__ == "__main__":
-    complex_profile=False
+    complex_profile=True
     if complex_profile:
         main_complex("./output")
     else:
-        main_simple("./CHE_output")
+        main_simple("./output")
 
 
