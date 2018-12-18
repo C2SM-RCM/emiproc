@@ -240,7 +240,7 @@ def interpolate_tno_to_cosmo_point(source,tno,cfg):
     point = transform.transform_point(lon_source,lat_source,ccrs.PlateCarree())
 
     cosmo_indx = int(np.floor((point[0]-cfg.xmin)/cfg.dx))
-    cosmo_indy = int(np.floor((point[1]-cfg.xmin)/cfg.dx))
+    cosmo_indy = int(np.floor((point[1]-cfg.ymin)/cfg.dy))
 
     return (cosmo_indx,cosmo_indy)
     
