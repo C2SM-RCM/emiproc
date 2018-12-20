@@ -589,8 +589,38 @@ def create_lists():
              'GNFR_J', 'GNFR_J']          # for s_ALL_E
         ])
 
+    """The vertical profile is only applied to area sources.
+    All area sources have emissions at the floor level.
+    As such, their profiles are of the shape [1,0,0,...], like GNFR_L"""
+    
+    vplist_prelim = (
+        [
+            ['GNFR_L', 'GNFR_A'],         # for s_A_E
+            ['GNFR_L', 'GNFR_B'],         # for s_B_E
+            ['GNFR_L'],                   # for s_C_E
+            ['GNFR_L'],                   # for s_F_E
+            ['GNFR_L', 'GNFR_D',
+             'GNFR_L',
+             'GNFR_L',
+             'GNFR_L', 'GNFR_H',
+             'GNFR_L',
+             'GNFR_L', 'GNFR_J',
+             'GNFR_L',
+             'GNFR_L'],                   # for s_O_E
+            ['GNFR_L', 'GNFR_A',
+             'GNFR_L', 'GNFR_B',
+             'GNFR_L',
+             'GNFR_L',
+             'GNFR_L', 'GNFR_D',
+             'GNFR_L',
+             'GNFR_L',
+             'GNFR_L', 'GNFR_H',
+             'GNFR_L',
+             'GNFR_L', 'GNFR_J']          # for s_ALL_E
+        ])
+
     tplist_prelim *= 3
-    vplist_prelim = tplist_prelim
+    vplist_prelim *= 3 #tplist_prelim
 
     # Make sure catlist, tplist, vplist have the same shape
     catlist, tplist, vplist = [], [], []
@@ -651,11 +681,11 @@ def main(path_emi, path_org, output_path, output_name, prof_path,
 
 if __name__ == '__main__':
     # CHE
-    path_emi = "../../emis_2015_Europe.nc"
-    path_org = ("../../CO2_CO_NOX_Berlin-coarse_2015010110.nc")
-    output_path = "../../../"
+    path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc" #"./../emis_2015_Europe.nc"
+    path_org = ("../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc")
+    output_path = "./output_CHE/"
     output_name = "Europe_CHE_"
-    prof_path = "../../input_profiles_CHE/"
+    prof_path = "./input_profiles_CHE/"
 
     start_date = datetime.date(2015, 1, 1)
     end_date = datetime.date(2015, 1, 7)
