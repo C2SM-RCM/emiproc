@@ -28,7 +28,7 @@ def daterange(start_date, end_date):
         Consecutive dates, starting from start_date and ending the day
         before end_date.
     """
-    for n in range(int((end_date - start_date).days)):
+    for n in range(int((end_date - start_date).days)+1):
         yield start_date + datetime.timedelta(n)
 
 
@@ -510,7 +510,9 @@ def create_lists():
              "CO2_G_AREA",
              "CO2_H_AREA", "CO2_H_POINT",
              "CO2_I_AREA",
-             "CO2_J_AREA", "CO2_J_POINT"],  # for CO2_O_E
+             "CO2_J_AREA", "CO2_J_POINT",
+             "CO2_K_AREA",
+             "CO2_L_AREA"],                  # for CO2_O_E
             ["CO2_A_AREA", "CO2_A_POINT",
              "CO2_B_AREA", "CO2_B_POINT",
              "CO2_C_AREA",
@@ -520,7 +522,9 @@ def create_lists():
              "CO2_G_AREA",
              "CO2_H_AREA", "CO2_H_POINT",
              "CO2_I_AREA",
-             "CO2_J_AREA", "CO2_J_POINT"],  # for CO2_ALL_E
+             "CO2_J_AREA", "CO2_J_POINT",
+             "CO2_K_AREA",
+             "CO2_L_AREA"],                  # for CO2_ALL_E
             ["CO_A_AREA", "CO_A_POINT"],    # for CO_A_E
             ["CO_B_AREA", "CO_B_POINT"],    # for CO_B_E
             ["CO_C_AREA"],                  # for CO_C_E
@@ -530,7 +534,9 @@ def create_lists():
              "CO_G_AREA",
              "CO_H_AREA", "CO_H_POINT",
              "CO_I_AREA",
-             "CO_J_AREA", "CO_J_POINT"],    # for CO_O_E
+             "CO_J_AREA", "CO_J_POINT",
+             "CO_K_AREA",
+             "CO_L_AREA"],                  # for CO_O_E
             ["CO_A_AREA", "CO_A_POINT",
              "CO_B_AREA", "CO_B_POINT",
              "CO_C_AREA",
@@ -540,7 +546,9 @@ def create_lists():
              "CO_G_AREA",
              "CO_H_AREA", "CO_H_POINT",
              "CO_I_AREA",
-             "CO_J_AREA", "CO_J_POINT"],    # for CO_ALL_E
+             "CO_J_AREA", "CO_J_POINT",
+             "CO_K_AREA",
+             "CO_L_AREA"],                  # for CO_ALL_E
             ["CH4_A_AREA", "CH4_A_POINT"],  # for CH4_A_E
             ["CH4_B_AREA", "CH4_B_POINT"],  # for CH4_B_E
             ["CH4_C_AREA"],                 # for CH4_C_E
@@ -550,7 +558,9 @@ def create_lists():
              "CH4_G_AREA",
              "CH4_H_AREA", "CH4_H_POINT",
              "CH4_I_AREA",
-             "CH4_J_AREA", "CH4_J_POINT"],  # for CH4_O_E
+             "CH4_J_AREA", "CH4_J_POINT",
+             "CO2_K_AREA",
+             "CO2_L_AREA"],                 # for CH4_O_E
             ["CH4_A_AREA", "CH4_A_POINT",
              "CH4_B_AREA", "CH4_B_POINT",
              "CH4_C_AREA",
@@ -560,7 +570,9 @@ def create_lists():
              "CH4_G_AREA",
              "CH4_H_AREA", "CH4_H_POINT",
              "CH4_I_AREA",
-             "CH4_J_AREA", "CH4_J_POINT"]   # for CH4_ALL_E
+             "CH4_J_AREA", "CH4_J_POINT",
+             "CO2_K_AREA",
+             "CO2_L_AREA"]   # for CH4_ALL_E
         ])
 
     tplist_prelim = (
@@ -586,7 +598,9 @@ def create_lists():
              'GNFR_G',
              'GNFR_H', 'GNFR_H',
              'GNFR_I',
-             'GNFR_J', 'GNFR_J']          # for s_ALL_E
+             'GNFR_J', 'GNFR_J',
+             'GNFR_K',
+             'GNFR_L']          # for s_ALL_E
         ])
 
     """The vertical profile is only applied to area sources.
@@ -616,7 +630,9 @@ def create_lists():
              'GNFR_L',
              'GNFR_L', 'GNFR_H',
              'GNFR_L',
-             'GNFR_L', 'GNFR_J']          # for s_ALL_E
+             'GNFR_L', 'GNFR_J',
+             'GNFR_L',
+             'GNFR_L']                   # for s_ALL_E
         ])
 
     tplist_prelim *= 3
@@ -687,8 +703,8 @@ if __name__ == '__main__':
     output_name = "Europe_CHE_"
     prof_path = "./input_profiles_CHE/"
 
-    start_date = datetime.date(2015, 1, 1)
-    end_date = datetime.date(2015, 1, 7)
+    start_date = datetime.date(2014, 1, 1)
+    end_date = datetime.date(2014, 1, 9) #included
 
     main(path_emi=path_emi,
          path_org=path_org,
