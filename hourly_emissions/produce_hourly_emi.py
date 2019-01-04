@@ -703,8 +703,8 @@ if __name__ == '__main__':
     output_name = "Europe_CHE_"
     prof_path = "./input_profiles_CHE/"
 
-    start_date = datetime.date(2014, 1, 1)
-    end_date = datetime.date(2014, 1, 9) #included
+    start_date = datetime.date(2015, 1, 1)
+    end_date = datetime.date(2015, 1, 9) #included
 
     main(path_emi=path_emi,
          path_org=path_org,
