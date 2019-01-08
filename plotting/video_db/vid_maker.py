@@ -1,19 +1,22 @@
 from cv2 import VideoWriter, VideoWriter_fourcc, imread, resize
 from datetime import datetime
+import os
 
 path = "./"
 
-fourcc = VideoWriter_fourcc("AVI")
+fourcc = VideoWriter_fourcc(*"XVID")
 vid = None
 
 outvid = "./video.avi"
 fps=10
 is_color=True
-
-for day in range(10):
+size=None
+for day in range(1,9):
     for hour in range(24):
-        image = path+datetime(2015,1,day,hour).strftime("%Y%m%d%h.png")
-
+        if day==1 and hour==0:
+            continue
+        image = path+datetime(2015,1,day,hour).strftime("%Y%m%d%H.png")
+        #print(image)
         if not os.path.exists(image):
             raise FileNotFoundError(image)
         img = imread(image)
@@ -24,4 +27,4 @@ for day in range(10):
         if size[0] != img.shape[1] and size[1] != img.shape[0]:
             img = resize(img, size)
         vid.write(img)
-    vid.release()
+vid.release()
