@@ -14,16 +14,15 @@ from datetime import datetime
 
 
 convert_unit = {
-    "co2" : 29/44.,
+    "CO2_ALL" : 29/44.,
     "ch4" : 29/16.}
 
 pole_lon = -170
 pole_lat = 43
 
-folder = "/store/empa/em05/dbrunner/che/icbc/cams_gvri_"
-#cosmo_1 = nc.Dataset("/store/empa/em05/dbrunner/che/icbc/cams_gvri_2015010612.nc")
+path = "/project/s862/CHE/CHE_Europe_output/"
 
-var = "co2"
+var = "CO2_ALL"
 
 
 
@@ -33,24 +32,32 @@ norm   = matplotlib.colors.BoundaryNorm( bounds, ncolors=256 )
 transform = ccrs.RotatedPole(pole_longitude=pole_lon, pole_latitude=pole_lat)
 
 for i in range(1,10):
+    if i==1:
+        folder = path+"2015010100_0_24/cosmo_output/"
+    else:
+        folder = path+"2015010"+str(i-1)+"18_0_30/cosmo_output/"
+
     for j in range(0,24,3):
         date = datetime(2015,1,i,j)
         date_str = date.strftime("%Y%m%d%H")
         date_disp = date.strftime("%Y-%m-%d %H:00")
 
-        cosmo_1 = nc.Dataset(folder+date_str+".nc")
-        co2=(cosmo_1[var][0,-1,:])
+        cosmo_1 = nc.Dataset(folder+"lffd"+date_str+".nc")
+    
+        # co2_all= (cosmo_1[var][0,-1,:])
+        # co2_bg = (cosmo_1["CO2_BG"][0,-1,:])
+        # co2 = co2_bg+co2_all
+        
+        co2 = (
+            cosmo_1['CO2_BG'][:] + cosmo_1['CO2_ALL'][:] +
+                cosmo_1['CO2_RA'][:] - cosmo_1['CO2_GPP'][:]
+        )
 
-        to_plot = co2.data*convert_unit[var]
 
-        if True:#i==1 and j==0:
-            # Transform the lon,lat of the ECMWF grid into rotated-pole coordinates
-            all_points = np.array([(x,y) for x in cosmo_1["longitude"][:] for y in cosmo_1["latitude"][:]])
-            grid_points= transform.transform_points(ccrs.PlateCarree(),all_points[:,0],all_points[:,1])
-            cosmo_xlocs = grid_points[:,0]
-            cosmo_xlocs.shape = (len(cosmo_1["longitude"][:]),len(cosmo_1["latitude"][:]))
-            cosmo_ylocs = grid_points[:,1]
-            cosmo_ylocs.shape = (len(cosmo_1["longitude"][:]),len(cosmo_1["latitude"][:]))
+        to_plot = co2[0,-1,:]*convert_unit[var]*pow(10,6)
+
+        cosmo_xlocs = cosmo_1["rlon"][:]
+        cosmo_ylocs= cosmo_1["rlat"][:]
 
         ax = plt.axes(projection=transform)
 
@@ -59,17 +66,17 @@ for i in range(1,10):
         ax.add_feature(cartopy.feature.BORDERS)
 
 
-        vmin=4*pow(10,-4)
-        vmax=4.6*pow(10,-4)
+        vmin=400 #4*pow(10,-4)
+        vmax=460 #4.6*pow(10,-4)
 
         log=False
         if log:
             to_plot_mask = np.ma.masked_where(to_plot<=0, to_plot)
-            mesh = ax.pcolormesh(cosmo_xlocs,cosmo_ylocs,to_plot_mask.T,norm=colors.LogNorm(),vmin=vmin,vmax=vmax)
+            mesh = ax.pcolormesh(cosmo_xlocs,cosmo_ylocs,to_plot_mask,norm=colors.LogNorm(),vmin=vmin,vmax=vmax)
             plt.colorbar(mesh,ticks=[(6+0.1*i)*pow(10,-4) for i in range(6)])
         else:   
             #to_plot_mask = np.ma.masked_where(np.logical_not(np.isfinite(to_plot)), to_plot)
-            mesh = ax.pcolormesh(cosmo_xlocs,cosmo_ylocs,to_plot.T,vmin=vmin,vmax=vmax)#, norm = norm)# ,vmin=0,vmax=0.8)
+            mesh = ax.pcolormesh(cosmo_xlocs,cosmo_ylocs,to_plot,vmin=vmin,vmax=vmax)#, norm = norm)# ,vmin=0,vmax=0.8)
             plt.colorbar(mesh)#,ticks=[(6+0.1*i)*pow(10,-4) for i in range(6)])#,norm=norm,boundaries = bounds)
 
         ax.set_extent([-17,21,-11,19.5],crs=transform)
@@ -79,7 +86,7 @@ for i in range(1,10):
         # corners= ccrs.PlateCarree().transform_points(transform,np.array([-17,-17,21,21]),np.array([-11,19.5,-11,19.5]))
         # ax.set_extent([min(corners[:,0]),max(corners[:,0]),min(corners[:,1]),max(corners[:,1])])
 
-        plt.savefig("cams_"+date_str+".png")
+        plt.savefig("COSMO_"+date_str+".png")
         plt.clf()
         #plt.show()
 
