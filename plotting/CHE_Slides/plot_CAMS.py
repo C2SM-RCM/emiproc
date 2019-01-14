@@ -39,7 +39,7 @@ for i in range(1,10):
         date_disp = date.strftime("%Y-%m-%d %H:00")
 
         cosmo_1 = nc.Dataset(folder+date_str+".nc")
-        co2=(cosmo_1[var][0,-1,:])
+        co2=(cosmo_1[var][0,-1,:])*pow(10,6)
 
         to_plot = co2.data*convert_unit[var]
 
@@ -59,8 +59,8 @@ for i in range(1,10):
         ax.add_feature(cartopy.feature.BORDERS)
 
 
-        vmin=4*pow(10,-4)
-        vmax=4.6*pow(10,-4)
+        vmin=400 #4*pow(10,-4)
+        vmax=460 #4.6*pow(10,-4)
 
         log=False
         if log:
@@ -79,7 +79,7 @@ for i in range(1,10):
         # corners= ccrs.PlateCarree().transform_points(transform,np.array([-17,-17,21,21]),np.array([-11,19.5,-11,19.5]))
         # ax.set_extent([min(corners[:,0]),max(corners[:,0]),min(corners[:,1]),max(corners[:,1])])
 
-        plt.savefig("cams_"+date_str+".png")
+        plt.savefig("Figures/cams_"+date_str+".png")
         plt.clf()
         #plt.show()
 

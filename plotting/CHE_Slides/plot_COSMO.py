@@ -31,13 +31,13 @@ norm   = matplotlib.colors.BoundaryNorm( bounds, ncolors=256 )
 
 transform = ccrs.RotatedPole(pole_longitude=pole_lon, pole_latitude=pole_lat)
 
-for i in range(1,10):
+for i in [6]:#range(1,10):
     if i==1:
         folder = path+"2015010100_0_24/cosmo_output/"
     else:
         folder = path+"2015010"+str(i-1)+"18_0_30/cosmo_output/"
 
-    for j in range(0,24,3):
+    for j in [10]:#range(0,24,3):
         date = datetime(2015,1,i,j)
         date_str = date.strftime("%Y%m%d%H")
         date_disp = date.strftime("%Y-%m-%d %H:00")
@@ -86,7 +86,7 @@ for i in range(1,10):
         # corners= ccrs.PlateCarree().transform_points(transform,np.array([-17,-17,21,21]),np.array([-11,19.5,-11,19.5]))
         # ax.set_extent([min(corners[:,0]),max(corners[:,0]),min(corners[:,1]),max(corners[:,1])])
 
-        plt.savefig("COSMO_"+date_str+".png")
+        plt.savefig("Figures/COSMO_"+date_str+".png")
         plt.clf()
         #plt.show()
 
