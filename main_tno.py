@@ -190,5 +190,5 @@ def main(cfg_path):
 
                         
 if __name__ == "__main__":
-    mapping = main("./config_CHE")
-    #mask = get_country_mask()
+    main("./config_CHE")
+    
