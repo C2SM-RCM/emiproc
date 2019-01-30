@@ -11,7 +11,6 @@ import itertools
 import sys 
 import cartopy.io.shapereader as shpreader
 from multiprocessing import Pool
-
 from country_code import country_codes
 import os
 
@@ -21,6 +20,7 @@ day_per_yr = 365.25
 hr_per_yr = day_per_yr * 24.
 sec_per_day = 86400
 convfac = 1./(day_per_yr*sec_per_day)
+npool = 18
 
 def load_cfg(cfg_path):
     """Load config file"""
@@ -324,18 +324,19 @@ def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
             y_tno-cfg.tno_dy/2,
             y_tno+cfg.tno_dy/2])
         proj = ccrs.PlateCarree()
-
-    if inv_name=="vprm":
+    elif inv_name=="vprm":
         globe = ccrs.Globe(ellipse=None,semimajor_axis = 6370000,semiminor_axis = 6370000)
         lambert = ccrs.LambertConformal(
             central_longitude = 12.5, central_latitude = 51.604,
             standard_parallels=[51.604],globe=globe)
-
         
         center_lambert = lambert.transform_point(lon_var[j,i],lat_var[j,i],ccrs.PlateCarree())
         cell_x = np.array([center_lambert[0]+cfg.tno_dx/2,center_lambert[0]+cfg.tno_dx/2,center_lambert[0]-cfg.tno_dx/2,center_lambert[0]-cfg.tno_dx/2])
         cell_y = np.array([center_lambert[1]+cfg.tno_dy/2,center_lambert[1]-cfg.tno_dy/2,center_lambert[1]-cfg.tno_dy/2,center_lambert[1]+cfg.tno_dy/2])
         proj = lambert
+    else:
+        print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
+        
 
 
     return cell_x,cell_y,proj
@@ -346,11 +347,13 @@ def get_dim_var(inv,inv_name):
         lat_dim = inv.dimensions["latitude"].size
         lon_var = inv["longitude"][:]
         lat_var = inv["latitude"][:]
-    if inv_name == "vprm":
+    elif inv_name == "vprm":
         lon_dim = inv.dimensions["west_east"].size
         lat_dim = inv.dimensions["south_north"].size
-        lon_var = tno["lon"][:]
-        lat_var = tno["lat"][:]
+        lon_var = inv["lon"][:]
+        lat_var = inv["lat"][:]
+    else:
+        print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
 
     return lon_dim,lat_dim,lon_var,lat_var
 def interpolate_to_cosmo_grid(tno,inv_name,cfg):
@@ -375,7 +378,7 @@ def interpolate_to_cosmo_grid(tno,inv_name,cfg):
         "ymin" : cfg.ymin})
 
 
-    with Pool(6) as pool:
+    with Pool(npool) as pool:
         for i in range(lon_dim):
             print("ongoing :",i)
             points = []
@@ -394,10 +397,8 @@ def interpolate_to_cosmo_grid(tno,inv_name,cfg):
     return mapping
 
 
-def interpolate_tno_to_cosmo_grid(tno,cfg):
-    return interpolate_to_cosmo_grid(tno,"tno",cfg)
 
-def get_interpolation(cfg,tno,filename="mapping.npy"):
+def get_interpolation(cfg,tno,inv_name = "tno",filename="mapping.npy"):
     """retrieve the interpolation between the tno and cosmo grids."""
     make_interpolate = True            
     mapping_path = os.path.join(cfg.output_path,filename)
@@ -407,7 +408,7 @@ def get_interpolation(cfg,tno,filename="mapping.npy"):
         make_interpolate = (s=="y")
         
     if make_interpolate:
-        interpolation = interpolate_tno_to_cosmo_grid(tno,cfg)
+        interpolation = interpolate_to_cosmo_grid(tno,inv_name,cfg)
     else:
         interpolation = np.load(mapping_path)
 

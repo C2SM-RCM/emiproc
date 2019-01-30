@@ -1,6 +1,7 @@
 from make_online_emissions import *
 
-
+def interpolate_tno_to_cosmo_grid(tno,cfg):
+    return interpolate_to_cosmo_grid(tno,"tno",cfg)
 
 def interpolate_tno_to_cosmo_point(source,tno,cfg):
     """This function returns the indices of the cosmo grid cell that contains the point source

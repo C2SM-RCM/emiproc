@@ -1,4 +1,5 @@
-from make_online_emissions import interpolate_tno_to_cosmo_grid,initialize_output,gridbox_area
+from make_online_emissions import *
+
 from netCDF4 import Dataset
 import cartopy.crs as ccrs
 import numpy as np
@@ -11,7 +12,6 @@ from datetime import datetime,timedelta
 from multiprocessing import Pool
 
 
-input_path = cfg.tnoCamsPath
 
 def doit(i,interp_tot,cosmo_area):
     inidate = datetime(2015,1,i)
@@ -51,11 +51,11 @@ def doit(i,interp_tot,cosmo_area):
 
 
 
-def get_interp_tot():
+def get_interp_tot(cfg):
     for n,i in enumerate([6,2,4,1,3,5]):#[1,3,5,6,2,4]): # Weird order, following the README of Julia
-        input_path = "/scratch/snx3000/haussaij/VPRM/20150101/vprm_fluxes_EU"+str(i)+"_GPP_2015010110.nc"
+        input_path = cfg.vprm_path %str(i) 
         with Dataset(input_path) as inf:
-            interpolation = get_interpolation(cfg,inf,filename="EU"+str(i)+"_mapping.npy")
+            interpolation = get_interpolation(cfg,inf,filename="EU"+str(i)+"_mapping.npy",inv_name="vprm")
       
             if n==0:
                 x,y = inf["lat"][:].shape
@@ -72,14 +72,11 @@ def main(cfg_path):
     """ The main script for processing the VPRM inventory. 
     Takes a configuration file as input"""
 
-    """Load the configuration file"""
-    cfg = load_cfg(cfg_path)
-
     print("Combining the interpolation matrices")
-    interp_tot = get_interp_tot()
+    interp_tot = get_interp_tot(cfg)
     cosmo_area = 1./gridbox_area(cfg)
 
-    with Pool(8) as pool:
+    with Pool(6) as pool:
         pool.starmap(doit,[(i,interp_tot,cosmo_area) for i in range(2,10)])
         
 
