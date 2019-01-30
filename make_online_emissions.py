@@ -309,18 +309,60 @@ def interpolate_single_cell(cfg,points):
                 mapping.append((a,b,inter.area/area_tno))
     return mapping
 
+def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
+    if inv_name=="tno":
+        x_tno = lon_var[i]
+        y_tno = lat_var[j]
+        cell_x= np.array([
+            x_tno+cfg.tno_dx/2,
+            x_tno+cfg.tno_dx/2,
+            x_tno-cfg.tno_dx/2,
+            x_tno-cfg.tno_dx/2])
+        cell_y= np.array([
+            y_tno+cfg.tno_dy/2,
+            y_tno-cfg.tno_dy/2,
+            y_tno-cfg.tno_dy/2,
+            y_tno+cfg.tno_dy/2])
+        proj = ccrs.PlateCarree()
 
-def interpolate_to_cosmo_grid(tno,cfg):
+    if inv_name=="vprm":
+        globe = ccrs.Globe(ellipse=None,semimajor_axis = 6370000,semiminor_axis = 6370000)
+        lambert = ccrs.LambertConformal(
+            central_longitude = 12.5, central_latitude = 51.604,
+            standard_parallels=[51.604],globe=globe)
+
+        
+        center_lambert = lambert.transform_point(lon_var[j,i],lat_var[j,i],ccrs.PlateCarree())
+        cell_x = np.array([center_lambert[0]+cfg.tno_dx/2,center_lambert[0]+cfg.tno_dx/2,center_lambert[0]-cfg.tno_dx/2,center_lambert[0]-cfg.tno_dx/2])
+        cell_y = np.array([center_lambert[1]+cfg.tno_dy/2,center_lambert[1]-cfg.tno_dy/2,center_lambert[1]-cfg.tno_dy/2,center_lambert[1]+cfg.tno_dy/2])
+        proj = lambert
+
+
+    return cell_x,cell_y,proj
+
+def get_dim_var(inv,inv_name):
+    if inv_name == "tno":
+        lon_dim = inv.dimensions["longitude"].size
+        lat_dim = inv.dimensions["latitude"].size
+        lon_var = inv["longitude"][:]
+        lat_var = inv["latitude"][:]
+    if inv_name == "vprm":
+        lon_dim = inv.dimensions["west_east"].size
+        lat_dim = inv.dimensions["south_north"].size
+        lon_var = tno["lon"][:]
+        lat_var = tno["lat"][:]
+
+    return lon_dim,lat_dim,lon_var,lat_var
+def interpolate_to_cosmo_grid(tno,inv_name,cfg):
     print("Retrieving the interpolation between the cosmo and the inventory grids")
     start = time.time()
    
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
 
-    tno_lon = tno.dimensions["longitude"].size
-    tno_lat = tno.dimensions["latitude"].size
+    lon_dim,lat_dim,lon_var,lat_var = get_dim_var(tno,inv_name)
 
     """This is the interpolation that will be returned"""
-    mapping = np.empty((tno_lon,tno_lat),dtype=object)
+    mapping = np.empty((lon_dim,lat_dim),dtype=object)
 
     # Annoying ...
     """Transform the cfg to a dictionary"""
@@ -334,26 +376,14 @@ def interpolate_to_cosmo_grid(tno,cfg):
 
 
     with Pool(6) as pool:
-        for i in range(tno_lon):
+        for i in range(lon_dim):
             print("ongoing :",i)
-            x_tno = tno["longitude"][i]
             points = []
-            for j in range(tno_lat):
-                y_tno = tno["latitude"][j]
-                tno_cell_x= np.array([
-                    x_tno+cfg.tno_dx/2,
-                    x_tno+cfg.tno_dx/2,
-                    x_tno-cfg.tno_dx/2,
-                    x_tno-cfg.tno_dx/2])
-                tno_cell_y= np.array([
-                    y_tno+cfg.tno_dy/2,
-                    y_tno-cfg.tno_dy/2,
-                    y_tno-cfg.tno_dy/2,
-                    y_tno+cfg.tno_dy/2])
-                
-                points.append(transform.transform_points(ccrs.PlateCarree(),tno_cell_x,tno_cell_y))
+            for j in range(lat_dim):
+                tno_cell_x,tno_cell_y,proj = cell_corners(lon_var,lat_var,inv_name,i,j,cfg)
+                points.append(transform.transform_points(proj,tno_cell_x,tno_cell_y))
 
-            mapping[i,:] = pool.starmap(interpolate_single_cell,[(config,points[j]) for j in range(tno_lat)])
+            mapping[i,:] = pool.starmap(interpolate_single_cell,[(config,points[j]) for j in range(lat_dim)])
 
 
     end = time.time()
@@ -365,98 +395,7 @@ def interpolate_to_cosmo_grid(tno,cfg):
 
 
 def interpolate_tno_to_cosmo_grid(tno,cfg):
-    return interpolate_to_cosmo_grid(tno,cfg)
-    
-# def interpolate_tno_to_cosmo_grid(tno,cfg):
-#     """This function determines which COSMO cell coincides with a TNO cell
-#     input : 
-#        - tno : the TNO netCDF file, already open
-#        - cfg  : the configuration file
-#     output : 
-#        It produces an array of dimension (tno_lon,tno_lat)
-#        Each element will be a list containing triplets (x,y,r) 
-#           - x : index of the longitude of cosmo grid cell 
-#           - y : index of the latitude of cosmo grid cell
-#           - r : ratio of the area of the intersection compared to the area of the tno cell.
-#        To avoid having a lot of r=0, we only keep the cosmo cells that intersect the tno cell.
-
-#     For a TNO grid of (720,672) and a Berlin domain (70,60) with resolution 0.1°, it takes 5min to run
-#     For a TNO grid of (720,672) and a European domain (760,800) with resolution 0.05°, it takes 40min to run
-# """
-
-#     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
-#     cosmo_xlocs = np.arange(cfg.xmin, cfg.xmin+cfg.dx*cfg.nx, cfg.dx)
-#     cosmo_ylocs = np.arange(cfg.ymin, cfg.ymin+cfg.dy*cfg.ny, cfg.dy)
-    
-#     var_out = np.zeros((len(cosmo_ylocs),len(cosmo_xlocs)))
-
-#     tno_lon = tno.dimensions["longitude"].size
-#     tno_lat = tno.dimensions["latitude"].size
-    
-#     """This is the interpolation that will be returned"""
-#     mapping = np.empty((tno_lon,tno_lat),dtype=object)
-            
-#     incr = 0
-#     start = time.time()
-#     for i in range(tno_lon):
-#         for j in range(tno_lat):
-#             """Initialization"""
-#             mapping[i,j]=[]
-
-#             """Progress bar"""
-#             incr+=1
-#             if int(incr/100) == incr/100.:
-#                 sys.stdout.write('\r')
-#                 sys.stdout.write(" {:.1f}%".format((100/((tno_lon*tno_lat)-1)*((i*tno_lat)+j))))
-#                 sys.stdout.flush()            
-
-#             """Get the middle of the tno cell"""
-#             # x_tno=tno["longitude_source"][i]
-#             # y_tno=tno["latitude_source"][i]
-#             x_tno = tno["longitude"][i]
-#             y_tno = tno["latitude"][j]
-            
-#             """Get the corners of the tno cell"""
-#             tno_cell_x= np.array([x_tno+cfg.tno_dx/2,x_tno+cfg.tno_dx/2,x_tno-cfg.tno_dx/2,x_tno-cfg.tno_dx/2])
-#             tno_cell_y= np.array([y_tno+cfg.tno_dy/2,y_tno-cfg.tno_dy/2,y_tno-cfg.tno_dy/2,y_tno+cfg.tno_dy/2])
-
-#             """Make a polygon out of it, and get its area."""
-#             """in cosmo grid"""
-
-#             """Note : the unit/meaning of the area is in degree^2, but it doesn't matter since we only want the ratio. we assume the area is on a flat earth."""
-#             points = transform.transform_points(ccrs.PlateCarree(),tno_cell_x,tno_cell_y)
-
-#             polygon_tno = Polygon(points)
-#             area_tno = polygon_tno.area
-
-#             """Find the cosmo cells that intersect it"""
-#             for (a,x) in enumerate(cosmo_xlocs):
-#                 """Get the corners of the cosmo cell"""
-#                 cosmo_cell_x = [x+cfg.dx/2,x+cfg.dx/2,x-cfg.dx/2,x-cfg.dx/2]
-#                 if (min(cosmo_cell_x)>max([k[0] for k in points])) or (max(cosmo_cell_x)<min([k[0] for k in points])):
-#                     continue
-
-#                 for (b,y) in enumerate(cosmo_ylocs):                    
-#                     cosmo_cell_y = [y+cfg.dy/2,y-cfg.dy/2,y-cfg.dy/2,y+cfg.dy/2]
-
-#                     if (min(cosmo_cell_y)>max([k[1] for k in points])) or (max(cosmo_cell_y)<min([k[1] for k in points])):
-#                         continue
-
-#                     points_cosmo = [k for k in zip(cosmo_cell_x,cosmo_cell_y)]
-#                     polygon_cosmo = Polygon(points_cosmo)
-
-#                     if polygon_cosmo.intersects(polygon_tno):
-#                         inter = polygon_cosmo.intersection(polygon_tno)
-#                         mapping[i,j].append((a,b,inter.area/area_tno))
-
-#     end = time.time()
-#     print("\nInterpolation is over")
-#     print("it took ",end-start,"seconds")
-#     #return var_out
-#     np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
-#     return mapping
-        
-
+    return interpolate_to_cosmo_grid(tno,"tno",cfg)
 
 def get_interpolation(cfg,tno,filename="mapping.npy"):
     """retrieve the interpolation between the tno and cosmo grids."""
