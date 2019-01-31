@@ -310,7 +310,7 @@ def interpolate_single_cell(cfg,points):
     return mapping
 
 def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
-    if inv_name=="tno":
+    if inv_name == "tno":
         x_tno = lon_var[i]
         y_tno = lat_var[j]
         cell_x= np.array([
@@ -324,16 +324,38 @@ def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
             y_tno-cfg.tno_dy/2,
             y_tno+cfg.tno_dy/2])
         proj = ccrs.PlateCarree()
-    elif inv_name=="vprm":
+    elif inv_name == "vprm":
         globe = ccrs.Globe(ellipse=None,semimajor_axis = 6370000,semiminor_axis = 6370000)
         lambert = ccrs.LambertConformal(
             central_longitude = 12.5, central_latitude = 51.604,
             standard_parallels=[51.604],globe=globe)
         
         center_lambert = lambert.transform_point(lon_var[j,i],lat_var[j,i],ccrs.PlateCarree())
-        cell_x = np.array([center_lambert[0]+cfg.tno_dx/2,center_lambert[0]+cfg.tno_dx/2,center_lambert[0]-cfg.tno_dx/2,center_lambert[0]-cfg.tno_dx/2])
-        cell_y = np.array([center_lambert[1]+cfg.tno_dy/2,center_lambert[1]-cfg.tno_dy/2,center_lambert[1]-cfg.tno_dy/2,center_lambert[1]+cfg.tno_dy/2])
+        cell_x = np.array([
+            center_lambert[0]+cfg.tno_dx/2,
+            center_lambert[0]+cfg.tno_dx/2,
+            center_lambert[0]-cfg.tno_dx/2,
+            center_lambert[0]-cfg.tno_dx/2])
+        cell_y = np.array([
+            center_lambert[1]+cfg.tno_dy/2,
+            center_lambert[1]-cfg.tno_dy/2,
+            center_lambert[1]-cfg.tno_dy/2,
+            center_lambert[1]+cfg.tno_dy/2])
         proj = lambert
+    elif inv_name == "edgar":
+        x_tno = lon_var[i]
+        y_tno = lat_var[j]
+        cell_x= np.array([
+            x_tno+cfg.edgar_dx,
+            x_tno+cfg.edgar_dx,
+            x_tno,
+            x_tno])
+        cell_y= np.array([
+            y_tno+cfg.edgar_dy,
+            y_tno-cfg.edgar_dy,
+            y_tno,
+            y_tno])
+        proj = ccrs.PlateCarree()
     else:
         print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
         
@@ -341,7 +363,7 @@ def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
 
     return cell_x,cell_y,proj
 
-def get_dim_var(inv,inv_name):
+def get_dim_var(inv,inv_name,cfg):
     if inv_name == "tno":
         lon_dim = inv.dimensions["longitude"].size
         lat_dim = inv.dimensions["latitude"].size
@@ -352,17 +374,24 @@ def get_dim_var(inv,inv_name):
         lat_dim = inv.dimensions["south_north"].size
         lon_var = inv["lon"][:]
         lat_var = inv["lat"][:]
+    elif inv_name == "edgar":
+        lon_var = np.arange(cfg.edgar_xmin,cfg.edgar_xmax,cfg.edgar_dx)
+        lat_var = np.arange(cfg.edgar_ymin,cfg.edgar_ymax,cfg.edgar_dy)
+        lon_dim = len(lon_var)
+        lat_dim = len(lat_var)
     else:
         print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
 
     return lon_dim,lat_dim,lon_var,lat_var
+
+
 def interpolate_to_cosmo_grid(tno,inv_name,cfg):
     print("Retrieving the interpolation between the cosmo and the inventory grids")
     start = time.time()
    
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
 
-    lon_dim,lat_dim,lon_var,lat_var = get_dim_var(tno,inv_name)
+    lon_dim,lat_dim,lon_var,lat_var = get_dim_var(tno,inv_name,cfg)
 
     """This is the interpolation that will be returned"""
     mapping = np.empty((lon_dim,lat_dim),dtype=object)
