@@ -53,34 +53,38 @@ def main(cfg_path):
 
 
         """ EDGAR specific"""
+        out_var = np.zeros((cfg.ny,cfg.nx)) #sum of all sources
         for cat in cfg.edgar_cat:
             path = os.path.join(cfg.input_path,cat)
             files = glob(path+"/*_2015_*")            
             if len(files)>1 or len(files)<0:
-                print("There are two many or two few files")
+                print("There are too many or too few files")
                 print(files)
             else:
                 filename = files[0]
             print(filename)
                         
             start = time.time()
-            out_var = np.zeros((cfg.ny,cfg.nx))
-            print(out_var.shape)
             #lat,lon = get_lat_lon(filename)
             emi = get_emi(filename,cfg) #(lon,lat)
-            print(emi.shape)
             for lon in range(emi.shape[0]):
                 for lat in range(emi.shape[1]):
                     for (x,y,r) in interpolation[lon,lat]:
-                        # Maybe add a conversion of some kind.
+                        # EDGAR inventory is in tons per grid cell
                         out_var[y,x] += emi[lon,lat]*r
             end = time.time()
             print("it takes ",end-start,"sec")                     
 
-            out_var_name = cfg.species+"_"+cat
-            out.createVariable(out_var_name,float,("rlat","rlon"))
-            out[out_var_name].units = "kg m-2 s-1"
-            out[out_var_name][:] = out_var
+        """convert unit from ton.year-1.cell-1 to kg.m-2.s-1"""
+        
+        """calculate the areas (m^^2) of the COSMO grid"""
+        cosmo_area = 1./gridbox_area(cfg)            
+        out_var *= cosmo_area.T*convfac*1000
+
+        out_var_name = cfg.species+"_EDGAR"
+        out.createVariable(out_var_name,float,("rlat","rlon"))
+        out[out_var_name].units = "kg m-2 s-1"
+        out[out_var_name][:] = out_var
 
     
 
