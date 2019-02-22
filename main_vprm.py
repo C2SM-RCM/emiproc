@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import sys
 import os
 import importlib
-import config_VPRM as cfg
+import config_VPRM_5km as cfg
 from datetime import datetime,timedelta
 from multiprocessing import Pool
 
@@ -22,9 +22,10 @@ def doit(i,interp_tot,cosmo_area):
             time_str = time_.strftime("%Y%m%d%H")
             print("   ",s,time_str)
 
-            output_path = "/scratch/snx3000/haussaij/VPRM/int2lm/"+s+"_"+time_str+".nc"
-
-            data_path = "/scratch/snx3000/haussaij/VPRM/"+ inidate.strftime("%Y%m%d")+"/"+s+"_"+time_str+".nc"
+            #output_path = "/scratch/snx3000/haussaij/VPRM/int2lm/"+s+"_"+time_str+".nc"
+            filename_out = s+"_"+time_str+".nc"
+            output_path = "/scratch/snx3000/haussaij/VPRM/output/"+filename_out
+            data_path = "/scratch/snx3000/haussaij/VPRM/input/"+ inidate.strftime("%Y%m%d")+"/"+s+"_"+time_str+".nc"
             data = Dataset(data_path)[sname][:]
             out_var_area = np.zeros((cfg.ny,cfg.nx))
 
@@ -32,12 +33,19 @@ def doit(i,interp_tot,cosmo_area):
                 for lat in range(data.shape[0]):
                     for (x,y,r) in interp_tot[lat,lon]:
                         #vprm_dat is in umol/m^2/s. Each cell is exactly 1km^2
-                        out_var_area[y,x] += data[lat,lon]*r*1000*1000 #now out_var_area is in umol
+                        out_var_area[y,x] += data[lat,lon]*r*cfg.dx*cfg.dy #now out_var_area is in umol.cell-1.s-1
 
             with Dataset(output_path,"w") as outf:
-                initialize_output(outf,cfg)
-                print("I need to add time. Are you sure we're going on?")
-                s = input("hein ?")
+                prepare_output_file(cfg,outf)
+                # Add the time variable
+                example_file = "/store/empa/em05/haussaij/CHE/input_che/vprm_old/processed/"+filename_out
+                with Dataset(example_file) as ex :
+                    outf.createDimension("time")
+                    outf.createVariable(varname="time",
+                                           datatype=ex["time"].datatype,
+                                           dimensions=ex["time"].dimensions)
+                    outf["time"].setncatts(ex["time"].__dict__)
+
 
                 """convert unit from umol.cell-1.s-1 to kg.m-2.s-1"""
                 """calculate the areas (m^^2) of the COSMO grid"""
@@ -67,19 +75,31 @@ def get_interp_tot(cfg):
                 interp_tot[x:,(n-3)*y:(n-2)*y] = interpolation.T
     return interp_tot
 
+def get_interp_5km(cfg):
+    input_path = cfg.vprm_path
+    with Dataset(input_path) as inf:
+        interpolation = get_interpolation(cfg,inf,inv_name="vprm")
+        
+    return interpolation.T
+
+
 
 def main(cfg_path):
     """ The main script for processing the VPRM inventory. 
     Takes a configuration file as input"""
 
     print("Combining the interpolation matrices")
-    interp_tot = get_interp_tot(cfg)
+    if "5km" in cfg_path:
+        interp_tot = get_interp_5km(cfg)
+    else:
+        interp_tot = get_interp_tot(cfg)
+
     cosmo_area = 1./gridbox_area(cfg)
 
-    with Pool(6) as pool:
-        pool.starmap(doit,[(i,interp_tot,cosmo_area) for i in range(2,10)])
+    with Pool(9) as pool:
+        pool.starmap(doit,[(i,interp_tot,cosmo_area) for i in range(1,10)])
         
 
 if __name__=="__main__":
-    main("./config_VPRM")
+    main("./config_VPRM_5km")
     
