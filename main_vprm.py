@@ -33,12 +33,12 @@ def doit(i,interp_tot,cosmo_area):
                 for lat in range(data.shape[0]):
                     for (x,y,r) in interp_tot[lat,lon]:
                         #vprm_dat is in umol/m^2/s. Each cell is exactly 1km^2
-                        out_var_area[y,x] += data[lat,lon]*r*cfg.dx*cfg.dy #now out_var_area is in umol.cell-1.s-1
+                        out_var_area[y,x] += data[lat,lon]*r*cfg.tno_dx*cfg.tno_dy #now out_var_area is in umol.cell-1.s-1
 
             with Dataset(output_path,"w") as outf:
                 prepare_output_file(cfg,outf)
                 # Add the time variable
-                example_file = "/store/empa/em05/haussaij/CHE/input_che/vprm_old/processed/"+filename_out
+                example_file = "/store/empa/em05/haussaij/CHE/input_che/vprm_old/vprm_smartcarb/processed/"+filename_out
                 with Dataset(example_file) as ex :
                     outf.createDimension("time")
                     outf.createVariable(varname="time",
