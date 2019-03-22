@@ -273,8 +273,22 @@ def interpolate_to_cosmo_point(lat_source,lon_source,cfg,proj=ccrs.PlateCarree()
 ##  Regarding the area sources  ##
 ##################################
 def interpolate_single_cell(cfg,points):
-    """ - points are the corner of the cell in the inventory"""
+    """This function determines which COSMO cell coincides with a TNO cell
+        input : 
+            - cfg  : the configuration file
+            - points : the corner of the cell in the inventory
+        output : 
+            A list containing triplets (x,y,r) 
+               - x : index of the longitude of cosmo grid cell 
+               - y : index of the latitude of cosmo grid cell
+               - r : ratio of the area of the intersection compared to the area of the tno cell.
+            To avoid having a lot of r=0, we only keep the cosmo cells that intersect the tno cell.
 
+    For a TNO grid of (720,672) and a Berlin domain (70,60) with resolution 0.1°, it takes 5min to run
+    For a TNO grid of (720,672) and a European domain (760,800) with resolution 0.05°, it takes 40min to run
+    """
+
+    
     """Information about the cosmo grid"""
     cosmo_xlocs = np.arange(cfg["xmin"], cfg["xmin"]+cfg["dx"]*cfg["nx"], cfg["dx"])
     cosmo_ylocs = np.arange(cfg["ymin"], cfg["ymin"]+cfg["dy"]*cfg["ny"], cfg["dy"])
