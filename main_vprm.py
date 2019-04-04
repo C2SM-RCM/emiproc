@@ -101,5 +101,6 @@ def main(cfg_path):
         
 
 if __name__=="__main__":
-    main("./config_VPRM_5km")
+    cfg_name = sys.argv[1]
+    main("./config_" + cfg_name)
     
