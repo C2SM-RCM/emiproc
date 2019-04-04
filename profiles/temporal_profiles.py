@@ -168,8 +168,8 @@ def read_temporal_profile_simple(path):
             splitted = l.split(";")
             if splitted[0]=="1":
                 started=True
-            if splitted[0]=="11":
-                started=False
+            # if splitted[0]=="11":
+            #     started=False
             if started:
                 if splitted[1]=="F1":
                     snaps.append("F")
@@ -358,6 +358,7 @@ def main_simple(path):
     snaps,monthly = read_temporal_profile_simple("CHE_input/timeprofiles-month-in-year_GNFR.csv")
 
     print(snaps)
+
     # day of week and month of year
     dow = np.ones((7, n_countries))
     moy = np.ones((12, n_countries))

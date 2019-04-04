@@ -1,0 +1,22 @@
+# Emission temporal profiles for day in week;;;;;;;;;
+#;;;;;;;;;
+# HISTORY;;;;;;;;;
+#;;;;;;;;;
+# 2018-10-12, Antoon Visschedijk, Temporal profiles converted from SNAP-based to GNFR-based, new temporal profiles for K_AgriLivestock and L_AgriOther based on Skjøth, C. A., Geels, C., Berge, H., Gyldenkærne, S., Fagerli, H., Ellermann, T., ... & Hertel, O. (2011). Spatial and temporal variations in ammonia emissions–a freely accessible model code for Europe. Atmospheric Chemistry and Physics, 11(11), 5221-5236.;;;;;;;;;
+#;;;;;;;;;
+;TNO GNFR sectors Sept 2018;GNFR_Category_Name; mon ; tue ; wed ; thu ; fri ; sat ; sun 
+1;A;A_PublicPower;1.06;1.06;1.06;1.06;1.06;0.85;0.85
+2;B;B_Industry;1.08;1.08;1.08;1.08;1.08;0.8;0.8
+3;C;C_OtherStationaryComb;1.08;1.08;1.08;1.08;1.08;0.8;0.8
+4;D;D_Fugitives;1;1;1;1;1;1;1
+5;E;E_Solvents;1.2;1.2;1.2;1.2;1.2;0.5;0.5
+6;F1;F_RoadTransport_exhaust_gasoline;1.02;1.06;1.08;1.1;1.14;0.81;0.79
+6;F2;F_RoadTransport_exhaust_diesel;1.02;1.06;1.08;1.1;1.14;0.81;0.79
+6;F3;F_RoadTransport_exhaust_LPG_gas;1.02;1.06;1.08;1.1;1.14;0.81;0.79
+6;F4;F_RoadTransport_non-exhaust;1.02;1.06;1.08;1.1;1.14;0.81;0.79
+7;G;G_Shipping;1;1;1;1;1;1;1
+8;H;H_Aviation;1;1;1;1;1;1;1
+9;I;I_OffRoad;1;1;1;1;1;1;1
+10;J;J_Waste;1;1;1;1;1;1;1
+11;K;K_AgriLivestock;1;1;1;1;1;1;1
+12;L;L_AgriOther;1;1;1;1;1;1;1
