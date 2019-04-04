@@ -48,7 +48,7 @@ def gridbox_area(cfg):
     areas = np.array([[dd*np.cos(deg2rad*cfg.ymin+j*dlat) for j in range(cfg.ny)] for foo in range(cfg.nx)])
     return areas 
 
-def prepare_output_file(cfg,out,country_mask=None):
+def prepare_output_file(cfg,out,country_mask=[]):
     """Starts writing out the output file :
        - Dimensions and variables for longitude and latitude
        - Rotated pole
@@ -89,7 +89,7 @@ def prepare_output_file(cfg,out,country_mask=None):
     out[latname][:] = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy)
 
     """Create the variable associated with the country_mask"""
-    if country_mask !=None:
+    if len(country_mask):
         mask_name = "country_ids"
         out.createVariable(mask_name,"short",(latname,lonname))
         out[mask_name].long_name = "EMEP_country_code"
