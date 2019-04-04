@@ -191,5 +191,5 @@ def main(cfg_path):
 
                         
 if __name__ == "__main__":
-    main("./config_CHE")
+    main("./config_Carbosense")
     
