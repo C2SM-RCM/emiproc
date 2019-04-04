@@ -73,7 +73,7 @@ from country_code import country_codes as cc
 
 # weekly and annual profiles are availble for these tracers
 #TRACERS = ['CO', 'CO2', 'NH3', 'NMVOC', 'NO', 'NO2', 'NOx', 'P10', 'P25', 'SOx']
-TRACERS = ['CO2']
+TRACERS = ['CO2', 'CO', 'CH4']
 only_ones = False
 
 def permute_cycle_tz(tz,cycle):

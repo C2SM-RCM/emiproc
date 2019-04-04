@@ -115,8 +115,8 @@ def read_profiles(filename, nlevel=16):
 
 
 def main(filename):
-    categories, profiles,levels = read_profiles('vert_profiles/vert_prof_che_gnfr.dat')
-    write_netcdf(filename, categories, "GNFR_", levels, profiles)
+    categories, profiles,levels = read_profiles('vert_profiles/vert_prof_che_snap.dat')
+    write_netcdf(filename, categories, "SNAP-", levels, profiles)
 
 
 
