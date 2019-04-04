@@ -390,7 +390,7 @@ def main_simple(path):
     
 
 if __name__ == "__main__":
-    complex_profile=True
+    complex_profile=False
     if complex_profile:
         main_complex("./output")
     else:

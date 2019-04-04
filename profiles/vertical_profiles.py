@@ -68,7 +68,7 @@ def write_netcdf(filename, categories, cat_name, levels, scale_factors):
 
         for (i,cat) in enumerate(categories):            
             nc_sca = nc.createVariable(cat_name+cat, 'f4', ('level'))
-            nc_sca.long_name = 'vertical scale factor for sources of SNAP-%s category' % cat
+            nc_sca.long_name = 'vertical scale factor for sources of %s category' % cat
             nc_sca.units = '1'
             nc_sca[:] = scale_factors[i]
 
@@ -115,8 +115,8 @@ def read_profiles(filename, nlevel=16):
 
 
 def main(filename):
-    categories, profiles,levels = read_profiles('vert_profiles/vert_prof_che_snap.dat')
-    write_netcdf(filename, categories, "SNAP-", levels, profiles)
+    categories, profiles,levels = read_profiles('vert_profiles/vert_prof_che_gnfr.dat')
+    write_netcdf(filename, categories, "GNFR_", levels, profiles)
 
 
 
