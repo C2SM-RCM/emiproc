@@ -78,13 +78,13 @@ def prepare_output_file(cfg,out,country_mask=[]):
     """Create the variable associated to the dimensions"""
     out.createVariable(lonname,"float32",lonname)
     out[lonname].axis = "X"
-    out[lonname].units = "degrees"
+    out[lonname].units = "degrees_east"
     out[lonname].standard_name = "longitude"
     out[lonname][:] = np.arange(cfg.xmin,cfg.xmin+cfg.dx*cfg.nx,cfg.dx)
 
     out.createVariable(latname,"float32",latname)
     out[latname].axis = "Y"
-    out[latname].units = "degrees"
+    out[latname].units = "degrees_north"
     out[latname].standard_name = "latitude"
     out[latname][:] = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy)
 
