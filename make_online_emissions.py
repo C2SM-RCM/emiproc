@@ -372,6 +372,20 @@ def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
             y_tno,
             y_tno])
         proj = ccrs.PlateCarree()
+    elif inv_name == 'meteotest': 
+        x1_ch, y1_ch = swiss2wgs84(lat_var[j],lon_var[i])   # i-lon, j-lat
+        x2_ch, y2_ch = swiss2wgs84(lat_var[j]+200,lon_var[i]+200) 
+        cell_x= np.array([
+            x2_ch,
+            x2_ch,
+            x1_ch,
+            x1_ch])
+        cell_y= np.array([
+            y2_ch,
+            y1_ch,
+            y1_ch,
+            y2_ch])               
+        proj = ccrs.PlateCarree() 
     else:
         print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
         
@@ -396,6 +410,11 @@ def get_dim_var(inv,inv_name,cfg):
         lat_var = np.arange(cfg.edgar_ymin,cfg.edgar_ymax,cfg.edgar_dy)
         lon_dim = len(lon_var)
         lat_dim = len(lat_var)
+    elif inv_name == 'meteotest':
+        lon_var = np.array( [ cfg.ch_xll+i*cfg.ch_cell for i in range(0,cfg.ch_xn) ] )
+        lat_var = np.array( [ cfg.ch_yll+i*cfg.ch_cell for i in range(0,cfg.ch_yn) ] )
+        lon_dim = np.shape(lon_var)[0]
+        lat_dim = np.shape(lat_var)[0]
     else:
         print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
 
@@ -438,7 +457,10 @@ def interpolate_to_cosmo_grid(tno,inv_name,cfg):
     print("\nInterpolation is over")
     print("it took ",end-start,"seconds")
 
-    np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
+    if hasattr(cfg, 'origin'):
+        np.save(os.path.join(cfg.output_path,"mapping_" + cfg.origin + ".npy"),mapping)
+    else:
+        np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
     return mapping
 
 
@@ -457,3 +479,34 @@ def get_interpolation(cfg,tno,inv_name = "tno",filename="mapping.npy"):
         interpolation = np.load(mapping_path)
 
     return interpolation
+
+
+def swiss2wgs84(x,y):
+    """
+    Convert Swiss LV03 coordinates (x easting and y northing) to WGS 84 based
+    on swisstopo approximated soluation (0.1" accuracy).
+
+    remove the first digit of x,y
+    """
+    x = (x - 200000.0) / 1000000.0
+    y = (y - 600000.0) / 1000000.0
+
+    lon = (
+          2.6779094
+        + 4.728982  * y
+        + 0.791484  * y * x
+        + 0.1306    * y * x**2
+        - 0.0436    * y**3
+    ) / 0.36
+
+    lat = (
+         16.9023892
+        + 3.238272  * x
+        - 0.270978  * y**2
+        - 0.002528  * x**2
+        - 0.0447    * y**2 * x
+        - 0.0140    * x**3
+    ) / 0.36
+
+    return lon, lat
+

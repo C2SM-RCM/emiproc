@@ -33,7 +33,8 @@ def main(cfg_path):
     country_mask = get_country_mask(cfg)
 
     """Load or compute the interpolation map"""
-    interpolation = get_interpolation(cfg,None,inv_name="ch")
+    interpolation = get_interpolation(cfg,None,inv_name="meteotest",
+                                      filename='mapping_meteotest.npy')
 
 
     """Starts writing out the output file"""
@@ -65,11 +66,12 @@ def main(cfg_path):
                 out_var_name = var+"_"+cat+"_ch"
                 out.createVariable(out_var_name,float,("rlat","rlon"))
                 out[out_var_name].units = "kg h-1 cell-1"
+                out[out_var_name].grid_mapping = "rotated_pole"
                 out[out_var_name][:] = out_var
 
     
 
 
 if __name__ == "__main__":
-#    main("/project/muq/online_emission_cosmoart/config_d1_ch")
-    main("/project/muq/online_emission_cosmoart/config_d2_ch")
+    cfg_name = sys.argv[1]
+    main("./config_" + cfg_name)
