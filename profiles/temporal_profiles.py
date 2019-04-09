@@ -70,11 +70,16 @@ from datetime import datetime
 from country_code import country_codes as cc
 
 
-
-# weekly and annual profiles are availble for these tracers
+"""Weekly and annual profiles are availble for these tracers"""
 #TRACERS = ['CO', 'CO2', 'NH3', 'NMVOC', 'NO', 'NO2', 'NOx', 'P10', 'P25', 'SOx']
 TRACERS = ['CO2']
 only_ones = False
+
+"""Set output type (normal, CH0, outCH0)"""
+output_type = 'normal'
+#output_type = 'CH0'
+#output_type = 'outCH0'
+
 
 def permute_cycle_tz(tz,cycle):
     # tz in the shape "+0400"
@@ -240,8 +245,20 @@ def read_all_data(tracers, path='timeprofiles'):
 
 
 def create_netcdf(path,countries):
-    for (profile,size) in zip(["hourofday", "dayofweek", "monthofyear", "hourofyear"],[24,7,12,8784]):
-        filename = os.path.join(path,profile+".nc")
+    profile_names = ["hourofday", "dayofweek", "monthofyear", "hourofyear"]
+    var_names = ["hourofday", "dayofweek", "monthofyear", "hourofyear"] 
+    if output_type == 'normal':
+        pass
+    elif output_type == 'CH0':
+        profile_names[0] = 'hourofday_CH0'
+    elif output_type == 'outCH0':
+        profile_names[0] = 'hourofday_outCH0'
+    else:
+        raise ValueError("Variable 'output_type' has to be 'normal' or 'CH0' "
+                         "or 'outCH0', not '%s'" % output_type)
+
+    for (profile, var, size) in zip(profile_names, var_names, [24,7,12,8784]):
+        filename = os.path.join(path,profile + ".nc")
         
         with netCDF4.Dataset(filename, 'w') as nc:
 
@@ -256,7 +273,7 @@ def create_netcdf(path,countries):
             })
 
             # create dimensions     
-            nc.createDimension(profile, size=size)
+            nc.createDimension(var, size=size)
             nc.createDimension('country', size=len(countries))
 
             nc_cid = nc.createVariable('country', 'i2', ('country'))
@@ -265,15 +282,19 @@ def create_netcdf(path,countries):
 
     
 def write_single_variable(path, profile, values, tracer, snap):
-    filename = os.path.join(path,profile+".nc")
-    if profile =="hourofday":
+    filename = os.path.join(path, profile + ".nc")
+    if 'hourofday' in profile:
         descr = 'diurnal scaling factor'
+        varname = 'hourofday'
     if profile ==  "dayofweek":
         descr ='day-of-week scaling factor'
+        varname = 'dayofweek'
     if profile == "monthofyear":
         descr = 'month-of-year scaling factor'
+        varname = 'monthofyear'
     if profile == "hourofyear":
         descr = 'hour-of-year scaling factor'
+        varname = 'hourofyear'
             
         
     with netCDF4.Dataset(filename, 'a') as nc:
@@ -281,7 +302,7 @@ def write_single_variable(path, profile, values, tracer, snap):
         # if profile == "hourofday" or profile == "hourofyear":
         #     nc_var = nc.createVariable(tracer+"_"+snap, 'f4', (profile))
         # else:
-        nc_var = nc.createVariable(tracer+"_"+snap, 'f4', (profile, 'country'))
+        nc_var = nc.createVariable(tracer+"_"+snap, 'f4', (varname, 'country'))
         if complex_profile:
             nc_var.long_name = "%s for species %s and SNAP %s" % (descr,tracer,snap)
         else:
@@ -383,7 +404,22 @@ def main_simple(path):
             except KeyError:
                 pass
 
-        write_single_variable(path,"hourofday",hod,"GNFR",snap)
+        
+        # Use hourofday profile to mask CH if needed
+        if output_type == 'normal':
+            write_single_variable(path, "hourofday" ,hod, "GNFR", snap)
+        elif output_type == 'CH0':
+            hod[:,23] = 0.
+            write_single_variable(path, "hourofday_CH0", hod, "GNFR", snap)
+        elif output_type == 'outCH0':
+            for i, country in enumerate(countries):
+                if i != 23: hod[:,i] = 0.
+            write_single_variable(path, "hourofday_outCH0", hod, "GNFR", snap)
+        else:
+            raise ValueError("Variable 'output_type' has to be 'normal' or 'CH0' "
+                             "or 'outCH0', not '%s'" % output_type)
+
+        # Write other profiles
         write_single_variable(path,"dayofweek",dow,"GNFR",snap)
         write_single_variable(path,"monthofyear",moy,"GNFR",snap) 
     
