@@ -372,7 +372,8 @@ def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
             y_tno,
             y_tno])
         proj = ccrs.PlateCarree()
-    elif inv_name == 'meteotest': 
+    elif inv_name == 'meteotest' or inv_name == 'maiolica' or \
+         inv_name == 'carbocount':
         x1_ch, y1_ch = swiss2wgs84(lat_var[j],lon_var[i])   # i-lon, j-lat
         x2_ch, y2_ch = swiss2wgs84(lat_var[j]+200,lon_var[i]+200) 
         cell_x= np.array([
@@ -410,7 +411,8 @@ def get_dim_var(inv,inv_name,cfg):
         lat_var = np.arange(cfg.edgar_ymin,cfg.edgar_ymax,cfg.edgar_dy)
         lon_dim = len(lon_var)
         lat_dim = len(lat_var)
-    elif inv_name == 'meteotest':
+    elif inv_name == 'meteotest' or inv_name == 'maiolica' or \
+         inv_name == 'carbocount':
         lon_var = np.array( [ cfg.ch_xll+i*cfg.ch_cell for i in range(0,cfg.ch_xn) ] )
         lat_var = np.array( [ cfg.ch_yll+i*cfg.ch_cell for i in range(0,cfg.ch_yn) ] )
         lon_dim = np.shape(lon_var)[0]

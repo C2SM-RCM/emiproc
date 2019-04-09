@@ -21,7 +21,6 @@ tno_snap = [ "A", "B", "C", "D", "E", "F1", "F2", "F3",
 
 year = 2018
 gridname = 'CH_1km'
-
 output_path ="./testdata"
 
 offline=False

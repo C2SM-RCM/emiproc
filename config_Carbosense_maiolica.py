@@ -1,16 +1,16 @@
 # for MeteoTest Swiss inventory, unit m, x is easterly, y is northly
-input_path = "/input/CH_EMISSIONS/emiskat15/"
-ch_xll = 480000 
-ch_yn = 1200
-ch_yll = 60000
-ch_xn = 1800 
-ch_cell = 200
+input_path = "/input/CH_EMISSIONS/MaiolicaCH4/"
+ch_xn = 704 
+ch_yn = 442
+ch_xll = 48400 
+ch_yll = 75000
+ch_cell = 500
 nodata_value = -9999
 
-origin = 'meteotest'
-gridname = origin + '_CO_1km'
+origin = 'maiolica'
+gridname = origin + '_CH4_1km'
 
-species = ['CO']
+species = ['CH4']
 
 ch_cat = ['']
 

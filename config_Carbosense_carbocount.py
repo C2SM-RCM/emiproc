@@ -1,16 +1,16 @@
-# for MeteoTest Swiss inventory, unit m, x is easterly, y is northly
-input_path = "/input/CH_EMISSIONS/emiskat15/"
-ch_xll = 480000 
-ch_yn = 1200
+# For Swiss inventories, unit m, x is easterly, y is northly
+input_path = "/input/CH_EMISSIONS/CarboCountCO2/summengrids/"
+ch_xn = 760 
+ch_yn = 500
+ch_xll = 470000 
 ch_yll = 60000
-ch_xn = 1800 
-ch_cell = 200
+ch_cell = 500
 nodata_value = -9999
 
-origin = 'meteotest'
-gridname = origin + '_CO_1km'
+origin = 'carbocount'
+gridname = origin + '_CO2_1km'
 
-species = ['CO']
+species = ['CO2']
 
 ch_cat = ['']
 

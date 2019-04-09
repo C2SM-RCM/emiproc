@@ -33,8 +33,8 @@ def main(cfg_path):
     country_mask = get_country_mask(cfg)
 
     """Load or compute the interpolation map"""
-    interpolation = get_interpolation(cfg,None,inv_name="meteotest",
-                                      filename='mapping_meteotest.npy')
+    interpolation = get_interpolation(cfg, None, inv_name=cfg.origin,
+                                      filename='mapping_' + cfg.origin + '.npy')
 
 
     """Starts writing out the output file"""
@@ -44,10 +44,23 @@ def main(cfg_path):
         prepare_output_file(cfg,out,country_mask)
 
 
-        """ meteotest swiss inventory specific"""
+        """
+        Swiss inventory specific (works with MeteoTest, MaiolicaCH4,
+        and CarboCountCO2)   
+        """
         for cat in cfg.ch_cat:            
             for var in cfg.species:                  
-                constfile= ''.join([cfg.input_path,'e',cat.lower(),'15_',var.lower(),'*'])   
+                if cfg.origin == 'meteotest':
+                    constfile= ''.join([cfg.input_path,'e',cat.lower(),
+                                        '15_',var.lower(),'*'])   
+                elif cfg.origin == 'carbocount':
+                    constfile = 'tot_co2_kg.txt' 
+                elif cfg.origin == 'maiolica':
+                    constfile = 'ch4_tot.txt' 
+                else:
+                    print("Wrong origin in the config file.")
+                    raise ValueError
+
                 emi= np.zeros((cfg.ch_xn,cfg.ch_yn))
                 for filename in sorted(glob(constfile)):                          
                     print(filename)
