@@ -51,12 +51,17 @@ def main(cfg_path):
         for cat in cfg.ch_cat:            
             for var in cfg.species:                  
                 if cfg.origin == 'meteotest':
-                    constfile= ''.join([cfg.input_path,'e',cat.lower(),
-                                        '15_',var.lower(),'*'])   
+                    constfile = os.path.join(cfg.input_path,
+                                             ''.join(['e',cat.lower(),'15_',
+                                                      var.lower(),'*'])
+                                            )
+                    out_var_name = var + "_" + cat + "_CH"
                 elif cfg.origin == 'carbocount':
-                    constfile = 'tot_co2_kg.txt' 
+                    constfile = os.path.join(cfg.input_path, 'tot_co2_kg.txt')
+                    out_var_name = var + "_CH"
                 elif cfg.origin == 'maiolica':
-                    constfile = 'ch4_tot.txt' 
+                    constfile = os.path.join(cfg.input_path, 'ch4_tot.txt')
+                    out_var_name = var + "_CH"
                 else:
                     print("Wrong origin in the config file.")
                     raise ValueError
@@ -77,7 +82,6 @@ def main(cfg_path):
                 """convert unit from kg.year-1.cell-1 to g.h-1.cell-1"""
                 out_var *= 1./(day_per_yr*24)/1000.                  
 
-                out_var_name = var+"_"+cat+"_ch"
                 out.createVariable(out_var_name,float,("rlat","rlon"))
                 out[out_var_name].units = "kg h-1 cell-1"
                 out[out_var_name].grid_mapping = "rotated_pole"

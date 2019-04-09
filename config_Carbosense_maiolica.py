@@ -2,7 +2,7 @@
 input_path = "/input/CH_EMISSIONS/MaiolicaCH4/"
 ch_xn = 704 
 ch_yn = 442
-ch_xll = 48400 
+ch_xll = 484000
 ch_yll = 75000
 ch_cell = 500
 nodata_value = -9999
