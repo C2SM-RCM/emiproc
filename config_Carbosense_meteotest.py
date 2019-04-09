@@ -1,5 +1,4 @@
 # for MeteoTest Swiss inventory, unit m, x is easterly, y is northly
-origin = 'meteotest'
 input_path = "/input/CH_EMISSIONS/emiskat15/"
 ch_xll = 480000 
 ch_yn = 1200
@@ -21,7 +20,7 @@ ch_cat = [ "A", "B", "C", "D", "E", "F",
         "G", "H", "I", "J", "K", "L", "M" ]
 
 year = 2018
-gridname = 'CH_1km'
+gridname = 'meteotest_CO_1km'
 
 output_path ="./testdata/"
 

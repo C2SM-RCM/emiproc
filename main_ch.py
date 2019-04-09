@@ -38,7 +38,8 @@ def main(cfg_path):
 
 
     """Starts writing out the output file"""
-    output_path = cfg.output_path+"emis_"+str(cfg.year)+"_"+cfg.gridname+".nc"
+    output_path = os.path.join(cfg.output_path, 
+                               "emis_" + str(cfg.year) + "_" + cfg.gridname + ".nc")
     with nc.Dataset(output_path,"w") as out:
         prepare_output_file(cfg,out,country_mask)
 
