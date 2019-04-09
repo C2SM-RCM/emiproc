@@ -10,13 +10,15 @@ tno_dy = 1/20.
 
 #case specific parameters
 species = ['CO2', 'CH4', 'CO']
-#species = ['CO2']
 
 cat_kind="NFR"                                                                 
+
 snap = [ "A", "B", "C", "D", "E", "F",                                         
          "G", "H", "I", "J", "K", "L" ]                                         
+
 tno_snap = [ "A", "B", "C", "D", "E", "F1", "F2", "F3",                          
              "G", "H", "I", "J", "K", "L" ]
+
 year = 2018
 gridname = 'CH_1km'
 
@@ -39,5 +41,4 @@ if offline:
     ymin -= 2 * dy
     nx += 4
     ny += 4
-
 

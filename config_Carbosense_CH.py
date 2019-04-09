@@ -7,7 +7,9 @@ ch_xn = 1800
 ch_cell = 200
 nodata_value = -9999
 
-species = ['BC','CO','NH3','NMVOC','NOX','PM10','PM25','SO2']#, 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'] #among 'CO2', 'PM2.5', 'CO', 'PM10', 'CH4', 'SO2', 'NMVOC', 'NH3', 'NOx'
+
+
+species = ['CO']
 
 cat_kind="NFR"
 #output cat
@@ -16,27 +18,27 @@ gnfr = [ "A", "B", "C", "D", "E", "F",
 #input cat
 ch_cat = [ "A", "B", "C", "D", "E", "F",
         "G", "H", "I", "J", "K", "L", "M" ]
-year = 2015
-gridname = 'd2_ch'
-output_path ="./testdata/d2_offline/ch/"
 
-offline=True
+year = 2018
+gridname = 'CH_1km'
 
-# Domain
-#Europe domain, rotated pole coordinate
-dx = 0.02
-dy = 0.02
+output_path ="./testdata"
+
+offline=False
+
+# Carbosense COSMO-1 Domain
+dx = 0.01
+dy = 0.01
 pollon = -170.0
 pollat = 43.0
+xmin = -4.92
+ymin = -3.18
+nx = 900
+ny = 600
 
-if not offline:
-    xmin = -3.48#-2*dx
-    ymin = -1.74#-2*dy
-    nx = 220#+4
-    ny = 142#+4
-else:
-    xmin = -3.48-2*dx
-    ymin = -1.74-2*dy
-    nx = 220+4
-    ny = 142+4
+if offline:
+    xmin -= 2 * dx
+    ymin -= 2 * dy
+    nx += 4
+    ny += 4
 
