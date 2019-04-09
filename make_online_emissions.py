@@ -92,6 +92,7 @@ def prepare_output_file(cfg,out,country_mask=[]):
     if len(country_mask):
         mask_name = "country_ids"
         out.createVariable(mask_name,"short",(latname,lonname))
+        out[mask_name].grid_mapping = "rotated_pole"
         out[mask_name].long_name = "EMEP_country_code"
         out[mask_name][:] = country_mask.T
 
