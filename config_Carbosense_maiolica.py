@@ -1,4 +1,4 @@
-# for MeteoTest Swiss inventory, unit m, x is easterly, y is northly
+# for Maiolica Swiss inventory, unit m, x is easterly, y is northly
 input_path = "/input/CH_EMISSIONS/MaiolicaCH4/"
 ch_xn = 704 
 ch_yn = 442

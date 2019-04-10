@@ -1,4 +1,4 @@
-# For Swiss inventories, unit m, x is easterly, y is northly
+# For CarboCount Swiss inventory, unit m, x is easterly, y is northly
 input_path = "/input/CH_EMISSIONS/CarboCountCO2/summengrids/"
 ch_xn = 760 
 ch_yn = 500

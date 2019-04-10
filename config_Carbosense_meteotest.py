@@ -12,7 +12,7 @@ gridname = origin + '_CO_1km'
 
 species = ['CO']
 
-ch_cat = ['']
+ch_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
 
 
 
