@@ -1,4 +1,9 @@
 from make_online_emissions import *
+import country_code
+
+
+exclude_CH = True
+
 
 def interpolate_tno_to_cosmo_grid(tno,cfg):
     return interpolate_to_cosmo_grid(tno,"tno",cfg)
@@ -92,7 +97,11 @@ def main(cfg_path):
     
     """Load or compute the country mask"""
     country_mask = get_country_mask(cfg)
-    
+    country_mask = np.transpose(country_mask)
+    if exclude_CH:
+        mask = country_mask == country_codes['CH']
+        print('Exclude country "CH" (country code %d)' % country_codes['CH'])
+
     """Starts writing out the output file"""
     output_path = os.path.join(cfg.output_path, 
                                "emis_" + str(cfg.year) + "_" + cfg.gridname + ".nc")
@@ -182,6 +191,8 @@ def main(cfg_path):
                         lonname = "rlon"; latname="rlat"
                         if cfg.pollon==180 and cfg.pollat==90:
                             lonname = "lon"; latname="lat"
+
+
                         for (t,sel,out_var) in zip(["AREA","POINT"],
                                            [selection_snap_area,selection_snap_point],
                                            [out_var_area,out_var_point]):
@@ -190,6 +201,8 @@ def main(cfg_path):
                                 out[out_var_name+t].units = "kg m-2 s-1"
                                 if lonname == "rlon" and latname == "rlat":
                                     out[out_var_name+t].grid_mapping = "rotated_pole"
+                                if exclude_CH:
+                                    out_var[mask] = 0
                                 out[out_var_name+t][:] = out_var
 
                         

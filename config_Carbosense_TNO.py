@@ -20,7 +20,7 @@ tno_snap = [ "A", "B", "C", "D", "E", "F1", "F2", "F3",
              "G", "H", "I", "J", "K", "L" ]
 
 year = 2018
-gridname = 'CH_1km'
+gridname = 'tno_CO2_CO_CH4_1km_noCH'
 output_path ="./testdata"
 
 offline=False
