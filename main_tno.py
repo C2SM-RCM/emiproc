@@ -102,6 +102,11 @@ def main(cfg_path):
         mask = country_mask == country_codes['CH']
         print('Exclude country "CH" (country code %d)' % country_codes['CH'])
 
+    """Set names for longitude and latitude"""
+    lonname = "rlon"; latname="rlat"
+    if cfg.pollon==180 and cfg.pollat==90:
+        lonname = "lon"; latname="lat"
+
     """Starts writing out the output file"""
     output_path = os.path.join(cfg.output_path, 
                                "emis_" + str(cfg.year) + "_" + cfg.gridname + ".nc")
@@ -127,6 +132,12 @@ def main(cfg_path):
                 #tno_snap = tno[cfg.tno_cat_var][:].tolist() 
                 tno_snap = cfg.tno_snap
                     
+                """Initialize total flux"""
+                total_flux = {}
+                species_list = [s for s in cfg.species if tno_file(s,cfg)==f]
+                for s in species_list:
+                    total_flux[s] = np.zeros((cfg.ny,cfg.nx))
+
                 for snap in cfg.snap:
                     """In emission_category_index, we have the index of the category, starting with 1.
                     It means that if the emission is of SNAP1, it will have index 1, SNAP34 index 3"""
@@ -145,7 +156,6 @@ def main(cfg_path):
                     selection_snap_area  = np.array([selection_snap.any(0),selection_area]).all(0)
                     selection_snap_point = np.array([selection_snap.any(0),selection_point]).all(0)
                     
-                    species_list = [s for s in cfg.species if tno_file(s,cfg)==f]
                     for s in species_list:
                         print("Species",s,"SNAP",snap)
                         out_var_area = np.zeros((cfg.ny,cfg.nx))
@@ -186,12 +196,7 @@ def main(cfg_path):
                         cosmo_area = 1./gridbox_area(cfg)
                         out_var_point*= cosmo_area.T*convfac
                         out_var_area *= cosmo_area.T*convfac
-
                         out_var_name = var_name(s,snap,cfg.cat_kind)
-                        lonname = "rlon"; latname="rlat"
-                        if cfg.pollon==180 and cfg.pollat==90:
-                            lonname = "lon"; latname="lat"
-
 
                         for (t,sel,out_var) in zip(["AREA","POINT"],
                                            [selection_snap_area,selection_snap_point],
@@ -204,6 +209,16 @@ def main(cfg_path):
                                 if exclude_CH:
                                     out_var[mask] = 0
                                 out[out_var_name+t][:] = out_var
+                                total_flux[s] += out_var
+
+            
+                """Calcluate total emission/flux per species"""
+                for s in species_list:
+                    out.createVariable(s,float,(latname,lonname))
+                    out[s].units = "kg m-2 s-1"
+                    if lonname == "rlon" and latname == "rlat":
+                        out[s].grid_mapping = "rotated_pole"
+                    out[s][:] = total_flux[s]
 
                         
 if __name__ == "__main__":
