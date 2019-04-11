@@ -68,11 +68,17 @@ def main(cfg_path):
                                             )
                     out_var_name = var + "_" + cat
                 elif cfg.origin == 'carbocount':
-                    constfile = os.path.join(cfg.input_path, 'tot_co2_kg.txt')
-                    out_var_name = var
+                    constfile = os.path.join(cfg.input_path,
+                                             ''.join([cat.lower(),'10_',
+                                                      '*_kg.txt'])
+                                            )
+                    out_var_name = var + "_" + cfg.mapping[cat]
                 elif cfg.origin == 'maiolica':
-                    constfile = os.path.join(cfg.input_path, 'ch4_tot.txt')
-                    out_var_name = var
+                    constfile = os.path.join(cfg.input_path,
+                                             ''.join(['ch4_',cat.lower(),
+                                                      '.txt'])
+                                            )
+                    out_var_name = var + "_" + cfg.mapping[cat]
                 else:
                     print("Wrong origin in the config file.")
                     raise ValueError
@@ -97,22 +103,25 @@ def main(cfg_path):
                 out_var *= cosmo_area.T*convfac
                 out_var[mask] = 0
 
-                out.createVariable(out_var_name,float,(latname,lonname))
-                if lonname == "rlon" and latname == "rlat":
-                    out[out_var_name].grid_mapping = "rotated_pole"
-                out[out_var_name].units = "kg m-2 s-1"
-                out[out_var_name][:] = out_var
+                if not out_var_name in out.variables.keys():
+                    out.createVariable(out_var_name,float,(latname,lonname))
+                    if lonname == "rlon" and latname == "rlat":
+                        out[out_var_name].grid_mapping = "rotated_pole"
+                    out[out_var_name].units = "kg m-2 s-1"
+                    out[out_var_name][:] = out_var
+                else:
+                    out[out_var_name][:] += out_var
+
                 total_flux[var] += out_var
 
 
-        if cfg.origin == 'meteotest':
-            """Calcluate total emission/flux per species"""
-            for s in cfg.species:
-                out.createVariable(s,float,(latname,lonname))
-                out[s].units = "kg m-2 s-1"
-                if lonname == "rlon" and latname == "rlat":
-                    out[s].grid_mapping = "rotated_pole"
-                out[s][:] = total_flux[s]
+        """Calcluate total emission/flux per species"""
+        for s in cfg.species:
+            out.createVariable(s,float,(latname,lonname))
+            out[s].units = "kg m-2 s-1"
+            if lonname == "rlon" and latname == "rlat":
+                out[s].grid_mapping = "rotated_pole"
+            out[s][:] = total_flux[s]
     
 
 

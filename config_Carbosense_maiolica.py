@@ -1,5 +1,5 @@
 # for Maiolica Swiss inventory, unit m, x is easterly, y is northly
-input_path = "/input/CH_EMISSIONS/MaiolicaCH4/"
+input_path = "/project/jae/MaiolicaSynthesisCH4"
 ch_xn = 704 
 ch_yn = 442
 ch_xll = 484000
@@ -12,7 +12,8 @@ gridname = origin + '_CH4_1km'
 
 species = ['CH4']
 
-ch_cat = ['']
+ch_cat = ['ara', 'dep_scaled', 'forest', 'gas_scaled', 'lakes', 'lwi_scaled',
+           'wetlands', 'wildanimals']
 
 
 
@@ -41,3 +42,13 @@ if offline:
     nx += 4
     ny += 4
 
+# Don't scale for CH4 (i.e., use time and height constant category 'I')
+mapping = { 'ara': 'I', 
+            'dep_scaled': 'I',
+            'forest': 'I',
+            'gas_scaled': 'I',
+            'lakes': 'I',
+            'lwi_scaled': 'I',
+            'wetlands': 'I',
+            'wildanimals': 'I',
+          }

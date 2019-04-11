@@ -51,7 +51,7 @@ def var_name(s,snap,cat_kind):
             else:
                 out_var_name += "0"+str(snap)+"_"
     elif cat_kind=="NFR":
-        out_var_name += snap+"_"
+        out_var_name += snap
     else:
         print("Wrong cat_kind in the config file. Must be SNAP or NFR")
         raise ValueError
@@ -202,13 +202,18 @@ def main(cfg_path):
                                            [selection_snap_area,selection_snap_point],
                                            [out_var_area,out_var_point]):
                             if sel.any():
-                                out.createVariable(out_var_name+t,float,(latname,lonname))
-                                out[out_var_name+t].units = "kg m-2 s-1"
-                                if lonname == "rlon" and latname == "rlat":
-                                    out[out_var_name+t].grid_mapping = "rotated_pole"
                                 if exclude_CH:
                                     out_var[mask] = 0
-                                out[out_var_name+t][:] = out_var
+                                if not out_var_name in out.variables.keys():
+                                    out.createVariable(out_var_name,float,
+                                                       (latname,lonname))
+                                    out[out_var_name].units = "kg m-2 s-1"
+                                    if lonname == "rlon" and latname == "rlat":
+                                        out[out_var_name].grid_mapping = "rotated_pole"
+                                    out[out_var_name][:] = out_var
+                                else:
+                                    out[out_var_name][:] += out_var
+
                                 total_flux[s] += out_var
 
             
