@@ -69,7 +69,10 @@ def main(cfg_path):
                        ('CH4' in name and 'maiolica' in infile) or \
                        (('CO_' in name or name == 'CO') and 'meteotest' in infile):
                         print('Overwriting variable %s' % name)
-                        np.copyto(dst[name][:], inv[name][:], where=mask)
+                        var_dst = dst.variables[name][:]
+                        np.copyto(var_dst, inv.variables[name][:],
+                                  where=mask[:])
+                        dst.variables[name][:] = var_dst
 
 
 if __name__ == '__main__':                                                     
