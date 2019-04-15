@@ -234,15 +234,21 @@ def get_country_mask(cfg):
     """Calculate the country mask"""
     add_country_mask = True
     cmask_path = os.path.join(cfg.output_path,"country_mask.npy")
-    if os.path.isfile(cmask_path):
+    cmask_path_nc = os.path.join(cfg.output_path,"country_mask.nc")
+    if os.path.isfile(cmask_path_nc):
+        print("Do you want to use the country mask found in %s ?" % cmask_path_nc)
+        s = input("[y]/n \n")
+        if s=='y' or s=='':
+            with nc.Dataset(cmask_path_nc, "r") as inf:
+                country_mask = inf.variables['country_mask'][:].T
+    elif os.path.isfile(cmask_path):
         print("Do you wanna overwite the country mask found in %s ?" % cmask_path)
         s = input("y/[n] \n")
         add_country_mask = (s=="y")
-
-    if add_country_mask:
-        country_mask = compute_country_mask(cfg)
-    else:
-        country_mask = np.load(cmask_path)
+        if add_country_mask:
+            country_mask = compute_country_mask(cfg)
+        else:
+            country_mask = np.load(cmask_path)
     return country_mask
 
 

@@ -2,6 +2,9 @@ from make_online_emissions import *
 from glob import glob
 import numpy as np
 
+species = ['CO2', 'CO', 'CH4']
+gnfr_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
+
 def get_ch_emi(filename):
     """read in meteotest swiss inventory data
      
@@ -23,7 +26,7 @@ def get_ch_emi(filename):
     return emi_trans
 
 def main(cfg_path):
-    """ The main script for processing TNO inventory. 
+    """ The main script for processing Swiss inventories. 
     Takes a configuration file as input"""
 
     """Load the configuration file"""
@@ -103,6 +106,9 @@ def main(cfg_path):
                 out_var *= cosmo_area.T*convfac
                 out_var[mask] = 0
 
+                """only allow positive fluxes"""
+                out_var[out_var < 0] = 0
+
                 if not out_var_name in out.variables.keys():
                     out.createVariable(out_var_name,float,(latname,lonname))
                     if lonname == "rlon" and latname == "rlat":
@@ -123,6 +129,22 @@ def main(cfg_path):
                 out[s].grid_mapping = "rotated_pole"
             out[s][:] = total_flux[s]
     
+        """Create dummy variables for merging inventories"""
+        for s in species:
+            if not s in out.variables.keys():
+                out.createVariable(s,float,(latname,lonname))
+                if lonname == "rlon" and latname == "rlat":
+                    out[s].grid_mapping = "rotated_pole"
+                out[s].units = "kg m-2 s-1"
+                out[s][:] = 0
+            for gnfr in gnfr_cat:
+                varname = s + '_' + gnfr
+                if not varname in out.variables.keys():
+                    out.createVariable(varname,float,(latname,lonname))
+                    if lonname == "rlon" and latname == "rlat":
+                        out[varname].grid_mapping = "rotated_pole"
+                    out[varname].units = "kg m-2 s-1"
+                    out[varname][:] = 0
 
 
 if __name__ == "__main__":

@@ -2,7 +2,10 @@ from make_online_emissions import *
 import country_code
 
 
-exclude_CH = True
+species = ['CO2', 'CO', 'CH4']
+gnfr_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
+
+exclude_CH = False
 
 
 def interpolate_tno_to_cosmo_grid(tno,cfg):
@@ -224,6 +227,23 @@ def main(cfg_path):
                     if lonname == "rlon" and latname == "rlat":
                         out[s].grid_mapping = "rotated_pole"
                     out[s][:] = total_flux[s]
+
+        """Create dummy variables for merging inventories"""
+        for s in species:
+            if not s in out.variables.keys():
+                out.createVariable(s,float,(latname,lonname))
+                if lonname == "rlon" and latname == "rlat":
+                    out[s].grid_mapping = "rotated_pole"
+                out[s].units = "kg m-2 s-1"
+                out[s][:] = 0
+            for gnfr in gnfr_cat:
+                varname = s + '_' + gnfr
+                if not varname in out.variables.keys():
+                    out.createVariable(varname,float,(latname,lonname))
+                    if lonname == "rlon" and latname == "rlat":
+                        out[varname].grid_mapping = "rotated_pole"
+                    out[varname].units = "kg m-2 s-1"
+                    out[varname][:] = 0
 
                         
 if __name__ == "__main__":
