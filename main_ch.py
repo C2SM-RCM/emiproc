@@ -102,8 +102,15 @@ def main(cfg_path):
                 """calculate the areas (m^^2) of the COSMO grid"""
                 cosmo_area = 1./gridbox_area(cfg)
 
-                """convert unit from kg.year-1.cell-1 to kg.m-2.s-1"""
-                out_var *= cosmo_area.T*convfac
+                """unit conversion"""
+                if cfg.origin == 'carbocount':
+                    """convert unit from kg.year-1.cell-1 to kg.m-2.s-1"""
+                    out_var *= cosmo_area.T*convfac
+                else:
+                    """convert unit from g.year-1.cell-1 to kg.m-2.s-1"""
+                    out_var *= cosmo_area.T*convfac/1000
+
+                """mask values outside CH for consistency"""
                 out_var[mask] = 0
 
                 """only allow positive fluxes"""
