@@ -13,10 +13,10 @@ from multiprocessing import Pool
 
 
 
-def doit(i,interp_tot,cosmo_area):
-    inidate = datetime(2015,1,i)
+def doit(i,interp_tot,cosmo_area):    
+    inidate = datetime(2015,1,1)+timedelta(days=i)
     print("taking care of ",inidate.strftime("%Y%m%d"))
-    for s,sname in zip(["gpp","ra"],["CO2_GPP_F","CO2_RA_F"]):
+    for s,sname in zip(["gpp_","ra_"],["CO2_GPP_F","CO2_RA_F"]):
         for h in range(24):
             time_ = inidate + timedelta(hours=h)
             time_str = time_.strftime("%Y%m%d%H")
@@ -24,7 +24,11 @@ def doit(i,interp_tot,cosmo_area):
 
             #output_path = "/scratch/snx3000/haussaij/VPRM/int2lm/"+s+"_"+time_str+".nc"
             filename_out = s+"_"+time_str+".nc"
+            
             output_path = "/scratch/snx3000/haussaij/VPRM/output/"+filename_out
+            if os.path.exists(output_path):
+                print('exists:',output_path)
+                continue
             data_path = "/scratch/snx3000/haussaij/VPRM/input/"+ inidate.strftime("%Y%m%d")+"/"+s+"_"+time_str+".nc"
             data = Dataset(data_path)[sname][:]
             out_var_area = np.zeros((cfg.ny,cfg.nx))
@@ -38,13 +42,16 @@ def doit(i,interp_tot,cosmo_area):
             with Dataset(output_path,"w") as outf:
                 prepare_output_file(cfg,outf)
                 # Add the time variable
-                example_file = "/store/empa/em05/haussaij/CHE/input_che/vprm_old/vprm_smartcarb/processed/"+filename_out
-                with Dataset(example_file) as ex :
-                    outf.createDimension("time")
-                    outf.createVariable(varname="time",
-                                           datatype=ex["time"].datatype,
-                                           dimensions=ex["time"].dimensions)
-                    outf["time"].setncatts(ex["time"].__dict__)
+                #example_file = "/store/empa/em05/haussaij/CHE/input_che/vprm_old/vprm_smartcarb/processed/"+filename_out
+                #with Dataset(example_file) as ex :
+                 
+                outf.createDimension("time")
+                outf.createVariable(varname="time",
+                                    datatype='float64',#ex["time"].datatype,
+                                    dimensions=())#ex["time"].dimensions)
+                outf['time'].units = 'seconds since 2015-01-01 00:00'
+                outf['time'].calendar = 'proleptic_gregorian'
+                #outf["time"].setncatts(ex["time"].__dict__)
 
 
                 """convert unit from umol.cell-1.s-1 to kg.m-2.s-1"""
@@ -96,8 +103,8 @@ def main(cfg_path):
 
     cosmo_area = 1./gridbox_area(cfg)
 
-    with Pool(9) as pool:
-        pool.starmap(doit,[(i,interp_tot,cosmo_area) for i in range(1,10)])
+    with Pool(36) as pool:
+        pool.starmap(doit,[(i,interp_tot,cosmo_area) for i in range(10)])#range(1,10)])
         
 
 if __name__=="__main__":
