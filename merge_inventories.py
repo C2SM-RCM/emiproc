@@ -39,6 +39,12 @@ def main(cfg_path):
     country_mask = np.transpose(country_mask)
     mask = country_mask == country_codes['CH']
 
+    sum_co2_tno = 0
+    sum_co2_merged = 0
+    sum_co_tno = 0
+    sum_co_merged = 0
+    sum_ch4_tno = 0
+    sum_ch4_merged = 0
     with nc.Dataset(base_inventory, "r") as src, nc.Dataset(outfile, "w") as dst:
         print(base_inventory)
         # Copy global attributes all at once via dictionary
@@ -59,6 +65,10 @@ def main(cfg_path):
             if 'rotated_pole' not in name:
                 dst[name][:] = src[name][:]
 
+        sum_co2_tno = np.sum(src['CO2'][:])
+        sum_co_tno = np.sum(src['CO'][:])
+        sum_ch4_tno = np.sum(src['CH4'][:])
+
         # Merge inventories
         for fname in list_inventories:
             infile = os.path.join(inpath, fname)
@@ -74,6 +84,16 @@ def main(cfg_path):
                                   where=mask[:])
                         dst.variables[name][:] = var_dst
 
+        sum_co2_merged = np.sum(dst['CO2'][:])
+        sum_co_merged = np.sum(dst['CO'][:])
+        sum_ch4_merged = np.sum(dst['CH4'][:])
+
+    print('sum_co2_tno',sum_co2_tno)
+    print('sum_co2_merged',sum_co2_merged)
+    print('sum_co_tno',sum_co_tno)
+    print('sum_co_merged',sum_co_merged)
+    print('sum_ch4_tno',sum_ch4_tno)
+    print('sum_ch4_merged',sum_ch4_merged)
 
 if __name__ == '__main__':                                                     
     cfg_name = sys.argv[1]

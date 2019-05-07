@@ -6,6 +6,7 @@ species = ['CO2', 'CO', 'CH4']
 gnfr_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
 
 exclude_CH = False
+only_CH = True
 
 
 def interpolate_tno_to_cosmo_grid(tno,cfg):
@@ -104,6 +105,9 @@ def main(cfg_path):
     if exclude_CH:
         mask = country_mask == country_codes['CH']
         print('Exclude country "CH" (country code %d)' % country_codes['CH'])
+    if only_CH:
+        mask = country_mask != country_codes['CH']
+        print('Only include "CH" (country code %d)' % country_codes['CH'])
 
     """Set names for longitude and latitude"""
     lonname = "rlon"; latname="rlat"
@@ -205,7 +209,7 @@ def main(cfg_path):
                                            [selection_snap_area,selection_snap_point],
                                            [out_var_area,out_var_point]):
                             if sel.any():
-                                if exclude_CH:
+                                if exclude_CH or only_CH:
                                     out_var[mask] = 0
                                 if not out_var_name in out.variables.keys():
                                     out.createVariable(out_var_name,float,
