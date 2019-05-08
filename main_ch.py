@@ -41,7 +41,7 @@ def main(cfg_path):
 
     """Set names for longitude and latitude"""
     lonname = "rlon"; latname="rlat"
-    if cfg.pollon==180 and cfg.pollat==90:
+    if (cfg.pollon==180 or cfg.pollon==0) and cfg.pollat==90:
         lonname = "lon"; latname="lat"
 
     """Load or compute the interpolation map"""

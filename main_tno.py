@@ -2,11 +2,12 @@ from make_online_emissions import *
 import country_code
 
 
-species = ['CO2', 'CO', 'CH4']
+#species = ['CO2', 'CO', 'CH4']
+species = ['CO2']
 gnfr_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
 
 exclude_CH = False
-only_CH = True
+only_CH = False
 
 
 def interpolate_tno_to_cosmo_grid(tno,cfg):
@@ -110,9 +111,12 @@ def main(cfg_path):
         print('Only include "CH" (country code %d)' % country_codes['CH'])
 
     """Set names for longitude and latitude"""
-    lonname = "rlon"; latname="rlat"
-    if cfg.pollon==180 and cfg.pollat==90:
+    if (cfg.pollon==180 or cfg.pollon==0) and cfg.pollat==90:
         lonname = "lon"; latname="lat"
+        print('Non-rotated grid: pollon = %f, pollat = %f' % (cfg.pollon, cfg.pollat))
+    else:
+        lonname = "rlon"; latname="rlat"
+        print('Rotated grid: pollon = %f, pollat = %f' % (cfg.pollon, cfg.pollat))
 
     """Starts writing out the output file"""
     output_path = os.path.join(cfg.output_path, 
@@ -126,6 +130,7 @@ def main(cfg_path):
             print(f)            
             with nc.Dataset(f) as tno:
                 interpolation = get_interpolation(cfg,tno)
+                print(np.shape(interpolation))
 
                 """From here onward, quite specific for TNO"""        
 

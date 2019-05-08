@@ -62,10 +62,12 @@ def prepare_output_file(cfg,out,country_mask=[]):
     """       
 
     """Create the dimensions and the rotated pole"""
-    lonname = "rlon"; latname="rlat"
-    if cfg.pollon==180 and cfg.pollat==90:
+    if (cfg.pollon==180 or cfg.pollon==0) and cfg.pollat==90:
         lonname = "lon"; latname="lat"
+        rotated = False
     else:
+        lonname = "rlon"; latname="rlat"
+        rotated = True
         out.createVariable("rotated_pole",str)
         out["rotated_pole"].grid_mapping_name = "rotated_latitude_longitude"
         out["rotated_pole"].grid_north_pole_latitude = cfg.pollat
@@ -80,19 +82,26 @@ def prepare_output_file(cfg,out,country_mask=[]):
     out[lonname].axis = "X"
     out[lonname].units = "degrees_east"
     out[lonname].standard_name = "longitude"
-    out[lonname][:] = np.arange(cfg.xmin,cfg.xmin+cfg.dx*cfg.nx,cfg.dx)
+    lon_range = np.arange(cfg.xmin,cfg.xmin+cfg.dx*cfg.nx,cfg.dx)
+    if len(lon_range) == cfg.nx + 1:
+        lon_range = lon_range[:-1]
+    out[lonname][:] = lon_range
 
     out.createVariable(latname,"float32",latname)
     out[latname].axis = "Y"
     out[latname].units = "degrees_north"
     out[latname].standard_name = "latitude"
-    out[latname][:] = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy)
+    lat_range = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy) 
+    if len(lat_range) == cfg.ny + 1:
+        lat_range = lat_range[:-1]
+    out[latname][:] = lat_range 
 
     """Create the variable associated with the country_mask"""
     if len(country_mask):
         mask_name = "country_ids"
         out.createVariable(mask_name,"short",(latname,lonname))
-        out[mask_name].grid_mapping = "rotated_pole"
+        if rotated:
+            out[mask_name].grid_mapping = "rotated_pole"
         out[mask_name].long_name = "EMEP_country_code"
         out[mask_name][:] = country_mask
 
@@ -145,6 +154,17 @@ def compute_country_mask(cfg):
 
     cosmo_xlocs = np.arange(cfg.xmin, cfg.xmin+cfg.dx*cfg.nx, cfg.dx)
     cosmo_ylocs = np.arange(cfg.ymin, cfg.ymin+cfg.dy*cfg.ny, cfg.dy)
+    """
+    Be careful with numpy.arange(). Floating point numbers are not exactly
+    represented. Thus, the length of the generated list could have one entry
+    too much.
+    See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
+    """
+    if len(cosmo_xlocs) == cfg["nx"] + 1:
+        cosmo_xlocs = cosmo_xlocs[:-1]
+    if len(cosmo_ylocs) == cfg["ny"] + 1:
+        cosmo_ylocs = cosmo_ylocs[:-1]
+
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
     incr=0
     no_country_code=[]
@@ -298,6 +318,17 @@ def interpolate_single_cell(cfg,points):
     """Information about the cosmo grid"""
     cosmo_xlocs = np.arange(cfg["xmin"], cfg["xmin"]+cfg["dx"]*cfg["nx"], cfg["dx"])
     cosmo_ylocs = np.arange(cfg["ymin"], cfg["ymin"]+cfg["dy"]*cfg["ny"], cfg["dy"])
+
+    """
+    Be careful with numpy.arange(). Floating point numbers are not exactly
+    represented. Thus, the length of the generated list could have one entry
+    too much.
+    See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
+    """
+    if len(cosmo_xlocs) == cfg["nx"] + 1:
+        cosmo_xlocs = cosmo_xlocs[:-1]
+    if len(cosmo_ylocs) == cfg["ny"] + 1:
+        cosmo_ylocs = cosmo_ylocs[:-1]
 
     """This is the interpolation that will be returned"""
     """Initialization"""
