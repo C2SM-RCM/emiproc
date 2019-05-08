@@ -129,12 +129,10 @@ def main(cfg_path):
         for f in list_input_files:
             print(f)            
             with nc.Dataset(f) as tno:
-                interpolation = get_interpolation(cfg,tno)
-                print(np.shape(interpolation))
+                interpolation = get_interpolation(cfg,tno,
+                                    filename='mapping_tno.npy')
 
                 """From here onward, quite specific for TNO"""        
-
-
                 
                 """mask corresponding to the area/point sources"""
                 selection_area  = tno["source_type_index"][:]==1

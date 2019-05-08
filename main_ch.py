@@ -2,7 +2,8 @@ from make_online_emissions import *
 from glob import glob
 import numpy as np
 
-species = ['CO2', 'CO', 'CH4']
+#species = ['CO2', 'CO', 'CH4']
+species = ['CO2']
 gnfr_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
 
 def get_ch_emi(filename):

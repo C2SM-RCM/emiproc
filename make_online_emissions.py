@@ -460,7 +460,7 @@ def get_dim_var(inv,inv_name,cfg):
     return lon_dim,lat_dim,lon_var,lat_var
 
 
-def interpolate_to_cosmo_grid(tno,inv_name,cfg):
+def interpolate_to_cosmo_grid(tno,inv_name,cfg,filename):
     print("Retrieving the interpolation between the cosmo and the inventory grids")
     start = time.time()
    
@@ -496,10 +496,7 @@ def interpolate_to_cosmo_grid(tno,inv_name,cfg):
     print("\nInterpolation is over")
     print("it took ",end-start,"seconds")
 
-    if hasattr(cfg, 'origin'):
-        np.save(os.path.join(cfg.output_path,"mapping_" + cfg.origin + ".npy"),mapping)
-    else:
-        np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
+    np.save(os.path.join(cfg.output_path,filename),mapping)
     return mapping
 
 
@@ -513,7 +510,7 @@ def get_interpolation(cfg,tno,inv_name = "tno",filename="mapping.npy"):
         make_interpolate = (s=="y")
         
     if make_interpolate:
-        interpolation = interpolate_to_cosmo_grid(tno,inv_name,cfg)
+        interpolation = interpolate_to_cosmo_grid(tno,inv_name,cfg,filename)
     else:
         interpolation = np.load(mapping_path)
 
