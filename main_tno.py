@@ -47,6 +47,10 @@ def var_name(s,snap,cat_kind):
                 out_var_name += "0"+str(snap)+"_"
     elif cat_kind=="NFR":
         out_var_name += snap+"_"
+    elif cat_kind=="NFR_BAU":
+        out_var_name += snap+"_BAU_"
+    elif cat_kind=="NFR_CC":
+        out_var_name += snap+"_CC_"
     else:
         print("Wrong cat_kind in the config file. Must be SNAP or NFR")
         raise ValueError
