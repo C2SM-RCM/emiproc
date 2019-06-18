@@ -160,9 +160,9 @@ def compute_country_mask(cfg):
     too much.
     See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
     """
-    if len(cosmo_xlocs) == cfg["nx"] + 1:
+    if len(cosmo_xlocs) == cfg.nx + 1:
         cosmo_xlocs = cosmo_xlocs[:-1]
-    if len(cosmo_ylocs) == cfg["ny"] + 1:
+    if len(cosmo_ylocs) == cfg.ny + 1:
         cosmo_ylocs = cosmo_ylocs[:-1]
 
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
