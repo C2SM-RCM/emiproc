@@ -68,7 +68,7 @@ def write_netcdf(filename, categories, cat_name, levels, scale_factors):
 
         for (i,cat) in enumerate(categories):            
             nc_sca = nc.createVariable(cat_name+cat, 'f4', ('level'))
-            nc_sca.long_name = 'vertical scale factor for sources of SNAP-%s category' % cat
+            nc_sca.long_name = 'vertical scale factor for sources of %s category' % cat
             nc_sca.units = '1'
             nc_sca[:] = scale_factors[i]
 
@@ -121,4 +121,4 @@ def main(filename):
 
 
 if __name__ == "__main__":
-    main('CHE_output/vertical_profiles.nc')
+    main('output/vertical_profiles.nc')

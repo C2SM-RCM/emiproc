@@ -1,4 +1,14 @@
 from make_online_emissions import *
+import country_code
+
+
+#species = ['CO2', 'CO', 'CH4']
+species = ['CO2']
+gnfr_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
+
+exclude_CH = False
+only_CH = False
+
 
 def interpolate_tno_to_cosmo_grid(tno,cfg):
     return interpolate_to_cosmo_grid(tno,"tno",cfg)
@@ -46,7 +56,7 @@ def var_name(s,snap,cat_kind):
             else:
                 out_var_name += "0"+str(snap)+"_"
     elif cat_kind=="NFR":
-        out_var_name += snap+"_"
+        out_var_name += snap
     elif cat_kind=="NFR_BAU":
         out_var_name += snap+"_BAU_"
     elif cat_kind=="NFR_CC":
@@ -96,9 +106,25 @@ def main(cfg_path):
     
     """Load or compute the country mask"""
     country_mask = get_country_mask(cfg)
-    
+    country_mask = np.transpose(country_mask)
+    if exclude_CH:
+        mask = country_mask == country_codes['CH']
+        print('Exclude country "CH" (country code %d)' % country_codes['CH'])
+    if only_CH:
+        mask = country_mask != country_codes['CH']
+        print('Only include "CH" (country code %d)' % country_codes['CH'])
+
+    """Set names for longitude and latitude"""
+    if (cfg.pollon==180 or cfg.pollon==0) and cfg.pollat==90:
+        lonname = "lon"; latname="lat"
+        print('Non-rotated grid: pollon = %f, pollat = %f' % (cfg.pollon, cfg.pollat))
+    else:
+        lonname = "rlon"; latname="rlat"
+        print('Rotated grid: pollon = %f, pollat = %f' % (cfg.pollon, cfg.pollat))
+
     """Starts writing out the output file"""
-    output_path = cfg.output_path+"emis_"+str(cfg.year)+"_"+cfg.gridname+".nc"
+    output_path = os.path.join(cfg.output_path, 
+                               "emis_" + str(cfg.year) + "_" + cfg.gridname + ".nc")
     with nc.Dataset(output_path,"w") as out:
         prepare_output_file(cfg,out,country_mask)
 
@@ -107,11 +133,10 @@ def main(cfg_path):
         for f in list_input_files:
             print(f)            
             with nc.Dataset(f) as tno:
-                interpolation = get_interpolation(cfg,tno)
+                interpolation = get_interpolation(cfg,tno,
+                                    filename='mapping_tno.npy')
 
                 """From here onward, quite specific for TNO"""        
-
-
                 
                 """mask corresponding to the area/point sources"""
                 selection_area  = tno["source_type_index"][:]==1
@@ -121,6 +146,12 @@ def main(cfg_path):
                 #tno_snap = tno[cfg.tno_cat_var][:].tolist() 
                 tno_snap = cfg.tno_snap
                     
+                """Initialize total flux"""
+                total_flux = {}
+                species_list = [s for s in cfg.species if tno_file(s,cfg)==f]
+                for s in species_list:
+                    total_flux[s] = np.zeros((cfg.ny,cfg.nx))
+
                 for snap in cfg.snap:
                     """In emission_category_index, we have the index of the category, starting with 1.
                     It means that if the emission is of SNAP1, it will have index 1, SNAP34 index 3"""
@@ -139,7 +170,6 @@ def main(cfg_path):
                     selection_snap_area  = np.array([selection_snap.any(0),selection_area]).all(0)
                     selection_snap_point = np.array([selection_snap.any(0),selection_point]).all(0)
                     
-                    species_list = [s for s in cfg.species if tno_file(s,cfg)==f]
                     for s in species_list:
                         print("Species",s,"SNAP",snap)
                         out_var_area = np.zeros((cfg.ny,cfg.nx))
@@ -180,20 +210,54 @@ def main(cfg_path):
                         cosmo_area = 1./gridbox_area(cfg)
                         out_var_point*= cosmo_area.T*convfac
                         out_var_area *= cosmo_area.T*convfac
-
                         out_var_name = var_name(s,snap,cfg.cat_kind)
-                        lonname = "rlon"; latname="rlat"
-                        if cfg.pollon==180 and cfg.pollat==90:
-                            lonname = "lon"; latname="lat"
+
                         for (t,sel,out_var) in zip(["AREA","POINT"],
                                            [selection_snap_area,selection_snap_point],
                                            [out_var_area,out_var_point]):
                             if sel.any():
-                                out.createVariable(out_var_name+t,float,(latname,lonname))
-                                out[out_var_name+t].units = "kg m-2 s-1"
-                                out[out_var_name+t][:] = out_var
+                                if exclude_CH or only_CH:
+                                    out_var[mask] = 0
+                                if not out_var_name in out.variables.keys():
+                                    out.createVariable(out_var_name,float,
+                                                       (latname,lonname))
+                                    out[out_var_name].units = "kg m-2 s-1"
+                                    if lonname == "rlon" and latname == "rlat":
+                                        out[out_var_name].grid_mapping = "rotated_pole"
+                                    out[out_var_name][:] = out_var
+                                else:
+                                    out[out_var_name][:] += out_var
+
+                                total_flux[s] += out_var
+
+            
+                """Calcluate total emission/flux per species"""
+                for s in species_list:
+                    out.createVariable(s,float,(latname,lonname))
+                    out[s].units = "kg m-2 s-1"
+                    if lonname == "rlon" and latname == "rlat":
+                        out[s].grid_mapping = "rotated_pole"
+                    out[s][:] = total_flux[s]
+
+        """Create dummy variables for merging inventories"""
+        for s in species:
+            if not s in out.variables.keys():
+                out.createVariable(s,float,(latname,lonname))
+                if lonname == "rlon" and latname == "rlat":
+                    out[s].grid_mapping = "rotated_pole"
+                out[s].units = "kg m-2 s-1"
+                out[s][:] = 0
+            for gnfr in gnfr_cat:
+                varname = s + '_' + gnfr
+                if not varname in out.variables.keys():
+                    out.createVariable(varname,float,(latname,lonname))
+                    if lonname == "rlon" and latname == "rlat":
+                        out[varname].grid_mapping = "rotated_pole"
+                    out[varname].units = "kg m-2 s-1"
+                    out[varname][:] = 0
 
                         
 if __name__ == "__main__":
-    main("./config_CHE")
+    cfg_name = sys.argv[1]
+    main("./config_" + cfg_name)
     

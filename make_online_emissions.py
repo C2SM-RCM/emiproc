@@ -8,7 +8,7 @@ import cartopy.crs as ccrs
 from shapely.geometry import Polygon
 import time
 import itertools
-import sys 
+import sys
 import cartopy.io.shapereader as shpreader
 from multiprocessing import Pool
 from country_code import country_codes
@@ -48,7 +48,7 @@ def gridbox_area(cfg):
     areas = np.array([[dd*np.cos(deg2rad*cfg.ymin+j*dlat) for j in range(cfg.ny)] for foo in range(cfg.nx)])
     return areas 
 
-def prepare_output_file(cfg,out,country_mask=None):
+def prepare_output_file(cfg,out,country_mask=[]):
     """Starts writing out the output file :
        - Dimensions and variables for longitude and latitude
        - Rotated pole
@@ -62,10 +62,12 @@ def prepare_output_file(cfg,out,country_mask=None):
     """       
 
     """Create the dimensions and the rotated pole"""
-    lonname = "rlon"; latname="rlat"
-    if cfg.pollon==180 and cfg.pollat==90:
+    if (cfg.pollon==180 or cfg.pollon==0) and cfg.pollat==90:
         lonname = "lon"; latname="lat"
+        rotated = False
     else:
+        lonname = "rlon"; latname="rlat"
+        rotated = True
         out.createVariable("rotated_pole",str)
         out["rotated_pole"].grid_mapping_name = "rotated_latitude_longitude"
         out["rotated_pole"].grid_north_pole_latitude = cfg.pollat
@@ -78,22 +80,30 @@ def prepare_output_file(cfg,out,country_mask=None):
     """Create the variable associated to the dimensions"""
     out.createVariable(lonname,"float32",lonname)
     out[lonname].axis = "X"
-    out[lonname].units = "degrees"
+    out[lonname].units = "degrees_east"
     out[lonname].standard_name = "longitude"
-    out[lonname][:] = np.arange(cfg.xmin,cfg.xmin+cfg.dx*cfg.nx,cfg.dx)
+    lon_range = np.arange(cfg.xmin,cfg.xmin+cfg.dx*cfg.nx,cfg.dx)
+    if len(lon_range) == cfg.nx + 1:
+        lon_range = lon_range[:-1]
+    out[lonname][:] = lon_range
 
     out.createVariable(latname,"float32",latname)
     out[latname].axis = "Y"
-    out[latname].units = "degrees"
+    out[latname].units = "degrees_north"
     out[latname].standard_name = "latitude"
-    out[latname][:] = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy)
+    lat_range = np.arange(cfg.ymin,cfg.ymin+cfg.dy*cfg.ny,cfg.dy) 
+    if len(lat_range) == cfg.ny + 1:
+        lat_range = lat_range[:-1]
+    out[latname][:] = lat_range 
 
     """Create the variable associated with the country_mask"""
-    if not country_mask is None:
+    if len(country_mask):
         mask_name = "country_ids"
         out.createVariable(mask_name,"short",(latname,lonname))
+        if rotated:
+            out[mask_name].grid_mapping = "rotated_pole"
         out[mask_name].long_name = "EMEP_country_code"
-        out[mask_name][:] = country_mask.T
+        out[mask_name][:] = country_mask
 
 
 
@@ -109,9 +119,9 @@ def check_country(country,points):
        - True if the grid cell is within the country
     """
     bounds = country.bounds #(minx, miny, maxx, maxy)
-    if ((bounds[0]>max([k[0] for k in points])) or 
+    if ((bounds[0]>max([k[0] for k in points])) or
         (bounds[2]<min([k[0] for k in points])) or
-        (bounds[1]>max([k[1] for k in points])) or 
+        (bounds[1]>max([k[1] for k in points])) or
         (bounds[3]<min([k[1] for k in points]))):
         return False
     else:
@@ -140,10 +150,21 @@ def compute_country_mask(cfg):
     reader = shpreader.Reader(shpfilename)
 
     country_mask = np.empty((cfg.nx,cfg.ny))
-   
- 
+
+
     cosmo_xlocs = np.arange(cfg.xmin, cfg.xmin+cfg.dx*cfg.nx, cfg.dx)
     cosmo_ylocs = np.arange(cfg.ymin, cfg.ymin+cfg.dy*cfg.ny, cfg.dy)
+    """
+    Be careful with numpy.arange(). Floating point numbers are not exactly
+    represented. Thus, the length of the generated list could have one entry
+    too much.
+    See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
+    """
+    if len(cosmo_xlocs) == cfg["nx"] + 1:
+        cosmo_xlocs = cosmo_xlocs[:-1]
+    if len(cosmo_ylocs) == cfg["ny"] + 1:
+        cosmo_ylocs = cosmo_ylocs[:-1]
+
     transform = ccrs.RotatedPole(pole_longitude=cfg.pollon, pole_latitude=cfg.pollat)
     incr=0
     no_country_code=[]
@@ -162,7 +183,7 @@ def compute_country_mask(cfg):
             incr+=1
             sys.stdout.write('\r')
             sys.stdout.write(" {:.1f}%".format((100/((cfg.nx*cfg.ny)-1)*((a*cfg.ny)+b))))
-            sys.stdout.flush()            
+            sys.stdout.flush()
 
             mask = []
 
@@ -193,7 +214,7 @@ def compute_country_mask(cfg):
                         #     continue
                         if polygon_cosmo.intersects(country.geometry):
                             mask.append(country.attributes[iso3])
-                
+
 
             """If more than one country, assign the one which has the greatest area"""
             if len(mask)>1:
@@ -213,10 +234,10 @@ def compute_country_mask(cfg):
                     no_country_code.append(mask[0])
                     mask=[-1]
 
-            # If no country (ocean), then assign the ID 0            
+            # If no country (ocean), then assign the ID 0
             if len(mask)==0:
                 mask=[0]
-                            
+
             country_mask[a,b]=mask[0]
 
     print("\nCountry mask is done")
@@ -233,15 +254,21 @@ def get_country_mask(cfg):
     """Calculate the country mask"""
     add_country_mask = True
     cmask_path = os.path.join(cfg.output_path,"country_mask.npy")
-    if os.path.isfile(cmask_path):
+    cmask_path_nc = os.path.join(cfg.output_path,"country_mask.nc")
+    if os.path.isfile(cmask_path_nc):
+        print("Do you want to use the country mask found in %s ?" % cmask_path_nc)
+        s = input("[y]/n \n")
+        if s=='y' or s=='':
+            with nc.Dataset(cmask_path_nc, "r") as inf:
+                country_mask = inf.variables['country_mask'][:].T
+    elif os.path.isfile(cmask_path):
         print("Do you wanna overwite the country mask found in %s ?" % cmask_path)
         s = input("y/[n] \n")
         add_country_mask = (s=="y")
-
-    if add_country_mask:
-        country_mask = compute_country_mask(cfg)
-    else:
-        country_mask = np.load(cmask_path)
+        if add_country_mask:
+            country_mask = compute_country_mask(cfg)
+        else:
+            country_mask = np.load(cmask_path)
     return country_mask
 
 
@@ -288,10 +315,20 @@ def interpolate_single_cell(cfg,points):
     For a TNO grid of (720,672) and a European domain (760,800) with resolution 0.05°, it takes 40min to run
     """
 
-    
     """Information about the cosmo grid"""
     cosmo_xlocs = np.arange(cfg["xmin"], cfg["xmin"]+cfg["dx"]*cfg["nx"], cfg["dx"])
     cosmo_ylocs = np.arange(cfg["ymin"], cfg["ymin"]+cfg["dy"]*cfg["ny"], cfg["dy"])
+
+    """
+    Be careful with numpy.arange(). Floating point numbers are not exactly
+    represented. Thus, the length of the generated list could have one entry
+    too much.
+    See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
+    """
+    if len(cosmo_xlocs) == cfg["nx"] + 1:
+        cosmo_xlocs = cosmo_xlocs[:-1]
+    if len(cosmo_ylocs) == cfg["ny"] + 1:
+        cosmo_ylocs = cosmo_ylocs[:-1]
 
     """This is the interpolation that will be returned"""
     """Initialization"""
@@ -323,6 +360,7 @@ def interpolate_single_cell(cfg,points):
                 inter = polygon_cosmo.intersection(polygon_tno)
                 mapping.append((a,b,inter.area/area_tno))
     return mapping
+
 
 def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
     if inv_name == "tno":
@@ -371,12 +409,28 @@ def cell_corners(lon_var,lat_var,inv_name,i,j,cfg):
             y_tno,
             y_tno])
         proj = ccrs.PlateCarree()
+    elif inv_name == 'meteotest' or inv_name == 'maiolica' or \
+         inv_name == 'carbocount':
+        x1_ch, y1_ch = swiss2wgs84(lat_var[j],lon_var[i])   # i-lon, j-lat
+        x2_ch, y2_ch = swiss2wgs84(lat_var[j]+200,lon_var[i]+200) 
+        cell_x= np.array([
+            x2_ch,
+            x2_ch,
+            x1_ch,
+            x1_ch])
+        cell_y= np.array([
+            y2_ch,
+            y1_ch,
+            y1_ch,
+            y2_ch])               
+        proj = ccrs.PlateCarree() 
     else:
         print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
         
 
 
     return cell_x,cell_y,proj
+
 
 def get_dim_var(inv,inv_name,cfg):
     if inv_name == "tno":
@@ -394,13 +448,19 @@ def get_dim_var(inv,inv_name,cfg):
         lat_var = np.arange(cfg.edgar_ymin,cfg.edgar_ymax,cfg.edgar_dy)
         lon_dim = len(lon_var)
         lat_dim = len(lat_var)
+    elif inv_name == 'meteotest' or inv_name == 'maiolica' or \
+         inv_name == 'carbocount':
+        lon_var = np.array( [ cfg.ch_xll+i*cfg.ch_cell for i in range(0,cfg.ch_xn) ] )
+        lat_var = np.array( [ cfg.ch_yll+i*cfg.ch_cell for i in range(0,cfg.ch_yn) ] )
+        lon_dim = np.shape(lon_var)[0]
+        lat_dim = np.shape(lat_var)[0]
     else:
         print("Inventory %s is not supported yet. Consider defining your own or using tno or vprm." % inv_name)
 
     return lon_dim,lat_dim,lon_var,lat_var
 
 
-def interpolate_to_cosmo_grid(tno,inv_name,cfg):
+def interpolate_to_cosmo_grid(tno,inv_name,cfg,filename):
     print("Retrieving the interpolation between the cosmo and the inventory grids")
     start = time.time()
    
@@ -432,14 +492,12 @@ def interpolate_to_cosmo_grid(tno,inv_name,cfg):
 
             mapping[i,:] = pool.starmap(interpolate_single_cell,[(config,points[j]) for j in range(lat_dim)])
 
-
     end = time.time()
     print("\nInterpolation is over")
     print("it took ",end-start,"seconds")
 
-    np.save(os.path.join(cfg.output_path,"mapping.npy"),mapping)
+    np.save(os.path.join(cfg.output_path,filename),mapping)
     return mapping
-
 
 
 def get_interpolation(cfg,tno,inv_name = "tno",filename="mapping.npy"):
@@ -452,8 +510,39 @@ def get_interpolation(cfg,tno,inv_name = "tno",filename="mapping.npy"):
         make_interpolate = (s=="y")
         
     if make_interpolate:
-        interpolation = interpolate_to_cosmo_grid(tno,inv_name,cfg)
+        interpolation = interpolate_to_cosmo_grid(tno,inv_name,cfg,filename)
     else:
         interpolation = np.load(mapping_path)
 
     return interpolation
+
+
+def swiss2wgs84(x,y):
+    """
+    Convert Swiss LV03 coordinates (x easting and y northing) to WGS 84 based
+    on swisstopo approximated soluation (0.1" accuracy).
+
+    remove the first digit of x,y
+    """
+    x = (x - 200000.0) / 1000000.0
+    y = (y - 600000.0) / 1000000.0
+
+    lon = (
+          2.6779094
+        + 4.728982  * y
+        + 0.791484  * y * x
+        + 0.1306    * y * x**2
+        - 0.0436    * y**3
+    ) / 0.36
+
+    lat = (
+         16.9023892
+        + 3.238272  * x
+        - 0.270978  * y**2
+        - 0.002528  * x**2
+        - 0.0447    * y**2 * x
+        - 0.0140    * x**3
+    ) / 0.36
+
+    return lon, lat
+
