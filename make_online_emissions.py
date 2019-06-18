@@ -260,17 +260,18 @@ def get_country_mask(cfg):
         s = input("[y]/n \n")
         if s=='y' or s=='':
             with nc.Dataset(cmask_path_nc, "r") as inf:
-                country_mask = inf.variables['country_mask'][:].T
+                return inf.variables['country_mask'][:].T
     elif os.path.isfile(cmask_path):
         print("Do you wanna overwite the country mask found in %s ?" % cmask_path)
         s = input("y/[n] \n")
         add_country_mask = (s=="y")
-        if add_country_mask:
-            country_mask = compute_country_mask(cfg)
-        else:
-            country_mask = np.load(cmask_path)
-    return country_mask
 
+    if add_country_mask:
+        country_mask = compute_country_mask(cfg)
+    else:
+        country_mask = np.load(cmask_path)
+
+    return country_mask
 
 ###################################
 ##  Regarding the point sources  ##
