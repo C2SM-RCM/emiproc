@@ -115,7 +115,7 @@ def main(cfg_path):
                             out.createVariable(out_var_name+t,float,(latname,lonname))
                             out[out_var_name+t].units = "kg m-2 s-1"
                             if lonname == "rlon" and latname == "rlat":
-                                out[out_var_name].grid_mapping = "rotated_pole"
+                                out[out_var_name+t].grid_mapping = "rotated_pole"
                             out[out_var_name+t][:] = out_var
 
                         
