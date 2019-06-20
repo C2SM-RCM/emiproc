@@ -28,7 +28,7 @@ def daterange(start_date, end_date):
         Consecutive dates, starting from start_date and ending the day
         before end_date.
     """
-    for n in range(int((end_date - start_date).days)+1):
+    for n in range(int((end_date - start_date).days) + 1):
         yield start_date + datetime.timedelta(n)
 
 
@@ -105,7 +105,7 @@ def extract_to_grid(grid_to_index, country_vals):
     return res
 
 
-class CountryToGridTranslator():
+class CountryToGridTranslator:
     """A wrapper for extract_to_grid that stores the grid_to_index matrix.
     The job of this class could be done more elegantly by a lambda, but that
     doesn't work with Pool (lambdas are not pickleable).
@@ -116,6 +116,7 @@ class CountryToGridTranslator():
 
         >>> val_on_emigrid = CountryToGridTranslator(emigrid_to_index)
     """
+
     def __init__(self, grid_to_index):
         self.grid_to_index = grid_to_index
 
@@ -154,41 +155,49 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
     variables : list(str)
         List of variable-names to be created
     """
-    rlat = emi_file.dimensions['rlat'].size
-    rlon = emi_file.dimensions['rlon'].size
-    level = ver_file.dimensions['level'].size
+    rlat = emi_file.dimensions["rlat"].size
+    rlon = emi_file.dimensions["rlon"].size
+    level = ver_file.dimensions["level"].size
 
-    outfile.createDimension('time')
-    outfile.createDimension('rlon', rlon)
-    outfile.createDimension('rlat', rlat)
-    outfile.createDimension('bnds', 2)
-    outfile.createDimension('level', level)
+    outfile.createDimension("time")
+    outfile.createDimension("rlon", rlon)
+    outfile.createDimension("rlat", rlat)
+    outfile.createDimension("bnds", 2)
+    outfile.createDimension("level", level)
 
-    var_srcfile = [('time', org_file),
-                   ('rotated_pole', org_file),
-                   ('level', org_file),
-                   ('level_bnds', org_file),
-                   ('rlon', emi_file),
-                   ('rlat', emi_file)]
+    var_srcfile = [
+        ("time", org_file),
+        ("rotated_pole", org_file),
+        ("level", org_file),
+        ("level_bnds", org_file),
+        ("rlon", emi_file),
+        ("rlat", emi_file),
+    ]
 
     for varname, src_file in var_srcfile:
-        outfile.createVariable(varname=varname,
-                               datatype=src_file[varname].datatype,
-                               dimensions=src_file[varname].dimensions)
+        outfile.createVariable(
+            varname=varname,
+            datatype=src_file[varname].datatype,
+            dimensions=src_file[varname].dimensions,
+        )
         outfile[varname].setncatts(src_file[varname].__dict__)
 
-    outfile['time'][:] = org_file['time'][:]
-    outfile['level'][:] = ver_file['layer_mid'][:]
-    outfile['level_bnds'][:] = (
-        np.array([ver_file['layer_bot'][:], ver_file['layer_top'][:]]))
-    outfile['rlat'][:] = emi_file['rlat'][:]
-    outfile['rlon'][:] = emi_file['rlon'][:]
+    outfile["time"][:] = org_file["time"][:]
+    outfile["level"][:] = ver_file["layer_mid"][:]
+    outfile["level_bnds"][:] = np.array(
+        [ver_file["layer_bot"][:], ver_file["layer_top"][:]]
+    )
+    outfile["rlat"][:] = emi_file["rlat"][:]
+    outfile["rlon"][:] = emi_file["rlon"][:]
 
     for varname in variables:
-        outfile.createVariable(varname=varname,
-                               datatype='float32',
-                               dimensions=('time', 'level', 'rlat', 'rlon'))
+        outfile.createVariable(
+            varname=varname,
+            datatype="float32",
+            dimensions=("time", "level", "rlat", "rlon"),
+        )
         outfile[varname].units = "kg m-2 s-1"
+
 
 def extract_matrices(infile, var_list, indices, transform=None):
     """Extract the array specified by indices for each variable in var_list
@@ -306,42 +315,42 @@ def process_day(date, path_template, lists, matrices, datasets):
     """
     print(date.strftime("Processing %x..."))
 
-    with Dataset(datasets['emi_path']) as emi,\
-         Dataset(datasets['org_path']) as org,\
-         Dataset(datasets['ver_path']) as ver:
-        rlat = emi.dimensions['rlat'].size
-        rlon = emi.dimensions['rlon'].size
-        levels = ver.dimensions['level'].size
+    with Dataset(datasets["emi_path"]) as emi, Dataset(
+        datasets["org_path"]
+    ) as org, Dataset(datasets["ver_path"]) as ver:
+        rlat = emi.dimensions["rlat"].size
+        rlon = emi.dimensions["rlon"].size
+        levels = ver.dimensions["level"].size
 
         for hour in range(24):
             day_hour = datetime.datetime.combine(date, datetime.time(hour))
             of_path = day_hour.strftime(path_template)
             with Dataset(of_path, "w") as of:
-                write_metadata(outfile=of,
-                               org_file=org,
-                               emi_file=emi,
-                               ver_file=ver,
-                               variables=lists['variables'])
+                write_metadata(
+                    outfile=of,
+                    org_file=org,
+                    emi_file=emi,
+                    ver_file=ver,
+                    variables=lists["variables"],
+                )
 
-                for v, var in enumerate(lists['variables']):
+                for v, var in enumerate(lists["variables"]):
                     oae_vals = np.zeros((levels, rlat, rlon))
-                    for cat, tp, vp in zip(lists['cats'][v],
-                                           lists['tps'][v],
-                                           lists['vps'][v]):
-                        emi_mat = matrices['emi_mats'][cat]
-                        hod_mat = matrices['hod_mats'][hour][tp]
-                        dow_mat = matrices['dow_mats'][tp]
-                        moy_mat = matrices['moy_mats'][tp]
-                        ver_mat = matrices['ver_mats'][vp]
+                    for cat, tp, vp in zip(
+                        lists["cats"][v], lists["tps"][v], lists["vps"][v]
+                    ):
+                        emi_mat = matrices["emi_mats"][cat]
+                        hod_mat = matrices["hod_mats"][hour][tp]
+                        dow_mat = matrices["dow_mats"][tp]
+                        moy_mat = matrices["moy_mats"][tp]
+                        ver_mat = matrices["ver_mats"][vp]
 
                         # Add dimensions so numpy can broadcast
                         ver_mat = np.reshape(ver_mat, (levels, 1, 1))
 
-                        oae_vals += (emi_mat *
-                                     hod_mat *
-                                     dow_mat *
-                                     moy_mat *
-                                     ver_mat)
+                        oae_vals += (
+                            emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
+                        )
                     # Careful, automatic reshaping!
                     of[var][0, :] = oae_vals
 
@@ -354,11 +363,22 @@ def process_day_one_arg(arg):
     return process_day(*arg)
 
 
-def generate_arguments(start_date, end_date,
-                       emi_path, org_path, ver_path,
-                       hod_path, dow_path, moy_path,
-                       var_list, catlist, tplist, vplist,
-                       output_path, output_prefix):
+def generate_arguments(
+    start_date,
+    end_date,
+    emi_path,
+    org_path,
+    ver_path,
+    hod_path,
+    dow_path,
+    moy_path,
+    var_list,
+    catlist,
+    tplist,
+    vplist,
+    output_path,
+    output_prefix,
+):
     """Prepare the arguments for process_day() (mainly extract the relevant data
     from netcdf-files) and yield them as tuples.
 
@@ -417,17 +437,16 @@ def generate_arguments(start_date, end_date,
         # Create grid-country-mapping
         print("Creating gridpoint -> index mapping...")
         with Dataset(emi_path) as emi, Dataset(moy_path) as moy:
-            mapping_result = pool.apply_async(country_id_mapping,
-                                              args=(moy['country'][:],
-                                                    emi['country_ids'][:]))
+            mapping_result = pool.apply_async(
+                country_id_mapping,
+                args=(moy["country"][:], emi["country_ids"][:]),
+            )
 
         # Time- and (grid-country-mapping)-independent data
-        args_indep = [(emi_path,
-                       catlist,
-                       np.s_[:]),
-                      (ver_path,
-                       vplist,
-                       np.s_[:])]
+        args_indep = [
+            (emi_path, catlist, np.s_[:]),
+            (ver_path, vplist, np.s_[:]),
+        ]
 
         print("Extracting average emissions and vertical profiles...")
         res_indep = pool.starmap(extract_matrices, args_indep)
@@ -441,26 +460,21 @@ def generate_arguments(start_date, end_date,
         print("... finished gridpoint -> index mapping")
 
         # Time- and (grid-country-mapping)-dependent data
-        assert start_date.month == end_date.month, ("Adjust the script to "
-                                                    "prepare data for multiple"
-                                                    " months.")
+        assert start_date.month == end_date.month, (
+            "Adjust the script to " "prepare data for multiple" " months."
+        )
         month_id = start_date.month - 1
-        args_dep = [(moy_path,
-                     tplist,
-                     np.s_[month_id, :],
-                     val_on_emigrid)]
+        args_dep = [(moy_path, tplist, np.s_[month_id, :], val_on_emigrid)]
 
         for day in range(7):  # always extract the whole week
-            args_dep.append(tuple([dow_path,
-                                   tplist,
-                                   np.s_[day, :],
-                                   val_on_emigrid]))
+            args_dep.append(
+                tuple([dow_path, tplist, np.s_[day, :], val_on_emigrid])
+            )
 
         for hour in range(24):
-            args_dep.append(tuple([hod_path,
-                                   tplist,
-                                   np.s_[hour, :],
-                                   val_on_emigrid]))
+            args_dep.append(
+                tuple([hod_path, tplist, np.s_[hour, :], val_on_emigrid])
+            )
 
         print("Extracting month, day and hour profiles...")
         # List of dicts (containing 2D arrays) is not ideal for cache
@@ -471,22 +485,28 @@ def generate_arguments(start_date, end_date,
         hod_mats = res_dep[8:]
         print("... finished temporal profiles")
 
-    lists = {'variables': var_list,
-             'cats': catlist,
-             'tps': tplist,
-             'vps': vplist}
-    datasets = {'org_path': org_path,
-                'emi_path': emi_path,
-                'ver_path': ver_path}
+    lists = {
+        "variables": var_list,
+        "cats": catlist,
+        "tps": tplist,
+        "vps": vplist,
+    }
+    datasets = {
+        "org_path": org_path,
+        "emi_path": emi_path,
+        "ver_path": ver_path,
+    }
 
     stop = time.time()
     print("Finished extracting data in " + str(stop - start))
     for day_date in daterange(start_date, end_date):
-        matrices = {'emi_mats': emi_mats,
-                    'hod_mats': hod_mats,
-                    'dow_mats': dow_mats[day_date.weekday()],
-                    'moy_mats': moy_mats,
-                    'ver_mats': ver_mats}
+        matrices = {
+            "emi_mats": emi_mats,
+            "hod_mats": hod_mats,
+            "dow_mats": dow_mats[day_date.weekday()],
+            "moy_mats": moy_mats,
+            "ver_mats": ver_mats,
+        }
 
         yield (day_date, path_template, lists, matrices, datasets)
 
@@ -499,144 +519,201 @@ def create_lists():
     for (s, nfr) in [(s, nfr) for s in tracers for nfr in categories]:
         var_list.append(s + "_" + nfr + "_E")
 
-    catlist_prelim = (
+    catlist_prelim = [
+        ["CO2_A_AREA", "CO2_A_POINT"],  # for CO2_A_E
+        ["CO2_B_AREA", "CO2_B_POINT"],  # for CO2_B_E
+        ["CO2_C_AREA"],  # for CO2_C_E
+        ["CO2_F_AREA"],  # for CO2_F_E
         [
-            ["CO2_A_AREA", "CO2_A_POINT"],   # for CO2_A_E
-            ["CO2_B_AREA", "CO2_B_POINT"],   # for CO2_B_E
-            ["CO2_C_AREA"],                  # for CO2_C_E
-            ["CO2_F_AREA"],                  # for CO2_F_E
-            ["CO2_D_AREA", "CO2_D_POINT",
-             "CO2_E_AREA",
-             "CO2_G_AREA",
-             "CO2_H_AREA", "CO2_H_POINT",
-             "CO2_I_AREA",
-             "CO2_J_AREA", "CO2_J_POINT",
-             "CO2_K_AREA",
-             "CO2_L_AREA"],                  # for CO2_O_E
-            ["CO2_A_AREA", "CO2_A_POINT",
-             "CO2_B_AREA", "CO2_B_POINT",
-             "CO2_C_AREA",
-             "CO2_F_AREA",
-             "CO2_D_AREA", "CO2_D_POINT",
-             "CO2_E_AREA",
-             "CO2_G_AREA",
-             "CO2_H_AREA", "CO2_H_POINT",
-             "CO2_I_AREA",
-             "CO2_J_AREA", "CO2_J_POINT",
-             "CO2_K_AREA",
-             "CO2_L_AREA"],                  # for CO2_ALL_E
-            ["CO_A_AREA", "CO_A_POINT"],    # for CO_A_E
-            ["CO_B_AREA", "CO_B_POINT"],    # for CO_B_E
-            ["CO_C_AREA"],                  # for CO_C_E
-            ["CO_F_AREA"],                  # for CO_F_E
-            ["CO_D_AREA", "CO_D_POINT",
-             "CO_E_AREA",
-             "CO_G_AREA",
-             "CO_H_AREA", "CO_H_POINT",
-             "CO_I_AREA",
-             "CO_J_AREA", "CO_J_POINT",
-             "CO_K_AREA",
-             "CO_L_AREA"],                  # for CO_O_E
-            ["CO_A_AREA", "CO_A_POINT",
-             "CO_B_AREA", "CO_B_POINT",
-             "CO_C_AREA",
-             "CO_F_AREA",
-             "CO_D_AREA", "CO_D_POINT",
-             "CO_E_AREA",
-             "CO_G_AREA",
-             "CO_H_AREA", "CO_H_POINT",
-             "CO_I_AREA",
-             "CO_J_AREA", "CO_J_POINT",
-             "CO_K_AREA",
-             "CO_L_AREA"],                  # for CO_ALL_E
-            ["CH4_A_AREA", "CH4_A_POINT"],  # for CH4_A_E
-            ["CH4_B_AREA", "CH4_B_POINT"],  # for CH4_B_E
-            ["CH4_C_AREA"],                 # for CH4_C_E
-            ["CH4_F_AREA"],                 # for CH4_F_E
-            ["CH4_D_AREA", "CH4_D_POINT",
-             "CH4_E_AREA",
-             "CH4_G_AREA",
-             "CH4_H_AREA", "CH4_H_POINT",
-             "CH4_I_AREA",
-             "CH4_J_AREA", "CH4_J_POINT",
-             "CO2_K_AREA",
-             "CO2_L_AREA"],                 # for CH4_O_E
-            ["CH4_A_AREA", "CH4_A_POINT",
-             "CH4_B_AREA", "CH4_B_POINT",
-             "CH4_C_AREA",
-             "CH4_F_AREA",
-             "CH4_D_AREA", "CH4_D_POINT",
-             "CH4_E_AREA",
-             "CH4_G_AREA",
-             "CH4_H_AREA", "CH4_H_POINT",
-             "CH4_I_AREA",
-             "CH4_J_AREA", "CH4_J_POINT",
-             "CO2_K_AREA",
-             "CO2_L_AREA"]   # for CH4_ALL_E
-        ])
+            "CO2_D_AREA",
+            "CO2_D_POINT",
+            "CO2_E_AREA",
+            "CO2_G_AREA",
+            "CO2_H_AREA",
+            "CO2_H_POINT",
+            "CO2_I_AREA",
+            "CO2_J_AREA",
+            "CO2_J_POINT",
+            "CO2_K_AREA",
+            "CO2_L_AREA",
+        ],  # for CO2_O_E
+        [
+            "CO2_A_AREA",
+            "CO2_A_POINT",
+            "CO2_B_AREA",
+            "CO2_B_POINT",
+            "CO2_C_AREA",
+            "CO2_F_AREA",
+            "CO2_D_AREA",
+            "CO2_D_POINT",
+            "CO2_E_AREA",
+            "CO2_G_AREA",
+            "CO2_H_AREA",
+            "CO2_H_POINT",
+            "CO2_I_AREA",
+            "CO2_J_AREA",
+            "CO2_J_POINT",
+            "CO2_K_AREA",
+            "CO2_L_AREA",
+        ],  # for CO2_ALL_E
+        ["CO_A_AREA", "CO_A_POINT"],  # for CO_A_E
+        ["CO_B_AREA", "CO_B_POINT"],  # for CO_B_E
+        ["CO_C_AREA"],  # for CO_C_E
+        ["CO_F_AREA"],  # for CO_F_E
+        [
+            "CO_D_AREA",
+            "CO_D_POINT",
+            "CO_E_AREA",
+            "CO_G_AREA",
+            "CO_H_AREA",
+            "CO_H_POINT",
+            "CO_I_AREA",
+            "CO_J_AREA",
+            "CO_J_POINT",
+            "CO_K_AREA",
+            "CO_L_AREA",
+        ],  # for CO_O_E
+        [
+            "CO_A_AREA",
+            "CO_A_POINT",
+            "CO_B_AREA",
+            "CO_B_POINT",
+            "CO_C_AREA",
+            "CO_F_AREA",
+            "CO_D_AREA",
+            "CO_D_POINT",
+            "CO_E_AREA",
+            "CO_G_AREA",
+            "CO_H_AREA",
+            "CO_H_POINT",
+            "CO_I_AREA",
+            "CO_J_AREA",
+            "CO_J_POINT",
+            "CO_K_AREA",
+            "CO_L_AREA",
+        ],  # for CO_ALL_E
+        ["CH4_A_AREA", "CH4_A_POINT"],  # for CH4_A_E
+        ["CH4_B_AREA", "CH4_B_POINT"],  # for CH4_B_E
+        ["CH4_C_AREA"],  # for CH4_C_E
+        ["CH4_F_AREA"],  # for CH4_F_E
+        [
+            "CH4_D_AREA",
+            "CH4_D_POINT",
+            "CH4_E_AREA",
+            "CH4_G_AREA",
+            "CH4_H_AREA",
+            "CH4_H_POINT",
+            "CH4_I_AREA",
+            "CH4_J_AREA",
+            "CH4_J_POINT",
+            "CO2_K_AREA",
+            "CO2_L_AREA",
+        ],  # for CH4_O_E
+        [
+            "CH4_A_AREA",
+            "CH4_A_POINT",
+            "CH4_B_AREA",
+            "CH4_B_POINT",
+            "CH4_C_AREA",
+            "CH4_F_AREA",
+            "CH4_D_AREA",
+            "CH4_D_POINT",
+            "CH4_E_AREA",
+            "CH4_G_AREA",
+            "CH4_H_AREA",
+            "CH4_H_POINT",
+            "CH4_I_AREA",
+            "CH4_J_AREA",
+            "CH4_J_POINT",
+            "CO2_K_AREA",
+            "CO2_L_AREA",
+        ],  # for CH4_ALL_E
+    ]
 
-    tplist_prelim = (
+    tplist_prelim = [
+        ["GNFR_A", "GNFR_A"],  # for s_A_E
+        ["GNFR_B", "GNFR_B"],  # for s_B_E
+        ["GNFR_C"],  # for s_C_E
+        ["GNFR_F"],  # for s_F_E
         [
-            ['GNFR_A', 'GNFR_A'],         # for s_A_E
-            ['GNFR_B', 'GNFR_B'],         # for s_B_E
-            ['GNFR_C'],                   # for s_C_E
-            ['GNFR_F'],                   # for s_F_E
-            ['GNFR_D', 'GNFR_D',
-             'GNFR_E',
-             'GNFR_G',
-             'GNFR_H', 'GNFR_H',
-             'GNFR_I',
-             'GNFR_J', 'GNFR_J',
-             'GNFR_K',
-             'GNFR_L'],                   # for s_O_E
-            ['GNFR_A', 'GNFR_A',
-             'GNFR_B', 'GNFR_B',
-             'GNFR_C',
-             'GNFR_F',
-             'GNFR_D', 'GNFR_D',
-             'GNFR_E',
-             'GNFR_G',
-             'GNFR_H', 'GNFR_H',
-             'GNFR_I',
-             'GNFR_J', 'GNFR_J',
-             'GNFR_K',
-             'GNFR_L']          # for s_ALL_E
-        ])
+            "GNFR_D",
+            "GNFR_D",
+            "GNFR_E",
+            "GNFR_G",
+            "GNFR_H",
+            "GNFR_H",
+            "GNFR_I",
+            "GNFR_J",
+            "GNFR_J",
+            "GNFR_K",
+            "GNFR_L",
+        ],  # for s_O_E
+        [
+            "GNFR_A",
+            "GNFR_A",
+            "GNFR_B",
+            "GNFR_B",
+            "GNFR_C",
+            "GNFR_F",
+            "GNFR_D",
+            "GNFR_D",
+            "GNFR_E",
+            "GNFR_G",
+            "GNFR_H",
+            "GNFR_H",
+            "GNFR_I",
+            "GNFR_J",
+            "GNFR_J",
+            "GNFR_K",
+            "GNFR_L",
+        ],  # for s_ALL_E
+    ]
 
     """The vertical profile is only applied to area sources.
     All area sources have emissions at the floor level.
     As such, their profiles are of the shape [1,0,0,...], like GNFR_L"""
-    
-    vplist_prelim = (
+
+    vplist_prelim = [
+        ["GNFR_L", "GNFR_A"],  # for s_A_E
+        ["GNFR_L", "GNFR_B"],  # for s_B_E
+        ["GNFR_L"],  # for s_C_E
+        ["GNFR_L"],  # for s_F_E
         [
-            ['GNFR_L', 'GNFR_A'],         # for s_A_E
-            ['GNFR_L', 'GNFR_B'],         # for s_B_E
-            ['GNFR_L'],                   # for s_C_E
-            ['GNFR_L'],                   # for s_F_E
-            ['GNFR_L', 'GNFR_D',
-             'GNFR_L',
-             'GNFR_L',
-             'GNFR_L', 'GNFR_H',
-             'GNFR_L',
-             'GNFR_L', 'GNFR_J',
-             'GNFR_L',
-             'GNFR_L'],                   # for s_O_E
-            ['GNFR_L', 'GNFR_A',
-             'GNFR_L', 'GNFR_B',
-             'GNFR_L',
-             'GNFR_L',
-             'GNFR_L', 'GNFR_D',
-             'GNFR_L',
-             'GNFR_L',
-             'GNFR_L', 'GNFR_H',
-             'GNFR_L',
-             'GNFR_L', 'GNFR_J',
-             'GNFR_L',
-             'GNFR_L']                   # for s_ALL_E
-        ])
+            "GNFR_L",
+            "GNFR_D",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_H",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_J",
+            "GNFR_L",
+            "GNFR_L",
+        ],  # for s_O_E
+        [
+            "GNFR_L",
+            "GNFR_A",
+            "GNFR_L",
+            "GNFR_B",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_D",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_H",
+            "GNFR_L",
+            "GNFR_L",
+            "GNFR_J",
+            "GNFR_L",
+            "GNFR_L",
+        ],  # for s_ALL_E
+    ]
 
     tplist_prelim *= 3
-    vplist_prelim *= 3 #tplist_prelim
+    vplist_prelim *= 3  # tplist_prelim
 
     # Make sure catlist, tplist, vplist have the same shape
     catlist, tplist, vplist = [], [], []
@@ -644,9 +721,9 @@ def create_lists():
         subcat = []
         subtp = []
         subvp = []
-        for cat, tp, vp in zip(catlist_prelim[v],
-                               tplist_prelim[v],
-                               vplist_prelim[v]):
+        for cat, tp, vp in zip(
+            catlist_prelim[v], tplist_prelim[v], vplist_prelim[v]
+        ):
             subcat.append(cat)
             subtp.append(tp)
             subvp.append(vp)
@@ -657,34 +734,41 @@ def create_lists():
     return var_list, catlist, tplist, vplist
 
 
-def main(path_emi, path_org, output_path, output_name, prof_path,
-         start_date, end_date):
+def main(
+    path_emi,
+    path_org,
+    output_path,
+    output_name,
+    prof_path,
+    start_date,
+    end_date,
+):
     point1 = time.time()
 
     var_list, catlist, tplist, vplist = create_lists()
 
     # Prepare arguments
-    args = generate_arguments(start_date=start_date,
-                              end_date=end_date,
-                              emi_path=path_emi,
-                              org_path=path_org,
-                              ver_path=prof_path + "vertical_profiles.nc",
-                              hod_path=prof_path + "hourofday.nc",
-                              dow_path=prof_path + "dayofweek.nc",
-                              moy_path=prof_path + "monthofyear.nc",
-                              var_list=var_list,
-                              catlist=catlist,
-                              tplist=tplist,
-                              vplist=vplist,
-                              output_path=output_path,
-                              output_prefix=output_name)
+    args = generate_arguments(
+        start_date=start_date,
+        end_date=end_date,
+        emi_path=path_emi,
+        org_path=path_org,
+        ver_path=prof_path + "vertical_profiles.nc",
+        hod_path=prof_path + "hourofday.nc",
+        dow_path=prof_path + "dayofweek.nc",
+        moy_path=prof_path + "monthofyear.nc",
+        var_list=var_list,
+        catlist=catlist,
+        tplist=tplist,
+        vplist=vplist,
+        output_path=output_path,
+        output_prefix=output_name,
+    )
 
     with Pool(14) as pool:  # 2 weeks in parallel
         # Use imap for smaller memory requirements (arguments are only built
         # when they are needed)
-        res = pool.imap(func=process_day_one_arg,
-                        iterable=args,
-                        chunksize=1)
+        res = pool.imap(func=process_day_one_arg, iterable=args, chunksize=1)
 
         # Iterate through all results to prevent the script from returning
         # before imap is done
@@ -695,21 +779,27 @@ def main(path_emi, path_org, output_path, output_name, prof_path,
     print("Overall runtime: {} s".format(point2 - point1))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # CHE
-    path_emi = "../testdata/CHE_TNO_offline/emis_2015_Europe.nc" #"./../emis_2015_Europe.nc"
-    path_org = ("../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc")
+    path_emi = (
+        "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
+    )  # "./../emis_2015_Europe.nc"
+    path_org = (
+        "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
+    )
     output_path = "./output_CHE/"
     output_name = "Europe_CHE_"
     prof_path = "./input_profiles_CHE/"
 
     start_date = datetime.date(2015, 1, 1)
-    end_date = datetime.date(2015, 1, 9) #included
+    end_date = datetime.date(2015, 1, 9)  # included
 
-    main(path_emi=path_emi,
-         path_org=path_org,
-         output_path=output_path,
-         output_name=output_name,
-         prof_path=prof_path,
-         start_date=start_date,
-         end_date=end_date)
+    main(
+        path_emi=path_emi,
+        path_org=path_org,
+        output_path=output_path,
+        output_name=output_name,
+        prof_path=prof_path,
+        start_date=start_date,
+        end_date=end_date,
+    )

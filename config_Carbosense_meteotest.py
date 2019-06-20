@@ -1,29 +1,25 @@
 # for MeteoTest Swiss inventory, unit m, x is easterly, y is northly
 input_path = "/input/CH_EMISSIONS/emiskat15/"
-ch_xll = 480000 
+ch_xll = 480000
 ch_yn = 1200
 ch_yll = 60000
-ch_xn = 1800 
+ch_xn = 1800
 ch_cell = 200
 nodata_value = -9999
 
-origin = 'meteotest'
-gridname = origin + '_CO_1km'
+origin = "meteotest"
+gridname = origin + "_CO_1km"
 
-species = ['CO']
+species = ["CO"]
 
-ch_cat = [ "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M" ]
-
-
-
-
+ch_cat = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"]
 
 
 year = 2018
 
-output_path ="./testdata"
+output_path = "./testdata"
 
-offline=False
+offline = False
 
 # Carbosense COSMO-1 Domain
 dx = 0.01
@@ -40,4 +36,3 @@ if offline:
     ymin -= 2 * dy
     nx += 4
     ny += 4
-

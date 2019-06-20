@@ -1,29 +1,44 @@
 # "constant" paths and values for TNO
-tnoCamsPath = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
+tnoCamsPath = (
+    "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
+)
 tnoMACCIIIPath = tnoCamsPath
-tno_xmin = -30.
-tno_xmax = 60.
-tno_ymin = 30.
-tno_ymax = 72.
-tno_dx = 1/10.
-tno_dy = 1/20.
+tno_xmin = -30.0
+tno_xmax = 60.0
+tno_ymin = 30.0
+tno_ymax = 72.0
+tno_dx = 1 / 10.0
+tno_dy = 1 / 20.0
 
-#case specific parameters
-species = ['CO2', 'CH4', 'CO']
+# case specific parameters
+species = ["CO2", "CH4", "CO"]
 
-cat_kind="NFR"                                                                 
+cat_kind = "NFR"
 
-snap = [ "A", "B", "C", "D", "E", "F",                                         
-         "G", "H", "I", "J", "K", "L" ]                                         
+snap = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
 
-tno_snap = [ "A", "B", "C", "D", "E", "F1", "F2", "F3",                          
-             "G", "H", "I", "J", "K", "L" ]
+tno_snap = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F1",
+    "F2",
+    "F3",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+]
 
 year = 2018
-gridname = 'tno_CO2_CO_CH4_1km_CH_only'
-output_path ="./testdata"
+gridname = "tno_CO2_CO_CH4_1km_CH_only"
+output_path = "./testdata"
 
-offline=False
+offline = False
 
 # Carbosense COSMO-1 Domain
 dx = 0.01
@@ -40,4 +55,3 @@ if offline:
     ymin -= 2 * dy
     nx += 4
     ny += 4
-
