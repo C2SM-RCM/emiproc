@@ -15,7 +15,7 @@ species = ['CO2']#,'CH4','CO','NOX','NMVOC']
 cat_kind="NFR_BAU"
 snap = [ "A", "B", "C", "D", "E", "F", 
         "G", "H", "I", "J", "K", "L" ]
-snap = [ "J", "L" ]
+# snap = [ "J", "L" ]
 #tno_snap = [ "A", "B", "C", "D", "E", "F1","F2","F3",
 #        "G", "H", "I", "J", "K", "L" ]
 tno_snap = [ "A", "B", "C", "D", "E", "F1","F2","F3",
