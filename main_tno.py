@@ -179,9 +179,16 @@ def main(cfg_path):
                             """add fossil and bio fuel CO2"""
                             var = tno["co2_ff"][:]+tno["co2_bf"][:]
                         elif s=="CO":
-                            """add fossil and bio fuel CO"""
-                            var = tno["co_ff"][:]+tno["co_bf"][:]                      
-                        elif s=="PM2.5":
+                            # ignore problems here to get Qings case to work.
+                            # She just commented it out, so I guess she doesn't
+                            # need CO?
+                            try:
+                                """add fossil and bio fuel CO"""
+                                var = tno["co_ff"][:]+tno["co_bf"][:]
+                            except:
+                                # just do what 'else' would have done
+                                var = tno[s.lower()][:]
+                        elif s=="PM25":
                             var = tno["pm2_5"]
                         else:
                             var = tno[s.lower()][:]
