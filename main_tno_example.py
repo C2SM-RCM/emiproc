@@ -75,7 +75,9 @@ def main(cfg_path):
             selection_point = tno["source_type_index"][:] == 2
 
             # Area of the COSMO grid cells
-            cosmo_area = 1.0 / util.gridbox_area(cfg)
+            cosmo_area = 1.0 / util.gridcell_area(
+                cfg.dx, cfg.dy, cfg.nx, cfg.ny, cfg.ymin
+            )
 
             for cat in cfg.output_cat:
                 # In emission_category_index, we have the

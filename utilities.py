@@ -45,19 +45,38 @@ def load_cfg(cfg_path):
     return cfg
 
 
-def gridbox_area(cfg):
-    """Calculate 2D array of the areas (m^^2) of the output COSMO grid"""
-    radius = 6375000.0  # the earth radius in meters
-    deg2rad = np.pi / 180.0
-    dlat = cfg.dy * deg2rad
-    dlon = cfg.dx * deg2rad
+def gridcell_area(dx, dy, nx, ny, ymin):
+    """Calculate 2D array of the areas (m^2) of a regular rectangular grid
+    on earth.
 
-    """Box area at equator"""
+    Parameters
+    ----------
+    dx : float
+        Longitudinal size of a gridcell in degrees
+    dy : float
+        Latitudinal size of a gridcell in degrees
+    nx : int
+        Number of cells in longitudinal direction
+    ny : int
+        Number of cells in latitudinal direction
+    ymin : float
+        Latitude of bottom left gridpoint in degrees
+
+    Returns
+    -------
+    np.array
+        2D array containing the areas of the gridcells in m^2
+    """
+    radius = 6375000.0  # the earth radius in meters
+    dlat = np.deg2rad(dy)
+    dlon = np.deg2rad(dx)
+
+    # Cell area at equator
     dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
     areas = np.array(
         [
-            [dd * np.cos(deg2rad * cfg.ymin + j * dlat) for j in range(cfg.ny)]
-            for foo in range(cfg.nx)
+            [dd * np.cos(np.deg2rad(ymin) + j * dlat) for j in range(ny)]
+            for _ in range(nx)
         ]
     )
     return areas
