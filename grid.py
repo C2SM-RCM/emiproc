@@ -7,7 +7,6 @@ Written by:  Michael Jaehn - michael.jaehn@empa.ch - 2018-07-04
 """
 
 import netCDF4
-import math
 from math import pi, sin, cos, asin, atan2
 
 
