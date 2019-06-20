@@ -1,14 +1,23 @@
-from make_online_emissions import *
+import os
+import sys
+import time
+
+import numpy as np
+
+from netCDF4 import Dataset
+
+import utilities as util
 
 
 def var_name(s, cat, cat_kind):
     """Returns the name of a variable for a given species and cat
-    input : 
+    input :
        - s : species name ("CO2", "CH4" ...)
        - cat : Category name or number
-       - cat_kind : Kind of category. must be "SNAP" or "NFR" 
+       - cat_kind : Kind of category. must be "SNAP" or "NFR"
     output :
-       - returns a string which concatenates the species with the category number
+       - returns a string which concatenates the species with
+         the category number
     """
     out_var_name = s + "_"
     if cat_kind == "SNAP":
@@ -26,16 +35,16 @@ def var_name(s, cat, cat_kind):
 
 
 def main(cfg_path):
-    """ The main script for processing TNO inventory. 
-    Takes a configuration file as input"""
+    """ The main script for processing TNO inventory.
+    Takes a configuration file path as input"""
 
-    """Load the configuration file"""
-    cfg = load_cfg(cfg_path)
+    # Load the configuration file
+    cfg = util.load_cfg(cfg_path)
 
-    """Load or compute the country mask"""
-    country_mask = get_country_mask(cfg)
+    # Load or compute the country mask
+    country_mask = util.get_country_mask(cfg)
 
-    """Set names for longitude and latitude"""
+    # Set names for longitude and latitude
     if (cfg.pollon == 180 or cfg.pollon == 0) and cfg.pollat == 90:
         lonname = "lon"
         latname = "lat"
@@ -50,29 +59,29 @@ def main(cfg_path):
             "Rotated grid: pollon = %f, pollat = %f" % (cfg.pollon, cfg.pollat)
         )
 
-    """Starts writing out the output file"""
-    output_path = cfg.output_path
+    # Starts writing out the output file
     output_file = os.path.join(cfg.output_path, cfg.output_name)
-    with nc.Dataset(output_file, "w") as out:
-        prepare_output_file(cfg, out, country_mask)
+    with Dataset(output_file, "w") as out:
+        util.prepare_output_file(cfg, out, country_mask)
 
-        """Load or compute the interpolation maps"""
-        with nc.Dataset(cfg.tnofile) as tno:
-            interpolation = get_interpolation(cfg, tno)
+        # Load or compute the interpolation maps
+        with Dataset(cfg.tnofile) as tno:
+            interpolation = util.get_interpolation(cfg, tno)
 
-            """From here onward, quite specific for TNO"""
+            # From here onward, quite specific for TNO
 
-            """Mask corresponding to the area/point sources"""
+            # Mask corresponding to the area/point sources
             selection_area = tno["source_type_index"][:] == 1
             selection_point = tno["source_type_index"][:] == 2
 
-            """Area of the COSMO grid cells"""
-            cosmo_area = 1.0 / gridbox_area(cfg)
+            # Area of the COSMO grid cells
+            cosmo_area = 1.0 / util.gridbox_area(cfg)
 
             for cat in cfg.output_cat:
-                """In emission_category_index, we have the index of the category, starting with 1."""
+                # In emission_category_index, we have the
+                # index of the category, starting with 1.
 
-                """mask corresponding to the given category"""
+                # mask corresponding to the given category
                 selection_cat = np.array(
                     [
                         tno["emission_category_index"][:]
@@ -80,7 +89,7 @@ def main(cfg_path):
                     ]
                 )
 
-                """mask corresponding to the given category for area/point"""
+                # mask corresponding to the given category for area/point
                 selection_cat_area = np.array(
                     [selection_cat.any(0), selection_area]
                 ).all(0)
@@ -104,7 +113,7 @@ def main(cfg_path):
                             for (x, y, r) in interpolation[lon_ind, lat_ind]:
                                 out_var_area[y, x] += var[i] * r
                         if selection_cat_point[i]:
-                            (indx, indy) = interpolate_to_cosmo_point(
+                            (indx, indy) = util.interpolate_to_cosmo_point(
                                 tno["latitude_source"][i],
                                 tno["longitude_source"][i],
                                 cfg,
@@ -121,8 +130,8 @@ def main(cfg_path):
                     print("it takes ", end - start, "sec")
 
                     # convert unit from kg.year-1.cell-1 to kg.m-2.s-1
-                    out_var_point *= cosmo_area.T / SEC_PER_YR
-                    out_var_area *= cosmo_area.T / SEC_PER_YR
+                    out_var_point *= cosmo_area.T / util.SEC_PER_YR
+                    out_var_area *= cosmo_area.T / util.SEC_PER_YR
 
                     out_var_name = var_name(s, cat, cfg.cat_kind)
                     for (t, sel, out_var) in zip(
