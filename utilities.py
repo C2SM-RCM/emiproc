@@ -25,7 +25,6 @@ from country_code import country_codes
 DAY_PER_YR = 365.25
 SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
-npool = 18
 
 
 def load_cfg(cfg_path):
@@ -545,7 +544,7 @@ def get_dim_var(inv, inv_name, cfg):
     return lon_dim, lat_dim, lon_var, lat_var
 
 
-def interpolate_to_cosmo_grid(tno, inv_name, cfg, filename):
+def interpolate_to_cosmo_grid(tno, inv_name, cfg, filename, nprocs):
     print(
         "Retrieving the interpolation between the cosmo and the inventory grids"
     )
@@ -573,7 +572,7 @@ def interpolate_to_cosmo_grid(tno, inv_name, cfg, filename):
         }
     )
 
-    with Pool(npool) as pool:
+    with Pool(n_procs) as pool:
         for i in range(lon_dim):
             print("ongoing :", i)
             points = []
@@ -608,7 +607,9 @@ def get_interpolation(cfg, tno, inv_name="tno", filename="mapping.npy"):
         make_interpolate = s == "y"
 
     if make_interpolate:
-        interpolation = interpolate_to_cosmo_grid(tno, inv_name, cfg, filename)
+        interpolation = interpolate_to_cosmo_grid(
+            tno, inv_name, cfg, filename, cfg.n_procs
+        )
     else:
         interpolation = np.load(mapping_path)
 

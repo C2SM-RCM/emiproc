@@ -50,3 +50,6 @@ output_cat = ["A", "B"]
 
 output_path = "./testdata/oae_paper/"
 output_name = "tno.nc"
+
+# number of processes computing the mapping inventory->COSMO-grid
+n_procs = 18
