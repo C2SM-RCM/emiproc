@@ -120,11 +120,9 @@ def main(cfg_path):
                     end = time.time()
                     print("it takes ", end - start, "sec")
 
-                    """convert unit from kg.year-1.cell-1 to kg.m-2.s-1"""
-
-                    """calculate the areas (m^^2) of the COSMO grid"""
-                    out_var_point *= cosmo_area.T * convfac
-                    out_var_area *= cosmo_area.T * convfac
+                    # convert unit from kg.year-1.cell-1 to kg.m-2.s-1
+                    out_var_point *= cosmo_area.T / SEC_PER_YR
+                    out_var_area *= cosmo_area.T / SEC_PER_YR
 
                     out_var_name = var_name(s, cat, cfg.cat_kind)
                     for (t, sel, out_var) in zip(

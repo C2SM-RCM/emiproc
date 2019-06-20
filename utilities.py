@@ -21,11 +21,10 @@ from shapely.geometry import Polygon
 from country_code import country_codes
 
 
-# constants to convert from kg/yr to kg/s/m2
-day_per_yr = 365.25
-hr_per_yr = day_per_yr * 24.0
-sec_per_day = 86400
-convfac = 1.0 / (day_per_yr * sec_per_day)
+# constants to convert from yr -> sec
+DAY_PER_YR = 365.25
+SEC_PER_DAY = 86400
+SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 npool = 18
 
 
