@@ -1,18 +1,24 @@
 #!/usr/bin/env python
 # coding: utf-8
+"""
+This file contains a collection of functions and constants used for generating
+gridded emissions for COSMO
+"""
+import itertools
+import os
+import sys
+import time
 
-import importlib
+import cartopy.crs as ccrs
+import cartopy.io.shapereader as shpreader
 import netCDF4 as nc
 import numpy as np
-import cartopy.crs as ccrs
-from shapely.geometry import Polygon
-import time
-import itertools
-import sys
-import cartopy.io.shapereader as shpreader
+
+from importlib import import_module
 from multiprocessing import Pool
+from shapely.geometry import Polygon
+
 from country_code import country_codes
-import os
 
 
 # constants to convert from kg/yr to kg/s/m2
@@ -27,7 +33,7 @@ def load_cfg(cfg_path):
     """Load config file"""
     try:
         sys.path.append(os.path.dirname(os.path.realpath(cfg_path)))
-        cfg = importlib.import_module(os.path.basename(cfg_path))
+        cfg = import_module(os.path.basename(cfg_path))
     except IndexError:
         print("ERROR: no config file provided!")
         sys.exit(1)
