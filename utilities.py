@@ -185,7 +185,8 @@ def prepare_output_file(cfg, out, country_mask=[]):
         if rotated:
             out[mask_name].grid_mapping = "rotated_pole"
         out[mask_name].long_name = "EMEP_country_code"
-        out[mask_name][:] = country_mask
+        # Transpose the country mask to conform with the storage of netcdf
+        out[mask_name][:] = country_mask.T
 
 
 ##################################
@@ -212,13 +213,17 @@ def check_country(country, points):
 
 
 def compute_country_mask(cfg):
-    """Returns the name of the country for each cosmo grid cell.
-    If for a given grid cell, no country is found (Ocean for example), the country code 0 is assigned.
+    """Compute the code of the country for each cosmo grid cell and store it.
+
+    For each grid cell of the output domain, a single country code is determined.
+
+    If for a given grid cell, no country is found (Ocean for example),
+    the country code 0 is assigned.
+
+    The resulting matrix is stored in cfg.output_path/country_mask.npy
+
     input :
        - cfg : config file
-    output :
-       - Return a country mask. For each grid cell of the output domain, a single country code is determined.
-    
     """
     start = time.time()
     print("Creating the country mask")
@@ -370,8 +375,8 @@ def compute_country_mask(cfg):
             "The following countries were found, but didn't have a corresponding code"
         )
         print(set(no_country_code))
+
     np.save(os.path.join(cfg.output_path, "country_mask.npy"), country_mask)
-    return country_mask
 
 
 def get_country_mask(cfg):
@@ -379,6 +384,7 @@ def get_country_mask(cfg):
     add_country_mask = True
     cmask_path = os.path.join(cfg.output_path, "country_mask.npy")
     cmask_path_nc = os.path.join(cfg.output_path, "country_mask.nc")
+
     if os.path.isfile(cmask_path_nc):
         print(
             "Do you want to use the country mask found in %s ?" % cmask_path_nc
@@ -386,7 +392,7 @@ def get_country_mask(cfg):
         s = input("[y]/n \n")
         if s == "y" or s == "":
             with nc.Dataset(cmask_path_nc, "r") as inf:
-                return inf.variables["country_mask"][:].T
+                return inf.variables["country_mask"][:]
     elif os.path.isfile(cmask_path):
         print(
             "Do you wanna overwite the country mask found in %s ?" % cmask_path
@@ -395,11 +401,9 @@ def get_country_mask(cfg):
         add_country_mask = s == "y"
 
     if add_country_mask:
-        country_mask = compute_country_mask(cfg)
-    else:
-        country_mask = np.load(cmask_path)
+        compute_country_mask(cfg)
 
-    return country_mask
+    return np.load(cmask_path)
 
 
 ###################################
