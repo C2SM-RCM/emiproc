@@ -1,3 +1,6 @@
+from utilities import COSMODomain
+
+
 # TNO inventory
 tnofile = "/input/TNOMACC/TNO_GHGco/Future_years_emissions/TNO_GHGco_v1_1_CIRCE_BAU_year2030.nc"
 
@@ -28,14 +31,16 @@ tno_cat = [
 ]
 
 # COSMO domain
-xmin = -17
-ymin = -11
-nx = 760
-ny = 610
-dx = 0.05
-dy = 0.05
-pollon = -170.0
-pollat = 43.0
+cosmo_grid = COSMODomain(
+    nx=760,
+    ny=610,
+    dx=0.05,
+    dy=0.05,
+    xmin=-17.0,
+    ymin=-11.0,
+    pollon=-170.0,
+    pollat=43.0,
+)
 
 offline = False
 if offline:
@@ -52,4 +57,4 @@ output_path = "./testdata/oae_paper/"
 output_name = "tno.nc"
 
 # number of processes computing the mapping inventory->COSMO-grid
-n_procs = 18
+nprocs = 18

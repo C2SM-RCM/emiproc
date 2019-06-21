@@ -45,18 +45,18 @@ def main(cfg_path):
     country_mask = util.get_country_mask(cfg)
 
     # Set names for longitude and latitude
-    if (cfg.pollon == 180 or cfg.pollon == 0) and cfg.pollat == 90:
+    if (cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0) and cfg.cosmo_grid.pollat == 90:
         lonname = "lon"
         latname = "lat"
         print(
             "Non-rotated grid: pollon = %f, pollat = %f"
-            % (cfg.pollon, cfg.pollat)
+            % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
         )
     else:
         lonname = "rlon"
         latname = "rlat"
         print(
-            "Rotated grid: pollon = %f, pollat = %f" % (cfg.pollon, cfg.pollat)
+            "Rotated grid: pollon = %f, pollat = %f" % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
         )
 
     # Starts writing out the output file
@@ -75,9 +75,7 @@ def main(cfg_path):
             selection_point = tno["source_type_index"][:] == 2
 
             # Area of the COSMO grid cells
-            cosmo_area = 1.0 / util.gridcell_area(
-                cfg.dx, cfg.dy, cfg.nx, cfg.ny, cfg.ymin
-            )
+            cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
 
             for cat in cfg.output_cat:
                 # In emission_category_index, we have the
@@ -102,8 +100,8 @@ def main(cfg_path):
                 species_list = cfg.species
                 for s in species_list:
                     print("Species", s, "Category", cat)
-                    out_var_area = np.zeros((cfg.ny, cfg.nx))
-                    out_var_point = np.zeros((cfg.ny, cfg.nx))
+                    out_var_area = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+                    out_var_point = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
 
                     var = tno[s.lower()][:]
 
@@ -122,9 +120,9 @@ def main(cfg_path):
                             )
                             if (
                                 indx >= 0
-                                and indx < cfg.nx
+                                and indx < cfg.cosmo_grid.nx
                                 and indy >= 0
-                                and indy < cfg.ny
+                                and indy < cfg.cosmo_grid.ny
                             ):
                                 out_var_point[indy, indx] += var[i]
 

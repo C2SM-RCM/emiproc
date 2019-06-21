@@ -27,6 +27,77 @@ SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
 
+class COSMODomain:
+    """Class to manage a COSMO-domain"""
+
+    nx: int
+    ny: int
+    dx: float
+    dy: float
+    xmin: float
+    ymin: float
+    pollon: float
+    pollat: float
+
+    def __init__(self, nx, ny, dx, dy, xmin, ymin, pollon, pollat):
+        """Store the grid information.
+
+        Parameters
+        ----------
+        dx : float
+            Longitudinal size of a gridcell in degrees
+        dy : float
+            Latitudinal size of a gridcell in degrees
+        nx : int
+            Number of cells in longitudinal direction
+        ny : int
+            Number of cells in latitudinal direction
+        xmin : float
+            Longitude of bottom left gridpoint in degrees
+        ymin : float
+            Latitude of bottom left gridpoint in degrees
+        pollon : float
+            Longitude of the rotated pole
+        pollat : float
+            Latitude of the rotated pole
+        """
+        self.nx = nx
+        self.ny = ny
+        self.dx = dx
+        self.dy = dy
+        self.xmin = xmin
+        self.ymin = ymin
+        self.pollon = pollon
+        self.pollat = pollat
+
+    def gridcell_areas(self):
+        """Calculate 2D array of the areas (m^2) of a regular rectangular grid
+        on earth.
+
+        Returns
+        -------
+        np.array
+            2D array containing the areas of the gridcells in m^2
+            shape: (nx, ny)
+        """
+        radius = 6375000.0  # the earth radius in meters
+        dlon = np.deg2rad(self.dx)
+        dlat = np.deg2rad(self.dy)
+
+        # Cell area at equator
+        dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
+        areas = np.array(
+            [
+                [
+                    dd * np.cos(np.deg2rad(self.ymin) + j * dlat)
+                    for j in range(self.ny)
+                ]
+                for _ in range(self.nx)
+            ]
+        )
+        return areas
+
+
 def load_cfg(cfg_path):
     """Load config file"""
     try:
@@ -45,49 +116,14 @@ def load_cfg(cfg_path):
     return cfg
 
 
-def gridcell_area(dx, dy, nx, ny, ymin):
-    """Calculate 2D array of the areas (m^2) of a regular rectangular grid
-    on earth.
-
-    Parameters
-    ----------
-    dx : float
-        Longitudinal size of a gridcell in degrees
-    dy : float
-        Latitudinal size of a gridcell in degrees
-    nx : int
-        Number of cells in longitudinal direction
-    ny : int
-        Number of cells in latitudinal direction
-    ymin : float
-        Latitude of bottom left gridpoint in degrees
-
-    Returns
-    -------
-    np.array
-        2D array containing the areas of the gridcells in m^2
-    """
-    radius = 6375000.0  # the earth radius in meters
-    dlat = np.deg2rad(dy)
-    dlon = np.deg2rad(dx)
-
-    # Cell area at equator
-    dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
-    areas = np.array(
-        [
-            [dd * np.cos(np.deg2rad(ymin) + j * dlat) for j in range(ny)]
-            for _ in range(nx)
-        ]
-    )
-    return areas
-
-
 def prepare_output_file(cfg, out, country_mask=[]):
     """Starts writing out the output file :
        - Dimensions and variables for longitude and latitude
        - Rotated pole
        - Country mask variable
-    inputs:
+    
+    Parameters
+    ---------
        - cfg : the config file
        - out : the netcdf output file, already open
        - country_mask : the country_mask that has already been calculated prior
@@ -95,8 +131,10 @@ def prepare_output_file(cfg, out, country_mask=[]):
        None
     """
 
-    """Create the dimensions and the rotated pole"""
-    if (cfg.pollon == 180 or cfg.pollon == 0) and cfg.pollat == 90:
+    # Create the dimensions and the rotated pole
+    if (
+        cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0
+    ) and cfg.cosmo_grid.pollat == 90:
         lonname = "lon"
         latname = "lat"
         rotated = False
@@ -106,20 +144,24 @@ def prepare_output_file(cfg, out, country_mask=[]):
         rotated = True
         out.createVariable("rotated_pole", str)
         out["rotated_pole"].grid_mapping_name = "rotated_latitude_longitude"
-        out["rotated_pole"].grid_north_pole_latitude = cfg.pollat
-        out["rotated_pole"].grid_north_pole_longitude = cfg.pollon
+        out["rotated_pole"].grid_north_pole_latitude = cfg.cosmo_grid.pollat
+        out["rotated_pole"].grid_north_pole_longitude = cfg.cosmo_grid.pollon
         out["rotated_pole"].north_pole_grid_longitude = 0.0
 
-    out.createDimension(lonname, cfg.nx)
-    out.createDimension(latname, cfg.ny)
+    out.createDimension(lonname, cfg.cosmo_grid.nx)
+    out.createDimension(latname, cfg.cosmo_grid.ny)
 
-    """Create the variable associated to the dimensions"""
+    # Create the variable associated to the dimensions
     out.createVariable(lonname, "float32", lonname)
     out[lonname].axis = "X"
     out[lonname].units = "degrees_east"
     out[lonname].standard_name = "longitude"
-    lon_range = np.arange(cfg.xmin, cfg.xmin + cfg.dx * cfg.nx, cfg.dx)
-    if len(lon_range) == cfg.nx + 1:
+    lon_range = np.arange(
+        cfg.cosmo_grid.xmin,
+        cfg.cosmo_grid.xmin + cfg.cosmo_grid.dx * cfg.cosmo_grid.nx,
+        cfg.cosmo_grid.dx,
+    )
+    if len(lon_range) == cfg.cosmo_grid.nx + 1:
         lon_range = lon_range[:-1]
     out[lonname][:] = lon_range
 
@@ -127,8 +169,12 @@ def prepare_output_file(cfg, out, country_mask=[]):
     out[latname].axis = "Y"
     out[latname].units = "degrees_north"
     out[latname].standard_name = "latitude"
-    lat_range = np.arange(cfg.ymin, cfg.ymin + cfg.dy * cfg.ny, cfg.dy)
-    if len(lat_range) == cfg.ny + 1:
+    lat_range = np.arange(
+        cfg.cosmo_grid.ymin,
+        cfg.cosmo_grid.ymin + cfg.cosmo_grid.dy * cfg.cosmo_grid.ny,
+        cfg.cosmo_grid.dy,
+    )
+    if len(lat_range) == cfg.cosmo_grid.ny + 1:
         lat_range = lat_range[:-1]
     out[latname][:] = lat_range
 
@@ -188,23 +234,32 @@ def compute_country_mask(cfg):
 
     reader = shpreader.Reader(shpfilename)
 
-    country_mask = np.empty((cfg.nx, cfg.ny))
+    country_mask = np.empty((cfg.cosmo_grid.nx, cfg.cosmo_grid.ny))
 
-    cosmo_xlocs = np.arange(cfg.xmin, cfg.xmin + cfg.dx * cfg.nx, cfg.dx)
-    cosmo_ylocs = np.arange(cfg.ymin, cfg.ymin + cfg.dy * cfg.ny, cfg.dy)
+    cosmo_xlocs = np.arange(
+        cfg.cosmo_grid.xmin,
+        cfg.cosmo_grid.xmin + cfg.cosmo_grid.dx * cfg.cosmo_grid.nx,
+        cfg.cosmo_grid.dx,
+    )
+    cosmo_ylocs = np.arange(
+        cfg.cosmo_grid.ymin,
+        cfg.cosmo_grid.ymin + cfg.cosmo_grid.dy * cfg.cosmo_grid.ny,
+        cfg.cosmo_grid.dy,
+    )
     """
     Be careful with numpy.arange(). Floating point numbers are not exactly
     represented. Thus, the length of the generated list could have one entry
     too much.
     See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
     """
-    if len(cosmo_xlocs) == cfg.nx + 1:
+    if len(cosmo_xlocs) == cfg.cosmo_grid.nx + 1:
         cosmo_xlocs = cosmo_xlocs[:-1]
-    if len(cosmo_ylocs) == cfg.ny + 1:
+    if len(cosmo_ylocs) == cfg.cosmo_grid.ny + 1:
         cosmo_ylocs = cosmo_ylocs[:-1]
 
     transform = ccrs.RotatedPole(
-        pole_longitude=cfg.pollon, pole_latitude=cfg.pollat
+        pole_longitude=cfg.cosmo_grid.pollon,
+        pole_latitude=cfg.cosmo_grid.pollat,
     )
     incr = 0
     no_country_code = []
@@ -224,7 +279,11 @@ def compute_country_mask(cfg):
             sys.stdout.write("\r")
             sys.stdout.write(
                 " {:.1f}%".format(
-                    (100 / ((cfg.nx * cfg.ny) - 1) * ((a * cfg.ny) + b))
+                    (
+                        100
+                        / ((cfg.cosmo_grid.nx * cfg.cosmo_grid.ny) - 1)
+                        * ((a * cfg.cosmo_grid.ny) + b)
+                    )
                 )
             )
             sys.stdout.flush()
@@ -237,10 +296,20 @@ def compute_country_mask(cfg):
             # cosmo_cell_y = [y+cfg.dy,y,y,y+cfg.dy]
             # Or the center of the cell
             cosmo_cell_x = np.array(
-                [x + cfg.dx / 2, x + cfg.dx / 2, x - cfg.dx / 2, x - cfg.dx / 2]
+                [
+                    x + cfg.cosmo_grid.dx / 2,
+                    x + cfg.cosmo_grid.dx / 2,
+                    x - cfg.cosmo_grid.dx / 2,
+                    x - cfg.cosmo_grid.dx / 2,
+                ]
             )
             cosmo_cell_y = np.array(
-                [y + cfg.dy / 2, y - cfg.dy / 2, y - cfg.dy / 2, y + cfg.dy / 2]
+                [
+                    y + cfg.cosmo_grid.dy / 2,
+                    y - cfg.cosmo_grid.dy / 2,
+                    y - cfg.cosmo_grid.dy / 2,
+                    y + cfg.cosmo_grid.dy / 2,
+                ]
             )
 
             points = ccrs.PlateCarree().transform_points(
@@ -350,12 +419,17 @@ def interpolate_to_cosmo_point(
 """
 
     transform = ccrs.RotatedPole(
-        pole_longitude=cfg.pollon, pole_latitude=cfg.pollat
+        pole_longitude=cfg.cosmo_grid.pollon,
+        pole_latitude=cfg.cosmo_grid.pollat,
     )
     point = transform.transform_point(lon_source, lat_source, proj)
 
-    cosmo_indx = int(np.floor((point[0] - cfg.xmin) / cfg.dx))
-    cosmo_indy = int(np.floor((point[1] - cfg.ymin) / cfg.dy))
+    cosmo_indx = int(
+        np.floor((point[0] - cfg.cosmo_grid.xmin) / cfg.cosmo_grid.dx)
+    )
+    cosmo_indy = int(
+        np.floor((point[1] - cfg.cosmo_grid.ymin) / cfg.cosmo_grid.dy)
+    )
 
     return (cosmo_indx, cosmo_indy)
 
@@ -570,7 +644,8 @@ def interpolate_to_cosmo_grid(tno, inv_name, cfg, filename, nprocs):
     start = time.time()
 
     transform = ccrs.RotatedPole(
-        pole_longitude=cfg.pollon, pole_latitude=cfg.pollat
+        pole_longitude=cfg.cosmo_grid.pollon,
+        pole_latitude=cfg.cosmo_grid.pollat,
     )
 
     lon_dim, lat_dim, lon_var, lat_var = get_dim_var(tno, inv_name, cfg)
@@ -582,16 +657,16 @@ def interpolate_to_cosmo_grid(tno, inv_name, cfg, filename, nprocs):
     """Transform the cfg to a dictionary"""
     config = dict(
         {
-            "dx": cfg.dx,
-            "dy": cfg.dy,
-            "nx": cfg.nx,
-            "ny": cfg.ny,
-            "xmin": cfg.xmin,
-            "ymin": cfg.ymin,
+            "dx": cfg.cosmo_grid.dx,
+            "dy": cfg.cosmo_grid.dy,
+            "nx": cfg.cosmo_grid.nx,
+            "ny": cfg.cosmo_grid.ny,
+            "xmin": cfg.cosmo_grid.xmin,
+            "ymin": cfg.cosmo_grid.ymin,
         }
     )
 
-    with Pool(n_procs) as pool:
+    with Pool(nprocs) as pool:
         for i in range(lon_dim):
             print("ongoing :", i)
             points = []
@@ -627,7 +702,7 @@ def get_interpolation(cfg, tno, inv_name="tno", filename="mapping.npy"):
 
     if make_interpolate:
         interpolation = interpolate_to_cosmo_grid(
-            tno, inv_name, cfg, filename, cfg.n_procs
+            tno, inv_name, cfg, filename, cfg.nprocs
         )
     else:
         interpolation = np.load(mapping_path)
