@@ -97,6 +97,35 @@ class COSMODomain:
         )
         return areas
 
+    def lon_range(self):
+        """Return an array containing all the longitudinal points on the grid.
+
+        Returns
+        -------
+        np.array
+            shape: (nx)
+            dtype: float
+        """
+        # Because of floating point math the original arange is not guaranteed
+        # to contain the expected number of points.
+        # This way we are sure that we generate at least the required number of
+        # points and discard the possibly generated superfluous one.
+        # Compared to linspace this method generates more exact steps at
+        # the cost of a less accurate endpoint.
+        return np.arange(self.xmin, self.xmin + (self.nx + .5) * self.dx, self.dx)[:self.nx]
+
+    def lat_range(self):
+        """Return an array containing all the latitudinal points on the grid.
+
+        Returns
+        -------
+        np.array
+            shape: (ny)
+            dtype: float
+        """
+        # See the comment in lon_range
+        return np.arange(self.ymin, self.ymin + (self.ny + .5) * self.dy, self.dy)[:self.ny]
+
 
 def load_cfg(cfg_path):
     """Load config file"""
@@ -116,77 +145,71 @@ def load_cfg(cfg_path):
     return cfg
 
 
-def prepare_output_file(cfg, out, country_mask=[]):
-    """Starts writing out the output file :
-       - Dimensions and variables for longitude and latitude
-       - Rotated pole
-       - Country mask variable
-    
-    Parameters
-    ---------
-       - cfg : the config file
-       - out : the netcdf output file, already open
-       - country_mask : the country_mask that has already been calculated prior
-    outputs:
-       None
-    """
+def prepare_output_file(cosmo_grid, dataset):
+    """Add lat & lon dimensions and variables to the dataset, handle rotated pole
 
+    Creates & writes dimensions and variables for longitude and latitude.
+    Handles the rotated pole.
+
+    Parameters
+    ----------
+    cosmo_grid : COSMODomain
+        Contains information about the cosmo grid
+    dataset : netCDF4.Dataset
+        Writable (empty) netCDF Dataset
+    """
     # Create the dimensions and the rotated pole
     if (
-        cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0
-    ) and cfg.cosmo_grid.pollat == 90:
+        cosmo_grid.pollon == 180 or cosmo_grid.pollon == 0
+    ) and cosmo_grid.pollat == 90:
         lonname = "lon"
         latname = "lat"
-        rotated = False
     else:
         lonname = "rlon"
         latname = "rlat"
-        rotated = True
-        out.createVariable("rotated_pole", str)
-        out["rotated_pole"].grid_mapping_name = "rotated_latitude_longitude"
-        out["rotated_pole"].grid_north_pole_latitude = cfg.cosmo_grid.pollat
-        out["rotated_pole"].grid_north_pole_longitude = cfg.cosmo_grid.pollon
-        out["rotated_pole"].north_pole_grid_longitude = 0.0
+        var_rotpol = dataset.createVariable("rotated_pole", str)
+        var_rotpol.grid_mapping_name = "rotated_latitude_longitude"
+        var_rotpol.grid_north_pole_latitude = cosmo_grid.pollat
+        var_rotpol.grid_north_pole_longitude = cosmo_grid.pollon
+        var_rotpol.north_pole_grid_longitude = 0.0
 
-    out.createDimension(lonname, cfg.cosmo_grid.nx)
-    out.createDimension(latname, cfg.cosmo_grid.ny)
+    dataset.createDimension(lonname, cosmo_grid.nx)
+    dataset.createDimension(latname, cosmo_grid.ny)
 
-    # Create the variable associated to the dimensions
-    out.createVariable(lonname, "float32", lonname)
-    out[lonname].axis = "X"
-    out[lonname].units = "degrees_east"
-    out[lonname].standard_name = "longitude"
-    lon_range = np.arange(
-        cfg.cosmo_grid.xmin,
-        cfg.cosmo_grid.xmin + cfg.cosmo_grid.dx * cfg.cosmo_grid.nx,
-        cfg.cosmo_grid.dx,
-    )
-    if len(lon_range) == cfg.cosmo_grid.nx + 1:
-        lon_range = lon_range[:-1]
-    out[lonname][:] = lon_range
+    # Create the variables associated to the dimensions
+    var_lon = dataset.createVariable(lonname, "float32", lonname)
+    var_lon.axis = "X"
+    var_lon.units = "degrees_east"
+    var_lon.standard_name = "longitude"
+    var_lon[:] = cosmo_grid.lon_range
 
-    out.createVariable(latname, "float32", latname)
-    out[latname].axis = "Y"
-    out[latname].units = "degrees_north"
-    out[latname].standard_name = "latitude"
-    lat_range = np.arange(
-        cfg.cosmo_grid.ymin,
-        cfg.cosmo_grid.ymin + cfg.cosmo_grid.dy * cfg.cosmo_grid.ny,
-        cfg.cosmo_grid.dy,
-    )
-    if len(lat_range) == cfg.cosmo_grid.ny + 1:
-        lat_range = lat_range[:-1]
-    out[latname][:] = lat_range
+    var_lat = dataset.createVariable(latname, "float32", latname)
+    var_lat.axis = "Y"
+    var_lat.units = "degrees_north"
+    var_lat.standard_name = "latitude"
+    var_lat[:] = cosmo_grid.lat_range
 
-    """Create the variable associated with the country_mask"""
-    if len(country_mask):
-        mask_name = "country_ids"
-        out.createVariable(mask_name, "short", (latname, lonname))
-        if rotated:
-            out[mask_name].grid_mapping = "rotated_pole"
-        out[mask_name].long_name = "EMEP_country_code"
-        # Transpose the country mask to conform with the storage of netcdf
-        out[mask_name][:] = country_mask.T
+
+def add_country_mask(country_mask, dataset):
+    """Create and write the country mask to the dataset.
+
+    Parameters
+    ----------
+    country_mask : np.array(dtype=int)
+        Contains the country mask, so has the shape (lon, lat)
+    dataset : netCDF4.Dataset
+        Writable netCDF Dataset
+    """
+    if "rotated_pole" in dataset.variables:
+        var = dataset.createVariable("country_ids", "short", ("rlat", "rlon"))
+        var.grid_mapping = "rotated_pole"
+    else:
+        var = dataset.createVariable("country_ids", "short", ("lat", "lon"))
+
+    var.long_name = "EMEP_country_code"
+    # Transpose the country mask to conform with the storage of netcdf
+    # python: (lon, lat), FORTRAN: (lat, lon)
+    var[:] = country_mask.T
 
 
 ##################################

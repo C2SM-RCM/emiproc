@@ -62,7 +62,8 @@ def main(cfg_path):
     # Starts writing out the output file
     output_file = os.path.join(cfg.output_path, cfg.output_name)
     with Dataset(output_file, "w") as out:
-        util.prepare_output_file(cfg, out, country_mask)
+        util.prepare_output_file(cfg.cosmo_grid, out)
+        util.add_country_mask(country_mask, out)
 
         # Load or compute the interpolation maps
         with Dataset(cfg.tnofile) as tno:
