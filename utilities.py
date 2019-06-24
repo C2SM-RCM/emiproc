@@ -70,6 +70,11 @@ class COSMODomain:
         self.pollon = pollon
         self.pollat = pollat
 
+        self.transform = ccrs.RotatedPole(
+            pole_longitude=pollon,
+            pole_latitude=pollat,
+        )
+
     def gridcell_areas(self):
         """Calculate 2D array of the areas (m^2) of a regular rectangular grid
         on earth.
@@ -125,6 +130,32 @@ class COSMODomain:
         """
         # See the comment in lon_range
         return np.arange(self.ymin, self.ymin + (self.ny + .5) * self.dy, self.dy)[:self.ny]
+
+    def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
+        """Return the indices of the grid cell that contains the point (lat, lon)
+
+        Parameters
+        ----------
+        lat : float
+            The latitude of the point source
+        lon : float
+            The longitude of the point source
+        proj : cartopy.crs.Projection
+            The cartopy projection of the lat/lon of the point source
+            Default: cartopy.crs.PlateCarree
+
+        Returns
+        -------
+        tuple(int, int)
+            (cosmo_indx,cosmo_indy),
+            the indices of the cosmo grid cell containing the source
+        """
+        point = self.transform.transform_point(lon, lat, proj)
+
+        indx = np.floor((point[0] - cosmo_grid.xmin) / cosmo_grid.dx)
+        indy = np.floor((point[1] - cosmo_grid.ymin) / cosmo_grid.dy)
+
+        return int(indx), int(indy)
 
 
 def load_cfg(cfg_path):
@@ -427,38 +458,6 @@ def get_country_mask(cfg):
         compute_country_mask(cfg)
 
     return np.load(cmask_path)
-
-
-###################################
-##  Regarding the point sources  ##
-###################################
-def interpolate_to_cosmo_point(
-    lat_source, lon_source, cfg, proj=ccrs.PlateCarree()
-):
-    """This function returns the indices of the cosmo grid cell that contains the point source
-    input : 
-       - lat_source  : The latitude of the point source
-       - lon_source  : The longitude of the point source
-       - cfg : The configuration file
-       - proj : The cartopy projection of the lat/lon of the point source
-    output :
-       - (cosmo_indx,cosmo_indy) : the indices of the cosmo grid cell containing the source
-"""
-
-    transform = ccrs.RotatedPole(
-        pole_longitude=cfg.cosmo_grid.pollon,
-        pole_latitude=cfg.cosmo_grid.pollat,
-    )
-    point = transform.transform_point(lon_source, lat_source, proj)
-
-    cosmo_indx = int(
-        np.floor((point[0] - cfg.cosmo_grid.xmin) / cfg.cosmo_grid.dx)
-    )
-    cosmo_indy = int(
-        np.floor((point[1] - cfg.cosmo_grid.ymin) / cfg.cosmo_grid.dy)
-    )
-
-    return (cosmo_indx, cosmo_indy)
 
 
 ##################################
