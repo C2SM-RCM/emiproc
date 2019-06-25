@@ -480,24 +480,25 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
     mapping = np.empty((lon_size, lat_size), dtype=object)
 
     # Projection used to convert from the inventory coordinate system
-    projection = inv_grid.get_projection()
+    inv_projection = inv_grid.get_projection()
 
-    # Transform used to convert to the cosmo grid
-    transform = cosmo_grid.transform
+    # Projection used to convert to the cosmo grid
+    cosmo_projection = cosmo_grid.get_projection()
 
     with Pool(nprocs) as pool:
         for i in range(lon_size):
             print("ongoing :", i)
-            points = []
+            cells = []
             for j in range(lat_size):
-                tno_cell_x, tno_cell_y = inv_grid.cell_corners(i, j)
-                points.append(
-                    transform.transform_points(
-                        projection, tno_cell_x, tno_cell_y
-                    )
+                inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
+                    i, j
                 )
+                cell_in_cosmo_projection = cosmo_projection.transform_points(
+                    inv_projection, inv_cell_corners_x, inv_cell_corners_y
+                )
+                cells.append(cell_in_cosmo_projection)
 
-            mapping[i, :] = pool.map(cosmo_grid.intersected_cells, points)
+            mapping[i, :] = pool.map(cosmo_grid.intersected_cells, cells)
 
     end = time.time()
     print("\nInterpolation is over")

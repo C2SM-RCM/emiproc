@@ -10,8 +10,8 @@ from netCDF4 import Dataset
 from shapely.geometry import Polygon
 
 
-class InventoryGrid:
-    """Abstract base class for an inventory grid.
+class Grid:
+    """Abstract base class for a grid.
     Derive your own grid implementation from this and make sure to provide
     an appropriate implementation of the required methods.
     As an example you can look at TNOGrid.
@@ -37,7 +37,21 @@ class InventoryGrid:
         return deepcopy(self.projection)
 
     def cell_corners(self, i, j):
-        """Return the corners of the cell with indices (i,j)
+        """Return the corners of the cell with indices (i,j).
+
+        Returns a tuple of arrays with shape (4,). The first
+        tuple element are the x-coordinates of the corners,
+        the second are the y-coordinates.
+
+        The points are ordered clockwise, starting in the top
+        left:
+
+        4. > 1.
+        ^    v
+        3. < 2.
+
+        The clunky return type is necessary because the corners
+        are transformed after by cartopy.crs.CRS.transform_points.
 
         Parameters
         ----------
@@ -46,9 +60,11 @@ class InventoryGrid:
 
         Returns
         -------
-        np.array(shape=(4, 2), dtype=float)
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+
         """
-        # TODO: can we return a polygon of the cell?
         raise NotImplementedError("Method not implemented")
 
     def lon_range(self):
@@ -70,7 +86,7 @@ class InventoryGrid:
         raise NotImplementedError("Method not implemented")
 
 
-class TNOGrid(InventoryGrid):
+class TNOGrid(Grid):
     """Contains the grid from the TNO emission inventory"""
 
     def __init__(self, dataset_path):
@@ -80,8 +96,6 @@ class TNOGrid(InventoryGrid):
         ----------
         dataset_path : str
         """
-        # hjm: Can I read all the data from the file?
-
         self.dataset_path = dataset_path
 
         with Dataset(dataset_path) as dataset:
@@ -95,15 +109,12 @@ class TNOGrid(InventoryGrid):
         self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
         self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
 
-        self.xmin = self.lon_var[0] - self.dx / 2
-        self.xmax = self.lon_var[-1] + self.dx / 2
-        self.ymin = self.lat_var[0] - self.dy / 2
-        self.ymax = self.lat_var[-1] + self.dy / 2
-
         super().__init__("TNO", ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
-        """Return the corners of the cell with indices (i,j)
+        """Return the corners of the cell with indices (i,j).
+
+        See also the docstring of Grid.cell_corners.
 
         Parameters
         ----------
@@ -112,7 +123,10 @@ class TNOGrid(InventoryGrid):
 
         Returns
         -------
-        np.array(shape=(4, 2), dtype=float) WRONG, TODO
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+
         """
         x = self.lon_var[i]
         y = self.lat_var[j]
@@ -143,7 +157,7 @@ class TNOGrid(InventoryGrid):
         return self.lat_var
 
 
-class COSMOGrid:
+class COSMOGrid(Grid):
     """Class to manage a COSMO-domain"""
 
     nx: int
@@ -186,8 +200,9 @@ class COSMOGrid:
         self.pollon = pollon
         self.pollat = pollat
 
-        self.transform = ccrs.RotatedPole(
-            pole_longitude=pollon, pole_latitude=pollat
+        super().__init__(
+            "COSMO",
+            ccrs.RotatedPole(pole_longitude=pollon, pole_latitude=pollat),
         )
 
     def gridcell_areas(self):
@@ -246,8 +261,34 @@ class COSMOGrid:
             self.ymin, self.ymin + (self.ny + 0.5) * self.dy, self.dy
         )[: self.ny]
 
+    def cell_corners(self, i, j):
+        """Return the corners of the cell with indices (i,j).
+
+        See also the docstring of Grid.cell_corners.
+
+        Parameters
+        ----------
+        i : int
+        j : int
+
+        Returns
+        -------
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+        """
+        x = self.xmin + i * self.dx
+        y = self.ymin + j * self.dy
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+
+        cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
+
+        return cell_x, cell_y
+
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
-        """Return the indices of the grid cell that contains the point (lat, lon)
+        """Return the indices of the grid cell that contains the point (lon, lat)
 
         Parameters
         ----------
@@ -265,7 +306,7 @@ class COSMOGrid:
             (cosmo_indx,cosmo_indy),
             the indices of the cosmo grid cell containing the source
         """
-        point = self.transform.transform_point(lon, lat, proj)
+        point = self.projection.transform_point(lon, lat, proj)
 
         indx = np.floor((point[0] - self.xmin) / self.dx)
         indy = np.floor((point[1] - self.ymin) / self.dy)
@@ -301,7 +342,7 @@ class COSMOGrid:
         """
         # TODO: Convert points to cosmo grid here
         # TODO: Instead of looking through every cell: determine which
-        #       cells can touch, only check those. sum(intersections[last_index]) == 1
+        #       cells can touch, only check those.
 
         inv_cell = Polygon(corners)
         # Here we assume a flat earth. The error is less than 1% for typical
