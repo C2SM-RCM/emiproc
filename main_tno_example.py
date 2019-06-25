@@ -67,7 +67,12 @@ def main(cfg_path):
 
         # Load or compute the interpolation maps
         with Dataset(cfg.tnofile) as tno:
-            interpolation = util.get_interpolation(cfg, tno)
+            interpolation = util.get_gridmapping(
+                cfg.output_path,
+                cfg.cosmo_grid,
+                cfg.tno_grid,
+                cfg.nprocs,
+            )
 
             # From here onward, quite specific for TNO
 
