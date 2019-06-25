@@ -181,13 +181,13 @@ def prepare_output_file(cosmo_grid, dataset):
     var_lon.axis = "X"
     var_lon.units = "degrees_east"
     var_lon.standard_name = "longitude"
-    var_lon[:] = cosmo_grid.lon_range
+    var_lon[:] = cosmo_grid.lon_range()
 
     var_lat = dataset.createVariable(latname, "float32", latname)
     var_lat.axis = "Y"
     var_lat.units = "degrees_north"
     var_lat.standard_name = "latitude"
-    var_lat[:] = cosmo_grid.lat_range
+    var_lat[:] = cosmo_grid.lat_range()
 
 
 def add_country_mask(country_mask, dataset):
