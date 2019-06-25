@@ -27,106 +27,6 @@ SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
 
-class COSMODomain:
-    """Class to manage a COSMO-domain"""
-
-    nx: int
-    ny: int
-    dx: float
-    dy: float
-    xmin: float
-    ymin: float
-    pollon: float
-    pollat: float
-
-    def __init__(self, nx, ny, dx, dy, xmin, ymin, pollon, pollat):
-        """Store the grid information.
-
-        Parameters
-        ----------
-        dx : float
-            Longitudinal size of a gridcell in degrees
-        dy : float
-            Latitudinal size of a gridcell in degrees
-        nx : int
-            Number of cells in longitudinal direction
-        ny : int
-            Number of cells in latitudinal direction
-        xmin : float
-            Longitude of bottom left gridpoint in degrees
-        ymin : float
-            Latitude of bottom left gridpoint in degrees
-        pollon : float
-            Longitude of the rotated pole
-        pollat : float
-            Latitude of the rotated pole
-        """
-        self.nx = nx
-        self.ny = ny
-        self.dx = dx
-        self.dy = dy
-        self.xmin = xmin
-        self.ymin = ymin
-        self.pollon = pollon
-        self.pollat = pollat
-
-    def gridcell_areas(self):
-        """Calculate 2D array of the areas (m^2) of a regular rectangular grid
-        on earth.
-
-        Returns
-        -------
-        np.array
-            2D array containing the areas of the gridcells in m^2
-            shape: (nx, ny)
-        """
-        radius = 6375000.0  # the earth radius in meters
-        dlon = np.deg2rad(self.dx)
-        dlat = np.deg2rad(self.dy)
-
-        # Cell area at equator
-        dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
-        areas = np.array(
-            [
-                [
-                    dd * np.cos(np.deg2rad(self.ymin) + j * dlat)
-                    for j in range(self.ny)
-                ]
-                for _ in range(self.nx)
-            ]
-        )
-        return areas
-
-    def lon_range(self):
-        """Return an array containing all the longitudinal points on the grid.
-
-        Returns
-        -------
-        np.array
-            shape: (nx)
-            dtype: float
-        """
-        # Because of floating point math the original arange is not guaranteed
-        # to contain the expected number of points.
-        # This way we are sure that we generate at least the required number of
-        # points and discard the possibly generated superfluous one.
-        # Compared to linspace this method generates more exact steps at
-        # the cost of a less accurate endpoint.
-        return np.arange(self.xmin, self.xmin + (self.nx + .5) * self.dx, self.dx)[:self.nx]
-
-    def lat_range(self):
-        """Return an array containing all the latitudinal points on the grid.
-
-        Returns
-        -------
-        np.array
-            shape: (ny)
-            dtype: float
-        """
-        # See the comment in lon_range
-        return np.arange(self.ymin, self.ymin + (self.ny + .5) * self.dy, self.dy)[:self.ny]
-
-
 def load_cfg(cfg_path):
     """Load config file"""
     try:
@@ -424,125 +324,10 @@ def get_country_mask(cfg):
         add_country_mask = s == "y"
 
     if add_country_mask:
+        # TODO: return country mask, store it here
         compute_country_mask(cfg)
 
     return np.load(cmask_path)
-
-
-###################################
-##  Regarding the point sources  ##
-###################################
-def interpolate_to_cosmo_point(
-    lat_source, lon_source, cfg, proj=ccrs.PlateCarree()
-):
-    """This function returns the indices of the cosmo grid cell that contains the point source
-    input : 
-       - lat_source  : The latitude of the point source
-       - lon_source  : The longitude of the point source
-       - cfg : The configuration file
-       - proj : The cartopy projection of the lat/lon of the point source
-    output :
-       - (cosmo_indx,cosmo_indy) : the indices of the cosmo grid cell containing the source
-"""
-
-    transform = ccrs.RotatedPole(
-        pole_longitude=cfg.cosmo_grid.pollon,
-        pole_latitude=cfg.cosmo_grid.pollat,
-    )
-    point = transform.transform_point(lon_source, lat_source, proj)
-
-    cosmo_indx = int(
-        np.floor((point[0] - cfg.cosmo_grid.xmin) / cfg.cosmo_grid.dx)
-    )
-    cosmo_indy = int(
-        np.floor((point[1] - cfg.cosmo_grid.ymin) / cfg.cosmo_grid.dy)
-    )
-
-    return (cosmo_indx, cosmo_indy)
-
-
-##################################
-##  Regarding the area sources  ##
-##################################
-def interpolate_single_cell(cfg, points):
-    """This function determines which COSMO cell coincides with a TNO cell
-        input : 
-            - cfg  : the configuration file
-            - points : the corner of the cell in the inventory
-        output : 
-            A list containing triplets (x,y,r) 
-               - x : index of the longitude of cosmo grid cell 
-               - y : index of the latitude of cosmo grid cell
-               - r : ratio of the area of the intersection compared to the area of the tno cell.
-            To avoid having a lot of r=0, we only keep the cosmo cells that intersect the tno cell.
-
-    For a TNO grid of (720,672) and a Berlin domain (70,60) with resolution 0.1°, it takes 5min to run
-    For a TNO grid of (720,672) and a European domain (760,800) with resolution 0.05°, it takes 40min to run
-    """
-
-    """Information about the cosmo grid"""
-    cosmo_xlocs = np.arange(
-        cfg["xmin"], cfg["xmin"] + cfg["dx"] * cfg["nx"], cfg["dx"]
-    )
-    cosmo_ylocs = np.arange(
-        cfg["ymin"], cfg["ymin"] + cfg["dy"] * cfg["ny"], cfg["dy"]
-    )
-
-    """
-    Be careful with numpy.arange(). Floating point numbers are not exactly
-    represented. Thus, the length of the generated list could have one entry
-    too much.
-    See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
-    """
-    if len(cosmo_xlocs) == cfg["nx"] + 1:
-        cosmo_xlocs = cosmo_xlocs[:-1]
-    if len(cosmo_ylocs) == cfg["ny"] + 1:
-        cosmo_ylocs = cosmo_ylocs[:-1]
-
-    """This is the interpolation that will be returned"""
-    """Initialization"""
-    mapping = []
-
-    """Make a polygon out of the points, and get its area."""
-    """Note : the unit/meaning of the area is in degree^2, but it doesn't matter since we only want the ratio. we assume the area is on a flat earth."""
-
-    polygon_tno = Polygon(points)
-    area_tno = polygon_tno.area
-
-    """Find the cosmo cells that intersect it"""
-    for (a, x) in enumerate(cosmo_xlocs):
-        """Get the corners of the cosmo cell"""
-        cosmo_cell_x = [
-            x + cfg["dx"] / 2,
-            x + cfg["dx"] / 2,
-            x - cfg["dx"] / 2,
-            x - cfg["dx"] / 2,
-        ]
-        if (min(cosmo_cell_x) > max([k[0] for k in points])) or (
-            max(cosmo_cell_x) < min([k[0] for k in points])
-        ):
-            continue
-
-        for (b, y) in enumerate(cosmo_ylocs):
-            cosmo_cell_y = [
-                y + cfg["dy"] / 2,
-                y - cfg["dy"] / 2,
-                y - cfg["dy"] / 2,
-                y + cfg["dy"] / 2,
-            ]
-
-            if (min(cosmo_cell_y) > max([k[1] for k in points])) or (
-                max(cosmo_cell_y) < min([k[1] for k in points])
-            ):
-                continue
-
-            points_cosmo = [k for k in zip(cosmo_cell_x, cosmo_cell_y)]
-            polygon_cosmo = Polygon(points_cosmo)
-
-            if polygon_cosmo.intersects(polygon_tno):
-                inter = polygon_cosmo.intersection(polygon_tno)
-                mapping.append((a, b, inter.area / area_tno))
-    return mapping
 
 
 def cell_corners(lon_var, lat_var, inv_name, i, j, cfg):
@@ -664,77 +449,83 @@ def get_dim_var(inv, inv_name, cfg):
     return lon_dim, lat_dim, lon_var, lat_var
 
 
-def interpolate_to_cosmo_grid(tno, inv_name, cfg, filename, nprocs):
+def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
+    """Compute the mapping from inventory to cosmo grid.
+
+    Loop over all inventory cells and determine which cosmo cells they overlap
+    with. This is done in parallel.
+
+    The result is a 2d array, where for each inventory cell a list is stored.
+    That list contains triplets (i, j, r), where i, j are the indices of
+    cosmo cells. r is the ratio of the overlap between the inventory and the
+    cosmo cell and the total area of the inventory cell.
+
+    Parameters
+    ----------
+    cosmo_grid : grids.COSMOGrid
+        Contains all necessary information about the cosmo grid
+    inv_grid : grids.InventoryGrid
+        Contains all necessary information about the inventory grid
+    nprocs : int
+        Number of processes used to compute the mapping in parallel
+    """
     print(
         "Retrieving the interpolation between the cosmo and the inventory grids"
     )
     start = time.time()
 
-    transform = ccrs.RotatedPole(
-        pole_longitude=cfg.cosmo_grid.pollon,
-        pole_latitude=cfg.cosmo_grid.pollat,
-    )
+    lon_size = len(inv_grid.lon_range())
+    lat_size = len(inv_grid.lat_range())
 
-    lon_dim, lat_dim, lon_var, lat_var = get_dim_var(tno, inv_name, cfg)
+    # This is the interpolation that will be returned
+    mapping = np.empty((lon_size, lat_size), dtype=object)
 
-    """This is the interpolation that will be returned"""
-    mapping = np.empty((lon_dim, lat_dim), dtype=object)
+    # Projection used to convert from the inventory coordinate system
+    projection = inv_grid.get_projection()
 
-    # Annoying ...
-    """Transform the cfg to a dictionary"""
-    config = dict(
-        {
-            "dx": cfg.cosmo_grid.dx,
-            "dy": cfg.cosmo_grid.dy,
-            "nx": cfg.cosmo_grid.nx,
-            "ny": cfg.cosmo_grid.ny,
-            "xmin": cfg.cosmo_grid.xmin,
-            "ymin": cfg.cosmo_grid.ymin,
-        }
-    )
+    # Transform used to convert to the cosmo grid
+    transform = cosmo_grid.transform
 
     with Pool(nprocs) as pool:
-        for i in range(lon_dim):
+        for i in range(lon_size):
             print("ongoing :", i)
             points = []
-            for j in range(lat_dim):
-                tno_cell_x, tno_cell_y, proj = cell_corners(
-                    lon_var, lat_var, inv_name, i, j, cfg
-                )
+            for j in range(lat_size):
+                tno_cell_x, tno_cell_y = inv_grid.cell_corners(i, j)
                 points.append(
                     transform.transform_points(proj, tno_cell_x, tno_cell_y)
                 )
 
-            mapping[i, :] = pool.starmap(
-                interpolate_single_cell,
-                [(config, points[j]) for j in range(lat_dim)],
+            mapping[i, :] = pool.map(
+                cosmo_grid.intersected_cells, points
             )
 
     end = time.time()
     print("\nInterpolation is over")
     print("it took ", end - start, "seconds")
 
-    np.save(os.path.join(cfg.output_path, filename), mapping)
     return mapping
 
 
-def get_interpolation(cfg, tno, inv_name="tno", filename="mapping.npy"):
+def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
     """retrieve the interpolation between the tno and cosmo grids."""
-    make_interpolate = True
-    mapping_path = os.path.join(cfg.output_path, filename)
+    make_map = True
+    mapping_path = os.path.join(output_path, "mapping.npy")
     if os.path.isfile(mapping_path):
         print("Do you wanna overwite the mapping found in %s ?" % mapping_path)
-        s = input("y/[n] \n")
-        make_interpolate = s == "y"
+        answer = input("y/[n] \n")
+        make_interpolate = (answer == "y")
 
     if make_interpolate:
-        interpolation = interpolate_to_cosmo_grid(
-            tno, inv_name, cfg, filename, cfg.nprocs
+        mapping = compute_map_from_inventory_to_cosmo(
+            cosmo_grid, inv_tno, nprocs
         )
+        
+        np.save(mapping_path, mapping)
     else:
-        interpolation = np.load(mapping_path)
+        mapping = np.load(mapping_path)
 
-    return interpolation
+    return mapping
 
 
 def swiss2wgs84(x, y):

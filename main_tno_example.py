@@ -67,7 +67,12 @@ def main(cfg_path):
 
         # Load or compute the interpolation maps
         with Dataset(cfg.tnofile) as tno:
-            interpolation = util.get_interpolation(cfg, tno)
+            interpolation = util.get_gridmapping(
+                cfg.output_path,
+                cfg.cosmo_grid,
+                cfg.tno_grid,
+                cfg.nprocs,
+            )
 
             # From here onward, quite specific for TNO
 
@@ -114,11 +119,11 @@ def main(cfg_path):
                             for (x, y, r) in interpolation[lon_ind, lat_ind]:
                                 out_var_area[y, x] += var[i] * r
                         if selection_cat_point[i]:
-                            (indx, indy) = util.interpolate_to_cosmo_point(
-                                tno["latitude_source"][i],
+                            indx, indy = cosmo_grid.indices_of_point(
                                 tno["longitude_source"][i],
-                                cfg,
+                                tno["latitude_source"][i],
                             )
+
                             if (
                                 indx >= 0
                                 and indx < cfg.cosmo_grid.nx

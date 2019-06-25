@@ -1,8 +1,8 @@
-from utilities import COSMODomain
-
+from grids import COSMOGrid, TNOGrid
 
 # TNO inventory
 tnofile = "/input/TNOMACC/TNO_GHGco/Future_years_emissions/TNO_GHGco_v1_1_CIRCE_BAU_year2030.nc"
+tno_grid = TNOGrid(tnofile)
 
 tno_xmin = -30.0
 tno_xmax = 60.0
@@ -31,7 +31,7 @@ tno_cat = [
 ]
 
 # COSMO domain
-cosmo_grid = COSMODomain(
+cosmo_grid = COSMOGrid(
     nx=760,
     ny=610,
     dx=0.05,
@@ -44,10 +44,10 @@ cosmo_grid = COSMODomain(
 
 offline = False
 if offline:
-    xmin -= 2 * dx
-    ymin -= 2 * dy
-    nx += 4
-    ny += 4
+    cosmo_grid.xmin -= 2 * dx
+    cosmo_grid.ymin -= 2 * dy
+    cosmo_grid.nx += 4
+    cosmo_grid.ny += 4
 
 
 species = ["co2_ff"]
