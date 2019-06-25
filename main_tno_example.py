@@ -119,7 +119,7 @@ def main(cfg_path):
                             for (x, y, r) in interpolation[lon_ind, lat_ind]:
                                 out_var_area[y, x] += var[i] * r
                         if selection_cat_point[i]:
-                            indx, indy = cosmo_grid.indices_of_point(
+                            indx, indy = cfg.cosmo_grid.indices_of_point(
                                 tno["longitude_source"][i],
                                 tno["latitude_source"][i],
                             )

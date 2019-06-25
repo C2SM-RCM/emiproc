@@ -5,8 +5,9 @@ grids used in different emissions inventories.
 import numpy as np
 import cartopy.crs as ccrs
 
-from netCDF4 import Dataset
 from copy import deepcopy
+from netCDF4 import Dataset
+from shapely.geometry import Polygon
 
 
 class InventoryGrid:
@@ -319,7 +320,7 @@ class COSMOGrid:
         # TODO: Instead of looking through every cell: determine which
         #       cells can touch, only check those. sum(intersections[last_index]) == 1
         
-        inv_cell = Polygon(points)
+        inv_cell = Polygon(corners)
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,
         # we can calculate in degrees^2
@@ -327,11 +328,7 @@ class COSMOGrid:
 
         intersections = []
         # Find the cosmo cells that intersect the inventory cell
-        for (a, x) in enumerate(self.lon_range):
-            if (min(cosmo_cell_x) > max([k[0] for k in points])) or (
-                max(cosmo_cell_x) < min([k[0] for k in points])
-            ):
-                continue
+        for (a, x) in enumerate(self.lon_range()):
             # Get the corners of the cosmo cell
             cosmo_cell_x = [
                 x + self.dx / 2,
@@ -339,8 +336,12 @@ class COSMOGrid:
                 x - self.dx / 2,
                 x - self.dx / 2,
             ]
+            if (min(cosmo_cell_x) > max([k[0] for k in corners])) or (
+                max(cosmo_cell_x) < min([k[0] for k in corners])
+            ):
+                continue
 
-            for (b, y) in enumerate(self.lat_range):
+            for (b, y) in enumerate(self.lat_range()):
                 cosmo_cell_y = [
                     y + self.dy / 2,
                     y - self.dy / 2,
@@ -348,16 +349,16 @@ class COSMOGrid:
                     y + self.dy / 2,
                 ]
 
-                if (min(cosmo_cell_y) > max([k[1] for k in points])) or (
-                    max(cosmo_cell_y) < min([k[1] for k in points])
+                if (min(cosmo_cell_y) > max([k[1] for k in corners])) or (
+                    max(cosmo_cell_y) < min([k[1] for k in corners])
                 ):
                     continue
 
-                points_cosmo = [k for k in zip(cosmo_cell_x, cosmo_cell_y)]
-                cosmo_cell = Polygon(points_cosmo)
+                corners_cosmo = [k for k in zip(cosmo_cell_x, cosmo_cell_y)]
+                cosmo_cell = Polygon(corners_cosmo)
 
                 if cosmo_cell.intersects(inv_cell):
-                    inter = cosmo_cell.intersection(polygon_tno)
-                    intersections.append((a, b, inter.area / area_tno))
+                    inter = cosmo_cell.intersection(inv_cell)
+                    intersections.append((a, b, inter.area / inv_cell_area))
 
-    return intersections
+        return intersections
