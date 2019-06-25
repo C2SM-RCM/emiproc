@@ -45,7 +45,9 @@ def main(cfg_path):
     country_mask = util.get_country_mask(cfg)
 
     # Set names for longitude and latitude
-    if (cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0) and cfg.cosmo_grid.pollat == 90:
+    if (
+        cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0
+    ) and cfg.cosmo_grid.pollat == 90:
         lonname = "lon"
         latname = "lat"
         print(
@@ -56,7 +58,8 @@ def main(cfg_path):
         lonname = "rlon"
         latname = "rlat"
         print(
-            "Rotated grid: pollon = %f, pollat = %f" % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
+            "Rotated grid: pollon = %f, pollat = %f"
+            % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
         )
 
     # Starts writing out the output file
@@ -68,10 +71,7 @@ def main(cfg_path):
         # Load or compute the interpolation maps
         with Dataset(cfg.tnofile) as tno:
             interpolation = util.get_gridmapping(
-                cfg.output_path,
-                cfg.cosmo_grid,
-                cfg.tno_grid,
-                cfg.nprocs,
+                cfg.output_path, cfg.cosmo_grid, cfg.tno_grid, cfg.nprocs
             )
 
             # From here onward, quite specific for TNO
@@ -106,8 +106,12 @@ def main(cfg_path):
                 species_list = cfg.species
                 for s in species_list:
                     print("Species", s, "Category", cat)
-                    out_var_area = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
-                    out_var_point = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+                    out_var_area = np.zeros(
+                        (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
+                    )
+                    out_var_point = np.zeros(
+                        (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
+                    )
 
                     var = tno[s.lower()][:]
 

@@ -16,6 +16,7 @@ class InventoryGrid:
     an appropriate implementation of the required methods.
     As an example you can look at TNOGrid.
     """
+
     def __init__(self, name, projection):
         """
         Parameters
@@ -84,29 +85,22 @@ class TNOGrid(InventoryGrid):
         self.dataset_path = dataset_path
 
         with Dataset(dataset_path) as dataset:
-            self.lon_var = np.array(dataset['longitude'][:])
-            self.lat_var = np.array(dataset['latitude'][:])
-
-        self.xmin = self.lon_var[0]
-        self.xmax = self.lon_var[-1]
-        self.ymin = self.lat_var[0]
-        self.ymax = self.lat_var[-1]
+            self.lon_var = np.array(dataset["longitude"][:])
+            self.lat_var = np.array(dataset["latitude"][:])
 
         self.nx = len(self.lon_var)
         self.ny = len(self.lat_var)
-        self.dx = (self.xmax - self.xmin) / self.nx
-        self.dy = (self.ymax - self.ymin) / self.ny
 
-        super().__init__('TNO', ccrs.PlateCarree())
+        # The lat/lon values are the cell-centers
+        self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
+        self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
 
-        # DEBUG:
-        print("Read TNO inventory:")
-        print("xmin:", self.xmin)
-        print("xmax:", self.xmax)
-        print("ymin:", self.ymin)
-        print("ymax:", self.ymax)
-        print("dx:", self.dx)
-        print("dy:", self.dy)
+        self.xmin = self.lon_var[0] - self.dx / 2
+        self.xmax = self.lon_var[-1] + self.dx / 2
+        self.ymin = self.lat_var[0] - self.dy / 2
+        self.ymax = self.lat_var[-1] + self.dy / 2
+
+        super().__init__("TNO", ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j)
@@ -124,23 +118,9 @@ class TNOGrid(InventoryGrid):
         y = self.lat_var[j]
         dx2 = self.dx / 2
         dy2 = self.dy / 2
-        cell_x = np.array(
-            [
-                x + dx2,
-                x + dx2,
-                x - dx2,
-                x - dx2
-            ]
-        )
+        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
 
-        cell_y = np.array(
-            [
-                y + dy2,
-                y - dy2,
-                y - dy2,
-                y + dy2
-            ]
-        )
+        cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
         return cell_x, cell_y
 
@@ -207,8 +187,7 @@ class COSMOGrid:
         self.pollat = pollat
 
         self.transform = ccrs.RotatedPole(
-            pole_longitude=pollon,
-            pole_latitude=pollat,
+            pole_longitude=pollon, pole_latitude=pollat
         )
 
     def gridcell_areas(self):
@@ -251,7 +230,9 @@ class COSMOGrid:
         # points and discard the possibly generated superfluous one.
         # Compared to linspace this method generates more exact steps at
         # the cost of a less accurate endpoint.
-        return np.arange(self.xmin, self.xmin + (self.nx + .5) * self.dx, self.dx)[:self.nx]
+        return np.arange(
+            self.xmin, self.xmin + (self.nx + 0.5) * self.dx, self.dx
+        )[: self.nx]
 
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
@@ -261,7 +242,9 @@ class COSMOGrid:
         np.array(shape=(ny,), dtype=float)
         """
         # See the comment in lon_range
-        return np.arange(self.ymin, self.ymin + (self.ny + .5) * self.dy, self.dy)[:self.ny]
+        return np.arange(
+            self.ymin, self.ymin + (self.ny + 0.5) * self.dy, self.dy
+        )[: self.ny]
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
         """Return the indices of the grid cell that contains the point (lat, lon)
@@ -284,8 +267,8 @@ class COSMOGrid:
         """
         point = self.transform.transform_point(lon, lat, proj)
 
-        indx = np.floor((point[0] - cosmo_grid.xmin) / cosmo_grid.dx)
-        indy = np.floor((point[1] - cosmo_grid.ymin) / cosmo_grid.dy)
+        indx = np.floor((point[0] - self.xmin) / self.dx)
+        indy = np.floor((point[1] - self.ymin) / self.dy)
 
         return int(indx), int(indy)
 
@@ -319,7 +302,7 @@ class COSMOGrid:
         # TODO: Convert points to cosmo grid here
         # TODO: Instead of looking through every cell: determine which
         #       cells can touch, only check those. sum(intersections[last_index]) == 1
-        
+
         inv_cell = Polygon(corners)
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,

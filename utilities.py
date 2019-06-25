@@ -492,12 +492,12 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
             for j in range(lat_size):
                 tno_cell_x, tno_cell_y = inv_grid.cell_corners(i, j)
                 points.append(
-                    transform.transform_points(projection, tno_cell_x, tno_cell_y)
+                    transform.transform_points(
+                        projection, tno_cell_x, tno_cell_y
+                    )
                 )
 
-            mapping[i, :] = pool.map(
-                cosmo_grid.intersected_cells, points
-            )
+            mapping[i, :] = pool.map(cosmo_grid.intersected_cells, points)
 
     end = time.time()
     print("\nInterpolation is over")
@@ -513,7 +513,7 @@ def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
     if os.path.isfile(mapping_path):
         print("Do you wanna overwite the mapping found in %s ?" % mapping_path)
         answer = input("y/[n] \n")
-        make_map = (answer == "y")
+        make_map = answer == "y"
 
     if make_map:
         mapping = compute_map_from_inventory_to_cosmo(
