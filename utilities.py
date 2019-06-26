@@ -32,14 +32,9 @@ def load_cfg(cfg_path):
         sys.path.append(os.path.dirname(os.path.realpath(cfg_path)))
         cfg = import_module(os.path.basename(cfg_path))
     except IndexError:
-        print("ERROR: no config file provided!")
-        sys.exit(1)
-    except ImportError:
-        print(
-            'ERROR: failed to import config module "%s"!'
-            % os.path.basename(cfg_path)
+        raise FileNotFoundError(
+            f"Provided config file {cfg_path} doesn't exist"
         )
-        sys.exit(1)
 
     return cfg
 
@@ -52,7 +47,7 @@ def prepare_output_file(cosmo_grid, dataset):
 
     Parameters
     ----------
-    cosmo_grid : COSMODomain
+    cosmo_grid : COSMOGrid
         Contains information about the cosmo grid
     dataset : netCDF4.Dataset
         Writable (empty) netCDF Dataset
@@ -445,10 +440,12 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
         Contains all necessary information about the inventory grid
     nprocs : int
         Number of processes used to compute the mapping in parallel
+
+    Returns
+    -------
+    np.array(shape=(inv_grid.shape), dtype=list(tuple(int, int, float)))
     """
-    print(
-        "Retrieving the interpolation between the cosmo and the inventory grids"
-    )
+    print("Computing the mapping between the cosmo and the inventory grid...")
     start = time.time()
 
     lon_size = len(inv_grid.lon_range())
@@ -463,9 +460,10 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
     # Projection used to convert to the cosmo grid
     cosmo_projection = cosmo_grid.get_projection()
 
+    progress = ProgressIndicator(lon_size)
     with Pool(nprocs) as pool:
         for i in range(lon_size):
-            print("ongoing :", i)
+            progress.step()
             cells = []
             for j in range(lat_size):
                 inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
@@ -479,22 +477,46 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
             mapping[i, :] = pool.map(cosmo_grid.intersected_cells, cells)
 
     end = time.time()
-    print("\nInterpolation is over")
-    print("it took ", end - start, "seconds")
+
+    print(f"Computation is over, it took\n{int(end - start)} seconds.")
 
     return mapping
 
 
 def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
-    """retrieve the interpolation between the tno and cosmo grids."""
-    make_map = True
+    """Returns the interpolation between the TNO and COSMO grid.
+
+    If there already exists a file at output_path/mapping.npy ask the
+    user if he wants to recompute.
+
+    Parameters
+    ----------
+    output_path : str
+        Path to the directory where the country-mask is stored
+    cosmo_grid : grids.COSMOGrid
+        Contains all necessary information about the cosmo grid
+    inv_grid : grids.Grid
+        Contains all necessary information about the inventory grid
+    nprocs : int
+        How many processes are used for the parallel computation
+
+    Returns
+    -------
+    np.array(shape=(inv_grid.shape), dtype=list(tuple(int, int, float)))
+        See the docstring of compute_map_from_inventory_to_cosmo()
+    """
     mapping_path = os.path.join(output_path, "mapping.npy")
     if os.path.isfile(mapping_path):
-        print("Do you wanna overwite the mapping found in %s ?" % mapping_path)
+        print(
+            "Would you like to overwite the "
+            f"gridmapping found in {mapping_path}?"
+        )
         answer = input("y/[n] \n")
-        make_map = answer == "y"
+        compute_map = answer == "y"
+    else:
+        compute_map = True
 
-    if make_map:
+    if compute_map:
         mapping = compute_map_from_inventory_to_cosmo(
             cosmo_grid, inv_grid, nprocs
         )
