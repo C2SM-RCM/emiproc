@@ -4,13 +4,6 @@ from grids import COSMOGrid, TNOGrid
 tnofile = "/input/TNOMACC/TNO_GHGco/Future_years_emissions/TNO_GHGco_v1_1_CIRCE_BAU_year2030.nc"
 tno_grid = TNOGrid(tnofile)
 
-tno_xmin = -30.0
-tno_xmax = 60.0
-tno_ymin = 30.0
-tno_ymax = 72.0
-tno_dx = 1 / 10.0
-tno_dy = 1 / 20.0
-
 cat_kind = "NFR"
 
 tno_cat = [
@@ -44,8 +37,8 @@ cosmo_grid = COSMOGrid(
 
 offline = False
 if offline:
-    cosmo_grid.xmin -= 2 * dx
-    cosmo_grid.ymin -= 2 * dy
+    cosmo_grid.xmin -= 2 * cosmo_grid.dx
+    cosmo_grid.ymin -= 2 * cosmo_grid.dy
     cosmo_grid.nx += 4
     cosmo_grid.ny += 4
 
@@ -55,6 +48,8 @@ output_cat = ["A", "B"]
 
 output_path = "./testdata/oae_paper/"
 output_name = "tno.nc"
+
+shpfile_resolution = "110m"
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
