@@ -42,7 +42,9 @@ def main(cfg_path):
     cfg = util.load_cfg(cfg_path)
 
     # Load or compute the country mask
-    country_mask = util.get_country_mask(cfg)
+    country_mask = util.get_country_mask(
+        cfg.output_path, cfg.cosmo_grid, cfg.shpfile_resolution
+    )
 
     # Set names for longitude and latitude
     if (

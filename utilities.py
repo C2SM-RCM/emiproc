@@ -111,222 +111,200 @@ def add_country_mask(country_mask, dataset):
     var[:] = country_mask.T
 
 
-##################################
-##  Regarding the country mask  ##
-##################################
-def check_country(country, points):
-    """For a given country, return if the grid cell defined by points is within the country
-    input : 
-       - country
-       - points : the (latitude, longitude) of the four corners of a cell
-    output :
-       - True if the grid cell is within the country
+def intersection_possible(country, points):
+    """Determine if country could contain any of the points.
+
+    The maximum and minimum x and y values of the country and the points
+    are compared, to determine if any of the points lie in the bounding box
+    of country.
+
+    For rectangles oriented along the coordinate axes, Polygon.intersects()
+    is faster than this function. However, we're working with arbitrarily
+    oriented (and possibly distorted) gridcells, for which
+    Polygon.intersects() is considerably slower.
+
+    Parameters
+    ----------
+    country : cartopy.io.shapereader.Record
+    points : np.array(shape=(4,3), dtype=float)
+        Containing the 4 corners of a cell, ordered clockwise
+    Returns
+    -------
+    bool
+        True if an intersection is possible, False otherwise
     """
-    bounds = country.bounds  # (minx, miny, maxx, maxy)
+
+    def minmax(array):
+        """Find both min and max value of arr in one pass"""
+        minval = maxval = array[0]
+
+        for e in array[1:]:
+            if e < minval:
+                minval = e
+            if e > maxval:
+                maxval = e
+
+        return minval, maxval
+
+    c_minx, c_miny, c_maxx, c_maxy = country.bounds
+    p_minx, p_maxx = minmax(points[:, 0])
+    p_miny, p_maxy = minmax(points[:, 1])
+
     if (
-        (bounds[0] > max([k[0] for k in points]))
-        or (bounds[2] < min([k[0] for k in points]))
-        or (bounds[1] > max([k[1] for k in points]))
-        or (bounds[3] < min([k[1] for k in points]))
+        c_minx < p_maxx
+        and c_maxx > p_minx
+        and c_miny < p_maxy
+        and c_maxy > p_miny
     ):
-        return False
-    else:
         return True
+    return False
 
 
-def compute_country_mask(cfg):
-    """Compute the code of the country for each cosmo grid cell and store it.
+def compute_country_mask(cosmo_grid, resolution):
+    """Determine the country-code for each gridcell and return the grid.
 
-    For each grid cell of the output domain, a single country code is determined.
+    Each gridcell gets assigned to code of the country with the most
+    area in the cell.
 
     If for a given grid cell, no country is found (Ocean for example),
-    the country code 0 is assigned.
+    the country-code 0 is assigned.
 
-    The resulting matrix is stored in cfg.output_path/country_mask.npy
+    If a country-code for a country is not found, country-code -1 is
+    assigned.
 
-    input :
-       - cfg : config file
+    Parameters
+    ----------
+    cosmo_grid : grids.COSMOGrid
+        Contains all necessary information about the cosmo grid
+    resolution : str
+        The resolution for the used shapefile, used as argument for
+        cartopy.io.shapereader.natural_earth()
+
+    Returns
+    -------
+    np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
     start = time.time()
-    print("Creating the country mask")
-    natural_earth = True
-    if natural_earth:
-        shpfilename = shpreader.natural_earth(
-            resolution="110m", category="cultural", name="admin_0_countries"
-        )
-        iso3 = "ADM0_A3"
-    else:
-        shpfilename = "/usr/local/exelis/idl82/resource/maps/shape/cntry08.shp"
-        iso3 = "ISO_3DIGIT"
-
-    reader = shpreader.Reader(shpfilename)
-
-    country_mask = np.empty((cfg.cosmo_grid.nx, cfg.cosmo_grid.ny))
-
-    cosmo_xlocs = np.arange(
-        cfg.cosmo_grid.xmin,
-        cfg.cosmo_grid.xmin + cfg.cosmo_grid.dx * cfg.cosmo_grid.nx,
-        cfg.cosmo_grid.dx,
+    print("Computing the country mask...")
+    shpfilename = shpreader.natural_earth(
+        resolution=resolution, category="cultural", name="admin_0_countries"
     )
-    cosmo_ylocs = np.arange(
-        cfg.cosmo_grid.ymin,
-        cfg.cosmo_grid.ymin + cfg.cosmo_grid.dy * cfg.cosmo_grid.ny,
-        cfg.cosmo_grid.dy,
-    )
-    """
-    Be careful with numpy.arange(). Floating point numbers are not exactly
-    represented. Thus, the length of the generated list could have one entry
-    too much.
-    See: https://stackoverflow.com/questions/47243190/numpy-arange-how-to-make-precise-array-of-floats
-    """
-    if len(cosmo_xlocs) == cfg.cosmo_grid.nx + 1:
-        cosmo_xlocs = cosmo_xlocs[:-1]
-    if len(cosmo_ylocs) == cfg.cosmo_grid.ny + 1:
-        cosmo_ylocs = cosmo_ylocs[:-1]
+    # Name of the country attribute holding the ISO3 country abbreviation
+    iso3 = "ADM0_A3"
+    countries = list(shpreader.Reader(shpfilename).records())
 
-    transform = ccrs.RotatedPole(
-        pole_longitude=cfg.cosmo_grid.pollon,
-        pole_latitude=cfg.cosmo_grid.pollat,
-    )
-    incr = 0
-    no_country_code = []
+    country_mask = np.empty((cosmo_grid.nx, cosmo_grid.ny))
 
-    european = []
-    non_euro = []
-    for country in reader.records():
-        if country.attributes["CONTINENT"] == "Europe":
-            european.append(country)
-        else:
-            non_euro.append(country)
+    cosmo_projection = cosmo_grid.get_projection()
+    # Projection of the shapefile: WGS84, which the PlateCarree defaults to
+    shapefile_projection = ccrs.PlateCarree()
 
-    for (a, x) in enumerate(cosmo_xlocs):
-        for (b, y) in enumerate(cosmo_ylocs):
-            """Progress bar"""
-            incr += 1
-            sys.stdout.write("\r")
-            sys.stdout.write(
-                " {:.1f}%".format(
-                    (
-                        100
-                        / ((cfg.cosmo_grid.nx * cfg.cosmo_grid.ny) - 1)
-                        * ((a * cfg.cosmo_grid.ny) + b)
-                    )
-                )
+    # Store countries with no defined code for user feedback
+    no_country_code = set()
+
+    progress = ProgressIndicator(cosmo_grid.nx)
+    for i in range(cosmo_grid.nx):
+        progress.step()
+        for j in range(cosmo_grid.ny):
+            # Get the corners of the cell in lat/lon coord
+            cosmo_cell_x, cosmo_cell_y = cosmo_grid.cell_corners(i, j)
+
+            projected_corners = shapefile_projection.transform_points(
+                cosmo_projection, cosmo_cell_x, cosmo_cell_y
             )
-            sys.stdout.flush()
+            projected_cell = Polygon(projected_corners)
 
-            mask = []
+            intersected_countries = [
+                country
+                for country in countries
+                if intersection_possible(country, projected_corners)
+                and projected_cell.intersects(country.geometry)
+            ]
 
-            """Get the corners of the cell in lat/lon coord"""
-            # TO CHECK : is it indeed the bottom left corner ?
-            # cosmo_cell_x = [x+cfg.dx,x+cfg.dx,x,x]
-            # cosmo_cell_y = [y+cfg.dy,y,y,y+cfg.dy]
-            # Or the center of the cell
-            cosmo_cell_x = np.array(
-                [
-                    x + cfg.cosmo_grid.dx / 2,
-                    x + cfg.cosmo_grid.dx / 2,
-                    x - cfg.cosmo_grid.dx / 2,
-                    x - cfg.cosmo_grid.dx / 2,
-                ]
-            )
-            cosmo_cell_y = np.array(
-                [
-                    y + cfg.cosmo_grid.dy / 2,
-                    y - cfg.cosmo_grid.dy / 2,
-                    y - cfg.cosmo_grid.dy / 2,
-                    y + cfg.cosmo_grid.dy / 2,
-                ]
-            )
+            # If no intersection was found, country code 0 is assigned. It
+            # corresponds to ocean.
+            # If a cell is predominantly ocean, it will still get assigned
+            # the country code of the largest country.
+            cell_country_code = 0
 
-            points = ccrs.PlateCarree().transform_points(
-                transform, cosmo_cell_x, cosmo_cell_y
-            )
-            polygon_cosmo = Polygon(points)
+            if intersected_countries:
+                if len(intersected_countries) == 1:
+                    cell_country_name = intersected_countries[0].attributes[
+                        iso3
+                    ]
+                else:
+                    # Multiple countries intersected, assign the one with the
+                    # largest area in the cell
+                    area = 0
+                    for country in intersected_countries:
+                        new_area = projected_cell.intersection(
+                            country.geometry
+                        ).area
+                        if area < new_area:
+                            area = new_area
+                            cell_country_name = country.attributes[iso3]
 
-            """To be faster, only check european countries at first"""
-            for country in european:  # reader.records():
-                if check_country(country, points):
-                    # if x+cfg.dx<bounds[0] or y+cfg.dy<bounds[1] or x>bounds[2] or y>bounds[3]:
-                    #     continue
-                    if polygon_cosmo.intersects(country.geometry):
-                        mask.append(country.attributes[iso3])
-
-            """If not found among the european countries, check elsewhere"""
-            if len(mask) == 0:
-                for country in non_euro:  # reader.records():
-                    if check_country(country, points):
-                        # if x+cfg.dx<bounds[0] or y+cfg.dy<bounds[1] or x>bounds[2] or y>bounds[3]:
-                        #     continue
-                        if polygon_cosmo.intersects(country.geometry):
-                            mask.append(country.attributes[iso3])
-
-            """If more than one country, assign the one which has the greatest area"""
-            if len(mask) > 1:
-                area = 0
-                for country in [
-                    rec
-                    for rec in reader.records()
-                    if rec.attributes[iso3] in mask
-                ]:
-                    new_area = polygon_cosmo.intersection(country.geometry).area
-                    if area < new_area:
-                        area = new_area
-                        new_mask = [country.attributes[iso3]]
-                mask = new_mask
-
-            """Convert the name to ID"""
-            if len(mask) == 1:
+                # Find code from name
                 try:
-                    mask = [country_codes[mask[0]]]
+                    cell_country_code = country_codes[cell_country_name]
                 except KeyError:
-                    no_country_code.append(mask[0])
-                    mask = [-1]
+                    no_country_code.add(cell_country_name)
+                    cell_country_code = -1
 
-            # If no country (ocean), then assign the ID 0
-            if len(mask) == 0:
-                mask = [0]
+            country_mask[i, j] = cell_country_code
 
-            country_mask[a, b] = mask[0]
-
-    print("\nCountry mask is done")
     end = time.time()
-    print("it took", end - start, "seconds")
+    print(f"Computation is over, it took\n{int(end - start)} seconds")
+
     if len(no_country_code) > 0:
         print(
-            "The following countries were found, but didn't have a corresponding code"
+            "The following countries were found,",
+            "but didn't have a corresponding code",
         )
-        print(set(no_country_code))
+        print(no_country_code)
 
-    np.save(os.path.join(cfg.output_path, "country_mask.npy"), country_mask)
+    return country_mask
 
 
-def get_country_mask(cfg):
-    """Calculate the country mask"""
-    add_country_mask = True
-    cmask_path = os.path.join(cfg.output_path, "country_mask.npy")
-    cmask_path_nc = os.path.join(cfg.output_path, "country_mask.nc")
+def get_country_mask(output_path, cosmo_grid, resolution):
+    """Returns the country-mask, either loaded from disk or computed.
 
-    if os.path.isfile(cmask_path_nc):
+    If there already exists a file at output_path/country_mask.nv ask the
+    user if he wants to recompute.
+
+    Parameters
+    ----------
+    output_path : str
+        Path to the directory where the country-mask is stored
+    cosmo_grid : grids.COSMOGrid
+        Contains all necessary information about the cosmo grid
+    resolution : str
+        The resolution for the used shapefile, used as argument for
+        cartopy.io.shapereader.natural_earth()
+    """
+    cmask_path = os.path.join(output_path, f"country_mask_{resolution}.nc")
+
+    if os.path.isfile(cmask_path):
         print(
-            "Do you want to use the country mask found in %s ?" % cmask_path_nc
+            "Would you like to overwite the "
+            f"country mask found in {cmask_path}?"
         )
-        s = input("[y]/n \n")
-        if s == "y" or s == "":
-            with nc.Dataset(cmask_path_nc, "r") as inf:
-                return inf.variables["country_mask"][:]
-    elif os.path.isfile(cmask_path):
-        print(
-            "Do you wanna overwite the country mask found in %s ?" % cmask_path
-        )
-        s = input("y/[n] \n")
-        add_country_mask = s == "y"
+        answer = input("y/[n]\n")
+        compute_mask = answer == "y"
+    else:
+        compute_mask = True
 
-    if add_country_mask:
-        # TODO: return country mask, store it here
-        compute_country_mask(cfg)
+    if compute_mask:
+        country_mask = compute_country_mask(cosmo_grid, resolution)
+        with nc.Dataset(cmask_path, "w") as dataset:
+            prepare_output_file(cosmo_grid, dataset)
+            add_country_mask(country_mask, dataset)
+    else:
+        # Transpose country mask when reading in
+        # netCDF/Fortran: (lat, lon), python: (lon, lat)
+        country_mask = nc.Dataset(cmask_path)["country_ids"][:].T
 
-    return np.load(cmask_path)
+    return country_mask
 
 
 def cell_corners(lon_var, lat_var, inv_name, i, j, cfg):
@@ -556,3 +534,30 @@ def swiss2wgs84(x, y):
     ) / 0.36
 
     return lon, lat
+
+
+class ProgressIndicator:
+    """Used to show progress for long operations.
+
+    To not break the progress indicator, make sure there is no
+    output to stdout between calls to step()
+    """
+
+    def __init__(self, steps):
+        """steps : int
+            How many steps the operation takes
+        """
+        self.curr_step = 0
+        self.tot_steps = steps
+        self.stream = sys.stdout
+
+    def step(self):
+        """Advance one step, update the progress indicator"""
+        self.curr_step += 1
+        self._show_progress()
+
+    def _show_progress(self):
+        progress = self.curr_step / self.tot_steps * 100
+        self.stream.write(f"\r{progress:.1f}%")
+        if self.curr_step == self.tot_steps:
+            self.stream.write("\r")
