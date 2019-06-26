@@ -5,7 +5,6 @@ grids used in different emissions inventories.
 import numpy as np
 import cartopy.crs as ccrs
 
-from copy import deepcopy
 from netCDF4 import Dataset
 from shapely.geometry import Polygon
 
@@ -32,9 +31,7 @@ class Grid:
 
     def get_projection(self):
         """Returns a copy of the projection"""
-        # Return a deep copy of the projection to prevent the projection being
-        # altered outside the class.
-        return deepcopy(self.projection)
+        return self.projection
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
