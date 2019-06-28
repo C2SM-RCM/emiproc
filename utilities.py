@@ -155,7 +155,7 @@ def intersection_possible(country, points):
     return False
 
 
-def compute_country_mask(cosmo_grid, resolution):
+def compute_country_mask(cosmo_grid, resolution, nprocs):
     """Determine the country-code for each gridcell and return the grid.
 
     Each gridcell gets assigned to code of the country with the most
@@ -174,82 +174,137 @@ def compute_country_mask(cosmo_grid, resolution):
     resolution : str
         The resolution for the used shapefile, used as argument for
         cartopy.io.shapereader.natural_earth()
+    nprocs : int
+        Number of processes used to compute the codes in parallel
 
     Returns
     -------
     np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
-    start = time.time()
     print("Computing the country mask...")
+    start = time.time()
+
     shpfilename = shpreader.natural_earth(
         resolution=resolution, category="cultural", name="admin_0_countries"
     )
-    # Name of the country attribute holding the ISO3 country abbreviation
-    iso3 = "ADM0_A3"
     countries = list(shpreader.Reader(shpfilename).records())
 
-    country_mask = np.empty((cosmo_grid.nx, cosmo_grid.ny))
+    projections = {
+        # Projection of the shapefile: WGS84, which the PlateCarree defaults to
+        "shapefile": ccrs.PlateCarree(),
+        "cosmo": cosmo_grid.get_projection(),
+    }
 
-    cosmo_projection = cosmo_grid.get_projection()
-    # Projection of the shapefile: WGS84, which the PlateCarree defaults to
-    shapefile_projection = ccrs.PlateCarree()
+    # arguments to assign_country_code()
+    arguments = [
+        (
+            [(i, j) for j in range(cosmo_grid.ny)],  # indices of cells
+            cosmo_grid,
+            projections,
+            countries,
+        )
+        for i in range(cosmo_grid.nx)
+    ]
 
-    # Store countries with no defined code for user feedback
-    no_country_code = set()
-
-    progress = ProgressIndicator(cosmo_grid.nx)
-    for i in range(cosmo_grid.nx):
-        progress.step()
-        for j in range(cosmo_grid.ny):
-            # Get the corners of the cell in lat/lon coord
-            cosmo_cell_x, cosmo_cell_y = cosmo_grid.cell_corners(i, j)
-
-            projected_corners = shapefile_projection.transform_points(
-                cosmo_projection, cosmo_cell_x, cosmo_cell_y
-            )
-            projected_cell = Polygon(projected_corners)
-
-            intersected_countries = [
-                country
-                for country in countries
-                if intersection_possible(country, projected_corners)
-                and projected_cell.intersects(country.geometry)
-            ]
-
-            # If no intersection was found, country code 0 is assigned. It
-            # corresponds to ocean.
-            # If a cell is predominantly ocean, it will still get assigned
-            # the country code of the largest country.
-            cell_country_code = 0
-
-            if intersected_countries:
-                if len(intersected_countries) == 1:
-                    cell_country_name = intersected_countries[0].attributes[
-                        iso3
-                    ]
-                else:
-                    # Multiple countries intersected, assign the one with the
-                    # largest area in the cell
-                    area = 0
-                    for country in intersected_countries:
-                        new_area = projected_cell.intersection(
-                            country.geometry
-                        ).area
-                        if area < new_area:
-                            area = new_area
-                            cell_country_name = country.attributes[iso3]
-
-                # Find code from name
-                try:
-                    cell_country_code = country_codes[cell_country_name]
-                except KeyError:
-                    no_country_code.add(cell_country_name)
-                    cell_country_code = -1
-
-            country_mask[i, j] = cell_country_code
+    with Pool(nprocs) as pool:
+        res = pool.starmap(assign_country_code, arguments)
+        country_mask = np.array(res, dtype=int)
 
     end = time.time()
     print(f"Computation is over, it took\n{int(end - start)} seconds")
+
+    return country_mask
+
+
+def assign_country_code(indices, cosmo_grid, projections, countries):
+    """Assign the country codes on the gridcells indicated by indices.
+
+    Each gridcell gets assigned to code of the country with the most
+    area in the cell.
+
+    If for a given grid cell, no country is found (Ocean for example),
+    the country-code 0 is assigned.
+
+    If a country-code for a country is not found, country-code -1 is
+    assigned and a message is printed.
+
+    Parameters
+    ----------
+    indices : list(tuple(int, int))
+        A list of indices indicating for which gridcells to compute the
+        country code.
+    cosmo_grid : grids.COSMOGrid
+        Contains all necessary information about the cosmo grid
+    projections : dict(str, cartopy.crs.Projection)
+        Dict containing two elements:
+        'shapefile': Projection used in the coordinates of the countries
+        'cosmo': Projection used by the cosmo_grid
+    countries : list(cartopy.io.shapereader.Record)
+        List of the countries that is searched.
+
+    Returns
+    -------
+    np.array(shape=(len(indices)), dtype=int)
+        The country codes for the cells, ordered the same way as indices
+    """
+    # Have to recreate the COSMO projection since cartopy projections
+    # don't work with deepcopy (which is used by multiprocessing to send
+    # arguments of functions to other processes)
+    projections["cosmo"] = ccrs.RotatedPole(
+        pole_longitude=cosmo_grid.pollon, pole_latitude=cosmo_grid.pollat
+    )
+
+    # Name of the country attribute holding the ISO3 country abbreviation
+    iso3 = "ADM0_A3"
+
+    # Keep track of countries with no code
+    no_country_code = set()
+
+    country_mask = np.empty(len(indices), dtype=int)
+    for k, (i, j) in enumerate(indices):
+        cosmo_cell_x, cosmo_cell_y = cosmo_grid.cell_corners(i, j)
+
+        projected_corners = projections["shapefile"].transform_points(
+            projections["cosmo"], cosmo_cell_x, cosmo_cell_y
+        )
+        projected_cell = Polygon(projected_corners)
+
+        intersected_countries = [
+            country
+            for country in countries
+            if intersection_possible(country, projected_corners)
+            and projected_cell.intersects(country.geometry)
+        ]
+
+        # If no intersection was found, country code 0 is assigned. It
+        # corresponds to ocean.
+        # Even if a cell is predominantly ocean, it will still get assigned
+        # the country code of the largest country.
+        cell_country_code = 0
+
+        if intersected_countries:
+            if len(intersected_countries) == 1:
+                cell_country_name = intersected_countries[0].attributes[iso3]
+            else:
+                # Multiple countries intersected, assign the one with the
+                # largest area in the cell
+                area = 0
+                for country in intersected_countries:
+                    new_area = projected_cell.intersection(
+                        country.geometry
+                    ).area
+                    if area < new_area:
+                        area = new_area
+                        cell_country_name = country.attributes[iso3]
+
+            # Find code from name
+            try:
+                cell_country_code = country_codes[cell_country_name]
+            except KeyError:
+                no_country_code.add(cell_country_name)
+                cell_country_code = -1
+
+        country_mask[k] = cell_country_code
 
     if len(no_country_code) > 0:
         print(
@@ -261,7 +316,7 @@ def compute_country_mask(cosmo_grid, resolution):
     return country_mask
 
 
-def get_country_mask(output_path, cosmo_grid, resolution):
+def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
     """Returns the country-mask, either loaded from disk or computed.
 
     If there already exists a file at output_path/country_mask.nv ask the
@@ -276,6 +331,12 @@ def get_country_mask(output_path, cosmo_grid, resolution):
     resolution : str
         The resolution for the used shapefile, used as argument for
         cartopy.io.shapereader.natural_earth()
+    nprocs : int
+        Number of processes used to compute the codes in parallel
+
+    Returns
+    -------
+    np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
     cmask_path = os.path.join(output_path, f"country_mask_{resolution}.nc")
 
@@ -290,7 +351,7 @@ def get_country_mask(output_path, cosmo_grid, resolution):
         compute_mask = True
 
     if compute_mask:
-        country_mask = compute_country_mask(cosmo_grid, resolution)
+        country_mask = compute_country_mask(cosmo_grid, resolution, nprocs)
         with nc.Dataset(cmask_path, "w") as dataset:
             prepare_output_file(cosmo_grid, dataset)
             add_country_mask(country_mask, dataset)
@@ -484,7 +545,7 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
 
 
 def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
-    """Returns the interpolation between the TNO and COSMO grid.
+    """Returns the interpolation between the inventory and COSMO grid.
 
     If there already exists a file at output_path/mapping.npy ask the
     user if he wants to recompute.
