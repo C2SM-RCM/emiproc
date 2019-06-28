@@ -106,53 +106,51 @@ def add_country_mask(country_mask, dataset):
     var[:] = country_mask.T
 
 
-def intersection_possible(country, points):
-    """Determine if country could contain any of the points.
+def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
+    """Returns the country-mask, either loaded from disk or computed.
 
-    The maximum and minimum x and y values of the country and the points
-    are compared, to determine if any of the points lie in the bounding box
-    of country.
-
-    For rectangles oriented along the coordinate axes, Polygon.intersects()
-    is faster than this function. However, we're working with arbitrarily
-    oriented (and possibly distorted) gridcells, for which
-    Polygon.intersects() is considerably slower.
+    If there already exists a file at output_path/country_mask.nv ask the
+    user if he wants to recompute.
 
     Parameters
     ----------
-    country : cartopy.io.shapereader.Record
-    points : np.array(shape=(4,3), dtype=float)
-        Containing the 4 corners of a cell, ordered clockwise
+    output_path : str
+        Path to the directory where the country-mask is stored
+    cosmo_grid : grids.COSMOGrid
+        Contains all necessary information about the cosmo grid
+    resolution : str
+        The resolution for the used shapefile, used as argument for
+        cartopy.io.shapereader.natural_earth()
+    nprocs : int
+        Number of processes used to compute the codes in parallel
+
     Returns
     -------
-    bool
-        True if an intersection is possible, False otherwise
+    np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
+    cmask_path = os.path.join(output_path, f"country_mask_{resolution}.nc")
 
-    def minmax(array):
-        """Find both min and max value of arr in one pass"""
-        minval = maxval = array[0]
+    if os.path.isfile(cmask_path):
+        print(
+            "Would you like to overwite the "
+            f"country mask found in {cmask_path}?"
+        )
+        answer = input("y/[n]\n")
+        compute_mask = answer == "y"
+    else:
+        compute_mask = True
 
-        for e in array[1:]:
-            if e < minval:
-                minval = e
-            if e > maxval:
-                maxval = e
+    if compute_mask:
+        country_mask = compute_country_mask(cosmo_grid, resolution, nprocs)
+        with nc.Dataset(cmask_path, "w") as dataset:
+            prepare_output_file(cosmo_grid, dataset)
+            add_country_mask(country_mask, dataset)
+    else:
+        # Transpose country mask when reading in
+        # netCDF/Fortran: (lat, lon), python: (lon, lat)
+        country_mask = nc.Dataset(cmask_path)["country_ids"][:].T
 
-        return minval, maxval
-
-    c_minx, c_miny, c_maxx, c_maxy = country.bounds
-    p_minx, p_maxx = minmax(points[:, 0])
-    p_miny, p_maxy = minmax(points[:, 1])
-
-    if (
-        c_minx < p_maxx
-        and c_maxx > p_minx
-        and c_miny < p_maxy
-        and c_maxy > p_miny
-    ):
-        return True
-    return False
+    return country_mask
 
 
 def compute_country_mask(cosmo_grid, resolution, nprocs):
@@ -276,33 +274,25 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
             and projected_cell.intersects(country.geometry)
         ]
 
-        # If no intersection was found, country code 0 is assigned. It
-        # corresponds to ocean.
-        # Even if a cell is predominantly ocean, it will still get assigned
-        # the country code of the largest country.
-        cell_country_code = 0
-
-        if intersected_countries:
-            if len(intersected_countries) == 1:
-                cell_country_name = intersected_countries[0].attributes[iso3]
-            else:
-                # Multiple countries intersected, assign the one with the
-                # largest area in the cell
-                area = 0
-                for country in intersected_countries:
-                    new_area = projected_cell.intersection(
-                        country.geometry
-                    ).area
-                    if area < new_area:
-                        area = new_area
-                        cell_country_name = country.attributes[iso3]
-
-            # Find code from name
-            try:
-                cell_country_code = country_codes[cell_country_name]
-            except KeyError:
-                no_country_code.add(cell_country_name)
-                cell_country_code = -1
+        try:
+            # Multiple countries might be intersected, assign the one with the
+            # largest area in the cell
+            cell_country_name = max(
+                intersected_countries,
+                key=lambda c: projected_cell.intersection(c.geometry).area,
+            ).attributes[iso3]
+            cell_country_code = country_codes[cell_country_name]
+        except ValueError:
+            # max on empty sequence raises ValueError
+            # If no intersection was found, country code 0 is assigned. It
+            # corresponds to ocean.
+            # Even if a cell is predominantly ocean, it will still get assigned
+            # the country code of the largest country.
+            cell_country_code = 0
+        except KeyError:
+            # Didn't find country name in country_codes
+            no_country_code.add(cell_country_name)
+            cell_country_code = -1
 
         country_mask[k] = cell_country_code
 
@@ -316,51 +306,53 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
     return country_mask
 
 
-def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
-    """Returns the country-mask, either loaded from disk or computed.
+def intersection_possible(country, points):
+    """Determine if country could contain any of the points.
 
-    If there already exists a file at output_path/country_mask.nv ask the
-    user if he wants to recompute.
+    The maximum and minimum x and y values of the country and the points
+    are compared, to determine if any of the points lie in the bounding box
+    of country.
+
+    For rectangles oriented along the coordinate axes, Polygon.intersects()
+    is faster than this function. However, we're working with arbitrarily
+    oriented (and possibly distorted) gridcells, for which
+    Polygon.intersects() is considerably slower.
 
     Parameters
     ----------
-    output_path : str
-        Path to the directory where the country-mask is stored
-    cosmo_grid : grids.COSMOGrid
-        Contains all necessary information about the cosmo grid
-    resolution : str
-        The resolution for the used shapefile, used as argument for
-        cartopy.io.shapereader.natural_earth()
-    nprocs : int
-        Number of processes used to compute the codes in parallel
-
+    country : cartopy.io.shapereader.Record
+    points : np.array(shape=(4,3), dtype=float)
+        Containing the 4 corners of a cell, ordered clockwise
     Returns
     -------
-    np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
+    bool
+        True if an intersection is possible, False otherwise
     """
-    cmask_path = os.path.join(output_path, f"country_mask_{resolution}.nc")
 
-    if os.path.isfile(cmask_path):
-        print(
-            "Would you like to overwite the "
-            f"country mask found in {cmask_path}?"
-        )
-        answer = input("y/[n]\n")
-        compute_mask = answer == "y"
-    else:
-        compute_mask = True
+    def minmax(array):
+        """Find both min and max value of arr in one pass"""
+        minval = maxval = array[0]
 
-    if compute_mask:
-        country_mask = compute_country_mask(cosmo_grid, resolution, nprocs)
-        with nc.Dataset(cmask_path, "w") as dataset:
-            prepare_output_file(cosmo_grid, dataset)
-            add_country_mask(country_mask, dataset)
-    else:
-        # Transpose country mask when reading in
-        # netCDF/Fortran: (lat, lon), python: (lon, lat)
-        country_mask = nc.Dataset(cmask_path)["country_ids"][:].T
+        for e in array[1:]:
+            if e < minval:
+                minval = e
+            if e > maxval:
+                maxval = e
 
-    return country_mask
+        return minval, maxval
+
+    c_minx, c_miny, c_maxx, c_maxy = country.bounds
+    p_minx, p_maxx = minmax(points[:, 0])
+    p_miny, p_maxy = minmax(points[:, 1])
+
+    if (
+        c_minx < p_maxx
+        and c_maxx > p_minx
+        and c_miny < p_maxy
+        and c_maxy > p_miny
+    ):
+        return True
+    return False
 
 
 def cell_corners(lon_var, lat_var, inv_name, i, j, cfg):
