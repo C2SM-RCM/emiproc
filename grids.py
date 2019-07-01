@@ -171,14 +171,14 @@ class COSMOGrid(Grid):
 
         Parameters
         ----------
-        dx : float
-            Longitudinal size of a gridcell in degrees
-        dy : float
-            Latitudinal size of a gridcell in degrees
         nx : int
             Number of cells in longitudinal direction
         ny : int
             Number of cells in latitudinal direction
+        dx : float
+            Longitudinal size of a gridcell in degrees
+        dy : float
+            Latitudinal size of a gridcell in degrees
         xmin : float
             Longitude of bottom left gridpoint in degrees
         ymin : float
