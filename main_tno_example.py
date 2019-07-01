@@ -38,7 +38,6 @@ def main(cfg_path):
     """ The main script for processing TNO inventory.
     Takes a configuration file path as input"""
 
-    # Load the configuration file
     cfg = util.load_cfg(cfg_path)
 
     # Load or compute the country mask
@@ -165,7 +164,7 @@ def main(cfg_path):
 
 if __name__ == "__main__":
     try:
-        config = sys.argv[1]
+        config_path = sys.argv[1]
     except IndexError:
-        config = "./config_tno"
-    main(config)
+        raise RuntimeError("Please supply a config file.")
+    main(config_path)

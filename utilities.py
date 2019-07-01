@@ -28,6 +28,9 @@ SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
 def load_cfg(cfg_path):
     """Load config file"""
+    # Remove a (possible) trailing file-extension from the config path
+    # (importlib doesn't want it)
+    cfg_path = os.path.splitext(cfg_path)[0]
     try:
         sys.path.append(os.path.dirname(os.path.realpath(cfg_path)))
         cfg = import_module(os.path.basename(cfg_path))
