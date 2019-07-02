@@ -429,9 +429,14 @@ class COSMOGrid(Grid):
         # points and discard the possibly generated superfluous one.
         # Compared to linspace this method generates more exact steps at
         # the cost of a less accurate endpoint.
-        return np.arange(
-            self.xmin, self.xmin + (self.nx + 0.5) * self.dx, self.dx
-        )[: self.nx]
+        try:
+            lon_vals = self.lon_vals
+        except AttributeError:
+            self.lon_vals = np.arange(
+                self.xmin, self.xmin + (self.nx + 0.5) * self.dx, self.dx
+            )[: self.nx]
+            lon_vals = self.lon_vals
+        return lon_vals
 
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
@@ -441,9 +446,14 @@ class COSMOGrid(Grid):
         np.array(shape=(ny,), dtype=float)
         """
         # See the comment in lon_range
-        return np.arange(
-            self.ymin, self.ymin + (self.ny + 0.5) * self.dy, self.dy
-        )[: self.ny]
+        try:
+            lat_vals = self.lat_vals
+        except AttributeError:
+            self.lat_vals = np.arange(
+                self.ymin, self.ymin + (self.ny + 0.5) * self.dy, self.dy
+            )[: self.ny]
+            lat_vals = self.lat_vals
+        return lat_vals
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
