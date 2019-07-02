@@ -44,6 +44,10 @@ def main(cfg_path):
     country_mask = util.get_country_mask(
         cfg.output_path, cfg.cosmo_grid, cfg.shpfile_resolution, cfg.nprocs
     )
+    # Load or compute the mapping between the inventory and COSMO grid
+    interpolation = util.get_gridmapping(
+        cfg.output_path, cfg.cosmo_grid, cfg.tno_grid, cfg.nprocs
+    )
 
     # Set names for longitude and latitude
     if (
@@ -71,10 +75,6 @@ def main(cfg_path):
 
         # Load or compute the interpolation maps
         with Dataset(cfg.tnofile) as tno:
-            interpolation = util.get_gridmapping(
-                cfg.output_path, cfg.cosmo_grid, cfg.tno_grid, cfg.nprocs
-            )
-
             # From here onward, quite specific for TNO
 
             # Mask corresponding to the area/point sources
