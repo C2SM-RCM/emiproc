@@ -584,36 +584,6 @@ def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
     return mapping
 
 
-def swiss2wgs84(x, y):
-    """
-    Convert Swiss LV03 coordinates (x easting and y northing) to WGS 84 based
-    on swisstopo approximated soluation (0.1" accuracy).
-
-    remove the first digit of x,y
-    """
-    x = (x - 200000.0) / 1000000.0
-    y = (y - 600000.0) / 1000000.0
-
-    lon = (
-        2.6779094
-        + 4.728982 * y
-        + 0.791484 * y * x
-        + 0.1306 * y * x ** 2
-        - 0.0436 * y ** 3
-    ) / 0.36
-
-    lat = (
-        16.9023892
-        + 3.238272 * x
-        - 0.270978 * y ** 2
-        - 0.002528 * x ** 2
-        - 0.0447 * y ** 2 * x
-        - 0.0140 * x ** 3
-    ) / 0.36
-
-    return lon, lat
-
-
 class ProgressIndicator:
     """Used to show progress for long operations.
 
