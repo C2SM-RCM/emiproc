@@ -294,7 +294,7 @@ class SwissGrid(Grid):
 
         emi_grid[emi_grid == self.no_data] = 0
 
-        return np.flipud(emi_grid)
+        return np.fliplr(emi_grid.T)
 
     def _LV03_to_WGS84(self, y, x):
         """Convert LV03 to WSG84.
