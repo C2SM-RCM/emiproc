@@ -475,8 +475,8 @@ class COSMOGrid(Grid):
         y = self.ymin + j * self.dy
         dx2 = self.dx / 2
         dy2 = self.dy / 2
-        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
 
+        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
         cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
         return cell_x, cell_y
@@ -525,51 +525,48 @@ class COSMOGrid(Grid):
         list(tuple(int, int, float))
             A list containing triplets (x,y,r)
                - x : longitudinal index of cosmo grid cell
-               - y : latitudinal indexof cosmo grid cell
+               - y : latitudinal index of cosmo grid cell
                - r : ratio of the area of the intersection compared to the total
                      area of the inventory cell.
                      r is in (0,1] (only nonzero intersections are reported)
 
         """
-        inv_cell = Polygon(corners)
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,
-        # we can calculate in degrees^2
-        inv_cell_area = inv_cell.area
+        # we can calculate in degrees^2.
+        inv_cell = Polygon(corners)
+
+        # Find around which cosmo grid index the inventory cell lies.
+        # Since the inventory cell is in general not rectangular because
+        # of different projections, we add a margin of to the extremal indices.
+        # This way we're sure we don't miss any intersection.
+        cell_xmin = min(k[0] for k in corners)
+        cell_xmax = max(k[0] for k in corners)
+        lon_idx_min = int((cell_xmin - self.xmin) / self.dx) - 2
+        lon_idx_max = int((cell_xmax - self.xmin) / self.dx) + 3
+
+        cell_ymin = min(k[1] for k in corners)
+        cell_ymax = max(k[1] for k in corners)
+        lat_idx_min = int((cell_ymin - self.ymin) / self.dy) - 2
+        lat_idx_max = int((cell_ymax - self.ymin) / self.dy) + 3
+
+        if (
+            lon_idx_max < 0
+            or lat_idx_max < 0
+            or lon_idx_min > self.nx
+            or lat_idx_min > self.ny
+        ):
+            # The inventory cell lies outside the cosmo grid
+            return []
 
         intersections = []
-        # Find the cosmo cells that intersect the inventory cell
-        for (a, x) in enumerate(self.lon_range()):
-            # Get the corners of the cosmo cell
-            cosmo_cell_x = [
-                x + self.dx / 2,
-                x + self.dx / 2,
-                x - self.dx / 2,
-                x - self.dx / 2,
-            ]
-            if (min(cosmo_cell_x) > max([k[0] for k in corners])) or (
-                max(cosmo_cell_x) < min([k[0] for k in corners])
-            ):
-                continue
-
-            for (b, y) in enumerate(self.lat_range()):
-                cosmo_cell_y = [
-                    y + self.dy / 2,
-                    y - self.dy / 2,
-                    y - self.dy / 2,
-                    y + self.dy / 2,
-                ]
-
-                if (min(cosmo_cell_y) > max([k[1] for k in corners])) or (
-                    max(cosmo_cell_y) < min([k[1] for k in corners])
-                ):
-                    continue
-
-                corners_cosmo = [k for k in zip(cosmo_cell_x, cosmo_cell_y)]
-                cosmo_cell = Polygon(corners_cosmo)
+        # make sure we iterate only over valid gridpoint indices
+        for i in range(max(0, lon_idx_min), min(self.nx, lon_idx_max)):
+            for j in range(max(0, lat_idx_min), min(self.ny, lat_idx_max)):
+                cosmo_cell = Polygon(list(zip(*self.cell_corners(i, j))))
 
                 if cosmo_cell.intersects(inv_cell):
-                    inter = cosmo_cell.intersection(inv_cell)
-                    intersections.append((a, b, inter.area / inv_cell_area))
+                    overlap = cosmo_cell.intersection(inv_cell)
+                    intersections.append((i, j, overlap.area / inv_cell.area))
 
         return intersections
