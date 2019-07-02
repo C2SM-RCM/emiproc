@@ -154,6 +154,193 @@ class TNOGrid(Grid):
         return self.lat_var
 
 
+class SwissGrid(Grid):
+    """Represent a grid used by swiss inventories, such as meteotest, maiolica
+    or carbocount."""
+
+    nx: int
+    ny: int
+    dx: float
+    dy: float
+    xmin: float
+    ymin: float
+
+    def __init__(
+        self,
+        name,
+        nx,
+        ny,
+        dx,
+        dy,
+        xmin,
+        ymin,
+        no_data=-9999,
+        I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD=False,
+    ):
+        """Store the grid information.
+
+        Swiss grids use LV03 coordinates, which switch the axes:
+        x <-> Northing
+        y <-> Easting
+
+        For consistency with the other Grids, we use:
+        x <-> Longitude ~ "swiss y"
+        y <-> Latitude  ~ "swiss x"
+
+        Thus, a header of a .asc file translates as follows:
+        ncols     -> nx
+        nrows     -> ny
+        xllcorner -> ymin
+        yllcorner -> xmin
+        cellsize  -> dy, dy
+
+        Parameters
+        ----------
+        dx : float
+            EASTERLY size of a gridcell in meters
+        dy : float
+            NORTHLY size of a gridcell in meters
+        nx : int
+            Number of cells in EASTERLY direction
+        ny : int
+            Number of cells in NORTHLY direction
+        xmin : float
+            EASTERLY distance of bottom left gridpoint in meters
+        ymin : float
+            NORTHLY distance of bottom left gridpoint in meters
+        no_data : int
+            default: -9999
+            Value used in emission files to indicate absent data.
+        I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD : bool
+            default: False
+            To make sure you are aware of the switch y->x, x->y, set this to
+            True.
+        """
+        if not I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD:
+            raise RuntimeError(
+                "Please review your initialization " "of the SwissGrid"
+            )
+
+        self.nx = nx
+        self.ny = ny
+        self.dx = dx
+        self.dy = dy
+        self.xmin = xmin
+        self.ymin = ymin
+        self.no_data = no_data
+
+        super().__init__(name, ccrs.PlateCarree())
+
+    def cell_corners(self, i, j):
+        """Return the corners of the cell with indices (i,j).
+
+        See also the docstring of Grid.cell_corners.
+
+        Parameters
+        ----------
+        i : int
+        j : int
+
+        Returns
+        -------
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+
+        """
+        x1, y1 = self._LV03_to_WGS84(
+            self.xmin + i * self.dx, self.ymin + j * self.dy
+        )
+        x2, y2 = self._LV03_to_WGS84(
+            self.xmin + (i + 1) * self.dx, self.ymin + (j + 1) * self.dy
+        )
+
+        cell_x = np.array([x2, x2, x1, x1])
+        cell_y = np.array([y2, y1, y1, y2])
+
+        return cell_x, cell_y
+
+    def lon_range(self):
+        """Return an array containing all the longitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(nx,), dtype=float)
+        """
+        return np.array([self.xmin + i * self.dx for i in range(self.nx)])
+
+    def lat_range(self):
+        """Return an array containing all the latitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(ny,), dtype=float)
+        """
+        return np.array([self.ymin + j * self.dy for j in range(self.ny)])
+
+    def read_emi_from_file(self, path):
+        """Read the emissions from a textfile at path.
+
+        Parameters
+        ----------
+        path : str
+
+        Returns
+        -------
+        np.array(shape=(self.nx, self.ny), dtype=float)
+            Emissions as read from file
+        """
+        emi_grid = np.loadtxt(path, skiprows=6)
+
+        emi_grid[emi_grid == self.no_data] = 0
+
+        return np.flipud(emi_grid)
+
+    def _LV03_to_WGS84(self, y, x):
+        """Convert LV03 to WSG84.
+
+        Based on swisstopo approximated solution (0.1" accuracy)
+
+        For better comparability with other implementations, here:
+        x <-> Northing
+        y <-> Easting,
+        contrary to the rest of this class.
+
+        Parameters
+        ----------
+        y : float
+            y coordinate in meters
+        x : float
+            x coordinate in meters
+
+        Returns
+        -------
+        tuple(float, float)
+            The coordinates of the point in WGS84 (lon, lat)
+        """
+        x = (x - 200_000) / 1_000_000
+        y = (y - 600_000) / 1_000_000
+
+        lon = (
+            2.6779094
+            + 4.728982 * y
+            + 0.791484 * y * x
+            + 0.1306 * y * x ** 2
+            - 0.0436 * y ** 3
+        ) / 0.36
+
+        lat = (
+            16.9023892
+            + 3.238272 * x
+            - 0.270978 * y ** 2
+            - 0.002528 * x ** 2
+            - 0.0447 * y ** 2 * x
+            - 0.0140 * x ** 3
+        ) / 0.36
+
+        return lon, lat
+
+
 class COSMOGrid(Grid):
     """Class to manage a COSMO-domain"""
 
@@ -326,21 +513,14 @@ class COSMOGrid(Grid):
         Returns
         -------
         list(tuple(int, int, float))
-            A list containing triplets (x,y,r) 
-               - x : longitudinal index of cosmo grid cell 
+            A list containing triplets (x,y,r)
+               - x : longitudinal index of cosmo grid cell
                - y : latitudinal indexof cosmo grid cell
                - r : ratio of the area of the intersection compared to the total
                      area of the inventory cell.
                      r is in (0,1] (only nonzero intersections are reported)
 
-        Outdated:
-        For a TNO grid of (720,672) and a Berlin domain (70,60) with resolution 0.1°, it takes 5min to run
-        For a TNO grid of (720,672) and a European domain (760,800) with resolution 0.05°, it takes 40min to run
         """
-        # TODO: Convert points to cosmo grid here
-        # TODO: Instead of looking through every cell: determine which
-        #       cells can touch, only check those.
-
         inv_cell = Polygon(corners)
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,
