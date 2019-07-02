@@ -174,7 +174,6 @@ class SwissGrid(Grid):
         dy,
         xmin,
         ymin,
-        no_data=-9999,
         I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD=False,
     ):
         """Store the grid information.
@@ -227,7 +226,6 @@ class SwissGrid(Grid):
         self.dy = dy
         self.xmin = xmin
         self.ymin = ymin
-        self.no_data = no_data
 
         super().__init__(name, ccrs.PlateCarree())
 
@@ -277,24 +275,6 @@ class SwissGrid(Grid):
         np.array(shape=(ny,), dtype=float)
         """
         return np.array([self.ymin + j * self.dy for j in range(self.ny)])
-
-    def read_emi_from_file(self, path):
-        """Read the emissions from a textfile at path.
-
-        Parameters
-        ----------
-        path : str
-
-        Returns
-        -------
-        np.array(shape=(self.nx, self.ny), dtype=float)
-            Emissions as read from file
-        """
-        emi_grid = np.loadtxt(path, skiprows=6)
-
-        emi_grid[emi_grid == self.no_data] = 0
-
-        return np.fliplr(emi_grid.T)
 
     def _LV03_to_WGS84(self, y, x):
         """Convert LV03 to WSG84.
