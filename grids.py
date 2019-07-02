@@ -43,7 +43,7 @@ class Grid:
         The points are ordered clockwise, starting in the top
         left:
 
-        4. > 1.
+        4.   1.
         ^    v
         3. < 2.
 
@@ -217,7 +217,7 @@ class SwissGrid(Grid):
         """
         if not I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD:
             raise RuntimeError(
-                "Please review your initialization " "of the SwissGrid"
+                "Please review your initialization of the SwissGrid"
             )
 
         self.nx = nx
@@ -227,6 +227,10 @@ class SwissGrid(Grid):
         self.xmin = xmin
         self.ymin = ymin
 
+        # The swiss grid is not technically using a PlateCarree projection
+        # (in fact it is not using any projection implemented by cartopy),
+        # however the points returned by the cell_corners() method are in
+        # WGS84, which PlateCarree defaults to.
         super().__init__(name, ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
@@ -509,7 +513,6 @@ class COSMOGrid(Grid):
                - r : ratio of the area of the intersection compared to the total
                      area of the inventory cell.
                      r is in (0,1] (only nonzero intersections are reported)
-
         """
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,
