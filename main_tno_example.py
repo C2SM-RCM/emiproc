@@ -124,18 +124,16 @@ def main(cfg_path):
                             for (x, y, r) in interpolation[lon_ind, lat_ind]:
                                 out_var_area[y, x] += var[i] * r
                         if selection_cat_point[i]:
-                            indx, indy = cfg.cosmo_grid.indices_of_point(
-                                tno["longitude_source"][i],
-                                tno["latitude_source"][i],
-                            )
+                            try:
+                                indx, indy = cfg.cosmo_grid.indices_of_point(
+                                    tno["longitude_source"][i],
+                                    tno["latitude_source"][i],
+                                )
+                            except IndexError:
+                                # Point lies outside the cosmo grid
+                                continue
 
-                            if (
-                                indx >= 0
-                                and indx < cfg.cosmo_grid.nx
-                                and indy >= 0
-                                and indy < cfg.cosmo_grid.ny
-                            ):
-                                out_var_point[indy, indx] += var[i]
+                            out_var_point[indy, indx] += var[i]
 
                     end = time.time()
                     print("it takes ", end - start, "sec")

@@ -478,12 +478,20 @@ class COSMOGrid(Grid):
         -------
         tuple(int, int)
             (cosmo_indx,cosmo_indy),
-            the indices of the cosmo grid cell containing the source
+            the indices of the cosmo grid cell containing the source.
+
+        Raises
+        ------
+        IndexError
+            If the point lies outside the grid.
         """
         point = self.projection.transform_point(lon, lat, proj)
 
         indx = np.floor((point[0] - self.xmin) / self.dx)
         indy = np.floor((point[1] - self.ymin) / self.dy)
+
+        if indx < 0 or indy < 0 or indx > self.nx - 1 or indy > self.ny - 1:
+            raise IndexError("Point lies outside the COSMO Grid")
 
         return int(indx), int(indy)
 
