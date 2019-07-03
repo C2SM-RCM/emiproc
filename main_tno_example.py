@@ -9,31 +9,6 @@ from netCDF4 import Dataset
 import utilities as util
 
 
-def var_name(s, cat, cat_kind):
-    """Returns the name of a variable for a given species and cat
-    input :
-       - s : species name ("CO2", "CH4" ...)
-       - cat : Category name or number
-       - cat_kind : Kind of category. must be "SNAP" or "NFR"
-    output :
-       - returns a string which concatenates the species with
-         the category number
-    """
-    out_var_name = s + "_"
-    if cat_kind == "SNAP":
-        if cat > 9:
-            out_var_name += str(cat) + "_"
-        else:
-            out_var_name += "0" + str(cat) + "_"
-    elif cat_kind == "NFR":
-        out_var_name += cat + "_"
-    else:
-        print("Wrong cat_kind in the config file. Must be SNAP or NFR")
-        raise ValueError
-
-    return out_var_name
-
-
 def main(cfg_path):
     """ The main script for processing TNO inventory.
     Takes a configuration file path as input"""
@@ -142,7 +117,7 @@ def main(cfg_path):
                     out_var_point *= cosmo_area.T / util.SEC_PER_YR
                     out_var_area *= cosmo_area.T / util.SEC_PER_YR
 
-                    out_var_name = var_name(s, cat, cfg.cat_kind)
+                    out_var_name = f"{s}_{cat}_"
                     for (t, sel, out_var) in zip(
                         ["AREA", "POINT"],
                         [selection_cat_area, selection_cat_point],
