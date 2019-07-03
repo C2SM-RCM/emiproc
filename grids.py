@@ -123,7 +123,6 @@ class TNOGrid(Grid):
         tuple(np.array(shape=(4,), dtype=float),
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
-
         """
         x = self.lon_var[i]
         y = self.lat_var[j]
@@ -191,7 +190,7 @@ class SwissGrid(Grid):
         nrows     -> ny
         xllcorner -> ymin
         yllcorner -> xmin
-        cellsize  -> dy, dy
+        cellsize  -> dx, dy
 
         Parameters
         ----------
@@ -207,9 +206,6 @@ class SwissGrid(Grid):
             EASTERLY distance of bottom left gridpoint in meters
         ymin : float
             NORTHLY distance of bottom left gridpoint in meters
-        no_data : int
-            default: -9999
-            Value used in emission files to indicate absent data.
         I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD : bool
             default: False
             To make sure you are aware of the switch y->x, x->y, set this to
