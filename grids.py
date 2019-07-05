@@ -249,6 +249,105 @@ class EDGARGrid(Grid):
         np.array(shape=(ny,), dtype=float)
         """
         return self.lat_vals
+
+
+class VPRMGrid(Grid):
+    """Contains the grid from the VPRM emission inventory.
+
+    The grid projection is LambertConformal with a nonstandard globe.
+    This means to generate the gridcell-corners a bit of work is
+    required, as well as that the gridcell-sizes can't easily be read
+    from a dataset.
+
+    Be careful, the lon/lat_range methods return the gridpoint coordinates
+    in the grid-projection (and likely have to be transformed to be usable).
+    """
+
+    def __init__(self, dataset_path, dx, dy):
+        """Store the grid information.
+
+        Parameters
+        ----------
+        dataset_path : str
+            Is used to read the gridcell coordinates
+        dx : float
+            Longitudinal size of a gridcell in meters
+        dy : float
+            Latitudinal size of a gridcell in meters
+        """
+        self.dx = dx
+        self.dy = dy
+
+        projection = ccrs.LambertConformal(
+            central_longitude=12.5,
+            central_latitude=51.604,
+            standard_parallels=[51.604],
+            globe=ccrs.Globe(
+                ellipse=None, semimajor_axis=6370000, semiminor_axis=6370000
+            ),
+        )
+
+        # Read grid-values in lat/lon, which are distorted, then
+        # project them to LambertConformal where the grid is
+        # regular and rectangular.
+        with Dataset(dataset_path) as dataset:
+            proj_lon = np.array(dataset["lon"][:])
+            proj_lat = np.array(dataset["lat"][:])
+
+        self.lon_vals = projection.transform_points(
+            ccrs.PlateCarree(), proj_lon[0, :], proj_lat[0, :]
+        )[:, 0]
+        self.lat_vals = projection.transform_points(
+            ccrs.PlateCarree(), proj_lon[:, 0], proj_lat[:, 0]
+        )[:, 1]
+
+        super().__init__("VPRM", projection)
+
+    def cell_corners(self, i, j):
+        """Return the corners of the cell with indices (i,j).
+
+        See also the docstring of Grid.cell_corners.
+
+        Parameters
+        ----------
+        i : int
+        j : int
+
+        Returns
+        -------
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+        """
+        x = self.lon_vals[i]
+        y = self.lat_vals[j]
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+
+        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+        cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
+
+        return cell_x, cell_y
+
+    def lon_range(self):
+        """Return an array containing all the longitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(nx,), dtype=float)
+        """
+        return self.lon_vals
+
+    def lat_range(self):
+        """Return an array containing all the latitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(ny,), dtype=float)
+        """
+        return self.lat_vals
+
+
 class SwissGrid(Grid):
     """Represent a grid used by swiss inventories, such as meteotest, maiolica
     or carbocount."""
