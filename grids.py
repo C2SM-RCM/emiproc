@@ -36,16 +36,26 @@ class Grid:
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
 
-        Returns a tuple of arrays with shape (4,). The first
-        tuple element are the x-coordinates of the corners,
-        the second are the y-coordinates.
-
         The points are ordered clockwise, starting in the top
         left:
 
         4.   1.
         ^    v
         3. < 2.
+
+        Returns a tuple of arrays with shape (4,). The first
+        tuple element are the x-coordinates of the corners,
+        the second are the y-coordinates.
+
+        The coordinates are in the projection of the grid, so
+        to work with them you might have to transform them to
+        the desired projection. For example, to be sure you're
+        working with regular (lon, lat) coordinates:
+
+        >>> corners = ccrs.PlateCarree().transform_points(
+        ...    grid.get_projection(),
+        ...    *grid.cell_corners(i,j)
+        ...)
 
         The clunky return type is necessary because the corners
         are transformed after by cartopy.crs.CRS.transform_points.
