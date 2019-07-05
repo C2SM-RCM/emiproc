@@ -163,6 +163,92 @@ class TNOGrid(Grid):
         return self.lat_var
 
 
+class EDGARGrid(Grid):
+    """Contains the grid from the EDGAR emission inventory
+
+    The grid is similar to the TNO grid in that it uses a regular lat/lon
+    coordinate system. However, the gridpoints are the lower left corners
+    of the cell.
+    """
+
+    xmin: float
+    xmax: float
+    ymin: float
+    ymax: float
+    dx: float
+    dy: float
+
+    def __init__(self, xmin, xmax, ymin, ymax, dx, dy):
+        """Store the grid information.
+
+        Parameters
+        ----------
+        xmin : float
+            Longitude of bottom left gridpoint in degrees
+        xmax : float
+            Longitude of top right gridpoint in degrees
+        ymin : float
+            Latitude of bottom left gridpoint in degrees
+        ymax : float
+            Latitude of top right gridpoint in degrees
+        dx : float
+            Longitudinal size of a gridcell in degrees
+        dy : float
+            Latitudinal size of a gridcell in degrees
+        """
+        self.xmin = xmin
+        self.xmax = xmax
+        self.ymin = ymin
+        self.ymax = ymax
+        self.dx = dx
+        self.dy = dy
+
+        self.lon_vals = np.arange(self.xmin, self.xmax, self.dx)
+        self.lat_vals = np.arange(self.ymin, self.ymax, self.dy)
+
+        super().__init__("EDGAR", ccrs.PlateCarree())
+
+    def cell_corners(self, i, j):
+        """Return the corners of the cell with indices (i,j).
+
+        See also the docstring of Grid.cell_corners.
+
+        Parameters
+        ----------
+        i : int
+        j : int
+
+        Returns
+        -------
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+        """
+        x = self.lon_vals[i]
+        y = self.lat_vals[j]
+        cell_x = np.array([x + self.dx, x + self.dx, x, x])
+
+        cell_y = np.array([y + self.dy, y, y, y + self.dy])
+
+        return cell_x, cell_y
+
+    def lon_range(self):
+        """Return an array containing all the longitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(nx,), dtype=float)
+        """
+        return self.lon_vals
+
+    def lat_range(self):
+        """Return an array containing all the latitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(ny,), dtype=float)
+        """
+        return self.lat_vals
 class SwissGrid(Grid):
     """Represent a grid used by swiss inventories, such as meteotest, maiolica
     or carbocount."""
