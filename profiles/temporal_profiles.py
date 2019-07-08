@@ -88,6 +88,62 @@ def permute_cycle_tz(tz,cycle):
 
     return answer
 
+def load_country_tz_TNO(filename):
+    winter = False
+    ctz = dict()
+    with open(filename) as f:
+        for line in f:
+            words = line.split(';')
+            if len(words[0].strip())==3:
+                ctz[words[0].strip()] = int(words[2])
+                if not winter:
+                    ctz[words[0].strip()] += int(words[3])
+    return ctz
+
+def validate_tz(filename,all_tz):
+    """Checks that all countries in the emission file have a corresponding time zone"""
+    with netCDF4.Dataset(filename) as f:
+        clist = set(f['country_ids'][:].flatten())
+        print(clist)
+        for c in clist:
+            if all_tz[c]=='None':
+                print(c,'is missing')
+        
+def tz_int2str(time):
+    string = ''
+    if time>=0:
+        string = '+'
+    else:
+        string = '-'
+    if abs(time)>10:
+        string+=str(abs(time))+'00'
+    else:
+        string+='0'+str(abs(time))+'00'
+    
+    return string
+
+def get_country_tz_TNO(countries):
+    tz_TNO = load_country_tz_TNO("CHE_input/country_tz.csv")
+    all_tz = dict()
+    for country in countries:
+        if country==0: #Seas
+            continue #all_tz[country] = tz_int2str(0)
+        country_names = [name  for name,code in cc.items() if (code==country)]
+        country_name=""
+        # Try find the name of the country, with 3 characters
+        for name in country_names:
+            if len(name)==3:
+                country_name = name
+                try:
+                    all_tz[country] = tz_int2str(tz_TNO[name])
+                    break
+                except KeyError:
+                    continue
+                    #all_tz[country] = "None"
+        # if country_name=="":
+        #     all_tz[country] = "None"
+    return all_tz
+
 def get_country_tz(countries):
     country_exception = dict(
         FGD="+0100",
@@ -131,16 +187,18 @@ def get_country_tz(countries):
         # For countries with several time zones, they are listed in the exception and one tz is assigned.
         if country_name in country_exception:
             all_tz[country]= country_exception[country_name]
+            print(country,country_name,country_exception[country_name])
         else:                
             zones = pytz.country_timezones[country_name]
             
             fmt = "%z"
-            zero = pytz.utc.localize(datetime(2015, 1, 1, 0, 0, 0))                
+            zero = pytz.utc.localize(datetime(2015, 1, 1, 0, 0, 0))
             for zone in zones:
                 loc_tz = pytz.timezone(zone)
                 loc_zero = zero.astimezone(loc_tz)
                 hour = loc_zero.strftime("%z")
                 all_tz[country]= hour
+                print(country,country_name,hour)
 
     return all_tz
 
@@ -159,7 +217,7 @@ def read_daily_profiles(path):
 
     return snaps, data
 
-def read_temporal_profile_simple(path):
+def read_temporal_profile_simple(path):    
     started = False
     data = []
     snaps = []
@@ -348,8 +406,11 @@ def main_simple(path):
     countries = np.delete(countries,
                           [5,26,28,29,30,31,32,33,34,35,58,64,67,70,71])
     n_countries = len(countries)
-    country_tz = get_country_tz(countries)
 
+    #country_tz = get_country_tz(countries)
+    country_tz = get_country_tz_TNO(countries)
+    #validate_tz('../testdata/CHE_TNO_v1_1_2018_12/CHE_TNO_offline/emis_2015_Europe.nc',country_tz)
+    print(country_tz)
 
     create_netcdf(path,countries)
 
@@ -394,6 +455,6 @@ if __name__ == "__main__":
     if complex_profile:
         main_complex("./output")
     else:
-        main_simple("./CHE_output")
+        main_simple("./CHE_output_todel")
 
 
