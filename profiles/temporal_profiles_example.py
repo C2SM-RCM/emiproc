@@ -75,18 +75,14 @@ winter = False  # Produces profiles for winter time
 mean = False  # Averages the first five days of the week in the profile.
 
 # Input files
-country_tz_file = (
-    "CHE_input/country_tz.csv"
-)  # Path to the csv file containing the time zones of each country
-hod_input = (
-    "CHE_input/timeprofiles-hour-in-day_GNFR.csv"
-)  # Path to the csv file containing the hour in day profile
-dow_input = (
-    "CHE_input/timeprofiles-day-in-week_GNFR.csv"
-)  # Path to the csv file containing the day in week profile
-moy_input = (
-    "CHE_input/timeprofiles-month-in-year_GNFR.csv"
-)  # Path to the csv file containing the month in year profile
+# Path to the csv file containing the time zones of each country
+country_tz_file = "CHE_input/country_tz.csv"
+# Path to the csv file containing the hour in day profile
+hod_input = "CHE_input/timeprofiles-hour-in-day_GNFR.csv"
+# Path to the csv file containing the day in week profile
+dow_input = "CHE_input/timeprofiles-day-in-week_GNFR.csv"
+# Path to the csv file containing the month in year profile
+moy_input = "CHE_input/timeprofiles-month-in-year_GNFR.csv"
 
 # Output path
 output = "./example_output/"
@@ -100,7 +96,7 @@ N_HOUR_YEAR = 8784
 
 def permute_cycle_tz(tz, cycle):
     """
-    Permute a daily cycle by a given amount of hours. 
+    Permute a daily cycle by a given amount of hours.
     This is a way to convert from local time to UTC
 
     Parameters
@@ -114,10 +110,9 @@ def permute_cycle_tz(tz, cycle):
     -------
     Permuted cycle scaling factors
     """
-
     shift = int(tz)
 
-    # half hours for the time zone are note considered
+    # half hours for the time zone are not considered
     try:
         answer = [cycle[shift - i] for i in range(len(cycle), 0, -1)]
     except IndexError:
@@ -139,6 +134,9 @@ def load_country_tz(filename, winter=True):
 
     Returns
     -------
+    dict(str : int)
+        A dictionary mapping the iso3 country codes to the corresponding
+        timezone (hours offset from UTC)
     """
     ctz = dict()
     with open(filename) as f:
@@ -152,13 +150,13 @@ def load_country_tz(filename, winter=True):
 
 
 def validate_tz(filename, all_tz):
-    """Checks that all countries in the gridded emission file have a corresponding time zone
-    
+    """Checks that all countries in the gridded emission file have a time zone
+
     Parameters
     ----------
     filename: String
         Path to the gridded emissions
-    all_tz: 
+    all_tz:
         List of time zones
     """
     with netCDF4.Dataset(filename) as f:
@@ -172,7 +170,7 @@ def validate_tz(filename, all_tz):
 def get_country_tz(countries):
     """
     Get the time zone of every country
-    
+
     Parameters
     ----------
     countries: list (int)
@@ -180,7 +178,7 @@ def get_country_tz(countries):
 
     Returns
     -------
-    Dictionnary linking country names to time zone
+    Dictionary linking country names to time zone
     """
 
     tz = load_country_tz(country_tz_file, winter)
@@ -190,11 +188,9 @@ def get_country_tz(countries):
             continue
 
         country_names = [name for name, code in cc.items() if (code == country)]
-        country_name = ""
         # Try find the name of the country, with 3 characters
         for name in country_names:
             if len(name) == 3:
-                country_name = name
                 try:
                     all_tz[country] = tz[name]
                     break
@@ -205,8 +201,8 @@ def get_country_tz(countries):
 
 
 def read_temporal_profile(path):
-    """
-    Reads the temporal profile from a csv file
+    """Read the temporal profile from a csv file.
+
     Parameters
     ----------
     path: String
@@ -237,8 +233,8 @@ def read_temporal_profile(path):
 
 
 def create_netcdf(path, countries):
-    """
-    Creates a netcdf file containing the list of countries and the dimensions.
+    """\
+    Create a netcdf file containing the list of countries and the dimensions.
 
     Parameters
     ----------
@@ -277,21 +273,19 @@ def create_netcdf(path, countries):
 
 
 def write_single_variable(path, profile, values, cat):
-    """
-    Add a profile to the output netcdf
+    """Add a profile to the output netcdf
 
     Parameters
     ----------
     path: String
         Path to the output netcdf file
-    profile: String 
-        Type of profile to output 
+    profile: String
+        Type of profile to output
         (within ["hourofday", "dayofweek", "monthofyear", "hourofyear"])
     values: list(float)
         The profile
     cat: String
         Name of the category
-    
     """
     filename = os.path.join(path, profile + ".nc")
     if profile == "hourofday":
