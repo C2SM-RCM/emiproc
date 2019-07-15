@@ -69,6 +69,7 @@ country_codes = {
     "PT": 20,  # Portugal
     "RO": 21,  # Romania
     "ES": 22,  # Spain
+    "SMR": 22, # San Marino (assigned to Spain)
     "AD": 22,  # Andorra (assigned to Spain)
     "SE": 23,  # Sweden
     "CH": 24,  # Switzerland
@@ -103,18 +104,19 @@ country_codes = {
     "KZ": 53,  # Kazakhstan in the former official EMEP domain
     "GE": 54,  # Georgia
     "CY": 55,  # Cyprus
-    "CYN": 55,  # Cyprus (HJM)
+    "CYN": 55,  # Cyprus (alternate code)
     "AM": 56,  # Armenia
     "MT": 57,  # Malta
     "ASI": 58,  # Remaining Asian areas
-    "LI": 59,  # Liechtenstein
+    "LI": 59,  # Liechtenstein,
+    "LIE": 59,  # Liechtenstein (alternate code)
     "DE": 60,  # Germany
     "RU": 61,  # Russian Federation in the former official EMEP domain
     "MC": 62,  # Monaco
     "NOA": 63,  # North Africa
-    "MAR": 63,  # Maroko (HJM)
-    "TUN": 63,  # Tunisia
-    "DZA": 63,  # Algeria (HJM)
+    "MAR": 63,  # Maroko (assigned to NOA)
+    "TUN": 63,  # Tunisia (assigned to NOA)
+    "DZA": 63,  # Algeria (assigned to NOA)
     "EU": 64,  # European Community
     "US": 65,  # United States
     "CA": 66,  # Canada
@@ -124,10 +126,10 @@ country_codes = {
     "ATX": 70,  # EMEP-external Remaining North-East Atlantic Ocean
     "RUX": 71,  # EMEP-external part of Russian Federation
     "RS": 72,  # Serbia
-    "SRB": 72,  # Serbia (HJM)
-    "KOS": 72,  # Kosovo (HJM)
+    "SRB": 72,  # Serbia (alternate code)
+    "KOS": 72,  # Kosovo (assigned to SRB)
     "ME": 73,  # Montenegro
-    "MNE": 73,  # Montenegro (HJM)
+    "MNE": 73,  # Montenegro (alternate code)
     "RFE": 74,  # Rest of Russian Federation in the extended EMEP domain
     "KZE": 75,  # Rest of Kazakhstan in the extended EMEP domain
     "UZO": 76,  # Uzbekistan in the former official EMEP domain
