@@ -69,7 +69,7 @@ country_codes = {
     "PT": 20,  # Portugal
     "RO": 21,  # Romania
     "ES": 22,  # Spain
-    "SMR": 22, # San Marino (assigned to Spain)
+    "SMR": 22,  # San Marino (assigned to Spain)
     "AD": 22,  # Andorra (assigned to Spain)
     "SE": 23,  # Sweden
     "CH": 24,  # Switzerland

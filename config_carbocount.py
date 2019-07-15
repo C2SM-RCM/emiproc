@@ -96,10 +96,10 @@ shpfile_resolution = "110m"
 nprocs = 18
 
 nc_metadata = {
-    'DESCRIPTION':  'Gridded annual emissions',
-    'DATAORIGIN':   'carbocount-CH',
-    'CREATOR':      'Michael Jaehn',
-    'EMAIL':        'michael.jaehn@empa.ch',
-    'AFFILIATION':  'Empa Duebendorf, Switzerland',
-    'DATE CREATED': time.ctime(time.time()),
+    "DESCRIPTION": "Gridded annual emissions",
+    "DATAORIGIN": "carbocount-CH",
+    "CREATOR": "Michael Jaehn",
+    "EMAIL": "michael.jaehn@empa.ch",
+    "AFFILIATION": "Empa Duebendorf, Switzerland",
+    "DATE CREATED": time.ctime(time.time()),
 }

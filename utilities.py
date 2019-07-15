@@ -151,11 +151,11 @@ def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
 
     if compute_mask:
         nc_metadata = {
-            'DESCRIPTION':  'Country codes',
-            'DATAORIGIN':   'natural earth',
-            'CREATOR':      'OAE preprocessing script',
-            'AFFILIATION':  'Empa Duebendorf, Switzerland',
-            'DATE CREATED': time.ctime(time.time()),
+            "DESCRIPTION": "Country codes",
+            "DATAORIGIN": "natural earth",
+            "CREATOR": "OAE preprocessing script",
+            "AFFILIATION": "Empa Duebendorf, Switzerland",
+            "DATE CREATED": time.ctime(time.time()),
         }
         country_mask = compute_country_mask(cosmo_grid, resolution, nprocs)
         with nc.Dataset(cmask_path, "w") as dataset:
