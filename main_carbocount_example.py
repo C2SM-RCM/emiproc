@@ -6,7 +6,6 @@ import utilities as util
 
 from glob import glob
 from netCDF4 import Dataset
-from country_code import country_codes
 
 
 def read_emi_from_file(path):
@@ -71,8 +70,7 @@ def main(cfg_path):
         for cat in cfg.ch_cat:
             for var in cfg.species:
                 constfile = os.path.join(
-                    cfg.input_path,
-                    "".join([cat.lower(), "10_", "*_kg.txt"]),
+                    cfg.input_path, "".join([cat.lower(), "10_", "*_kg.txt"])
                 )
                 out_var_name = var + "_" + cfg.mapping[cat]
 
@@ -116,5 +114,8 @@ def main(cfg_path):
 
 
 if __name__ == "__main__":
-    cfg_name = sys.argv[1]
+    try:
+        config_path = sys.argv[1]
+    except IndexError:
+        raise RuntimeError("Please supply a config file.")
     main(cfg_name)
