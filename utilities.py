@@ -195,7 +195,10 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
     -------
     np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
-    print("Computing the country mask...")
+    print(
+        f"Computing the country mask with {resolution} resolution. "
+        "Consider using a coarser resolution to speed up the process."
+    )
     start = time.time()
 
     shpfilename = shpreader.natural_earth(
