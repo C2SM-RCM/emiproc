@@ -115,16 +115,18 @@ def add_country_mask(country_mask, dataset):
     var[:] = country_mask.T
 
 
-def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
+def get_country_mask(output_path, suffix, cosmo_grid, resolution, nprocs):
     """Returns the country-mask, either loaded from disk or computed.
 
-    If there already exists a file at output_path/country_mask.nv ask the
-    user if he wants to recompute.
+    If there already exists a file at
+    output_path/country_mask_{resolution}_{suffix}.nc
+    ask the user if he wants to recompute.
 
     Parameters
     ----------
     output_path : str
         Path to the directory where the country-mask is stored
+    suffix : str
     cosmo_grid : grids.COSMOGrid
         Contains all necessary information about the cosmo grid
     resolution : str
@@ -137,7 +139,9 @@ def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
     -------
     np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
-    cmask_path = os.path.join(output_path, f"country_mask_{resolution}.nc")
+    cmask_path = os.path.join(
+        output_path, f"country_mask_{resolution}_{suffix}.nc"
+    )
 
     if os.path.isfile(cmask_path):
         print(
@@ -196,8 +200,9 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
     np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
     """
     print(
-        f"Computing the country mask with {resolution} resolution. "
-        "Consider using a coarser resolution to speed up the process."
+        f"Computing the country mask with {resolution} resolution.\n"
+        "Consider using a coarser resolution to speed up the process "
+        "if necessary."
     )
     start = time.time()
 
@@ -436,16 +441,17 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
     return mapping
 
 
-def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
+def get_gridmapping(output_path, suffix, cosmo_grid, inv_grid, nprocs):
     """Returns the interpolation between the inventory and COSMO grid.
 
-    If there already exists a file at output_path/mapping.npy ask the
-    user if he wants to recompute.
+    If there already exists a file at output_path/mapping_{suffix}.npy ask
+    the user if he wants to recompute.
 
     Parameters
     ----------
     output_path : str
         Path to the directory where the country-mask is stored
+    suffix : str
     cosmo_grid : grids.COSMOGrid
         Contains all necessary information about the cosmo grid
     inv_grid : grids.Grid
@@ -458,7 +464,8 @@ def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
     np.array(shape=(inv_grid.shape), dtype=list(tuple(int, int, float)))
         See the docstring of compute_map_from_inventory_to_cosmo()
     """
-    mapping_path = os.path.join(output_path, "mapping.npy")
+    mapping_path = os.path.join(output_path, f"mapping_{suffix}.npy")
+
     if os.path.isfile(mapping_path):
         print(
             "Would you like to overwite the "

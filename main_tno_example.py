@@ -15,13 +15,23 @@ def main(cfg_path):
 
     cfg = util.load_cfg(cfg_path)
 
+    os.makedirs(cfg.output_path, exist_ok=True)
+
     # Load or compute the country mask
     country_mask = util.get_country_mask(
-        cfg.output_path, cfg.cosmo_grid, cfg.shpfile_resolution, cfg.nprocs
+        cfg.output_path,
+        cfg.tno_grid.name,
+        cfg.cosmo_grid,
+        cfg.shpfile_resolution,
+        cfg.nprocs,
     )
     # Load or compute the mapping between the inventory and COSMO grid
     interpolation = util.get_gridmapping(
-        cfg.output_path, cfg.cosmo_grid, cfg.tno_grid, cfg.nprocs
+        cfg.output_path,
+        cfg.tno_grid.name,
+        cfg.cosmo_grid,
+        cfg.tno_grid,
+        cfg.nprocs,
     )
 
     # Set names for longitude and latitude

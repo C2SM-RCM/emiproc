@@ -35,14 +35,24 @@ def main(cfg_path):
     # Load the configuration file
     cfg = util.load_cfg(cfg_path)
 
+    os.makedirs(cfg.output_path, exist_ok=True)
+
     # Load or compute the country mask
     country_mask = util.get_country_mask(
-        cfg.output_path, cfg.cosmo_grid, cfg.shpfile_resolution, cfg.nprocs
+        cfg.output_path,
+        cfg.swiss_grid.name,
+        cfg.cosmo_grid,
+        cfg.shpfile_resolution,
+        cfg.nprocs,
     )
 
     # Load or compute the interpolation map
     interpolation = util.get_gridmapping(
-        cfg.output_path, cfg.cosmo_grid, cfg.swiss_grid, cfg.nprocs
+        cfg.output_path,
+        cfg.swiss_grid.name,
+        cfg.cosmo_grid,
+        cfg.swiss_grid,
+        cfg.nprocs,
     )
 
     # Set names for longitude and latitude
@@ -118,4 +128,4 @@ if __name__ == "__main__":
         config_path = sys.argv[1]
     except IndexError:
         raise RuntimeError("Please supply a config file.")
-    main(cfg_name)
+    main(config_path)

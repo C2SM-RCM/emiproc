@@ -96,12 +96,13 @@ class Grid:
 class TNOGrid(Grid):
     """Contains the grid from the TNO emission inventory"""
 
-    def __init__(self, dataset_path):
+    def __init__(self, dataset_path, name="TNO"):
         """Open the netcdf-dataset and read the relevant grid information.
 
         Parameters
         ----------
         dataset_path : str
+        name : str, optional
         """
         self.dataset_path = dataset_path
 
@@ -116,7 +117,7 @@ class TNOGrid(Grid):
         self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
         self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
 
-        super().__init__("TNO", ccrs.PlateCarree())
+        super().__init__(name, ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -178,7 +179,7 @@ class EDGARGrid(Grid):
     dx: float
     dy: float
 
-    def __init__(self, xmin, xmax, ymin, ymax, dx, dy):
+    def __init__(self, xmin, xmax, ymin, ymax, dx, dy, name="EDGAR"):
         """Store the grid information.
 
         Parameters
@@ -195,6 +196,7 @@ class EDGARGrid(Grid):
             Longitudinal size of a gridcell in degrees
         dy : float
             Latitudinal size of a gridcell in degrees
+        name : str, optional
         """
         self.xmin = xmin
         self.xmax = xmax
@@ -206,7 +208,7 @@ class EDGARGrid(Grid):
         self.lon_vals = np.arange(self.xmin, self.xmax, self.dx)
         self.lat_vals = np.arange(self.ymin, self.ymax, self.dy)
 
-        super().__init__("EDGAR", ccrs.PlateCarree())
+        super().__init__(name, ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -263,7 +265,7 @@ class VPRMGrid(Grid):
     in the grid-projection (and likely have to be transformed to be usable).
     """
 
-    def __init__(self, dataset_path, dx, dy):
+    def __init__(self, dataset_path, dx, dy, name):
         """Store the grid information.
 
         Parameters
@@ -274,6 +276,7 @@ class VPRMGrid(Grid):
             Longitudinal size of a gridcell in meters
         dy : float
             Latitudinal size of a gridcell in meters
+        name : str, optional
         """
         self.dx = dx
         self.dy = dy
@@ -301,7 +304,7 @@ class VPRMGrid(Grid):
             ccrs.PlateCarree(), proj_lon[:, 0], proj_lat[:, 0]
         )[:, 1]
 
-        super().__init__("VPRM", projection)
+        super().__init__(name, projection)
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
