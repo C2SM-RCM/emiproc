@@ -42,16 +42,20 @@ def load_cfg(cfg_path):
     return cfg
 
 
-def prepare_output_file(cosmo_grid, dataset):
+def prepare_output_file(cosmo_grid, metadata, dataset):
     """Add lat & lon dimensions and variables to the dataset, handle rotated pole
 
     Creates & writes dimensions and variables for longitude and latitude.
     Handles the rotated pole.
+    Adds the supplied metadata attributes.
 
     Parameters
     ----------
     cosmo_grid : COSMOGrid
         Contains information about the cosmo grid
+    metadata : dict(str : str)
+        Containing global file attributes. Used as argument to
+        netCDF4.Dataset.setncatts.
     dataset : netCDF4.Dataset
         Writable (empty) netCDF Dataset
     """
@@ -85,6 +89,8 @@ def prepare_output_file(cosmo_grid, dataset):
     var_lat.units = "degrees_north"
     var_lat.standard_name = "latitude"
     var_lat[:] = cosmo_grid.lat_range()
+
+    dataset.setncatts(metadata)
 
 
 def add_country_mask(country_mask, dataset):
@@ -144,9 +150,16 @@ def get_country_mask(output_path, cosmo_grid, resolution, nprocs):
         compute_mask = True
 
     if compute_mask:
+        nc_metadata = {
+            'DESCRIPTION':  'Country codes',
+            'DATAORIGIN':   'natural earth',
+            'CREATOR':      'OAE preprocessing script',
+            'AFFILIATION':  'Empa Duebendorf, Switzerland',
+            'DATE CREATED': time.ctime(time.time()),
+        }
         country_mask = compute_country_mask(cosmo_grid, resolution, nprocs)
         with nc.Dataset(cmask_path, "w") as dataset:
-            prepare_output_file(cosmo_grid, dataset)
+            prepare_output_file(cosmo_grid, nc_metadata, dataset)
             add_country_mask(country_mask, dataset)
     else:
         # Transpose country mask when reading in

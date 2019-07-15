@@ -1,3 +1,5 @@
+import time
+
 from grids import COSMOGrid, TNOGrid
 
 # TNO inventory
@@ -53,3 +55,12 @@ shpfile_resolution = "110m"
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
+
+nc_metadata = {
+    'DESCRIPTION':  'Gridded annual emissions',
+    'DATAORIGIN':   'TNO',
+    'CREATOR':      'Jean-Matthieu Haussaire',
+    'EMAIL':        'jean-matthieu.haussaire@empa.ch',
+    'AFFILIATION':  'Empa Duebendorf, Switzerland',
+    'DATE CREATED': time.ctime(time.time()),
+}

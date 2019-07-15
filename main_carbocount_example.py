@@ -59,7 +59,7 @@ def main(cfg_path):
         cfg.output_path, f"emis_{cfg.year}_{cfg.gridname}.nc"
     )
     with Dataset(output_path, "w") as out:
-        util.prepare_output_file(cfg.cosmo_grid, out)
+        util.prepare_output_file(cfg.cosmo_grid, cfg.nc_metadata, out)
         util.add_country_mask(country_mask, out)
 
         # Swiss inventory specific
