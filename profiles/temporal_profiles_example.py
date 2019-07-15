@@ -87,6 +87,15 @@ moy_input = "CHE_input/timeprofiles-month-in-year_GNFR.csv"
 # Output path
 output = "./example_output/"
 
+nc_metadata = {
+    "DESCRIPTION": "Temporal profiles for emissions",
+    "DATAORIGIN": "TNO time profiles",
+    "CREATOR": "Jean-Matthieu Haussaire",
+    "EMAIL": "jean-matthieu.haussaire@empa.ch",
+    "AFFILIATION": "Empa Duebendorf, Switzerland",
+    "DATE CREATED": time.ctime(time.time()),
+}
+
 # Constants
 N_HOUR_DAY = 24
 N_DAY_WEEK = 7
@@ -232,7 +241,7 @@ def read_temporal_profile(path):
     return cats, np.array(data)
 
 
-def create_netcdf(path, countries):
+def create_netcdf(path, countries, metadata):
     """\
     Create a netcdf file containing the list of countries and the dimensions.
 
@@ -242,6 +251,9 @@ def create_netcdf(path, countries):
         Path to the output netcdf file
     countries: List(int)
         List of countries
+    metadata : dict(str : str)
+        Containing global file attributes. Used as argument to
+        netCDF4.Dataset.setncatts.
     """
     for (profile, size) in zip(
         ["hourofday", "dayofweek", "monthofyear", "hourofyear"],
@@ -252,16 +264,7 @@ def create_netcdf(path, countries):
         with netCDF4.Dataset(filename, "w") as nc:
 
             # global attributes (add input data)
-            nc.setncatts(
-                {
-                    "DESCRIPTION": "Temporal profiles for emissions",
-                    "DATAORIGIN": "TNO time profiles",
-                    "CREATOR": "Jean-Matthieu Haussaire",
-                    "EMAIL": "jean-matthieu.haussaire@empa.ch",
-                    "AFFILIATION": "Empa Duebendorf, Switzerland",
-                    "DATE CREATED": time.ctime(time.time()),
-                }
-            )
+            nc.setncatts(metadata)
 
             # create dimensions
             nc.createDimension(profile, size=size)
@@ -322,7 +325,7 @@ def main(path):
 
     country_tz = get_country_tz(countries)
 
-    create_netcdf(path, countries)
+    create_netcdf(path, countries, nc_metadata)
 
     cats, daily = read_temporal_profile(hod_input)
     cats, weekly = read_temporal_profile(dow_input)
