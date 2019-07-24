@@ -3,6 +3,19 @@
 Preprocessing of the emissions for the online emission module of cosmo.
 Produces gridded annual emissions as well as temporal and vertical profiles.
 
+## Installation
+To use the code, just download or clone the repository. The code does not need to be
+installed, but it has the following requirements on third-party packages:
+
+* Python (>= 3.6)
+* cartopy
+* netCDF4
+* numpy
+* shapely
+
+Please note emission inventories are not included in the repository, but have to
+be obtained separately.
+
 ## Quickstart
 
 1. Take one of the configuration files and adjust it to your case.
