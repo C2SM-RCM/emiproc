@@ -4,8 +4,12 @@ Preprocessing of the emissions for the online emission module of cosmo.
 Produces gridded annual emissions as well as temporal and vertical profiles.
 
 ## Installation
-To use the code, just download or clone the repository. The code does not need to be
-installed, but it has the following requirements on third-party packages:
+To use the code, just download or clone the repository. The package can be installed with
+```
+    $ python setup.py install
+```
+
+The following requirements on third-party packages:
 
 * Python (>= 3.6)
 * cartopy
@@ -18,17 +22,17 @@ be obtained separately.
 
 ## Quickstart
 
-1. Take one of the configuration files and adjust it to your case.
+1. Take one of the configuration files in the cases folder and adjust it to your case.
 
 2. Generate the emission files:
 ```
-    $ python main_{tno|ch}_example.py config_{tno|ch}.py
+    $ python -m epro grid --case config_{tno|ch}
 ```
 
 3. Generate the profiles:
 ```
-    $ python profiles/temporal_profiles_example.py
-    $ python profiles/vertical_profiles_example.py
+    $ python -m epro tp  # for temporal profiles
+    $ python -m epro vp  # for vertical profiles
 ```
 
 ## Gridded annual emissions

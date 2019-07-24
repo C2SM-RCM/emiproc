@@ -1,11 +1,12 @@
-from grids import COSMOGrid, TNOGrid
+
+from epro.grids import COSMOGrid, TNOGrid
 
 inv_1 = './testdata/oae_paper/online/tno.nc'
 inv_name_1 = 'TNO'
 inv_2 = './testdata/oae_paper/online/emis_2018_carbocount_CO2_FLEXPART_main.nc'
 inv_name_2 = 'Carbocount'
 
-inv_out = './testdata/oae_paper/online/All_emissions.nc'
+inv_out = './All_emissions.nc'
 
 
 # COSMO domain

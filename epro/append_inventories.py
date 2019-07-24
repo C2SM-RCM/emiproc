@@ -1,14 +1,15 @@
+
 from netCDF4 import Dataset
-import utilities as util
 import sys
 
+from . import utilities as util
 
-def main(cfg_path):
+
+def main(cfg):
     """
     This script takes two processed inventories 
     and copies all of their variables into a new one
     """
-    cfg = util.load_cfg(cfg_path)
 
     with Dataset(cfg.inv_out,'w') as outf:
         util.prepare_output_file(cfg.cosmo_grid, outf)

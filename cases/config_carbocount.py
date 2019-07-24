@@ -1,6 +1,9 @@
 import time
 
-from grids import COSMOGrid, SwissGrid
+from epro.grids import COSMOGrid, SwissGrid
+
+
+inventory = 'carbocount'
 
 # for Swiss inventory, unit m, x is easterly, y is northly
 input_path = "/input/CH_EMISSIONS/CarboCountCO2/einzelgrids/"
@@ -71,7 +74,7 @@ mapping = {
 
 year = 2018
 
-output_path = "./testdata/oae_paper/online/"
+output_path = "."
 
 # COSMO domain
 cosmo_grid = COSMOGrid(

@@ -6,14 +6,12 @@ import numpy as np
 
 from netCDF4 import Dataset
 
-import utilities as util
+from . import utilities as util
 
 
-def main(cfg_path):
+def main(cfg):
     """ The main script for processing TNO inventory.
     Takes a configuration file path as input"""
-
-    cfg = util.load_cfg(cfg_path)
 
     os.makedirs(cfg.output_path, exist_ok=True)
 

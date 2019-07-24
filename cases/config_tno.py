@@ -1,8 +1,10 @@
 import time
 
-from grids import COSMOGrid, TNOGrid
+from epro.grids import COSMOGrid, TNOGrid
 
 # TNO inventory
+inventory = 'TNO'
+
 tnofile = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
 tno_grid = TNOGrid(tnofile)
 
@@ -48,10 +50,10 @@ if offline:
 species = ["co2_ff","co2_bf"]
 output_cat = tno_cat
 
-output_path = "./testdata/oae_paper/online/"
+output_path = "."
 output_name = "tno.nc"
 
-shpfile_resolution = "10m"
+shpfile_resolution = "110m"
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
