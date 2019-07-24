@@ -6,11 +6,7 @@ import numpy as np
 from netCDF4 import Dataset
 from multiprocessing import Pool
 
-
-# ATM: rlat, rlon determined by dimensions in emi_file
-#      levels determined by dimensions in ver_file
-#      Would be nice if a subset could be specified by slicing
-
+from catlist import catlist_prelim,tplist_prelim,vplist_prelim
 
 def daterange(start_date, end_date):
     """Yield a consequitve dates from the range [start_date, end_date).
@@ -124,30 +120,22 @@ class CountryToGridTranslator:
         return extract_to_grid(self.grid_to_index, x)
 
 
-def write_metadata(outfile, org_file, emi_file, ver_file, variables):
+def write_metadata(outfile, emi_file, ver_file, variables):
     """Write the metadata of the outfile.
 
     Determine rlat, rlon from emi_file, levels from ver_file.
 
     Create "time", "rlon", "rlat", "bnds", "level" dimensions.
 
-    Create "time", "rotated_pole", "level", "level_bnds" variables from
-    org_file.
-
     Create "rlon", "rlat" variables from emi_file.
 
     Create an emtpy variable with dimensions ("time", "level", "rlat", "rlon")
     for element of varaibles.
 
-    Copy "level" & "level_bnds" values from ver_file "time" values from
-    org_file.
-
     Parameters
     ----------
     outfile : netCDF4.Dataset
         Opened with 'w'-option. Where the data is written to.
-    org_file : netCDF4.Dataset
-        Containing variables "time", "rotated_pole", "level", "level_bnds"
     emi_file : netCDF4.Dataset
         Containing dimensions "rlon", "rlat"
     ver_file : netCDF4.Dataset
@@ -165,11 +153,44 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
     outfile.createDimension("bnds", 2)
     outfile.createDimension("level", level)
 
+    time = outfile.createVariable(
+        varname="time",
+        datatype="double",
+        dimensions="time",
+        )
+    time.units = "seconds since 2015-01-01 00:00"
+    time.calendar = "proleptic_gregorian"
+
+    lvl = outfile.createVariable(
+        varname="level",
+        datatype="float",
+        dimensions="level",
+        )
+    lvl.axis = "Z"
+    lvl.units = "meter"
+    lvl.standard_name = "height"
+
+
+    lvl_bnd = outfile.createVariable(
+        varname="level_bnds",
+        datatype="float",
+        dimensions=("bnds","level"),
+    )    
+    lvl_bnd.units = "meters"
+
+    rpol = outfile.createVariable(
+        varname="rotated_pole",
+        datatype="c",
+        dimensions=("time", "level", "rlat", "rlon"),
+        )
+    rpol.grid_north_pole_latitude = 43
+    rpol.grid_north_pole_longitude = -170
+    rpol.north_pole_grid_longitude = 0
+    rpol.grid_mapping_name = "rotated_latitude_longitude" ;
+
+
+    
     var_srcfile = [
-        ("time", org_file),
-        ("rotated_pole", org_file),
-        ("level", org_file),
-        ("level_bnds", org_file),
         ("rlon", emi_file),
         ("rlat", emi_file),
     ]
@@ -182,7 +203,7 @@ def write_metadata(outfile, org_file, emi_file, ver_file, variables):
         )
         outfile[varname].setncatts(src_file[varname].__dict__)
 
-    outfile["time"][:] = org_file["time"][:]
+    outfile["time"][:] = 0
     outfile["level"][:] = ver_file["layer_mid"][:]
     outfile["level_bnds"][:] = np.array(
         [ver_file["layer_bot"][:], ver_file["layer_top"][:]]
@@ -301,8 +322,6 @@ def process_day(date, path_template, lists, matrices, datasets):
         A dict containing paths to netcdf-files with information about the
         metadata of the produced emissions-file, most importantly rlat, rlon,
         and levels. See the detailed usage of these datasets in write_metadata
-        -   'org_path' : str
-                Dataset containing organisational values, such as time.
         -   'emi_path' : str
                 Dataset containing grid information, such as rlat, rlon.
         -   'ver_path' : str
@@ -315,9 +334,8 @@ def process_day(date, path_template, lists, matrices, datasets):
     """
     print(date.strftime("Processing %x..."))
 
-    with Dataset(datasets["emi_path"]) as emi, Dataset(
-        datasets["org_path"]
-    ) as org, Dataset(datasets["ver_path"]) as ver:
+    with Dataset(datasets["emi_path"]) as emi, \
+         Dataset(datasets["ver_path"]) as ver:
         rlat = emi.dimensions["rlat"].size
         rlon = emi.dimensions["rlon"].size
         levels = ver.dimensions["level"].size
@@ -328,7 +346,6 @@ def process_day(date, path_template, lists, matrices, datasets):
             with Dataset(of_path, "w") as of:
                 write_metadata(
                     outfile=of,
-                    org_file=org,
                     emi_file=emi,
                     ver_file=ver,
                     variables=lists["variables"],
@@ -367,7 +384,6 @@ def generate_arguments(
     start_date,
     end_date,
     emi_path,
-    org_path,
     ver_path,
     hod_path,
     dow_path,
@@ -398,8 +414,6 @@ def generate_arguments(
         Emission files up to but not including this date are processed.
     emi_path : str
         Path to dataset containing the yearly emission average.
-    org_path : str
-        Path to dataset containing organisational parameters, namely time.
     ver_path : str
         Path to dataset containing vertical profiles per country.
     hod_path : str
@@ -492,7 +506,6 @@ def generate_arguments(
         "vps": vplist,
     }
     datasets = {
-        "org_path": org_path,
         "emi_path": emi_path,
         "ver_path": ver_path,
     }
@@ -513,207 +526,12 @@ def generate_arguments(
 
 def create_lists():
     """Create var_list, catlist, tplist, vplist"""
-    tracers = ["CO2", "CO", "CH4"]
-    categories = ["A", "B", "C", "F", "O", "ALL"]
+    tracers = ["CO2"]
+    categories = ["ALL"]
     var_list = []
     for (s, nfr) in [(s, nfr) for s in tracers for nfr in categories]:
         var_list.append(s + "_" + nfr + "_E")
 
-    catlist_prelim = [
-        ["CO2_A_AREA", "CO2_A_POINT"],  # for CO2_A_E
-        ["CO2_B_AREA", "CO2_B_POINT"],  # for CO2_B_E
-        ["CO2_C_AREA"],  # for CO2_C_E
-        ["CO2_F_AREA"],  # for CO2_F_E
-        [
-            "CO2_D_AREA",
-            "CO2_D_POINT",
-            "CO2_E_AREA",
-            "CO2_G_AREA",
-            "CO2_H_AREA",
-            "CO2_H_POINT",
-            "CO2_I_AREA",
-            "CO2_J_AREA",
-            "CO2_J_POINT",
-            "CO2_K_AREA",
-            "CO2_L_AREA",
-        ],  # for CO2_O_E
-        [
-            "CO2_A_AREA",
-            "CO2_A_POINT",
-            "CO2_B_AREA",
-            "CO2_B_POINT",
-            "CO2_C_AREA",
-            "CO2_F_AREA",
-            "CO2_D_AREA",
-            "CO2_D_POINT",
-            "CO2_E_AREA",
-            "CO2_G_AREA",
-            "CO2_H_AREA",
-            "CO2_H_POINT",
-            "CO2_I_AREA",
-            "CO2_J_AREA",
-            "CO2_J_POINT",
-            "CO2_K_AREA",
-            "CO2_L_AREA",
-        ],  # for CO2_ALL_E
-        ["CO_A_AREA", "CO_A_POINT"],  # for CO_A_E
-        ["CO_B_AREA", "CO_B_POINT"],  # for CO_B_E
-        ["CO_C_AREA"],  # for CO_C_E
-        ["CO_F_AREA"],  # for CO_F_E
-        [
-            "CO_D_AREA",
-            "CO_D_POINT",
-            "CO_E_AREA",
-            "CO_G_AREA",
-            "CO_H_AREA",
-            "CO_H_POINT",
-            "CO_I_AREA",
-            "CO_J_AREA",
-            "CO_J_POINT",
-            "CO_K_AREA",
-            "CO_L_AREA",
-        ],  # for CO_O_E
-        [
-            "CO_A_AREA",
-            "CO_A_POINT",
-            "CO_B_AREA",
-            "CO_B_POINT",
-            "CO_C_AREA",
-            "CO_F_AREA",
-            "CO_D_AREA",
-            "CO_D_POINT",
-            "CO_E_AREA",
-            "CO_G_AREA",
-            "CO_H_AREA",
-            "CO_H_POINT",
-            "CO_I_AREA",
-            "CO_J_AREA",
-            "CO_J_POINT",
-            "CO_K_AREA",
-            "CO_L_AREA",
-        ],  # for CO_ALL_E
-        ["CH4_A_AREA", "CH4_A_POINT"],  # for CH4_A_E
-        ["CH4_B_AREA", "CH4_B_POINT"],  # for CH4_B_E
-        ["CH4_C_AREA"],  # for CH4_C_E
-        ["CH4_F_AREA"],  # for CH4_F_E
-        [
-            "CH4_D_AREA",
-            "CH4_D_POINT",
-            "CH4_E_AREA",
-            "CH4_G_AREA",
-            "CH4_H_AREA",
-            "CH4_H_POINT",
-            "CH4_I_AREA",
-            "CH4_J_AREA",
-            "CH4_J_POINT",
-            "CO2_K_AREA",
-            "CO2_L_AREA",
-        ],  # for CH4_O_E
-        [
-            "CH4_A_AREA",
-            "CH4_A_POINT",
-            "CH4_B_AREA",
-            "CH4_B_POINT",
-            "CH4_C_AREA",
-            "CH4_F_AREA",
-            "CH4_D_AREA",
-            "CH4_D_POINT",
-            "CH4_E_AREA",
-            "CH4_G_AREA",
-            "CH4_H_AREA",
-            "CH4_H_POINT",
-            "CH4_I_AREA",
-            "CH4_J_AREA",
-            "CH4_J_POINT",
-            "CO2_K_AREA",
-            "CO2_L_AREA",
-        ],  # for CH4_ALL_E
-    ]
-
-    tplist_prelim = [
-        ["GNFR_A", "GNFR_A"],  # for s_A_E
-        ["GNFR_B", "GNFR_B"],  # for s_B_E
-        ["GNFR_C"],  # for s_C_E
-        ["GNFR_F"],  # for s_F_E
-        [
-            "GNFR_D",
-            "GNFR_D",
-            "GNFR_E",
-            "GNFR_G",
-            "GNFR_H",
-            "GNFR_H",
-            "GNFR_I",
-            "GNFR_J",
-            "GNFR_J",
-            "GNFR_K",
-            "GNFR_L",
-        ],  # for s_O_E
-        [
-            "GNFR_A",
-            "GNFR_A",
-            "GNFR_B",
-            "GNFR_B",
-            "GNFR_C",
-            "GNFR_F",
-            "GNFR_D",
-            "GNFR_D",
-            "GNFR_E",
-            "GNFR_G",
-            "GNFR_H",
-            "GNFR_H",
-            "GNFR_I",
-            "GNFR_J",
-            "GNFR_J",
-            "GNFR_K",
-            "GNFR_L",
-        ],  # for s_ALL_E
-    ]
-
-    """The vertical profile is only applied to area sources.
-    All area sources have emissions at the floor level.
-    As such, their profiles are of the shape [1,0,0,...], like GNFR_L"""
-
-    vplist_prelim = [
-        ["GNFR_L", "GNFR_A"],  # for s_A_E
-        ["GNFR_L", "GNFR_B"],  # for s_B_E
-        ["GNFR_L"],  # for s_C_E
-        ["GNFR_L"],  # for s_F_E
-        [
-            "GNFR_L",
-            "GNFR_D",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_H",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_J",
-            "GNFR_L",
-            "GNFR_L",
-        ],  # for s_O_E
-        [
-            "GNFR_L",
-            "GNFR_A",
-            "GNFR_L",
-            "GNFR_B",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_D",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_H",
-            "GNFR_L",
-            "GNFR_L",
-            "GNFR_J",
-            "GNFR_L",
-            "GNFR_L",
-        ],  # for s_ALL_E
-    ]
-
-    tplist_prelim *= 3
-    vplist_prelim *= 3  # tplist_prelim
 
     # Make sure catlist, tplist, vplist have the same shape
     catlist, tplist, vplist = [], [], []
@@ -736,7 +554,6 @@ def create_lists():
 
 def main(
     path_emi,
-    path_org,
     output_path,
     output_name,
     prof_path,
@@ -752,7 +569,6 @@ def main(
         start_date=start_date,
         end_date=end_date,
         emi_path=path_emi,
-        org_path=path_org,
         ver_path=prof_path + "vertical_profiles.nc",
         hod_path=prof_path + "hourofday.nc",
         dow_path=prof_path + "dayofweek.nc",
@@ -780,23 +596,19 @@ def main(
 
 
 if __name__ == "__main__":
-    # CHE
     path_emi = (
-        "../testdata/CHE_TNO_offline/emis_2015_Europe.nc"
-    )  # "./../emis_2015_Europe.nc"
-    path_org = (
-        "../testdata/hourly_emi_brd/CO2_CO_NOX_Berlin-coarse_2015010110.nc"
-    )
-    output_path = "./output_CHE/"
-    output_name = "Europe_CHE_"
-    prof_path = "./input_profiles_CHE/"
+        "../testdata/oae_paper/offline/All_emissions.nc"
+    ) 
 
-    start_date = datetime.date(2015, 1, 1)
-    end_date = datetime.date(2015, 1, 9)  # included
+    output_path = "./output_example/"
+    output_name = "Oae_paper_"
+    prof_path = "../profiles/example_output/"
+
+    start_date = datetime.date(2019, 1, 1)
+    end_date = datetime.date(2019, 1, 9)  # included
 
     main(
         path_emi=path_emi,
-        path_org=path_org,
         output_path=output_path,
         output_name=output_name,
         prof_path=prof_path,
