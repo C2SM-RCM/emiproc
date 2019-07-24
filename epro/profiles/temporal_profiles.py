@@ -67,7 +67,7 @@ import numpy as np
 import netCDF4
 import pytz
 from datetime import datetime
-from country_code import country_codes as cc
+from .country_code import country_codes as cc
 
 
 """Weekly and annual profiles are availble for these tracers"""

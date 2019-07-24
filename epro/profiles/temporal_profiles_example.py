@@ -67,7 +67,8 @@ import os
 import time
 import numpy as np
 import netCDF4
-from country_code import country_codes as cc
+
+from .country_code import country_codes as cc
 
 # Parameters
 only_ones = False  # Sets all the profiles to a uniform 1
@@ -176,7 +177,7 @@ def validate_tz(filename, all_tz):
                 print(c, "is missing")
 
 
-def get_country_tz(countries):
+def get_country_tz(countries, data_path):
     """
     Get the time zone of every country
 
@@ -190,7 +191,7 @@ def get_country_tz(countries):
     Dictionary linking country names to time zone
     """
 
-    tz = load_country_tz(country_tz_file, winter)
+    tz = load_country_tz(os.path.join(data_path, country_tz_file), winter)
     all_tz = dict()
     for country in countries:
         if country == 0:  # Seas
@@ -312,7 +313,7 @@ def write_single_variable(path, profile, values, cat):
         nc_var[:] = values
 
 
-def main(path):
+def main(path, data_path):
     """ The main script for producing profiles from the csv files from TNO.
     Takes an output path as a parameter"""
 
@@ -323,13 +324,13 @@ def main(path):
     )
     n_countries = len(countries)
 
-    country_tz = get_country_tz(countries)
+    country_tz = get_country_tz(countries, data_path)
 
     create_netcdf(path, countries, nc_metadata)
 
-    cats, daily = read_temporal_profile(hod_input)
-    cats, weekly = read_temporal_profile(dow_input)
-    cats, monthly = read_temporal_profile(moy_input)
+    cats, daily = read_temporal_profile(os.path.join(data_path, hod_input))
+    cats, weekly = read_temporal_profile(os.path.join(data_path, dow_input))
+    cats, monthly = read_temporal_profile(os.path.join(data_path, moy_input))
 
     # day of week and month of year
     hod = np.ones((N_HOUR_DAY, n_countries))
