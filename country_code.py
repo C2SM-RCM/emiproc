@@ -7,6 +7,7 @@ country_codes = {
     "DNK": 6,
     "FIN": 7,
     "FRA": 8,
+    "SMR": 8, #HJM
     "FGD": 9,
     "FFR": 10,
     "GRC": 11,
@@ -108,6 +109,7 @@ country_codes = {
     "MT": 57,  # Malta
     "ASI": 58,  # Remaining Asian areas
     "LI": 59,  # Liechtenstein
+    "LIE": 59,  # Liechtenstein
     "DE": 60,  # Germany
     "RU": 61,  # Russian Federation in the former official EMEP domain
     "MC": 62,  # Monaco

@@ -116,5 +116,8 @@ def main(cfg_path):
 
 
 if __name__ == "__main__":
-    cfg_name = sys.argv[1]
-    main(cfg_name)
+    try:
+        config_path = sys.argv[1]
+    except IndexError:
+        raise RuntimeError("Please supply a config file.")
+    main(config_path)

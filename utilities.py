@@ -442,7 +442,7 @@ def get_gridmapping(output_path, cosmo_grid, inv_grid, nprocs):
     np.array(shape=(inv_grid.shape), dtype=list(tuple(int, int, float)))
         See the docstring of compute_map_from_inventory_to_cosmo()
     """
-    mapping_path = os.path.join(output_path, "mapping.npy")
+    mapping_path = os.path.join(output_path, "mapping_"+inv_grid.name+'2'+cosmo_grid.name+".npy")
     if os.path.isfile(mapping_path):
         print(
             "Would you like to overwite the "

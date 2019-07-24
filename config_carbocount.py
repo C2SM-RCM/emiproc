@@ -69,18 +69,18 @@ mapping = {
 
 year = 2018
 
-output_path = "./testdata/flexpart"
+output_path = "./testdata/oae_paper/online/"
 
 # COSMO domain
 cosmo_grid = COSMOGrid(
-    nx=207,
-    ny=179,
-    dx=0.16,
-    dy=0.12,
-    xmin=-11.92,
-    ymin=36.06,
-    pollon=180.0,
-    pollat=90.0,
+    nx=900,
+    ny=600,
+    dx=0.01,
+    dy=0.01,
+    xmin=-4.92,
+    ymin=-3.18,
+    pollon=-170.0,
+    pollat=43.0,
 )
 
 offline = False
@@ -90,5 +90,5 @@ if offline:
     cosmo_grid.nx += 4
     cosmo_grid.ny += 4
 
-shpfile_resolution = "110m"
+shpfile_resolution = "10m"
 nprocs = 18
