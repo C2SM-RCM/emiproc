@@ -82,10 +82,21 @@ def read_profiles(filename, nlevel=16):
     profiles = []
 
     with open(filename) as profile_file:
-        levels = [int(i) for i in profile_file.readline().split("\t")[1:]]
 
         all_sevens = []
+
         for line in profile_file:
+
+            # skip comments
+            if line.startswith('#'):
+                continue
+
+            # read levels
+            if levels == []:
+                levels = [int(i) for i in line.split("\t")[1:]]
+                continue
+
+            # read profiles
             values = line.split()
             cat = values[0]
             profile = values[1:]
