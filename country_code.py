@@ -7,6 +7,7 @@ country_codes = {
     "DNK": 6,
     "FIN": 7,
     "FRA": 8,
+    "SMR": 8, #HJM
     "FGD": 9,
     "FFR": 10,
     "GRC": 11,
