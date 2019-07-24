@@ -17,7 +17,7 @@ from importlib import import_module
 from multiprocessing import Pool
 from shapely.geometry import Polygon
 
-from country_code import country_codes
+from .country_code import country_codes
 
 
 # constants to convert from yr -> sec

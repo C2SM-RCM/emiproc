@@ -1,3 +1,7 @@
+# Vertical profiles for point and area sources of different SNAP categories
+# Reference: Brunner et al. (2019); DOI: https://doi.org/10.5194/acp-19-4541-2019
+#
+upperBounds     4      30      60      90     125     170     310     470     710     990
 1_point      0.00    0.00    0.00    0.00    0.00    0.00    0.08    0.46    0.29    0.17
 2_point      0.05    0.25    0.30    0.20    0.15    0.05    0.00    0.00    0.00    0.00
 3_point      0.00    0.04    0.08    0.12    0.16    0.20    0.20    0.15    0.05    0.00

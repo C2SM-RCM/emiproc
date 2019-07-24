@@ -1,3 +1,11 @@
+# Vertical profiles used in CHE project (Source: TNO)
+#
+# Derived from Table 3 in:
+#   J. Bieser, A. Aulinger, V. Matthias, M. Quante, H.A.C. Denier van der Gon:
+#   Vertical emission profiles for Europe based on plume rise calculations,
+#   Environmental Pollution, Volume 159, Issue 10, 2011, Pages 2935-2946, 
+#   doi:10.1016/j.envpol.2011.04.030
+#
 upperBounds	20	92	184	324	522	781	1106
 A		0.00	0.00	0.0025	0.51	0.453	0.0325	0.002
 B		0.06	0.16	0.75	0.03	0.00	0.00	0.00
