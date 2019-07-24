@@ -132,4 +132,4 @@ def main(filename):
 
 
 if __name__ == "__main__":
-    main("example_output/vertical_profiles.nc")
+    main("output/vertical_profiles.nc")
