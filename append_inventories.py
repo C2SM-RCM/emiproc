@@ -11,7 +11,7 @@ def main(cfg_path):
     cfg = util.load_cfg(cfg_path)
 
     with Dataset(cfg.inv_out,'w') as outf:
-        util.prepare_output_file(cfg.cosmo_grid, outf)
+        util.prepare_output_file(cfg.cosmo_grid, cfg.nc_metadata, outf)
 
         for inv,name in zip([cfg.inv_1,cfg.inv_2],
                             [cfg.inv_name_1,cfg.inv_name_2]):
