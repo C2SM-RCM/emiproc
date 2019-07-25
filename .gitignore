@@ -4,4 +4,4 @@
 *~
 *output*
 testdata/
-hourly_emissions/*.nc
+*.nc
