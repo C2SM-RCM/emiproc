@@ -27,3 +27,12 @@ if offline:
     cosmo_grid.ymin -= 2 * cosmo_grid.dy
     cosmo_grid.nx += 4
     cosmo_grid.ny += 4
+
+nc_metadata = {
+    "DESCRIPTION": "Gridded annual emissions",
+    "DATAORIGIN": "TNO and carbocount-CH",
+    "CREATOR": "Jean-Matthieu Haussaire",
+    "EMAIL": "jean-matthieu.haussaire@empa.ch",
+    "AFFILIATION": "Empa Duebendorf, Switzerland",
+    "DATE CREATED": time.ctime(time.time()),
+}

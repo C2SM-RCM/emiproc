@@ -4,7 +4,6 @@ from epro.grids import COSMOGrid, TNOGrid
 
 # TNO inventory
 inventory = 'TNO'
-
 tnofile = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
 tno_grid = TNOGrid(tnofile)
 
@@ -47,13 +46,13 @@ if offline:
     cosmo_grid.ny += 4
 
 
-species = ["co2_ff","co2_bf"]
+species = ["co2"]
 output_cat = tno_cat
-
+combine_area_point = True
 output_path = "."
 output_name = "tno.nc"
 
-shpfile_resolution = "110m"
+shpfile_resolution = "10m"
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
