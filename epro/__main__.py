@@ -9,8 +9,6 @@ from epro.profiles import temporal_profiles_example as tp
 from epro.profiles import vertical_profiles as vp
 from epro import utilities as util
 
-from epro import main_carbocount_example
-from epro import main_tno_example
 from epro import append_inventories
 
 # TODO/FIXME
