@@ -91,10 +91,21 @@ def read_profiles(filename, nlevel=16):
     profiles = []
 
     with open(filename) as profile_file:
-        levels = [int(i) for i in profile_file.readline().split("\t")[1:]]
 
         all_sevens = []
+
         for line in profile_file:
+
+            # skip comments
+            if line.startswith('#'):
+                continue
+
+            # read levels
+            if levels == []:
+                levels = [int(i) for i in line.split("\t")[1:]]
+                continue
+
+            # read profiles
             values = line.split()
             cat = values[0]
             profile = values[1:]
@@ -113,12 +124,7 @@ def read_profiles(filename, nlevel=16):
     return categories, np.array(profiles, "f4"), levels
 
 
-def main(filename):
-    categories, profiles, levels = read_profiles(
-        "vert_profiles/vert_prof_che_gnfr.dat"
-    )
-    write_netcdf(filename, categories, "GNFR_", levels, profiles)
+def main(output_filename, profile_filename):
+    categories, profiles, levels = read_profiles(profile_filename)
+    write_netcdf(output_filename, categories, "GNFR_", levels, profiles)
 
-
-if __name__ == "__main__":
-    main("example_output/vertical_profiles.nc")

@@ -2,7 +2,7 @@ import os
 import sys
 
 import numpy as np
-import utilities as util
+from . import utilities as util
 
 from glob import glob
 from netCDF4 import Dataset
@@ -28,12 +28,9 @@ def read_emi_from_file(path):
     return np.fliplr(emi_grid.T)
 
 
-def main(cfg_path):
+def main(cfg):
     """ The main script for processing Swiss inventories.
     Takes a configuration file as input"""
-
-    # Load the configuration file
-    cfg = util.load_cfg(cfg_path)
 
     os.makedirs(cfg.output_path, exist_ok=True)
 
