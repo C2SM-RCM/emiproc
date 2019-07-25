@@ -10,8 +10,6 @@ from netCDF4 import Dataset
 
 from . import utilities as util
 
-from epro import main_carbocount_example
-from epro import main_tno_example
 from epro import append_inventories
 
 
