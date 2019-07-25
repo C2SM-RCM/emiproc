@@ -40,7 +40,7 @@ def main(cfg_path):
     # Load or compute the country mask
     country_mask = util.get_country_mask(
         cfg.output_path,
-        cfg.swiss_grid.name,
+        cfg.cosmo_grid.name,
         cfg.cosmo_grid,
         cfg.shpfile_resolution,
         cfg.nprocs,
