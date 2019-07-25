@@ -20,7 +20,7 @@ def main(cfg_path):
     # Load or compute the country mask
     country_mask = util.get_country_mask(
         cfg.output_path,
-        cfg.tno_grid.name,
+        cfg.cosmo_grid.name,
         cfg.cosmo_grid,
         cfg.shpfile_resolution,
         cfg.nprocs,
@@ -98,9 +98,12 @@ def main(cfg_path):
                     out_var_point = np.zeros(
                         (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
                     )
-
-                    var = tno[s.lower()][:]
-
+                    
+                    if s == 'co2':
+                        var = tno['co2_bf'][:]+tno['co2_ff'][:]
+                    else:
+                        var = tno[s.lower()][:]
+                        
                     start = time.time()
                     for (i, source) in enumerate(var):
                         if selection_cat_area[i]:
@@ -126,23 +129,36 @@ def main(cfg_path):
                     # convert unit from kg.year-1.cell-1 to kg.m-2.s-1
                     out_var_point *= cosmo_area.T / util.SEC_PER_YR
                     out_var_area *= cosmo_area.T / util.SEC_PER_YR
+                    out_var_tot = out_var_point + out_var_area
 
-                    out_var_name = f"{s}_{cat}_"
-                    for (t, sel, out_var) in zip(
-                        ["AREA", "POINT"],
-                        [selection_cat_area, selection_cat_point],
-                        [out_var_area, out_var_point],
-                    ):
-                        if sel.any():
-                            out.createVariable(
-                                out_var_name + t, float, (latname, lonname)
-                            )
-                            out[out_var_name + t].units = "kg m-2 s-1"
-                            if lonname == "rlon" and latname == "rlat":
-                                out[
-                                    out_var_name + t
-                                ].grid_mapping = "rotated_pole"
-                            out[out_var_name + t][:] = out_var
+                    if cfg.combine_area_point:
+                        out_var_name = f"{s}_{cat}"
+                        out.createVariable(
+                            out_var_name, float, (latname, lonname)
+                        )
+                        out[out_var_name].units = "kg m-2 s-1"
+                        if lonname == "rlon" and latname == "rlat":
+                            out[
+                                out_var_name
+                            ].grid_mapping = "rotated_pole"
+                        out[out_var_name][:] = out_var_tot
+                    else:
+                        out_var_name = f"{s}_{cat}_"
+                        for (t, sel, out_var) in zip(
+                            ["AREA", "POINT"],
+                            [selection_cat_area, selection_cat_point],
+                            [out_var_area, out_var_point],
+                        ):
+                            if sel.any():
+                                out.createVariable(
+                                    out_var_name + t, float, (latname, lonname)
+                                )
+                                out[out_var_name + t].units = "kg m-2 s-1"
+                                if lonname == "rlon" and latname == "rlat":
+                                    out[
+                                        out_var_name + t
+                                    ].grid_mapping = "rotated_pole"
+                                out[out_var_name + t][:] = out_var
 
 
 if __name__ == "__main__":

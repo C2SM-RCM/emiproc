@@ -45,8 +45,9 @@ if offline:
     cosmo_grid.ny += 4
 
 
-species = ["co2_ff","co2_bf"]
+species = ["co2"]
 output_cat = tno_cat
+combine_area_point = True
 
 output_path = "./testdata/oae_paper/online/"
 output_name = "tno.nc"
