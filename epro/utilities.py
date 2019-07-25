@@ -26,6 +26,28 @@ SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
 
+
+def read_emi_from_file(path):
+    """Read the emissions from a textfile at path.
+
+    Parameters
+    ----------
+    path : str
+
+    Returns
+    -------
+    np.array(shape=(self.nx, self.ny), dtype=float)
+        Emissions as read from file
+    """
+    no_data = -9999
+    emi_grid = np.loadtxt(path, skiprows=6)
+
+    emi_grid[emi_grid == no_data] = 0
+
+    return np.fliplr(emi_grid.T)
+
+
+
 def load_cfg(cfg_path):
     """Load config file"""
     # Remove a (possible) trailing file-extension from the config path

@@ -3,6 +3,8 @@
 import argparse
 import os
 
+import epro
+
 from epro.profiles import temporal_profiles_example as tp
 from epro.profiles import vertical_profiles as vp
 from epro import utilities as util
@@ -64,17 +66,19 @@ def main():
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
-        if cfg.inventory == 'TNO':
-            main_tno_example.main(cfg)
+        epro.main(cfg)
 
-        elif cfg.inventory == 'carbocount':
-            main_carbocount_example.main(cfg)
-
-        else:
-            raise NotImplementedError(
-                'Gridding for "%s" inventory not implemented.'
-                % cfg.inventory
-            )
+        #if cfg.inventory == 'TNO':
+        #    main_tno_example.main(cfg)
+        #
+        #elif cfg.inventory == 'swiss':
+        #    main_carbocount_example.main(cfg)
+        #
+        #else:
+        #    raise NotImplementedError(
+        #        'Gridding for "%s" inventory not implemented.'
+        #        % cfg.inventory
+        #    )
 
     elif args.task in ['merge']:
 
