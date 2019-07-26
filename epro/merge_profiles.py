@@ -4,7 +4,7 @@ import shutil
 from netCDF4 import Dataset
 import numpy as np
 
-from country_code import country_codes as cc
+from .country_code import country_codes as cc
 
 SHAPE = 24
 

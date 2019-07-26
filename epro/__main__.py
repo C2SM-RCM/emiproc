@@ -76,7 +76,7 @@ def main():
 
         merge_inventories(cfg.base_inv, cfg.nested_invs, cfg.output_path)
 
-    elif args.task in ['tp-merge']
+    elif args.task in ['tp-merge']:
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
@@ -92,7 +92,7 @@ def main():
         append_inventories.main(cfg)
 
 
-    elif args.task in ['vp']: # vertical profiles
+    elif args.task in ['vp']:
 
         profile_filename = os.path.join(DATA_PATH, 'vert_profiles',
                                         'vert_prof_che_gnfr.dat')

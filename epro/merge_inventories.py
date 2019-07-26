@@ -12,8 +12,8 @@ import numpy as np
 
 from netCDF4 import Dataset
 
-from country_code import country_codes
-from nc_operations import copy_dataset, VariableCreator
+from .country_code import country_codes
+from .nc_operations import copy_dataset, VariableCreator
 
 
 def merge_inventories(base_inv, nested_invs, output_path):
