@@ -146,12 +146,14 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                 )
 
                 var = tno[s][:]
+                lon_indices = tno['longitude_index'][:].data - 1
+                lat_indices = tno['latitude_index'][:].data - 1
 
                 start = time.time()
-                for (i, source) in enumerate(var):
+                for (i, source) in enumerate(var.data):
                     if selection_cat_area[i]:
-                        lon_ind = tno["longitude_index"][i] - 1
-                        lat_ind = tno["latitude_index"][i] - 1
+                        lon_ind = lon_indices[i]
+                        lat_ind = lat_indices[i]
                         for (x, y, r) in interpolation[lon_ind, lat_ind]:
                             out_var_area[y, x] += var[i] * r
                     if selection_cat_point[i]:
