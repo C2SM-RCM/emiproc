@@ -371,7 +371,6 @@ class SwissGrid(Grid):
         dy,
         xmin,
         ymin,
-        I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD=False,
     ):
         """Store the grid information.
 
@@ -404,16 +403,7 @@ class SwissGrid(Grid):
             EASTERLY distance of bottom left gridpoint in meters
         ymin : float
             NORTHLY distance of bottom left gridpoint in meters
-        I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD : bool
-            default: False
-            To make sure you are aware of the switch y->x, x->y, set this to
-            True.
         """
-        if not I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD:
-            raise RuntimeError(
-                "Please review your initialization of the SwissGrid"
-            )
-
         self.nx = nx
         self.ny = ny
         self.dx = dx
