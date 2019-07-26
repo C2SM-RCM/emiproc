@@ -1,16 +1,25 @@
+import os
 import time
 
 from epro.grids import COSMOGrid, TNOGrid
 
-# TNO inventory
+# inventory
 inventory = 'TNO'
 
-tnofile = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
-tno_grid = TNOGrid(tnofile)
+# model either "cosmo-art" or "cosmo-ghg" (affect the output units)
+model = 'cosmo-ghg'
 
-cat_kind = "NFR"
+# path to input inventory
+input_path = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
 
-tno_cat = [
+# input grid
+input_grid = TNOGrid(input_path)
+
+# input species
+species = ['co2_ff', 'co2_bf']
+
+# input categories
+categories = [
     "A",
     "B",
     "C",
@@ -26,6 +35,21 @@ tno_cat = [
     "K",
     "L",
 ]
+
+# mapping from input to output species (input is used for missing keys)
+in2out_species = {
+    'co2_ff': 'CO2',
+    'co2_bf': 'CO2'
+}
+
+# mapping from input to output species (input is used for missing keys)
+in2out_category = {}
+
+# output variables are written in the following format using species and
+# category after applying mapping as well as source_type (AREA or POINT) for
+# TNO inventories
+varname_format = '{species}_{category}' # not providing source_type will add up
+                                        # point and area sources
 
 # COSMO domain
 cosmo_grid = COSMOGrid(
@@ -46,18 +70,17 @@ if offline:
     cosmo_grid.nx += 4
     cosmo_grid.ny += 4
 
-
-species = ["co2_ff","co2_bf"]
-output_cat = tno_cat
-
+# output path and filename
 output_path = "."
 output_name = "tno.nc"
 
-shpfile_resolution = "110m"
+# resolution of shape file used for country mask
+shpfile_resolution = "110m" # TODO: set back to 10m
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
 
+# metadata added as global attributes to netCDF output file
 nc_metadata = {
     "DESCRIPTION": "Gridded annual emissions",
     "DATAORIGIN": "TNO",
