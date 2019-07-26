@@ -43,7 +43,7 @@ in2out_species = {
 in2out_category = {}
 
 
-# outout variables are written in the following format using species and
+# output variables are written in the following format using species and
 # category after applying the mapping
 varname_format = '{species}_{category}_{source_type}'
 
