@@ -4,6 +4,7 @@ import os
 import sys
 import time
 
+import netCDF4
 import numpy as np
 
 from netCDF4 import Dataset
@@ -13,23 +14,43 @@ from . import utilities as util
 from epro import append_inventories
 
 
-def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
-    # Swiss inventory specific
-    total_flux = {}
-    for var in cfg.species:
-        total_flux[var] = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+def get_out_varname(var, cat, cfg, **kw_format):
 
-    for cat in cfg.ch_cat:
+    varname_format = getattr(cfg, 'varname_format', '{species}_{category}')
+
+    var = cfg.in2out_species.get(var, var)
+    cat = cfg.in2out_category.get(cat, cat)
+
+    return varname_format.format(species=var, category=cat, **kw_format)
+
+
+def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
+    """
+    Process "Swiss National Emission Inventory" created by Meteotest Inc.
+    """
+    if cfg.add_total_emissions:
+        total_flux = {}
         for var in cfg.species:
-            constfile = os.path.join(
-                cfg.input_path, "".join([cat.lower(), "10_", "*_kg.txt"])
-            )
-            out_var_name = var + "_" + cfg.mapping[cat]
+            var_name = cfg.in2out_species.get(var, var)
+            total_flux[var_name] = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+
+    for cat in cfg.categories:
+        for var in cfg.species:
+            print('Species', var, 'Category', cat)
+
+            if cfg.inventory == 'swiss-cc':
+                constfile = os.path.join(
+                    cfg.input_path, "".join([cat, "10_", "*_kg.txt"])
+                )
+            elif cfg.inventory == 'swiss-art':
+                constfile = os.path.join(
+                    cfg.input_path, "".join(['e', cat, '15_', var, '*'])
+                )
 
             emi = np.zeros((cfg.input_grid.nx, cfg.input_grid.ny))
             for filename in sorted(glob(constfile)):
                 print(filename)
-                emi += util.read_emi_from_file(filename)  # (lon,lat)
+                emi += util.read_emi_from_file(filename)  # (lon,lat) 
 
             out_var = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
             for lon in range(np.shape(emi)[0]):
@@ -39,38 +60,53 @@ def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
 
             cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
 
-            # convert unit from kg.year-1.cell-1 to kg.m-2.s-1
-            out_var *= cosmo_area.T / util.SEC_PER_YR
+            # convert units
+            if cfg.model == 'cosmo-ghg':
+                # COSMO-GHG: kg.year-1.cell-1 to kg.m-2.s-1
+                out_var *= cosmo_area.T / util.SEC_PER_YR
+                unit = 'kg m-2 s-1'
+            elif cfg.model == 'cosmo-art':
+                # COSMO-ART:  g.year-1.cell-1 to kg.h-1.cell-1
+                out_var *= 1.0 / (24.0 * util.DAY_PER_YR) / 1000.0
+                unit = 'kg h-1 cell-1'
+            else:
+                raise RuntimeError
 
             # only allow positive fluxes
             out_var[out_var < 0] = 0
 
-            if out_var_name not in out.variables.keys():
-                out.createVariable(out_var_name, float, (latname, lonname))
-                if lonname == "rlon" and latname == "rlat":
-                    out[out_var_name].grid_mapping = "rotated_pole"
-                out[out_var_name].units = "kg m-2 s-1"
-                out[out_var_name][:] = out_var
-            else:
-                out[out_var_name][:] += out_var
+            # write new or add to exisiting variable
+            out_var_name = get_out_varname(var, cat, cfg)
+            print('Write as variable:', out_var_name)
+            util.write_variable(out, out_var, out_var_name, latname, lonname,
+                                unit)
 
-            total_flux[var] += out_var
+            if cfg.add_total_emissions:
+                var_name = cfg.in2out_species.get(var, var)
+                total_flux[var_name] += out_var
+
 
     # Calcluate total emission/flux per species
-    for s in cfg.species:
-        out.createVariable(s, float, (latname, lonname))
-        out[s].units = "kg m-2 s-1"
-        if lonname == "rlon" and latname == "rlat":
-            out[s].grid_mapping = "rotated_pole"
-        out[s][:] = total_flux[s]
-
+    if cfg.add_total_emissions:
+        for s in cfg.species:
+            s = cfg.in2out_species.get(s, s)
+            print('Write total emissions for variable:', s)
+            util.write_variable(out, total_flux[s], var_name, latname, lonname,
+                                unit)
 
 
 def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
-
+    """
+    Process TNO inventories.
+    """
     # Load or compute the interpolation maps
-    with Dataset(cfg.tnofile) as tno:
-        # From here onward, quite specific for TNO
+    with Dataset(cfg.input_path) as tno:
+
+        # Get emission category codes from TNO file
+        tno_cat_codes = tno.variables['emis_cat_code'][:]
+        tno_cat_codes = netCDF4.stringtochar(tno_cat_codes)
+        tno_cat_codes = [s.tostring().decode('ascii').strip('\00')
+                         for s in tno_cat_codes]
 
         # Mask corresponding to the area/point sources
         selection_area = tno["source_type_index"][:] == 1
@@ -79,15 +115,16 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
         # Area of the COSMO grid cells
         cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
 
-        for cat in cfg.output_cat:
+        for cat in cfg.categories:
+
             # In emission_category_index, we have the
             # index of the category, starting with 1.
-
             # mask corresponding to the given category
             selection_cat = np.array(
                 [
                     tno["emission_category_index"][:]
-                    == cfg.tno_cat.index(cat) + 1
+                    == tno_cat_codes.index(cat) + 1
+                    #for c in cat_list
                 ]
             )
 
@@ -99,8 +136,7 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                 [selection_cat.any(0), selection_point]
             ).all(0)
 
-            species_list = cfg.species
-            for s in species_list:
+            for s in cfg.species:
                 print("Species", s, "Category", cat)
                 out_var_area = np.zeros(
                     (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
@@ -109,7 +145,7 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                     (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
                 )
 
-                var = tno[s.lower()][:]
+                var = tno[s][:]
 
                 start = time.time()
                 for (i, source) in enumerate(var):
@@ -131,28 +167,36 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                         out_var_point[indy, indx] += var[i]
 
                 end = time.time()
-                print("it takes ", end - start, "sec")
+                print("Gridding took %.1f seconds" % (end - start))
 
-                # convert unit from kg.year-1.cell-1 to kg.m-2.s-1
-                out_var_point *= cosmo_area.T / util.SEC_PER_YR
-                out_var_area *= cosmo_area.T / util.SEC_PER_YR
+                # convert units
+                if cfg.model == 'cosmo-ghg':
+                    # COSMO-GHG: kg.year-1.cell-1 to kg.m-2.s-1
+                    out_var_point *= cosmo_area.T / util.SEC_PER_YR
+                    out_var_area *= cosmo_area.T / util.SEC_PER_YR
+                    unit = 'kg m-2 s-1'
 
-                out_var_name = f"{s}_{cat}_"
+                elif cfg.model == 'cosmo-art':
+                    # COSMO-ART:  kg.year-1.cell-1 to kg.h-1.cell-1
+                    out_var_point *= 1.0 / (24.0 * util.DAY_PER_YR)
+                    out_var_area *= 1.0 / (24.0 * util.DAY_PER_YR)
+                    unit = 'kg h-1 cell-1'
+                else:
+                    raise RuntimeError
+
+
                 for (t, sel, out_var) in zip(
                     ["AREA", "POINT"],
                     [selection_cat_area, selection_cat_point],
                     [out_var_area, out_var_point],
                 ):
                     if sel.any():
-                        out.createVariable(
-                            out_var_name + t, float, (latname, lonname)
-                        )
-                        out[out_var_name + t].units = "kg m-2 s-1"
-                        if lonname == "rlon" and latname == "rlat":
-                            out[
-                                out_var_name + t
-                            ].grid_mapping = "rotated_pole"
-                        out[out_var_name + t][:] = out_var
+                        out_var_name = get_out_varname(s, cat, cfg,
+                                                       source_type=t)
+                        print('Write as variable:', out_var_name)
+                        util.write_variable(out, out_var, out_var_name,
+                                            latname, lonname, unit)
+
 
 
 def main(cfg):
@@ -207,7 +251,7 @@ def main(cfg):
             process_tno(cfg, interpolation, country_mask, out, latname,
                         lonname)
 
-        elif cfg.inventory == 'swiss':
+        elif cfg.inventory in ['swiss-cc', 'swiss-art']:
             process_swiss(cfg, interpolation, country_mask, out, latname,
                         lonname)
 

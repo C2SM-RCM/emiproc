@@ -27,6 +27,34 @@ SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
 
 
+
+def write_variable(ncfile, variable, var_name, latname, lonname, unit):
+    """
+    Create a new variable or add to existing variable.
+
+    ncfile              : netCDF file
+    variable (np.array) : array with values to be written
+    var_name (str)      : name of variable
+
+    latname (str)
+    lonname (str)
+    unit (str)
+    """
+
+    if var_name not in ncfile.variables.keys():
+        ncfile.createVariable(var_name, float, (latname, lonname))
+
+        if lonname == "rlon" and latname == "rlat":
+            ncfile[var_name].grid_mapping = "rotated_pole"
+
+        ncfile[var_name].units = unit
+        ncfile[var_name][:] = variable
+    else:
+        ncfile[var_name][:] += variable
+
+
+
+
 def read_emi_from_file(path):
     """Read the emissions from a textfile at path.
 
