@@ -1,28 +1,32 @@
+import os
 import time
 
 from epro.grids import COSMOGrid, SwissGrid
 
+# inventory
+inventory = 'swiss-cc'
 
-inventory = 'carbocount'
+# model either "cosmo-art" or "cosmo-ghg" (affects the output units)
+model = 'cosmo-ghg'
 
-# for Swiss inventory, unit m, x is easterly, y is northly
+# path to input inventory
 input_path = "/input/CH_EMISSIONS/CarboCountCO2/einzelgrids/"
-swiss_grid = SwissGrid(
+
+# input grid (for Swiss inventory, unit m, x is easterly, y is northly)
+input_grid = SwissGrid(
     name="carbocount",
     nx=760,
     ny=500,
     dx=500,
     dy=500,
-    xmin=470_000,
-    ymin=60_000,
-    I_HAVE_UNDERSTOOD_THE_CONVENTION_SWITCH_MADE_IN_THIS_METHOD=True,
+    xmin=470000,
+    ymin=60000
 )
 
-gridname = swiss_grid.name + "_CO2_FLEXPART_main"
+# species and categories read from input files
+species = ["co2"]
 
-species = ["CO2"]
-
-ch_cat = [
+categories = [
     "bm",
     "cf",
     "df",
@@ -47,7 +51,11 @@ ch_cat = [
     "zv",
 ]
 
-mapping = {
+# mapping from input to output species (input is used for missing keys)
+in2out_species = {'co2': 'CO2'}
+
+# mapping from input to output categories (input is used missing keys)
+in2out_category = {
     "bm": "B",
     "cf": "B",
     "df": "C",
@@ -72,9 +80,9 @@ mapping = {
     "zv": "F",
 }
 
-year = 2018
-
-output_path = "."
+# output variables are written in the following format using species and
+# category after applying the mapping
+varname_format = '{species}_{category}'
 
 # COSMO domain
 cosmo_grid = COSMOGrid(
@@ -95,9 +103,19 @@ if offline:
     cosmo_grid.nx += 4
     cosmo_grid.ny += 4
 
+# output path
+output_path = "."
+
+# output filename
+output_name = 'carbocount.nc'
+
+# resolution of shapefile used for country mask
 shpfile_resolution = "10m"
+
+# number of processes 
 nprocs = 18
 
+# metadata added as global attributes to netCDF output file
 nc_metadata = {
     "DESCRIPTION": "Gridded annual emissions",
     "DATAORIGIN": "carbocount-CH",
@@ -106,3 +124,7 @@ nc_metadata = {
     "AFFILIATION": "Empa Duebendorf, Switzerland",
     "DATE CREATED": time.ctime(time.time()),
 }
+
+# Add total emissions
+add_total_emissions = True
+
