@@ -16,11 +16,6 @@ from country_code import country_codes
 from nc_operations import copy_dataset, VariableCreator
 
 
-base = "testdata/oae_paper/tno.nc"
-nest = {"testdata/flexpart/emis_2018_carbocount_CO2_FLEXPART_main.nc": "CH"}
-output = "testdata/oae_paper/tno_carbocount.nc"
-
-
 def merge_inventories(base_inv, nested_invs, output_path):
     """Merge nested inventories into a base inventory.
 

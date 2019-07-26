@@ -1,30 +1,39 @@
-"""
-Script to create two sets of profiles 
-in order to merge inventories when runnning COSMO
-"""
 
-
-from country_code import country_codes as cc
-from netCDF4 import Dataset
 import shutil
+
+from netCDF4 import Dataset
 import numpy as np
 
-inv_1 = 'TNO'
-inv_2 = 'Carbocount'
+from country_code import country_codes as cc
 
-# List of countries to set to 0 in inv_1
-# All others countries will be set to 0 in inv_2
-countries = ['CH']
+SHAPE = 24
 
-profile_path_in = ['./example_output/hourofday.nc','./example_output/dayofweek.nc','./example_output/monthofyear.nc']
-profile_path_out = ['./example_output/hourofday_merged.nc','./example_output/dayofweek_merged.nc','./example_output/monthofyear_merged.nc']
-dimension = 24
+def main(inv1, inv2, countries, profile_path_in, profile_path_out):
+    """
+    Merge two sets of time profiles in single files where hourofday scaling
+    factors are set to 0 in inv1 for given countries and set to 0 in inv2 for
+    all other countries. The merged files can be used to merge the inventories
+    online when running COSMO.
 
+    Parameter
+    ---------
+    inv1 (str) :: name of first inventory
 
-for path_1,path_2 in zip(profile_path_in, profile_path_out):
-    shutil.copy(path_1,path_2)
+    inv2 (str) :: name of second inventory
 
-def main():
+    countries (list) :: country codes (e.g. 'CH') for all countries set to 0 in
+                        inv1
+
+    profile_path_in :: list of input paths for hourofday, dayofweek and
+                       monthofyear netCDF files
+
+    profile_path_out :: list of output paths for merge hourofday, dayofweek and
+                        monthofyear netCDF files
+    """
+
+    for path_1, path_2 in zip(profile_path_in, profile_path_out):
+        shutil.copy(path_1,path_2)
+
     for done,path in enumerate(profile_path_out):
         with Dataset(path,'a') as prof:
             for v in prof.variables.copy():
@@ -48,11 +57,9 @@ def main():
                         for todel in countries:
                             if todel in country_name:
                                 print(nc_vars[0])
-                                nc_vars[0][:,i] = np.zeros(dimension)
+                                nc_vars[0][:,i] = np.zeros(shape)
                                 deleted = True
                         if not deleted:
                             print(nc_vars[1])
-                            nc_vars[1][:,i] = np.zeros(dimension)
+                            nc_vars[1][:,i] = np.zeros(shape)
 
-if __name__ == "__main__":
-    main()

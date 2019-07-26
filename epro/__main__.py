@@ -9,7 +9,9 @@ from epro.profiles import temporal_profiles_example as tp
 from epro.profiles import vertical_profiles as vp
 from epro import utilities as util
 
+from epro.merge_inventories import merge_inventories
 from epro import append_inventories
+from epro import merge_profiles
 
 # TODO/FIXME
 # - use temporal_profiles or temporal_profiles_example?
@@ -66,25 +68,21 @@ def main():
 
         epro.main(cfg)
 
-        #if cfg.inventory == 'TNO':
-        #    main_tno_example.main(cfg)
-        #
-        #elif cfg.inventory == 'swiss':
-        #    main_carbocount_example.main(cfg)
-        #
-        #else:
-        #    raise NotImplementedError(
-        #        'Gridding for "%s" inventory not implemented.'
-        #        % cfg.inventory
-        #    )
 
     elif args.task in ['merge']:
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
-        raise NotImplementedError
+        merge_inventories(cfg.base_inv, cfg.nested_invs, cfg.output_path)
 
+    elif args.task in ['tp-merge']
+
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
+
+        merge_profiles.main(cfg.inv1, cfg.inv2, cfg.countries,
+                            cfg.profile_path_in, cfg.profile_path_out)
 
     elif args.task in ['append']:
 
