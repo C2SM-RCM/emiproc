@@ -104,7 +104,7 @@ if offline:
     cosmo_grid.ny += 4
 
 # output path
-output_path = "."
+output_path = "carbocount"
 
 # output filename
 output_name = 'carbocount.nc'

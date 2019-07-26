@@ -71,7 +71,7 @@ if offline:
     cosmo_grid.ny += 4
 
 # output path and filename
-output_path = "."
+output_path = "TNO"
 output_name = "tno.nc"
 
 # resolution of shape file used for country mask
