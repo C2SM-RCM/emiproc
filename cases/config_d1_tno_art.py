@@ -33,8 +33,7 @@ in2out_species = {
     'so2':   'SO2',
     'nh3':   'NH3',
     'pm10':  'PM10',
-    'pm2_5': 'PM25',
-
+    'pm2_5': 'PM25'
 }
 
 # mapping from input to output categories (input is used for missing keys)

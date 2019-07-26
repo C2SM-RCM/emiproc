@@ -68,7 +68,7 @@ if offline:
 
 
 # output path and filename
-output_path = "."
+output_path = "TNO-test"
 output_name = "test-tno.nc"
 
 # resolution of shapefile used for country mask

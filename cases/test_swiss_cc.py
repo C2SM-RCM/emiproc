@@ -84,7 +84,7 @@ if offline:
     cosmo_grid.ny += 4
 
 # output path
-output_path = "."
+output_path = "Swiss-test"
 
 # output filename
 output_name = 'test_swiss-cc.nc'
