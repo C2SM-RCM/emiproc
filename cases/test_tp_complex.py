@@ -15,10 +15,10 @@ tracers = ['CO', 'NH3', 'NMVOC', 'NOx', 'P10', 'P25', 'SOx']
 only_ones = False
 
 # Produces profiles for winter time
-winter = False
+winter = True
 
 # Averages the first five days of the week in the profile.
-mean = False
+mean = True
 
 # Input files
 input_path = os.path.join(os.path.dirname(__file__), '..', 'files')

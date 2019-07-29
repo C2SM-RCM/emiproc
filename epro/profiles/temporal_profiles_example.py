@@ -187,6 +187,7 @@ def read_temporal_profile(path):
 
     return cats, np.array(data)
 
+
 def get_country_tz(countries, country_tz_file, winter):
     """
     Get the time zone of every country
@@ -324,12 +325,11 @@ def main_complex(cfg):
 
         if not cfg.only_ones:
             for i, country in enumerate(countries):
-                try:
+
+                if country in country_tz:
                     hod[:, i] = permute_cycle_tz(
                         country_tz[country], daily[snap]
                     )
-                except KeyError:
-                    pass
 
                 try:
                     dow[:, i] = weekly[tracer][country, snap]
