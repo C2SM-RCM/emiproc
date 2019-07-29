@@ -1,4 +1,5 @@
 
+import time
 from epro.grids import COSMOGrid, TNOGrid
 
 inv_1 = './testdata/oae_paper/online/tno.nc'
