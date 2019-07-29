@@ -35,6 +35,9 @@ def parse_arguments():
     parser.add_argument('--output-path', dest='output_path', default='.',
                         help='name of output path')
 
+    parser.add_argument('--nomenclature', dest='nomenclature', default='GNFR',
+                        help='GNFR or SNAP', choices=['GNFR', 'SNAP'])
+
     args = parser.parse_args()
 
     return args
@@ -95,20 +98,19 @@ def main():
     elif args.task in ['vp']:
 
         profile_filename = os.path.join(DATA_PATH, 'vert_profiles',
-                                        'vert_prof_che_gnfr.dat')
+                                        'vert_prof_che_%s.dat' %
+                                        args.nomenclature.lower())
 
         output_filename = os.path.join(args.output_path,
                                        'vertical_profiles.nc')
 
-        vp.main(output_filename, profile_filename)
+        vp.main(output_filename, profile_filename, prefix='%s_' %
+                args.nomenclature)
 
     elif args.task in ['tp']: # temporal profiles
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
-
-        # overwrite config parameters (TODO/FIXME)
-        #cfg.output_path = args.output_path
 
         if cfg.profile_depends_on_species:
             tp.main_complex(cfg)

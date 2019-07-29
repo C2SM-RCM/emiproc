@@ -75,15 +75,6 @@ def write_netcdf(filename, categories, cat_name, levels, scale_factors):
             nc_sca.units = "1"
             nc_sca[:] = scale_factors[i]
 
-        # Add a scaling factor with emissions at the ground level for Area emissions
-        nc_area = nc.createVariable("area_sources" , "f4", ("level"))
-        nc_area.long_name = (
-                "vertical scale factor for area sources"
-            )
-        nc_area.units = "1"
-        nc_area[:] = np.zeros(len(levels))
-        nc_area[0] = 1
-
 
 def read_profiles(filename, nlevel=16):
     levels = []
@@ -109,22 +100,14 @@ def read_profiles(filename, nlevel=16):
             values = line.split()
             cat = values[0]
             profile = values[1:]
-            if cat == "F1":
-                categories.append("F")
-                all_sevens.append([float(i) for i in profile])
-            elif "F" in cat:
-                all_sevens.append([float(i) for i in profile])
-            else:
-                categories.append(cat)
-                if len(all_sevens) > 0:
-                    profiles.append(np.array(all_sevens).mean(0))
-                    all_sevens = []
-                profiles.append(profile)
+
+            categories.append(cat)
+            profiles.append(profile)
 
     return categories, np.array(profiles, "f4"), levels
 
 
-def main(output_filename, profile_filename):
+def main(output_filename, profile_filename, prefix='GNFR_'):
     categories, profiles, levels = read_profiles(profile_filename)
-    write_netcdf(output_filename, categories, "GNFR_", levels, profiles)
+    write_netcdf(output_filename, categories, prefix, levels, profiles)
 
