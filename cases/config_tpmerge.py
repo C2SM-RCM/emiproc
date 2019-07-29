@@ -1,7 +1,7 @@
 
 # list of input inventories
-inv_1 = 'TNO'
-inv_2 = 'Carbocount'
+inv1 = 'TNO'
+inv2 = 'Carbocount'
 
 # List of countries to set to 0 in inv_1
 # All others countries will be set to 0 in inv_2

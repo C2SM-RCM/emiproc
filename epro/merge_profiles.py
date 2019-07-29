@@ -42,7 +42,7 @@ def main(inv1, inv2, countries, profile_path_in, profile_path_out):
                 var = prof[v]
 
                 nc_vars = []
-                for inv in [inv_1,inv_2]:
+                for inv in [inv1, inv2]:
                     nc_var = prof.createVariable(v+'_'+inv, var.dtype, var.dimensions)
                     nc_var.long_name = var.long_name + " for inventory %s" % (inv)
                     nc_var.units = "1"
@@ -57,9 +57,9 @@ def main(inv1, inv2, countries, profile_path_in, profile_path_out):
                         for todel in countries:
                             if todel in country_name:
                                 print(nc_vars[0])
-                                nc_vars[0][:,i] = np.zeros(shape)
+                                nc_vars[0][:,i] = np.zeros(SHAPE)
                                 deleted = True
                         if not deleted:
                             print(nc_vars[1])
-                            nc_vars[1][:,i] = np.zeros(shape)
+                            nc_vars[1][:,i] = np.zeros(SHAPE)
 
