@@ -308,12 +308,14 @@ def main(cfg):
     cats, weekly = read_temporal_profile(cfg.dow_input_file)
     cats, monthly = read_temporal_profile(cfg.moy_input_file)
 
-    # day of week and month of year
-    hod = np.ones((N_HOUR_DAY, n_countries))
-    dow = np.ones((N_DAY_WEEK, n_countries))
-    moy = np.ones((N_MONTH_YEAR, n_countries))
 
     for cat_ind, cat in enumerate(cats):
+
+        # day of week and month of year
+        hod = np.ones((N_HOUR_DAY, n_countries))
+        dow = np.ones((N_DAY_WEEK, n_countries))
+        moy = np.ones((N_MONTH_YEAR, n_countries))
+
         if not cfg.only_ones:
             for i, country in enumerate(countries):
                 try:
