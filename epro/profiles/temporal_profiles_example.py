@@ -70,32 +70,6 @@ import netCDF4
 
 from .country_code import country_codes as cc
 
-# Parameters
-only_ones = False  # Sets all the profiles to a uniform 1
-winter = False  # Produces profiles for winter time
-mean = False  # Averages the first five days of the week in the profile.
-
-# Input files
-# Path to the csv file containing the time zones of each country
-country_tz_file = "CHE_input/country_tz.csv"
-# Path to the csv file containing the hour in day profile
-hod_input = "CHE_input/timeprofiles-hour-in-day_GNFR.csv"
-# Path to the csv file containing the day in week profile
-dow_input = "CHE_input/timeprofiles-day-in-week_GNFR.csv"
-# Path to the csv file containing the month in year profile
-moy_input = "CHE_input/timeprofiles-month-in-year_GNFR.csv"
-
-# Output path
-output = "./example_output/"
-
-nc_metadata = {
-    "DESCRIPTION": "Temporal profiles for emissions",
-    "DATAORIGIN": "TNO time profiles",
-    "CREATOR": "Jean-Matthieu Haussaire",
-    "EMAIL": "jean-matthieu.haussaire@empa.ch",
-    "AFFILIATION": "Empa Duebendorf, Switzerland",
-    "DATE CREATED": time.ctime(time.time()),
-}
 
 # Constants
 N_HOUR_DAY = 24
@@ -177,7 +151,7 @@ def validate_tz(filename, all_tz):
                 print(c, "is missing")
 
 
-def get_country_tz(countries, data_path):
+def get_country_tz(countries, country_tz_file, winter):
     """
     Get the time zone of every country
 
@@ -191,7 +165,7 @@ def get_country_tz(countries, data_path):
     Dictionary linking country names to time zone
     """
 
-    tz = load_country_tz(os.path.join(data_path, country_tz_file), winter)
+    tz = load_country_tz(country_tz_file, winter)
     all_tz = dict()
     for country in countries:
         if country == 0:  # Seas
@@ -313,9 +287,11 @@ def write_single_variable(path, profile, values, cat):
         nc_var[:] = values
 
 
-def main(path, data_path):
+def main(cfg):
     """ The main script for producing profiles from the csv files from TNO.
     Takes an output path as a parameter"""
+
+    os.makedirs(cfg.output_path, exist_ok=True)
 
     # Arbitrary list of countries including most of Europe.
     countries = np.arange(74)
@@ -324,13 +300,13 @@ def main(path, data_path):
     )
     n_countries = len(countries)
 
-    country_tz = get_country_tz(countries, data_path)
+    country_tz = get_country_tz(countries, cfg.country_tz_file, cfg.winter)
 
-    create_netcdf(path, countries, nc_metadata)
+    create_netcdf(cfg.output_path, countries, cfg.nc_metadata)
 
-    cats, daily = read_temporal_profile(os.path.join(data_path, hod_input))
-    cats, weekly = read_temporal_profile(os.path.join(data_path, dow_input))
-    cats, monthly = read_temporal_profile(os.path.join(data_path, moy_input))
+    cats, daily = read_temporal_profile(cfg.hod_input_file)
+    cats, weekly = read_temporal_profile(cfg.dow_input_file)
+    cats, monthly = read_temporal_profile(cfg.moy_input_file)
 
     # day of week and month of year
     hod = np.ones((N_HOUR_DAY, n_countries))
@@ -348,7 +324,7 @@ def main(path, data_path):
 
             try:
                 dow[:, i] = weekly[cat_ind, :]
-                if mean:
+                if cfg.mean:
                     dow[:5, i] = np.ones(5) * weekly[cat_ind, :5].mean()
             except KeyError:
                 pass
@@ -358,10 +334,8 @@ def main(path, data_path):
             except KeyError:
                 pass
 
-        write_single_variable(path, "hourofday", hod, cat)
-        write_single_variable(path, "dayofweek", dow, cat)
-        write_single_variable(path, "monthofyear", moy, cat)
+        write_single_variable(cfg.output_path, "hourofday", hod, cat)
+        write_single_variable(cfg.output_path, "dayofweek", dow, cat)
+        write_single_variable(cfg.output_path, "monthofyear", moy, cat)
 
 
-if __name__ == "__main__":
-    main(output)

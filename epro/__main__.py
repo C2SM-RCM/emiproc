@@ -104,7 +104,13 @@ def main():
 
     elif args.task in ['tp']: # temporal profiles
 
-        tp.main(args.output_path, DATA_PATH)
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
+
+        # overwrite config parameters (TODO/FIXME)
+        #cfg.output_path = args.output_path
+
+        tp.main(cfg)
 
     elif args.task in ['hourly']:
 
