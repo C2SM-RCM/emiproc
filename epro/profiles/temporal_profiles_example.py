@@ -314,25 +314,26 @@ def main(cfg):
     moy = np.ones((N_MONTH_YEAR, n_countries))
 
     for cat_ind, cat in enumerate(cats):
-        for i, country in enumerate(countries):
-            try:
-                hod[:, i] = permute_cycle_tz(
-                    country_tz[country], daily[cat_ind, :]
-                )
-            except KeyError:
-                pass
+        if not cfg.only_ones:
+            for i, country in enumerate(countries):
+                try:
+                    hod[:, i] = permute_cycle_tz(
+                        country_tz[country], daily[cat_ind, :]
+                    )
+                except KeyError:
+                    pass
 
-            try:
-                dow[:, i] = weekly[cat_ind, :]
-                if cfg.mean:
-                    dow[:5, i] = np.ones(5) * weekly[cat_ind, :5].mean()
-            except KeyError:
-                pass
+                try:
+                    dow[:, i] = weekly[cat_ind, :]
+                    if cfg.mean:
+                        dow[:5, i] = np.ones(5) * weekly[cat_ind, :5].mean()
+                except KeyError:
+                    pass
 
-            try:
-                moy[:, i] = monthly[cat_ind]
-            except KeyError:
-                pass
+                try:
+                    moy[:, i] = monthly[cat_ind]
+                except KeyError:
+                    pass
 
         write_single_variable(cfg.output_path, "hourofday", hod, cat)
         write_single_variable(cfg.output_path, "dayofweek", dow, cat)
