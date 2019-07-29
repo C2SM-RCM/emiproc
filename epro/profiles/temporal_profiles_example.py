@@ -184,6 +184,47 @@ def get_country_tz(countries, country_tz_file, winter):
     return all_tz
 
 
+def read_tracer_temporal_profile(path, has_country_id):
+    """\
+    Read temporal profiles for different tracers.
+
+    Parameters
+    ----------
+    path: string
+        Path to the profile as a csv file
+
+    has_country_id: boolean
+        Flag for input file has country ID in the first column
+
+    Returns
+    -------
+    list of categories, np.array(scaling factors)
+    """
+    data = []
+    categories = []
+
+    with open(path) as profile_file:
+        for line in profile_file:
+
+            values = line.split()
+
+            if has_country_id:
+                categories.append((
+                    int(values[0]),    # country ID
+                    values[1].strip()  # source category
+                ))
+                data.append(values[2:])
+            else:
+                categories.append(
+                    values[0].strip()  # source category
+                )
+                data.append(values[1:])
+
+    return categories, np.array(data, dtype='f4')
+
+
+
+
 def read_temporal_profile(path):
     """Read the temporal profile from a csv file.
 
