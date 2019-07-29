@@ -3,13 +3,15 @@
 import argparse
 import os
 
+import epro
+
 from epro.profiles import temporal_profiles_example as tp
 from epro.profiles import vertical_profiles as vp
 from epro import utilities as util
 
-from epro import main_carbocount_example
-from epro import main_tno_example
+from epro.merge_inventories import merge_inventories
 from epro import append_inventories
+from epro import merge_profiles
 
 # TODO/FIXME
 # - use temporal_profiles or temporal_profiles_example?
@@ -64,25 +66,23 @@ def main():
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
-        if cfg.inventory == 'TNO':
-            main_tno_example.main(cfg)
+        epro.main(cfg)
 
-        elif cfg.inventory == 'carbocount':
-            main_carbocount_example.main(cfg)
-
-        else:
-            raise NotImplementedError(
-                'Gridding for "%s" inventory not implemented.'
-                % cfg.inventory
-            )
 
     elif args.task in ['merge']:
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
-        raise NotImplementedError
+        merge_inventories(cfg.base_inv, cfg.nested_invs, cfg.output_path)
 
+    elif args.task in ['tp-merge']:
+
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
+
+        merge_profiles.main(cfg.inv1, cfg.inv2, cfg.countries,
+                            cfg.profile_path_in, cfg.profile_path_out)
 
     elif args.task in ['append']:
 
@@ -92,7 +92,7 @@ def main():
         append_inventories.main(cfg)
 
 
-    elif args.task in ['vp']: # vertical profiles
+    elif args.task in ['vp']:
 
         profile_filename = os.path.join(DATA_PATH, 'vert_profiles',
                                         'vert_prof_che_gnfr.dat')
