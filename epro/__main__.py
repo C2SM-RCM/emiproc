@@ -110,7 +110,11 @@ def main():
         # overwrite config parameters (TODO/FIXME)
         #cfg.output_path = args.output_path
 
-        tp.main(cfg)
+        if cfg.profile_depends_on_species:
+            tp.main_complex(cfg)
+        else:
+            tp.main_simple(cfg)
+
 
     elif args.task in ['hourly']:
 

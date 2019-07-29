@@ -63,12 +63,15 @@ variables:
         short countryID(country) ;
                 countryID:long_name = 'EMEP country code' ;
 """
+
+import itertools
 import os
 import time
 import numpy as np
 import netCDF4
 
 from .country_code import country_codes as cc
+from . import io
 
 
 # Constants
@@ -151,78 +154,6 @@ def validate_tz(filename, all_tz):
                 print(c, "is missing")
 
 
-def get_country_tz(countries, country_tz_file, winter):
-    """
-    Get the time zone of every country
-
-    Parameters
-    ----------
-    countries: list (int)
-        List of emep country codes
-
-    Returns
-    -------
-    Dictionary linking country names to time zone
-    """
-
-    tz = load_country_tz(country_tz_file, winter)
-    all_tz = dict()
-    for country in countries:
-        if country == 0:  # Seas
-            continue
-
-        country_names = [name for name, code in cc.items() if (code == country)]
-        # Try find the name of the country, with 3 characters
-        for name in country_names:
-            if len(name) == 3:
-                try:
-                    all_tz[country] = tz[name]
-                    break
-                except KeyError:
-                    continue
-
-    return all_tz
-
-
-def read_tracer_temporal_profile(path, has_country_id):
-    """\
-    Read temporal profiles for different tracers.
-
-    Parameters
-    ----------
-    path: string
-        Path to the profile as a csv file
-
-    has_country_id: boolean
-        Flag for input file has country ID in the first column
-
-    Returns
-    -------
-    list of categories, np.array(scaling factors)
-    """
-    data = []
-    categories = []
-
-    with open(path) as profile_file:
-        for line in profile_file:
-
-            values = line.split()
-
-            if has_country_id:
-                categories.append((
-                    int(values[0]),    # country ID
-                    values[1].strip()  # source category
-                ))
-                data.append(values[2:])
-            else:
-                categories.append(
-                    values[0].strip()  # source category
-                )
-                data.append(values[1:])
-
-    return categories, np.array(data, dtype='f4')
-
-
 
 
 def read_temporal_profile(path):
@@ -255,6 +186,39 @@ def read_temporal_profile(path):
                 data.append([float(i) for i in splitted[3:]])
 
     return cats, np.array(data)
+
+def get_country_tz(countries, country_tz_file, winter):
+    """
+    Get the time zone of every country
+
+    Parameters
+    ----------
+    countries: list (int)
+        List of emep country codes
+
+    Returns
+    -------
+    Dictionary linking country names to time zone
+    """
+
+    tz = load_country_tz(country_tz_file, winter)
+    all_tz = dict()
+    for country in countries:
+        if country == 0:  # Seas
+            continue
+
+        country_names = [name for name, code in cc.items() if (code == country)]
+        # Try find the name of the country, with 3 characters
+        for name in country_names:
+            if len(name) == 3:
+                try:
+                    all_tz[country] = tz[name]
+                    break
+                except KeyError:
+                    continue
+
+    return all_tz
+
 
 
 def create_netcdf(path, countries, metadata):
@@ -291,7 +255,8 @@ def create_netcdf(path, countries, metadata):
             nc_cid.long_name = "EMEP country code"
 
 
-def write_single_variable(path, profile, values, cat):
+def write_single_variable(path, profile, values, tracer, category,
+                          varname_format):
     """Add a profile to the output netcdf
 
     Parameters
@@ -303,7 +268,9 @@ def write_single_variable(path, profile, values, cat):
         (within ["hourofday", "dayofweek", "monthofyear", "hourofyear"])
     values: list(float)
         The profile
-    cat: String
+    tracer: string
+        Name of tracer
+    category: String
         Name of the category
     """
     filename = os.path.join(path, profile + ".nc")
@@ -321,14 +288,74 @@ def write_single_variable(path, profile, values, cat):
         comment = "first hour is on Jan 1. 00h"
 
     with netCDF4.Dataset(filename, "a") as nc:
-        nc_var = nc.createVariable("GNFR_" + cat, "f4", (profile, "country"))
-        nc_var.long_name = "%s for GNFR %s" % (descr, cat)
+
+        varname = varname_format.format(tracer=tracer, category=category)
+
+        nc_var = nc.createVariable(varname, "f4", (profile, "country"))
+        nc_var.long_name = "%s for GNFR %s" % (descr, category)
         nc_var.units = "1"
         nc_var.comment = comment
         nc_var[:] = values
 
 
-def main(cfg):
+
+def main_complex(cfg):
+
+    os.makedirs(cfg.output_path, exist_ok=True)
+
+    # read all data
+    countries, snaps, daily, weekly, annual = io.read_tracer_profiles(cfg.tracers,
+                                                            cfg.hod_input_file,
+                                                            cfg.dow_input_file,
+                                                            cfg.moy_input_file)
+    countries = [0] + countries
+    n_countries = len(countries)
+
+    create_netcdf(cfg.output_path, countries, cfg.nc_metadata)
+
+    country_tz = get_country_tz(countries, cfg.country_tz_file, cfg.winter)
+
+    for (tracer, snap) in itertools.product(cfg.tracers, snaps):
+
+        # day of week and month of year
+        dow = np.ones((7, n_countries))
+        moy = np.ones((12, n_countries))
+        hod = np.ones((24, n_countries))
+
+        if not cfg.only_ones:
+            for i, country in enumerate(countries):
+                try:
+                    hod[:, i] = permute_cycle_tz(
+                        country_tz[country], daily[snap]
+                    )
+                except KeyError:
+                    pass
+
+                try:
+                    dow[:, i] = weekly[tracer][country, snap]
+                    if cfg.mean:
+                        dow[:5, i] = (
+                            np.ones(5)
+                            * weekly[tracer][country, snap][:5].mean()
+                        )
+                except KeyError:
+                    pass
+
+                try:
+                    moy[:, i] = annual[tracer][country, snap]
+                except KeyError:
+                    pass
+
+        write_single_variable(cfg.output_path, "hourofday", hod, tracer, snap,
+                             cfg.varname_format)
+        write_single_variable(cfg.output_path, "dayofweek", dow, tracer, snap,
+                             cfg.varname_format)
+        write_single_variable(cfg.output_path, "monthofyear", moy, tracer,
+                              snap, cfg.varname_format)
+
+
+
+def main_simple(cfg):
     """ The main script for producing profiles from the csv files from TNO.
     Takes an output path as a parameter"""
 
@@ -378,8 +405,11 @@ def main(cfg):
                 except KeyError:
                     pass
 
-        write_single_variable(cfg.output_path, "hourofday", hod, cat)
-        write_single_variable(cfg.output_path, "dayofweek", dow, cat)
-        write_single_variable(cfg.output_path, "monthofyear", moy, cat)
+        write_single_variable(cfg.output_path, "hourofday", hod, None, cat,
+                              cfg.varname_format)
+        write_single_variable(cfg.output_path, "dayofweek", dow, None, cat,
+                              cfg.varname_format)
+        write_single_variable(cfg.output_path, "monthofyear", moy, None, cat,
+                              cfg.varname_format)
 
 
