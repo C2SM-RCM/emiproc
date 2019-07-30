@@ -11,22 +11,34 @@ def split_gnfr_f(filename):
     with netCDF4.Dataset(filename, 'a') as nc:
 
         # NMVOC
-        var = nc.variables['NMVOC_F_AREA']
+        if 'NMVOC_F_AREA' in nc.variables:
+            var = nc.variables['NMVOC_F_AREA']
+            suffix = ''
+        else:
+            var = nc.variables['NMVOC_F_ch']
+            suffix = '_ch'
+
         latname, lonname = var.dimensions
 
         for name, factor in [('NMVOC_F1', 0.7867), ('NMVOC_F2', 0.1426),
                              ('NMVOC_F3', 0.0010), ('NMVOC_F4', 0.0697)]:
 
-            util.write_variable(nc, factor * var[:], name, latname, lonname,
-                                var.units, overwrite=True)
+            util.write_variable(nc, factor * var[:], name + suffix, latname,
+                                lonname, var.units, overwrite=True)
 
         # PM25
-        var = nc.variables['PM25_F_AREA']
+        if 'PM25_F_AREA' in nc.variables:
+            var = nc.variables['PM25_F_AREA']
+            suffix = ''
+        else:
+            var = nc.variables['PM25_F_ch']
+            suffix = '_ch'
+
         latname, loname = var.dimensions
 
         for name, factor in [('PM25_F1', 0.0304), ('PM25_F2', 0.6071),
                              ('PM25_F3', 0.0000), ('PM25_F4', 0.3624)]:
 
-            util.write_variable(nc, factor * var[:], name, latname, lonname,
-                                var.units, overwrite=True)
+            util.write_variable(nc, factor * var[:], name + suffix, latname,
+                                lonname, var.units, overwrite=True)
 
