@@ -130,6 +130,10 @@ def main():
             prof_path=cfg.prof_path,
             start_date=cfg.start_date,
             end_date=cfg.end_date,
+            var_list=cfg.var_list,
+            catlist=cfg.catlist,
+            tplist=cfg.tplist,
+            vplist=cfg.vplist
         )
 
     else:

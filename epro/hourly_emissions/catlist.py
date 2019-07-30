@@ -71,25 +71,25 @@ As such, their profiles are using the area_sources profile"""
 
 vplist_prelim = [
     [
-        'area_sources',
+        'GNFR_area_sources',
         'GNFR_A',
-        'area_sources',
+        'GNFR_area_sources',
         'GNFR_B',
-        'area_sources',
-        'area_sources',
-        'area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
         'GNFR_D',
-        'area_sources',
-        'area_sources',
-        'area_sources',
-        'area_sources',
-        'area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
         'GNFR_H',
-        'area_sources',
-        'area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
         'GNFR_J',
-        'area_sources',
-        'area_sources',
+        'GNFR_area_sources',
+        'GNFR_area_sources',
     ],  
 ]
 
@@ -104,5 +104,5 @@ vplist_prelim[0] += [
 
 
 """ All emissions are applied on the floor in fact"""
-vplist_prelim = [['area_sources']]
+vplist_prelim = [['GNFR_area_sources']]
 vplist_prelim[0] *= len(tplist_prelim[0])

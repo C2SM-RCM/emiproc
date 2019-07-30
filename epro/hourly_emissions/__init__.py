@@ -1,12 +1,12 @@
 import time
 import datetime
+import os
 
 import numpy as np
 
 from netCDF4 import Dataset
 from multiprocessing import Pool
 
-from .catlist import catlist_prelim,tplist_prelim,vplist_prelim
 
 def daterange(start_date, end_date):
     """Yield a consequitve dates from the range [start_date, end_date).
@@ -445,7 +445,7 @@ def generate_arguments(
         starting at start_date and ending the day before end_date.
     """
     start = time.time()
-    path_template = output_path + output_prefix + "%Y%m%d%H.nc"
+    path_template = os.path.join(output_path, output_prefix + "%Y%m%d%H.nc")
 
     with Pool(16) as pool:  # have 32 parallel processes later
         # Create grid-country-mapping
@@ -559,20 +559,24 @@ def main(
     prof_path,
     start_date,
     end_date,
+    var_list,
+    catlist,
+    tplist,
+    vplist
 ):
     point1 = time.time()
 
-    var_list, catlist, tplist, vplist = create_lists()
+    #var_list, catlist, tplist, vplist = create_lists()
 
     # Prepare arguments
     args = generate_arguments(
         start_date=start_date,
         end_date=end_date,
         emi_path=path_emi,
-        ver_path=prof_path + "vertical_profiles.nc",
-        hod_path=prof_path + "hourofday.nc",
-        dow_path=prof_path + "dayofweek.nc",
-        moy_path=prof_path + "monthofyear.nc",
+        ver_path=os.path.join(prof_path, "vertical_profiles.nc"),
+        hod_path=os.path.join(prof_path, "hourofday.nc"),
+        dow_path=os.path.join(prof_path, "dayofweek.nc"),
+        moy_path=os.path.join(prof_path, "monthofyear.nc"),
         var_list=var_list,
         catlist=catlist,
         tplist=tplist,
