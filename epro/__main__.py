@@ -5,16 +5,15 @@ import os
 
 import epro
 
-from epro.profiles import temporal_profiles_example as tp
+from epro.profiles import temporal_profiles as tp
 from epro.profiles import vertical_profiles as vp
 from epro import utilities as util
 
 from epro.merge_inventories import merge_inventories
 from epro import append_inventories
 from epro import merge_profiles
+from epro import hourly_emissions
 
-# TODO/FIXME
-# - use temporal_profiles or temporal_profiles_example?
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'files')
 
@@ -118,10 +117,20 @@ def main():
             tp.main_simple(cfg)
 
 
-    elif args.task in ['hourly']:
+    elif args.task in ['offline']:
+
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
 
         # create hourly (offline) emissions
-        raise NotImplementedError
+        hourly_emissions.main(
+            path_emi=cfg.path_emi,
+            output_path=cfg.output_path,
+            output_name=cfg.output_name,
+            prof_path=cfg.prof_path,
+            start_date=cfg.start_date,
+            end_date=cfg.end_date,
+        )
 
     else:
         raise ValueError('Unknown task "%s"' % task)
