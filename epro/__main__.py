@@ -79,10 +79,7 @@ def main():
         if hasattr(cfg, 'output_path'):
             cfg.output_path = cfg.output_path.format(online='online')
 
-
     print('Output path: "%s"' % cfg.output_path)
-    return
-
 
     if args.task in ['grid']:
 
