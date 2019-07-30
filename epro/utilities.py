@@ -11,6 +11,7 @@ import time
 import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
 import netCDF4 as nc
+import numba
 import numpy as np
 
 from importlib import import_module
@@ -24,8 +25,6 @@ from .country_code import country_codes
 DAY_PER_YR = 365.25
 SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
-
-
 
 
 def write_variable(ncfile, variable, var_name, latname, lonname, unit,
@@ -284,9 +283,16 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
         for i in range(cosmo_grid.nx)
     ]
 
-    with Pool(nprocs) as pool:
-        res = pool.starmap(assign_country_code, arguments)
+    if nprocs == 1:
+        res = []
+        for args in arguments:
+            res.append( assign_country_code(*args) )
         country_mask = np.array(res, dtype=int)
+
+    else:
+        with Pool(nprocs) as pool:
+            res = pool.starmap(assign_country_code, arguments)
+            country_mask = np.array(res, dtype=int)
 
     end = time.time()
     print(f"Computation is over, it took\n{int(end - start)} seconds")
@@ -338,6 +344,9 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
     # Keep track of countries with no code
     no_country_code = set()
 
+    # Get country bounds outside loop
+    country_bounds = [country.bounds for country in countries]
+
     country_mask = np.empty(len(indices), dtype=int)
     for k, (i, j) in enumerate(indices):
         cosmo_cell_x, cosmo_cell_y = cosmo_grid.cell_corners(i, j)
@@ -349,8 +358,8 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
 
         intersected_countries = [
             country
-            for country in countries
-            if intersection_possible(country, projected_corners)
+            for country, bounds in zip(countries, country_bounds)
+            if intersection_possible(projected_corners, *bounds)
             and projected_cell.intersects(country.geometry)
         ]
 
@@ -386,7 +395,23 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
     return country_mask
 
 
-def intersection_possible(country, points):
+
+@numba.jit(nopython=True)
+def minmax(array):
+    """Find both min and max value of arr in one pass"""
+    minval = maxval = array[0]
+
+    for e in array[1:]:
+        if e < minval:
+            minval = e
+        if e > maxval:
+            maxval = e
+
+    return minval, maxval
+
+
+@numba.jit(nopython=True)
+def intersection_possible(points, c_minx, c_miny, c_maxx, c_maxy):
     """Determine if country could contain any of the points.
 
     The maximum and minimum x and y values of the country and the points
@@ -400,39 +425,26 @@ def intersection_possible(country, points):
 
     Parameters
     ----------
-    country : cartopy.io.shapereader.Record
     points : np.array(shape=(4,3), dtype=float)
         Containing the 4 corners of a cell, ordered clockwise
+
+    *country.bounds
+
     Returns
     -------
     bool
         True if an intersection is possible, False otherwise
     """
-
-    def minmax(array):
-        """Find both min and max value of arr in one pass"""
-        minval = maxval = array[0]
-
-        for e in array[1:]:
-            if e < minval:
-                minval = e
-            if e > maxval:
-                maxval = e
-
-        return minval, maxval
-
-    c_minx, c_miny, c_maxx, c_maxy = country.bounds
+    # check x-coordinates
     p_minx, p_maxx = minmax(points[:, 0])
+
+    if c_minx >= p_maxx or c_maxx <= p_minx:
+        return False
+
+    # check y-coordinates (if this still needs to be done)
     p_miny, p_maxy = minmax(points[:, 1])
 
-    if (
-        c_minx < p_maxx
-        and c_maxx > p_minx
-        and c_miny < p_maxy
-        and c_maxy > p_miny
-    ):
-        return True
-    return False
+    return c_miny < p_maxy and c_maxy > p_miny
 
 
 def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
