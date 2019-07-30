@@ -6,7 +6,7 @@ import numpy as np
 from netCDF4 import Dataset
 from multiprocessing import Pool
 
-from catlist import catlist_prelim,tplist_prelim,vplist_prelim
+from .catlist import catlist_prelim,tplist_prelim,vplist_prelim
 
 def daterange(start_date, end_date):
     """Yield a consequitve dates from the range [start_date, end_date).
