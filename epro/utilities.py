@@ -28,7 +28,8 @@ SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
 
 
-def write_variable(ncfile, variable, var_name, latname, lonname, unit):
+def write_variable(ncfile, variable, var_name, latname, lonname, unit,
+                   overwrite=False):
     """
     Create a new variable or add to existing variable.
 
@@ -39,8 +40,10 @@ def write_variable(ncfile, variable, var_name, latname, lonname, unit):
     latname (str)
     lonname (str)
     unit (str)
-    """
 
+    overwrite           : overwrite existing variables (instead of adding
+                          values), default = False
+    """
     if var_name not in ncfile.variables.keys():
         ncfile.createVariable(var_name, float, (latname, lonname))
 
@@ -48,6 +51,9 @@ def write_variable(ncfile, variable, var_name, latname, lonname, unit):
             ncfile[var_name].grid_mapping = "rotated_pole"
 
         ncfile[var_name].units = unit
+        ncfile[var_name][:] = variable
+
+    elif overwrite:
         ncfile[var_name][:] = variable
     else:
         ncfile[var_name][:] += variable
