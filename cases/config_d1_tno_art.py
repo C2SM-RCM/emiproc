@@ -62,24 +62,13 @@ output_name = 'tno-art.nc'
 
 
 # Output grid is European domain (rotated pole coordinates)
-xmin = -16.08
-ymin =  -9.54
-nx = 192
-ny = 164
-
-if offline:
-    xmin -= 2 * dx
-    ymin -= 2 * dy
-    nx += 4
-    ny += 4
-
 cosmo_grid = COSMOGrid(
-    nx=nx,
-    ny=ny,
+    nx=192,
+    ny=164,
     dx=0.12,
     dy=0.12,
-    xmin=xmin,
-    ymin=ymin,
+    xmin=-16.08,
+    ymin=-9.54,
     pollon=-170.0,
     pollat=43.0,
 )

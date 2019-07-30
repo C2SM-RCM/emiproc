@@ -60,20 +60,8 @@ cosmo_grid = COSMOGrid(
     pollat=43.0,
 )
 
-offline = True
-if offline:
-    cosmo_grid.xmin -= 2 * cosmo_grid.dx
-    cosmo_grid.ymin -= 2 * cosmo_grid.dy
-    cosmo_grid.nx += 4
-    cosmo_grid.ny += 4
-
-
 # output path and filename
-if offline:
-    output_path = os.path.join("TNO-test", 'offline')
-else:
-    output_path = os.path.join("TNO-test", 'online')
-
+output_path = os.path.join("TNO-test", '{online}')
 output_name = "test-tno.nc"
 
 

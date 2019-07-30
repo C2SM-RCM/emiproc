@@ -37,6 +37,9 @@ def parse_arguments():
     parser.add_argument('--nomenclature', dest='nomenclature', default='GNFR',
                         help='GNFR or SNAP', choices=['GNFR', 'SNAP'])
 
+    parser.add_argument('--offline', dest='offline', action='store_true',
+                        help='')
+
     args = parser.parse_args()
 
     return args
@@ -61,6 +64,24 @@ def main():
 
     else:
         cfg = None
+
+    if args.offline:
+        if hasattr(cfg, 'cosmo_grid'):
+            print('Add two-cell boundary on COSMO grid')
+            cfg.cosmo_grid.xmin -= 2 * cfg.cosmo_grid.dx
+            cfg.cosmo_grid.ymin -= 2 * cfg.cosmo_grid.dy
+            cfg.cosmo_grid.nx += 4
+            cfg.cosmo_grid.ny += 4
+
+        if hasattr(cfg, 'output_path'):
+            cfg.output_path = cfg.output_path.format(online='offline')
+    else:
+        if hasattr(cfg, 'output_path'):
+            cfg.output_path = cfg.output_path.format(online='online')
+
+
+    print('Output path: "%s"' % cfg.output_path)
+    return
 
 
     if args.task in ['grid']:

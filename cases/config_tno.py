@@ -63,12 +63,6 @@ cosmo_grid = COSMOGrid(
     pollat=43.0,
 )
 
-offline = False
-if offline:
-    cosmo_grid.xmin -= 2 * cosmo_grid.dx
-    cosmo_grid.ymin -= 2 * cosmo_grid.dy
-    cosmo_grid.nx += 4
-    cosmo_grid.ny += 4
 
 # output path and filename
 output_path = "TNO"
