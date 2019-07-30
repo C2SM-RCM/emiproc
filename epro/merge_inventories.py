@@ -12,13 +12,8 @@ import numpy as np
 
 from netCDF4 import Dataset
 
-from country_code import country_codes
-from nc_operations import copy_dataset, VariableCreator
-
-
-base = "testdata/oae_paper/tno.nc"
-nest = {"testdata/flexpart/emis_2018_carbocount_CO2_FLEXPART_main.nc": "CH"}
-output = "testdata/oae_paper/tno_carbocount.nc"
+from .country_code import country_codes
+from .nc_operations import copy_dataset, VariableCreator
 
 
 def merge_inventories(base_inv, nested_invs, output_path):
