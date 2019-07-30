@@ -48,18 +48,9 @@ in2out_category = {
 # category after applying the mapping
 varname_format = '{species}_{category}_{source_type}'
 
-# online or offline emissions (online emissions have a grid with 2-cell
-# boundary)
-offline = False
-
 # output path and filename
-if offline:
-    output_path = os.path.join('oae-art-example', 'offline', 'tno')
-else:
-    output_path = os.path.join('oae-art-example', 'online', 'tno')
-
+output_path = os.path.join('oae-art-example', '{online}', 'tno')
 output_name = 'tno-art.nc'
-
 
 # Output grid is European domain (rotated pole coordinates)
 cosmo_grid = COSMOGrid(
