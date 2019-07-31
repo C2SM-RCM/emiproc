@@ -152,15 +152,17 @@ def main():
             tp.main_simple(cfg)
 
 
-    elif args.task in ['offline']:
+    elif args.task in ['hourly']:
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
         # create hourly (offline) emissions
         hourly_emissions.main(
-            path_emi=cfg.path_emi,
-            output_path=cfg.output_path,
+            path_emi=cfg.path_emi.format(online='offline' if args.offline else
+                                         'online'),
+            output_path=cfg.output_path.format(online='offline' if args.offline
+                                               else 'online'),
             output_name=cfg.output_name,
             prof_path=cfg.prof_path,
             start_date=cfg.start_date,
@@ -168,7 +170,8 @@ def main():
             var_list=cfg.var_list,
             catlist=cfg.catlist,
             tplist=cfg.tplist,
-            vplist=cfg.vplist
+            vplist=cfg.vplist,
+            contribution_list=cfg.contribution_list
         )
 
     else:

@@ -296,6 +296,8 @@ def process_day(date, path_template, lists, matrices, datasets):
         -   'vps' : list(str)
                 List of all vertical profiles (used as key for
                 matrices.vp_mats). Should have the same shape as cat_list.
+        -  'contribution_list' : dict
+
     matrices : dict
         A dict containing the actual emission-data and the profiles applied
         to it:
@@ -365,9 +367,14 @@ def process_day(date, path_template, lists, matrices, datasets):
                         # Add dimensions so numpy can broadcast
                         ver_mat = np.reshape(ver_mat, (levels, 1, 1))
 
-                        oae_vals += (
-                            emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
-                        )
+                        # Compute emissions
+                        value = emi_mat * hod_mat * dow_mat * moy_mat * ver_mat
+
+                        # Apply speciation
+                        if lists['contribution_list'] is not None:
+                            value *= lists['contribution_list'][var].get_wildcard(cat)
+
+                        oae_vals += value
                     # Careful, automatic reshaping!
                     of[var][0, :] = oae_vals
 
@@ -392,6 +399,7 @@ def generate_arguments(
     catlist,
     tplist,
     vplist,
+    contribution_list,
     output_path,
     output_prefix,
 ):
@@ -504,6 +512,7 @@ def generate_arguments(
         "cats": catlist,
         "tps": tplist,
         "vps": vplist,
+        'contribution_list': contribution_list,
     }
     datasets = {
         "emi_path": emi_path,
@@ -562,11 +571,13 @@ def main(
     var_list,
     catlist,
     tplist,
-    vplist
+    vplist,
+    contribution_list,
 ):
     point1 = time.time()
 
-    #var_list, catlist, tplist, vplist = create_lists()
+    # Make output folder
+    os.makedirs(output_path, exist_ok=True)
 
     # Prepare arguments
     args = generate_arguments(
@@ -581,6 +592,7 @@ def main(
         catlist=catlist,
         tplist=tplist,
         vplist=vplist,
+        contribution_list=contribution_list,
         output_path=output_path,
         output_prefix=output_name,
     )
