@@ -583,16 +583,11 @@ class COSMOGrid(Grid):
 
         # Cell area at equator
         dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
-        areas = np.array(
-            [
-                [
-                    dd * np.cos(np.deg2rad(self.ymin) + j * dlat)
-                    for j in range(self.ny)
-                ]
-                for _ in range(self.nx)
-            ]
-        )
-        return areas
+
+        # Cell areas in y-direction
+        areas = dd * np.cos(np.deg2rad(self.ymin) + np.arange(self.ny) * dlat)
+
+        return np.broadcast_to(areas, (self.nx, self.ny))
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
