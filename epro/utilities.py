@@ -487,7 +487,8 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
     cosmo_projection = cosmo_grid.get_projection()
 
     progress = ProgressIndicator(lon_size)
-    with Pool(nprocs) as pool:
+
+    if nprocs == 1:
         for i in range(lon_size):
             progress.step()
             cells = []
@@ -500,7 +501,22 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
                 )
                 cells.append(cell_in_cosmo_projection)
 
-            mapping[i, :] = pool.map(cosmo_grid.intersected_cells, cells)
+            mapping[i, : ] = [cosmo_grid.intersected_cells(c) for c in cells]
+    else:
+        with Pool(nprocs) as pool:
+            for i in range(lon_size):
+                progress.step()
+                cells = []
+                for j in range(lat_size):
+                    inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
+                        i, j
+                    )
+                    cell_in_cosmo_projection = cosmo_projection.transform_points(
+                        inv_projection, inv_cell_corners_x, inv_cell_corners_y
+                    )
+                    cells.append(cell_in_cosmo_projection)
+
+                mapping[i, :] = pool.map(cosmo_grid.intersected_cells, cells)
 
     end = time.time()
 
