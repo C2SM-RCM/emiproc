@@ -9,7 +9,8 @@ import numpy as np
 # calculate the fraction of single tracer out of inventory species    
 
 # input files
-DATA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'files')
+DATA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'files',
+                         'speciation')
 
 pm25composition_dir = os.path.join(DATA_PATH, 'pm25composition.csv')
 tno_voc_dir= os.path.join(DATA_PATH, 'tno_voc.csv')
