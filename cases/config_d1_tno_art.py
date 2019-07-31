@@ -65,7 +65,7 @@ cosmo_grid = COSMOGrid(
 )
 
 # resolution of shapefile used for country mask
-shpfile_resolution = "110m"
+shpfile_resolution = "10m"
 
 # number of processes
 nprocs = 16

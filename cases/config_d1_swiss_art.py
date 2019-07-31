@@ -74,7 +74,7 @@ output_path = os.path.join('oae-art-example', '{online}', 'swiss')
 output_name = 'swiss-art.nc'
 
 # resolution of shape file used for country mask
-shpfile_resolution = "110m"
+shpfile_resolution = "10m"
 
 # number of processes used
 nprocs = 16

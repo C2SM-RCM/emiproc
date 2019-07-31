@@ -79,7 +79,8 @@ def main():
         if hasattr(cfg, 'output_path'):
             cfg.output_path = cfg.output_path.format(online='online')
 
-    print('Output path: "%s"' % cfg.output_path)
+    if hasattr(cfg, 'output_path'):
+        print('Output path: "%s"' % cfg.output_path)
 
     if args.task in ['grid']:
 
@@ -108,6 +109,15 @@ def main():
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
+
+        if args.offline:
+            cfg.inv_1 = cfg.inv_1.format(online='offline')
+            cfg.inv_2 = cfg.inv_2.format(online='offline')
+            cfg.inv_out = cfg.inv_out.format(online='offline')
+        else:
+            cfg.inv_1 = cfg.inv_1.format(online='online')
+            cfg.inv_2 = cfg.inv_2.format(online='online')
+            cfg.inv_out = cfg.inv_out.format(online='online')
 
         append_inventories.main(cfg)
 
