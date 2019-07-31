@@ -1,20 +1,22 @@
 
 
 from fnmatch import fnmatch
+import os
+
 import numpy as np
 
 # COSMOART speciation function starts
 # calculate the fraction of single tracer out of inventory species    
 
-# constants
+# input files
+DATA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'files')
+
+pm25composition_dir = os.path.join(DATA_PATH, 'pm25composition.csv')
+tno_voc_dir= os.path.join(DATA_PATH, 'tno_voc.csv')
+
+# ratios
 f_no2 = 0.18
-
-pm25composition_dir = '/project/muq/online_emission_cosmoart/speciation/pm25composition.csv'
 j_ratio = 0.9
-
-tno_voc_dir='/project/muq/online_emission_cosmoart/speciation/tno_voc.csv'
-
-
 
 
 class WildcardsDict(dict):
