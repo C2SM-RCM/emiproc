@@ -4,6 +4,7 @@ import argparse
 import os
 
 import epro
+import epro.grids
 
 from epro.profiles import temporal_profiles as tp
 from epro.profiles import vertical_profiles as vp
@@ -68,10 +69,16 @@ def main():
     if args.offline:
         if hasattr(cfg, 'cosmo_grid'):
             print('Add two-cell boundary on COSMO grid')
-            cfg.cosmo_grid.xmin -= 2 * cfg.cosmo_grid.dx
-            cfg.cosmo_grid.ymin -= 2 * cfg.cosmo_grid.dy
-            cfg.cosmo_grid.nx += 4
-            cfg.cosmo_grid.ny += 4
+            cfg.cosmo_grid = epro.grids.COSMOGrid(
+                nx = cfg.cosmo_grid.nx + 4,
+                ny = cfg.cosmo_grid.ny + 4,
+                dx = cfg.cosmo_grid.dx,
+                dy = cfg.cosmo_grid.dy,
+                xmin = cfg.cosmo_grid.xmin - 2 * cfg.cosmo_grid.dx,
+                ymin = cfg.cosmo_grid.ymin - 2 * cfg.cosmo_grid.dy,
+                pollon=cfg.cosmo_grid.pollon,
+                pollat=cfg.cosmo_grid.pollat,
+            )
 
         if hasattr(cfg, 'output_path'):
             cfg.output_path = cfg.output_path.format(online='offline')
