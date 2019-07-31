@@ -8,6 +8,8 @@ country_codes = {
     "FIN": 7,
     "FRA": 8,
     "SMR": 8, #HJM
+    "GGY": 8, # Guernsey -> France
+    "JEY": 8, # Jursey -> France
     "FGD": 9,
     "FFR": 10,
     "GRC": 11,
@@ -22,10 +24,12 @@ country_codes = {
     "ROM": 21,
     "ROU": 21,
     "ESP": 22,
+    "AND": 22, # Andora -> ESP
     "SWE": 23,
     "CHE": 24,
     "TUR": 25,
     "GBR": 27,
+    "IMN": 27, # Isle of Man -> GBR
     "BLR": 39,
     "UKR": 40,
     "MKD": 41,
