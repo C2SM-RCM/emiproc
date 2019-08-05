@@ -15,8 +15,12 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'files',
 pm25composition_dir = os.path.join(DATA_PATH, 'pm25composition.csv')
 tno_voc_dir= os.path.join(DATA_PATH, 'tno_voc.csv')
 
+
+# mass fractions of NO2 and NO in NOX.
+NOX_TO_NO2 = 0.18
+NOX_TO_NO = (1.0 - NOX_TO_NO2) / 46.0 * 30.0
+
 # ratios
-f_no2 = 0.18
 j_ratio = 0.9
 
 
@@ -33,18 +37,6 @@ class WildcardsDict(dict):
             if fnmatch(pattern, key):
                 return self[key]
         return default
-
-def nox2no(f_no2):
-    """ Seperate NOx to NO/NO2
-        Inventory reports total NOx as NO2
-
-        input: f_no2: no2 mass fraction in nox
-        output: no2 and no fraction out of NOx
-    """
-    no2 = f_no2
-    no = (1 - f_no2) / 46. * 30
-
-    return no2, no
 
 
 def pm2aerosol(j_ratio, pm25composition_dir):
@@ -86,13 +78,16 @@ def nmvoc2gas(tno_voc_dir):
 
 
 
-def create_mapping():
+def create_mapping(nomenclature='GNFR'):
+
+    if nomenclature != 'GNFR':
+        raise NotImplementedError('Only GNFR supported for nomenclature.')
+
     spe = {}
 
     # nitrogen oxides
-    no2, no = nox2no(f_no2)
-    spe['NOe'] = {'NOX_*': no}
-    spe['NO2e'] = {'NOX_*': no2}
+    spe['NOe'] = {'NOX_*': NOX_TO_NO}
+    spe['NO2e'] = {'NOX_*': NOX_TO_NO2}
 
     # NMVOC categories (without K)
     out = nmvoc2gas(tno_voc_dir)
