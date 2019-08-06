@@ -2,6 +2,67 @@
 
 This readme describes how to create the examples from the paper.
 
+## HOWTO: COSMO-GHG online example
+1. GRID TNO and SWISS inventories on COSMO grid:
+```
+python -m epro grid --case config_tno
+python -m epro grid --case config_carbocount
+```
+
+2. Merge SWISS and TNO inventories:
+```
+python -m epro append --case config_append
+```
+
+3. Create temporal and vertical profiles
+```
+python -m epro tp --case test_tp_simple.py
+python -m epro vp
+```
+
+4. Create new profiles to merge the Swiss and TNO inventories
+```
+python -m epro tp-merge --case config_tpmerge
+```
+
+5. Move all profiles together
+```
+mv vertical_profiles.nc outputs/profiles/
+```
+
+## HOWTO: COSMO-GHG offline example
+1. GRID TNO and SWISS inventories on COSMO grid:
+```
+python -m epro grid --case config_tno --offline
+python -m epro grid --case config_carbocount --offline
+```
+
+2. Merge SWISS and TNO inventories:
+```
+python -m epro append --case config_append --offline
+```
+
+3. Create temporal and vertical profiles
+```
+python -m epro tp --case test_tp_simple.py
+python -m epro vp
+```
+
+4. Create new profiles to merge the Swiss and TNO inventories
+```
+python -m epro tp-merge --case config_tpmerge
+```
+
+5. Move all profiles together
+```
+mv vertical_profiles.nc outputs/profiles/
+```
+
+5. Create hourly emissions
+```
+python -m epro hourly --case config_hourly
+```
+
 ## HOWTO: COSMO-ART online example
 
 1. Grid TNO and SWISS inventories on COSMO grid:

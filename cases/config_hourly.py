@@ -4,11 +4,11 @@ import os
 
 from epro.hourly_emissions import speciation as spec
 
-path_emi = 'all_outputs/final/offline/All_emissions.nc'
+path_emi = os.path.join('outputs', 'offline','all_emissions.nc')
 
-output_path = 'all_outputs/final/offline/hourly/'
+output_path = os.path.join('outputs', 'offline','hourly')
 output_name = "emis_"
-prof_path = 'all_outputs/final/profiles/'
+prof_path = os.path.join('outputs', 'profiles')
 
 start_date = datetime.date(2019, 1, 1)
 end_date = datetime.date(2019, 1, 8)  # included

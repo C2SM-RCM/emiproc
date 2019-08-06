@@ -1,3 +1,4 @@
+import os 
 
 # list of input inventories
 inv1 = 'TNO'
