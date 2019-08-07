@@ -1,4 +1,5 @@
 cartopy
 netCDF4
+numba
 numpy
 shapely

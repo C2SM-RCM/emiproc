@@ -117,6 +117,15 @@ class TNOGrid(Grid):
         self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
         self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
 
+        # Compute the cell corners
+        x = self.lon_var
+        y = self.lat_var
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+
+        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
+
         super().__init__(name, ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
@@ -135,15 +144,7 @@ class TNOGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        x = self.lon_var[i]
-        y = self.lat_var[j]
-        dx2 = self.dx / 2
-        dy2 = self.dy / 2
-        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
-
-        cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
-
-        return cell_x, cell_y
+        return self.cell_x[:,i], self.cell_y[:,j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -208,6 +209,11 @@ class EDGARGrid(Grid):
         self.lon_vals = np.arange(self.xmin, self.xmax, self.dx)
         self.lat_vals = np.arange(self.ymin, self.ymax, self.dy)
 
+        x = self.lon_vals
+        y = self.lat_vals
+        self.cell_x = np.array([x + self.dx, x + self.dx, x, x])
+        self.cell_y = np.array([y + self.dy, y, y, y + self.dy])
+
         super().__init__(name, ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
@@ -226,13 +232,7 @@ class EDGARGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        x = self.lon_vals[i]
-        y = self.lat_vals[j]
-        cell_x = np.array([x + self.dx, x + self.dx, x, x])
-
-        cell_y = np.array([y + self.dy, y, y, y + self.dy])
-
-        return cell_x, cell_y
+        return self.cell_x[:,i], self.cell_y[:,j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -304,6 +304,15 @@ class VPRMGrid(Grid):
             ccrs.PlateCarree(), proj_lon[:, 0], proj_lat[:, 0]
         )[:, 1]
 
+        # Cell corners
+        x = self.lon_vals
+        y = self.lat_vals
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+
+        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
+
         super().__init__(name, projection)
 
     def cell_corners(self, i, j):
@@ -322,15 +331,7 @@ class VPRMGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        x = self.lon_vals[i]
-        y = self.lat_vals[j]
-        dx2 = self.dx / 2
-        dy2 = self.dy / 2
-
-        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
-        cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
-
-        return cell_x, cell_y
+        return self.cell_x[:,i], self.cell_y[:,j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -552,6 +553,15 @@ class COSMOGrid(Grid):
         self.pollon = pollon
         self.pollat = pollat
 
+        # cell corners
+        x = self.xmin + np.arange(self.nx) * self.dx
+        y = self.ymin + np.arange(self.ny) * self.dy
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+
+        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
+
         super().__init__(
             "COSMO",
             ccrs.RotatedPole(pole_longitude=pollon, pole_latitude=pollat),
@@ -573,16 +583,11 @@ class COSMOGrid(Grid):
 
         # Cell area at equator
         dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
-        areas = np.array(
-            [
-                [
-                    dd * np.cos(np.deg2rad(self.ymin) + j * dlat)
-                    for j in range(self.ny)
-                ]
-                for _ in range(self.nx)
-            ]
-        )
-        return areas
+
+        # Cell areas in y-direction
+        areas = dd * np.cos(np.deg2rad(self.ymin) + np.arange(self.ny) * dlat)
+
+        return np.broadcast_to(areas, (self.nx, self.ny))
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -639,15 +644,8 @@ class COSMOGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        x = self.xmin + i * self.dx
-        y = self.ymin + j * self.dy
-        dx2 = self.dx / 2
-        dy2 = self.dy / 2
+        return self.cell_x[:,i], self.cell_y[:,j]
 
-        cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
-        cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
-
-        return cell_x, cell_y
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
         """Return the indices of the grid cell that contains the point (lon, lat)
@@ -706,39 +704,50 @@ class COSMOGrid(Grid):
                      area of the inventory cell.
                      r is in (0,1] (only nonzero intersections are reported)
         """
+        # Find around which cosmo grid index the inventory cell lies.
+        # Since the inventory cell is in general not rectangular because
+        # of different projections, we add a margin of to the extremal indices.
+        # This way we're sure we don't miss any intersection.
+
+        cell_xmin = min(k[0] for k in corners)
+        lon_idx_min = int((cell_xmin - self.xmin) / self.dx) - 2
+
+        if lon_idx_min > self.nx:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        cell_xmax = max(k[0] for k in corners)
+        lon_idx_max = int((cell_xmax - self.xmin) / self.dx) + 3
+
+        if lon_idx_max < 0:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        cell_ymin = min(k[1] for k in corners)
+        lat_idx_min = int((cell_ymin - self.ymin) / self.dy) - 2
+
+        if lat_idx_min > self.ny:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        cell_ymax = max(k[1] for k in corners)
+        lat_idx_max = int((cell_ymax - self.ymin) / self.dy) + 3
+
+        if lat_idx_max < 0:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,
         # we can calculate in degrees^2.
         inv_cell = Polygon(corners)
 
-        # Find around which cosmo grid index the inventory cell lies.
-        # Since the inventory cell is in general not rectangular because
-        # of different projections, we add a margin of to the extremal indices.
-        # This way we're sure we don't miss any intersection.
-        cell_xmin = min(k[0] for k in corners)
-        cell_xmax = max(k[0] for k in corners)
-        lon_idx_min = int((cell_xmin - self.xmin) / self.dx) - 2
-        lon_idx_max = int((cell_xmax - self.xmin) / self.dx) + 3
-
-        cell_ymin = min(k[1] for k in corners)
-        cell_ymax = max(k[1] for k in corners)
-        lat_idx_min = int((cell_ymin - self.ymin) / self.dy) - 2
-        lat_idx_max = int((cell_ymax - self.ymin) / self.dy) + 3
-
-        if (
-            lon_idx_max < 0
-            or lat_idx_max < 0
-            or lon_idx_min > self.nx
-            or lat_idx_min > self.ny
-        ):
-            # The inventory cell lies outside the cosmo grid
-            return []
-
         intersections = []
         # make sure we iterate only over valid gridpoint indices
         for i in range(max(0, lon_idx_min), min(self.nx, lon_idx_max)):
             for j in range(max(0, lat_idx_min), min(self.ny, lat_idx_max)):
-                cosmo_cell = Polygon(list(zip(*self.cell_corners(i, j))))
+                corners = list(zip(*self.cell_corners(i, j)))
+                cosmo_cell = Polygon(corners)
 
                 if cosmo_cell.intersects(inv_cell):
                     overlap = cosmo_cell.intersection(inv_cell)

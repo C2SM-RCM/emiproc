@@ -1,3 +1,4 @@
+import os
 import time
 
 from epro.grids import COSMOGrid, TNOGrid
@@ -22,9 +23,9 @@ categories = [
 #    "C",
 #    "D",
 #    "E",
-#    "F1",
-#    "F2",
-#    "F3",
+    "F1",
+    "F2",
+    "F3",
 #    "G",
 #    "H",
 #    "I",
@@ -40,7 +41,7 @@ in2out_species = {
 }
 
 # mapping from input to output category (input is used for missing keys)
-in2out_category = {}
+in2out_category = {'F1': 'F', 'F2': 'F', 'F3': 'F'}
 
 
 # output variables are written in the following format using species and
@@ -59,17 +60,10 @@ cosmo_grid = COSMOGrid(
     pollat=43.0,
 )
 
-offline = False
-if offline:
-    cosmo_grid.xmin -= 2 * cosmo_grid.dx
-    cosmo_grid.ymin -= 2 * cosmo_grid.dy
-    cosmo_grid.nx += 4
-    cosmo_grid.ny += 4
-
-
 # output path and filename
-output_path = "TNO-test"
+output_path = os.path.join("TNO-test", '{online}')
 output_name = "test-tno.nc"
+
 
 # resolution of shapefile used for country mask
 shpfile_resolution = "110m"

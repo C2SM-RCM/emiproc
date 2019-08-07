@@ -25,7 +25,7 @@ def main(cfg):
                         continue
 
                     var = inf[v]
-                    nc_var = outf.createVariable(v+'_'+name, var.dtype, var.dimensions)
+                    nc_var = outf.createVariable(v+name, var.dtype, var.dimensions)
                     nc_var.units = var.units
                     nc_var.grid_mapping = var.grid_mapping
                     nc_var[:] = var[:]

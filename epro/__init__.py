@@ -103,10 +103,20 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
     with Dataset(cfg.input_path) as tno:
 
         # Get emission category codes from TNO file
-        tno_cat_codes = tno.variables['emis_cat_code'][:]
-        tno_cat_codes = netCDF4.stringtochar(tno_cat_codes)
-        tno_cat_codes = [s.tostring().decode('ascii').strip('\00')
-                         for s in tno_cat_codes]
+        if 'emis_cat_code' in tno.variables:
+
+            # GNFR-based
+            tno_cat_codes = tno.variables['emis_cat_code'][:]
+            tno_cat_codes = netCDF4.stringtochar(tno_cat_codes)
+            tno_cat_codes = [s.tostring().decode('ascii').strip('\00')
+                             for s in tno_cat_codes]
+
+        elif 'emis_cat_shortsnap' in tno.variables:
+
+            # SNAP-based (e.g. TNO/MACC-III)
+            tno_cat_codes = tno.variables['emis_cat_shortsnap'][:]
+            tno_cat_codes = [str(c) for c in tno_cat_codes]
+
 
         # Mask corresponding to the area/point sources
         selection_area = tno["source_type_index"][:] == 1
