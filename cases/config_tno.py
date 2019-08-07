@@ -69,7 +69,7 @@ output_path = os.path.join('outputs', '{online}')
 output_name = "tno.nc"
 
 # resolution of shape file used for country mask
-shpfile_resolution = "10m" # TODO: set back to 10m
+shpfile_resolution = "10m" 
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
