@@ -5,16 +5,15 @@ import os
 
 import epro
 
-from epro.profiles import temporal_profiles_example as tp
+from epro.profiles import temporal_profiles as tp
 from epro.profiles import vertical_profiles as vp
 from epro import utilities as util
 
 from epro.merge_inventories import merge_inventories
 from epro import append_inventories
 from epro import merge_profiles
+from epro import hourly_emissions
 
-# TODO/FIXME
-# - use temporal_profiles or temporal_profiles_example?
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'files')
 
@@ -34,6 +33,9 @@ def parse_arguments():
 
     parser.add_argument('--output-path', dest='output_path', default='.',
                         help='name of output path')
+
+    parser.add_argument('--nomenclature', dest='nomenclature', default='GNFR',
+                        help='GNFR or SNAP', choices=['GNFR', 'SNAP'])
 
     args = parser.parse_args()
 
@@ -95,21 +97,40 @@ def main():
     elif args.task in ['vp']:
 
         profile_filename = os.path.join(DATA_PATH, 'vert_profiles',
-                                        'vert_prof_che_gnfr.dat')
+                                        'vert_prof_che_%s.dat' %
+                                        args.nomenclature.lower())
 
         output_filename = os.path.join(args.output_path,
                                        'vertical_profiles.nc')
 
-        vp.main(output_filename, profile_filename)
+        vp.main(output_filename, profile_filename, prefix='%s_' %
+                args.nomenclature)
 
     elif args.task in ['tp']: # temporal profiles
 
-        tp.main(args.output_path, DATA_PATH)
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
 
-    elif args.task in ['hourly']:
+        if cfg.profile_depends_on_species:
+            tp.main_complex(cfg)
+        else:
+            tp.main_simple(cfg)
+
+
+    elif args.task in ['offline']:
+
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
 
         # create hourly (offline) emissions
-        raise NotImplementedError
+        hourly_emissions.main(
+            path_emi=cfg.path_emi,
+            output_path=cfg.output_path,
+            output_name=cfg.output_name,
+            prof_path=cfg.prof_path,
+            start_date=cfg.start_date,
+            end_date=cfg.end_date,
+        )
 
     else:
         raise ValueError('Unknown task "%s"' % task)
