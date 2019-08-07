@@ -22,10 +22,14 @@ country_codes = {
     "ROM": 21,
     "ROU": 21,
     "ESP": 22,
+    "AND": 22, # Andora -> ESP
     "SWE": 23,
     "CHE": 24,
     "TUR": 25,
     "GBR": 27,
+    "IMN": 27, # Isle of Man -> GBR
+    "GGY": 27, # Guernsey -> GBR
+    "JEY": 27, # Jursey -> GBR
     "BLR": 39,
     "UKR": 40,
     "MKD": 41,

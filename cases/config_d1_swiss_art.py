@@ -58,12 +58,6 @@ ymin =  -9.54
 nx = 192
 ny = 164
 
-if offline:
-    xmin = xmin - 2 * dx
-    ymin = ymin - 2 * dy
-    nx = nx + 4
-    ny = ny + 4
-
 cosmo_grid = COSMOGrid(
     nx=nx,
     ny=ny,
@@ -75,17 +69,12 @@ cosmo_grid = COSMOGrid(
     pollat=43.0,
 )
 
-# output path
-if offline:
-    output_path = os.path.join('oae-art-example', 'offline', 'swiss')
-else:
-    output_path = os.path.join('oae-art-example', 'online', 'swiss')
-
 # output filename
+output_path = os.path.join('oae-art-example', '{online}', 'swiss')
 output_name = 'swiss-art.nc'
 
 # resolution of shape file used for country mask
-shpfile_resolution = "110m"
+shpfile_resolution = "10m"
 
 # number of processes used
 nprocs = 16

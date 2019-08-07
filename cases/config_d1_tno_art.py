@@ -48,44 +48,24 @@ in2out_category = {
 # category after applying the mapping
 varname_format = '{species}_{category}_{source_type}'
 
-# online or offline emissions (online emissions have a grid with 2-cell
-# boundary)
-offline = False
-
 # output path and filename
-if offline:
-    output_path = os.path.join('oae-art-example', 'offline', 'tno')
-else:
-    output_path = os.path.join('oae-art-example', 'online', 'tno')
-
+output_path = os.path.join('oae-art-example', '{online}', 'tno')
 output_name = 'tno-art.nc'
 
-
 # Output grid is European domain (rotated pole coordinates)
-xmin = -16.08
-ymin =  -9.54
-nx = 192
-ny = 164
-
-if offline:
-    xmin -= 2 * dx
-    ymin -= 2 * dy
-    nx += 4
-    ny += 4
-
 cosmo_grid = COSMOGrid(
-    nx=nx,
-    ny=ny,
+    nx=192,
+    ny=164,
     dx=0.12,
     dy=0.12,
-    xmin=xmin,
-    ymin=ymin,
+    xmin=-16.08,
+    ymin=-9.54,
     pollon=-170.0,
     pollat=43.0,
 )
 
 # resolution of shapefile used for country mask
-shpfile_resolution = "110m"
+shpfile_resolution = "10m"
 
 # number of processes
 nprocs = 16

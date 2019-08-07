@@ -4,6 +4,7 @@ import argparse
 import os
 
 import epro
+import epro.grids
 
 from epro.profiles import temporal_profiles as tp
 from epro.profiles import vertical_profiles as vp
@@ -37,6 +38,9 @@ def parse_arguments():
     parser.add_argument('--nomenclature', dest='nomenclature', default='GNFR',
                         help='GNFR or SNAP', choices=['GNFR', 'SNAP'])
 
+    parser.add_argument('--offline', dest='offline', action='store_true',
+                        help='')
+
     args = parser.parse_args()
 
     return args
@@ -62,6 +66,28 @@ def main():
     else:
         cfg = None
 
+    if args.offline:
+        if hasattr(cfg, 'cosmo_grid'):
+            print('Add two-cell boundary on COSMO grid')
+            cfg.cosmo_grid = epro.grids.COSMOGrid(
+                nx = cfg.cosmo_grid.nx + 4,
+                ny = cfg.cosmo_grid.ny + 4,
+                dx = cfg.cosmo_grid.dx,
+                dy = cfg.cosmo_grid.dy,
+                xmin = cfg.cosmo_grid.xmin - 2 * cfg.cosmo_grid.dx,
+                ymin = cfg.cosmo_grid.ymin - 2 * cfg.cosmo_grid.dy,
+                pollon=cfg.cosmo_grid.pollon,
+                pollat=cfg.cosmo_grid.pollat,
+            )
+
+        if hasattr(cfg, 'output_path'):
+            cfg.output_path = cfg.output_path.format(online='offline')
+    else:
+        if hasattr(cfg, 'output_path'):
+            cfg.output_path = cfg.output_path.format(online='online')
+
+    if hasattr(cfg, 'output_path'):
+        print('Output path: "%s"' % cfg.output_path)
 
     if args.task in ['grid']:
 
@@ -91,6 +117,15 @@ def main():
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
+        if args.offline:
+            cfg.inv_1 = cfg.inv_1.format(online='offline')
+            cfg.inv_2 = cfg.inv_2.format(online='offline')
+            cfg.inv_out = cfg.inv_out.format(online='offline')
+        else:
+            cfg.inv_1 = cfg.inv_1.format(online='online')
+            cfg.inv_2 = cfg.inv_2.format(online='online')
+            cfg.inv_out = cfg.inv_out.format(online='online')
+
         append_inventories.main(cfg)
 
 
@@ -117,19 +152,26 @@ def main():
             tp.main_simple(cfg)
 
 
-    elif args.task in ['offline']:
+    elif args.task in ['hourly']:
 
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
         # create hourly (offline) emissions
         hourly_emissions.main(
-            path_emi=cfg.path_emi,
-            output_path=cfg.output_path,
+            path_emi=cfg.path_emi.format(online='offline' if args.offline else
+                                         'online'),
+            output_path=cfg.output_path.format(online='offline' if args.offline
+                                               else 'online'),
             output_name=cfg.output_name,
             prof_path=cfg.prof_path,
             start_date=cfg.start_date,
             end_date=cfg.end_date,
+            var_list=cfg.var_list,
+            catlist=cfg.catlist,
+            tplist=cfg.tplist,
+            vplist=cfg.vplist,
+            contribution_list=cfg.contribution_list
         )
 
     else:
