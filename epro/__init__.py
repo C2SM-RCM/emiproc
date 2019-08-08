@@ -10,7 +10,7 @@ import numpy as np
 from netCDF4 import Dataset
 
 from . import utilities as util
-
+from .process_edgar import process_edgar
 from epro import append_inventories
 
 
@@ -267,6 +267,9 @@ def main(cfg):
             process_swiss(cfg, interpolation, country_mask, out, latname,
                         lonname)
 
+        elif cfg.inventory == 'EDGAR':
+            process_edgar(cfg, interpolation, country_mask, out, latname,
+                        lonname)
 
 
 

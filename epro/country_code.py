@@ -59,6 +59,7 @@ country_codes = {
     "FCS": 5,  # Former Czechoslovakia
     "DK": 6,  # Denmark
     "FI": 7,  # Finland
+    "ALD": 7,  # Aland, part of Finland
     "FR": 8,  # France
     "FGD": 9,  # Former German Democratic Republic
     "FFR": 10,  # Former Federal Republic of Germany
@@ -118,6 +119,7 @@ country_codes = {
     "DE": 60,  # Germany
     "RU": 61,  # Russian Federation in the former official EMEP domain
     "MC": 62,  # Monaco
+    "MCO": 62,  # Monaco
     "NOA": 63,  # North Africa
     "MAR": 63,  # Maroko (assigned to NOA)
     "TUN": 63,  # Tunisia (assigned to NOA)
