@@ -64,6 +64,7 @@ country_codes = {
     "FGD": 9,  # Former German Democratic Republic
     "FFR": 10,  # Former Federal Republic of Germany
     "GR": 11,  # Greece
+    "WSB": 11,  # Akrotiri/Santorini (Assigned to Greece)
     "HU": 12,  # Hungary
     "IS": 13,  # Iceland
     "IE": 14,  # Ireland
@@ -77,11 +78,13 @@ country_codes = {
     "ES": 22,  # Spain
     "SMR": 22,  # San Marino (assigned to Spain)
     "AD": 22,  # Andorra (assigned to Spain)
+    "GIB": 22,  # Gibraltar (assigned to Spain)
     "SE": 23,  # Sweden
     "CH": 24,  # Switzerland
     "TR": 25,  # Turkey
     "FSU": 26,  # Former USSR
     "GB": 27,  # United Kingdom
+    "FRO": 27,  # Faroe Island (assigned to United Kingdom)
     "VOL": 28,  # Volcanic emissions
     "REM": 29,  # Remaining land Areas
     "BAS": 30,  # Baltic Sea
@@ -111,6 +114,8 @@ country_codes = {
     "GE": 54,  # Georgia
     "CY": 55,  # Cyprus
     "CYN": 55,  # Cyprus (alternate code)
+    "CNM": 55,  # Cyprus (alternate code)
+    "ESB": 55,  # Dhekelia Cantonment (assigned to Cyprus)
     "AM": 56,  # Armenia
     "MT": 57,  # Malta
     "ASI": 58,  # Remaining Asian areas
@@ -124,6 +129,7 @@ country_codes = {
     "MAR": 63,  # Maroko (assigned to NOA)
     "TUN": 63,  # Tunisia (assigned to NOA)
     "DZA": 63,  # Algeria (assigned to NOA)
+    "SYR": 63,  # Syria (assigned to NOA)
     "EU": 64,  # European Community
     "US": 65,  # United States
     "CA": 66,  # Canada
