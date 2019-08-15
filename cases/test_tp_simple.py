@@ -39,7 +39,7 @@ moy_input_file = os.path.join(input_path, "CHE_input",
                               "timeprofiles-month-in-year_GNFR.csv")
 
 # Output path
-output_path = "test_time_profiles_simple"
+output_path = os.path.join('outputs','profiles','profiles_simple')
 
 # Name of output variable
 varname_format = 'GNFR_{category}' # FIXME: tracer -> species
