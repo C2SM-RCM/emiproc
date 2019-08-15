@@ -11,6 +11,9 @@ model = 'cosmo-ghg'
 # path to input inventory
 input_path = "/input/EDGAR/v432_FT_CHE/"
 
+# Year of the inventory (required for finding the inventory files)
+input_year = 2015
+
 # input grid
 input_grid = EDGARGrid(
     xmin=-30,
@@ -22,7 +25,7 @@ input_grid = EDGARGrid(
 )
 
 # input species
-species = "CO2"
+species = ["CO2"]
 
 # input categories
 categories = [

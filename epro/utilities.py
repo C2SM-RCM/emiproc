@@ -26,6 +26,19 @@ DAY_PER_YR = 365.25
 SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 
+def get_out_varname(var, cat, cfg, **kw_format):
+    """
+    Create a variable name.
+    It uses the format given in the configuration file
+    and combines it with the species and categories. 
+    """
+    varname_format = getattr(cfg, 'varname_format', '{species}_{category}')
+
+    var = cfg.in2out_species.get(var, var)
+    cat = cfg.in2out_category.get(cat, cat)
+
+    return varname_format.format(species=var, category=cat, **kw_format)
+
 
 def write_variable(ncfile, variable, var_name, latname, lonname, unit,
                    overwrite=False):
