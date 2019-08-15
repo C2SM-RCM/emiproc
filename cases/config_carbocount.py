@@ -97,7 +97,7 @@ cosmo_grid = COSMOGrid(
 )
 
 # output path
-output_path = "carbocount"
+output_path = os.path.join('outputs', '{online}')
 
 # output filename
 output_name = 'carbocount.nc'
@@ -112,12 +112,12 @@ nprocs = 18
 nc_metadata = {
     "DESCRIPTION": "Gridded annual emissions",
     "DATAORIGIN": "carbocount-CH",
-    "CREATOR": "Michael Jaehn",
-    "EMAIL": "michael.jaehn@empa.ch",
+    "CREATOR": "Jean-Matthieu Haussaire",
+    "EMAIL": "jean-matthieu.haussaire@empa.ch",
     "AFFILIATION": "Empa Duebendorf, Switzerland",
     "DATE CREATED": time.ctime(time.time()),
 }
 
 # Add total emissions
-add_total_emissions = True
+add_total_emissions = False
 

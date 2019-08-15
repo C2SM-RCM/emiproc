@@ -1,3 +1,4 @@
+import os 
 
 # list of input inventories
 inv1 = 'TNO'
@@ -9,13 +10,13 @@ countries = ['CH']
 
 # input and output paths for time profile files
 profile_path_in = [
-    './example_output/hourofday.nc',
-    './example_output/dayofweek.nc',
-    './example_output/monthofyear.nc'
+    os.path.join('outputs','profiles','profiles_simple','hourofday.nc'),
+    os.path.join('outputs','profiles','profiles_simple','dayofweek.nc'),
+    os.path.join('outputs','profiles','profiles_simple','monthofyear.nc'),
 ]
 profile_path_out = [
-    './example_output/hourofday_merged.nc',
-    './example_output/dayofweek_merged.nc',
-    './example_output/monthofyear_merged.nc'
+    os.path.join('outputs','profiles','hourofday.nc'),
+    os.path.join('outputs','profiles','dayofweek.nc'),
+    os.path.join('outputs','profiles','monthofyear.nc'),
 ]
 
