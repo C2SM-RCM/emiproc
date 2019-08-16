@@ -6,29 +6,6 @@ from glob import glob
 from . import utilities as util
 import pandas
 
-# def get_emi(filename, edgar_grid):
-#     lon_var, lat_var = edgar_grid.lon_range(), edgar_grid.lat_range()
-#     emi = np.zeros((len(lon_var), len(lat_var)))
-#     with open(filename) as f:
-#         for l in f:
-#             data = l.split(";")
-#             try:
-#                 lat = float(data[0])
-#                 lon = float(data[1])
-#                 if (
-#                     (lat <= lat_var[-1])
-#                     and (lon <= lon_var[-1])
-#                     and (lat >= lat_var[0])
-#                     and (lon >= lon_var[0])
-#                 ):
-#                     emi_lon = round((lon - edgar_grid.xmin) / edgar_grid.dx)
-#                     emi_lat = round((lat - edgar_grid.ymin) / edgar_grid.dy)
-
-#                     emi[emi_lon, emi_lat] = float(data[2])
-#             except ValueError:
-#                 continue
-#     return emi
-
 def get_emi(filename, edgar_grid):
     lon_var, lat_var = edgar_grid.lon_range(), edgar_grid.lat_range()
     gridded_emi = np.zeros((len(lon_var), len(lat_var)))
