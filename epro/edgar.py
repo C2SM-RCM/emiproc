@@ -4,7 +4,7 @@ from netCDF4 import Dataset
 import numpy as np
 from glob import glob
 from . import utilities as util
-from pandas import read_csv
+import pandas
 
 # def get_emi(filename, edgar_grid):
 #     lon_var, lat_var = edgar_grid.lon_range(), edgar_grid.lat_range()
@@ -32,7 +32,7 @@ from pandas import read_csv
 def get_emi(filename, edgar_grid):
     lon_var, lat_var = edgar_grid.lon_range(), edgar_grid.lat_range()
     gridded_emi = np.zeros((len(lon_var), len(lat_var)))
-    f = read_csv(filename,header=2,sep=';',names=['lat','lon','emi']) 
+    f = pandas.read_csv(filename,header=2,sep=';',names=['lat','lon','emi']) 
     lats = f['lat']
     lons = f['lon']
     emis = f['emi']
