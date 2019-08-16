@@ -10,18 +10,10 @@ import numpy as np
 from netCDF4 import Dataset
 
 from . import utilities as util
-
+from . import edgar
 from epro import append_inventories
 
 
-def get_out_varname(var, cat, cfg, **kw_format):
-
-    varname_format = getattr(cfg, 'varname_format', '{species}_{category}')
-
-    var = cfg.in2out_species.get(var, var)
-    cat = cfg.in2out_category.get(cat, cat)
-
-    return varname_format.format(species=var, category=cat, **kw_format)
 
 
 def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
@@ -76,7 +68,7 @@ def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
             out_var[out_var < 0] = 0
 
             # write new or add to exisiting variable
-            out_var_name = get_out_varname(var, cat, cfg)
+            out_var_name = util.get_out_varname(var, cat, cfg)
             print('Write as variable:', out_var_name)
             util.write_variable(out, out_var, out_var_name, latname, lonname,
                                 unit)
@@ -203,7 +195,7 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                     [out_var_area, out_var_point],
                 ):
                     if sel.any():
-                        out_var_name = get_out_varname(s, cat, cfg,
+                        out_var_name = util.get_out_varname(s, cat, cfg,
                                                        source_type=t)
                         print('Write as variable:', out_var_name)
                         util.write_variable(out, out_var, out_var_name,
@@ -267,6 +259,9 @@ def main(cfg):
             process_swiss(cfg, interpolation, country_mask, out, latname,
                         lonname)
 
+        elif cfg.inventory == 'EDGAR':
+            edgar.process_edgar(cfg, interpolation, country_mask, out, latname,
+                        lonname)
 
 
 
