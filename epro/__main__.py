@@ -131,7 +131,7 @@ def main():
 
     elif args.task in ['vp']:
 
-        profile_filename = os.path.join(DATA_PATH, 'vert_profiles',
+        profile_filename = os.path.join(DATA_PATH, 'vertical_profiles',
                                         'vert_prof_che_%s.dat' %
                                         args.nomenclature.lower())
 
