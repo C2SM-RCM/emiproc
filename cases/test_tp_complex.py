@@ -24,18 +24,18 @@ mean = True
 input_path = os.path.join(os.path.dirname(__file__), '..', 'files')
 
 # Path to the csv file containing the time zones of each country
-country_tz_file = os.path.join(input_path, "CHE_input", "country_tz.csv")
+country_tz_file = os.path.join(input_path, "time_profiles", "country_tz.csv")
 
 # Path to the csv file containing the hour in day profile
-hod_input_file = os.path.join(input_path, "timeprofiles",
+hod_input_file = os.path.join(input_path, "time_profiles",
                               "HourlyFac.dat")
 
 # Path to the csv file containing the day in week profile
-dow_input_file = os.path.join(input_path, "timeprofiles",
+dow_input_file = os.path.join(input_path, "time_profiles",
                              "DailyFac_{tracer}.dat")
 
 # Path to the csv file containing the month in year profile
-moy_input_file = os.path.join(input_path, "timeprofiles",
+moy_input_file = os.path.join(input_path, "time_profiles",
                               "MonthlyFac_{tracer}.dat")
 
 varname_format = '{tracer}_{category}'
