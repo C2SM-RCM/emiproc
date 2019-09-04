@@ -1,5 +1,10 @@
-# Vertical profiles for point and area sources of different SNAP categories
-# Reference: Brunner et al. (2019); DOI: https://doi.org/10.5194/acp-19-4541-2019
+# Vertical emission profiles for point and area sources used in the SMARTCARB project
+# 
+# Derived from Table 2 in:
+#    Brunner, D., Kuhlmann, G., Marshal, J., Clément, V., Fuhrer, O., Broquet, G.,
+#    Löscher, A., and Meijer, Y.: Accounting for the vertical distribution of
+#    emissions in atmospheric CO2 simulations, Atmospheric Chemistry and Physics,
+#    19, 4541-4559, https://doi.org/10.5194/acp-19-4541-2019, 2019.
 #
 upperBounds     4      30      60      90     125     170     310     470     710     990
 1_point      0.00    0.00    0.00    0.00    0.00    0.00    0.08    0.46    0.29    0.17
