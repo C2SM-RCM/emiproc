@@ -2,6 +2,9 @@
 
 import argparse
 import os
+import xarray
+
+import numpy as np
 
 import epro
 import epro.grids
@@ -40,6 +43,12 @@ def parse_arguments():
 
     parser.add_argument('--offline', dest='offline', action='store_true',
                         help='')
+
+    parser.add_argument('--input-filename', dest='input_filename',
+                        help='name of input filename')
+
+    parser.add_argument('--output-filename', dest='output_filename',
+                        help='name of output filename')
 
     args = parser.parse_args()
 
@@ -173,6 +182,18 @@ def main():
             vplist=cfg.vplist,
             contribution_list=cfg.contribution_list
         )
+
+    elif args.task in ['off2on']:
+        input_filename = args.input_filename
+        output_filename = args.output_filename
+
+        # open file and cut 2-cell boundary
+        offline = xarray.open_dataset(input_filename)
+        online = offline[{'rlon': np.arange(2, offline.rlon.size - 4),
+                          'rlat': np.arange(2, offline.rlat.size - 4)}]
+        online.to_netcdf(output_filename)
+        offline.close()
+
 
     else:
         raise ValueError('Unknown task "%s"' % task)
