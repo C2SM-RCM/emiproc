@@ -38,7 +38,7 @@ be obtained separately.
 
 ## Gridded annual emissions
 
-Emissions are read from the inventory inventory and projected onto the COSMO grid.
+Emissions are read from the inventory and projected onto the COSMO grid.
 
 The necessary information, such as grid characterstics and species, are supplied via
 a config file. Since emission inventories can be structured quite differently, it may
