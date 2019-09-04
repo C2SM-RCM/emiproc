@@ -8,7 +8,7 @@ path_emi = os.path.join('oae-art-example', '{online}', 'emis_2015_d1.nc')
 
 output_path = os.path.join('oae-art-example', '{online}', 'hourly')
 output_name = "d1_"
-prof_path = os.path.join('profiles')
+prof_path = os.path.join('oae-art-example', 'profiles')
 
 start_date = datetime.date(2015, 6, 26)
 end_date = datetime.date(2015, 6, 27)  # included
