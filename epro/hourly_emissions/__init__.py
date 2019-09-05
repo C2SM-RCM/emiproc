@@ -533,33 +533,6 @@ def generate_arguments(
         yield (day_date, path_template, lists, matrices, datasets)
 
 
-def create_lists():
-    """Create var_list, catlist, tplist, vplist"""
-    tracers = ["CO2"]
-    categories = ["ALL"]
-    var_list = []
-    for (s, nfr) in [(s, nfr) for s in tracers for nfr in categories]:
-        var_list.append(s + "_" + nfr + "_E")
-
-
-    # Make sure catlist, tplist, vplist have the same shape
-    catlist, tplist, vplist = [], [], []
-    for v in range(len(var_list)):
-        subcat = []
-        subtp = []
-        subvp = []
-        for cat, tp, vp in zip(
-            catlist_prelim[v], tplist_prelim[v], vplist_prelim[v]
-        ):
-            subcat.append(cat)
-            subtp.append(tp)
-            subvp.append(vp)
-        catlist.append(subcat)
-        tplist.append(subtp)
-        vplist.append(subvp)
-
-    return var_list, catlist, tplist, vplist
-
 
 def main(
     path_emi,
