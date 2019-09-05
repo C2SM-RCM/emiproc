@@ -189,8 +189,8 @@ def main():
 
         # open file and cut 2-cell boundary
         offline = xarray.open_dataset(input_filename)
-        online = offline[{'rlon': np.arange(2, offline.rlon.size - 4),
-                          'rlat': np.arange(2, offline.rlat.size - 4)}]
+        online = offline[{'rlon': np.arange(2, offline.rlon.size - 2),
+                          'rlat': np.arange(2, offline.rlat.size - 2)}]
         online.to_netcdf(output_filename)
         offline.close()
 
