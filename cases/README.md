@@ -79,14 +79,14 @@ python ./split_gnfr_f.py oae-art-example/online/swiss/swiss-art.nc
 
 3. Create temporal and vertical profiles
 ```
-python -m epro tp --case test_tp_simple.py
+python -m epro tp --case config_d1_tp_art
+python -m epro tp-merge --case config_d1_tpmerge_art
 python -m epro vp
 ```
 
 4. Move all profiles to single path:
 ```
-mv test_time_profiles_simple profiles
-mv vertical_profiles.nc profiles/
+mv vertical_profiles.nc oae-art-example/profiles
 ```
 
 5. Merge SWISS and TNO inventories:
@@ -110,14 +110,14 @@ python ./split_gnfr_f.py oae-art-example/offline/swiss/swiss-art.nc
 
 3. Create temporal and vertical profiles
 ```
-python -m epro tp --case test_tp_simple.py
+python -m epro tp --case config_d1_tp_art
+python -m epro tp-merge --case config_d1_tpmerge_art
 python -m epro vp
 ```
 
 4. Move all profiles to single path:
 ```
-mv test_time_profiles_simple profiles
-mv vertical_profiles.nc profiles/
+mv vertical_profiles.nc oae-art-example/profiles
 ```
 
 5. Merge SWISS and TNO inventories:
