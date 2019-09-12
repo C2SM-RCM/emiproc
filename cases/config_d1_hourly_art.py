@@ -4,6 +4,8 @@ import os
 
 from epro.hourly_emissions import speciation as spec
 
+model = 'cosmo-art'
+
 path_emi = os.path.join('oae-art-example', '{online}', 'emis_2015_d1.nc')
 
 output_path = os.path.join('oae-art-example', '{online}', 'hourly')

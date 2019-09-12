@@ -4,6 +4,8 @@ import os
 
 from epro.hourly_emissions import speciation as spec
 
+model = 'cosmo-ghg'
+
 path_emi = os.path.join('outputs', 'offline','all_emissions.nc')
 
 output_path = os.path.join('outputs', 'offline','hourly')

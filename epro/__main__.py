@@ -111,7 +111,17 @@ def main():
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
-        merge_inventories(cfg.base_inv, cfg.nested_invs, cfg.output_path)
+        if args.offline:
+            name = 'offline'
+        else:
+            name = 'online'
+
+        base_inv = cfg.base_inv.format(online=name)
+        nested_invs = dict((k.format(online=name), v) for k,v in
+                            cfg.nested_invs.items())
+
+        merge_inventories(base_inv, nested_invs,
+                          cfg.output_path.format(online=name))
 
     elif args.task in ['tp-merge']:
 
@@ -180,7 +190,8 @@ def main():
             catlist=cfg.catlist,
             tplist=cfg.tplist,
             vplist=cfg.vplist,
-            contribution_list=cfg.contribution_list
+            contribution_list=cfg.contribution_list,
+            model=cfg.model
         )
 
     elif args.task in ['off2on']:
