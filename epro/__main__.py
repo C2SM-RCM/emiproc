@@ -8,6 +8,7 @@ import numpy as np
 
 import epro
 import epro.grids
+import epro.misc
 
 from epro.profiles import temporal_profiles as tp
 from epro.profiles import vertical_profiles as vp
@@ -205,6 +206,12 @@ def main():
         online.to_netcdf(output_filename)
         offline.close()
 
+    elif args.task in ['gen-nml']:
+        if cfg is None:
+            raise RuntimeError("Please supply a config file.")
+
+        output_path = os.path.join(cfg.output_path, "..")
+        epro.misc.create_input_tracers(cfg, output_path)
 
     else:
         raise ValueError('Unknown task "%s"' % task)
