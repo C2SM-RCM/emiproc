@@ -130,7 +130,7 @@ def write_metadata(outfile, emi_file, ver_file, variables, model):
     Create "rlon", "rlat" variables from emi_file.
 
     Create an emtpy variable with dimensions ("time", "level", "rlat", "rlon")
-    for element of varaibles.
+    for element of variables.
 
     Parameters
     ----------
@@ -204,6 +204,7 @@ def write_metadata(outfile, emi_file, ver_file, variables, model):
             dimensions=src_file[varname].dimensions,
         )
         outfile[varname].setncatts(src_file[varname].__dict__)
+        outfile[varname].grid_mapping = "rotated_pole"
 
     outfile["time"][:] = 0
     outfile["level"][:] = ver_file["layer_mid"][:]
