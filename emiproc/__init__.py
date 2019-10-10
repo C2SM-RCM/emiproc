@@ -11,7 +11,7 @@ from netCDF4 import Dataset
 
 from . import utilities as util
 from . import edgar
-from epro import append_inventories
+from emiproc import append_inventories
 
 
 

@@ -2,8 +2,8 @@
 import netCDF4
 import os
 
-from epro import utilities as util 
-from epro.hourly_emissions import speciation as spec 
+from emiproc import utilities as util 
+from emiproc.hourly_emissions import speciation as spec 
 
 
 def split_gnfr_f(filename):

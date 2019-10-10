@@ -2,7 +2,7 @@
 import datetime
 import os
 
-from epro.hourly_emissions import speciation as spec
+from emiproc.hourly_emissions import speciation as spec
 
 model = 'cosmo-art'
 

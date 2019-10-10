@@ -4,7 +4,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='epro',
+    name='emiproc',
     version='1.0',
     description=(
         'COSMO Emission Processing'

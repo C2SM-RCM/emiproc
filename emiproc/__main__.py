@@ -6,18 +6,18 @@ import xarray
 
 import numpy as np
 
-import epro
-import epro.grids
-import epro.misc
+import emiproc
+import emiproc.grids
+import emiproc.misc
 
-from epro.profiles import temporal_profiles as tp
-from epro.profiles import vertical_profiles as vp
-from epro import utilities as util
+from emiproc.profiles import temporal_profiles as tp
+from emiproc.profiles import vertical_profiles as vp
+from emiproc import utilities as util
 
-from epro.merge_inventories import merge_inventories
-from epro import append_inventories
-from epro import merge_profiles
-from epro import hourly_emissions
+from emiproc.merge_inventories import merge_inventories
+from emiproc import append_inventories
+from emiproc import merge_profiles
+from emiproc import hourly_emissions
 
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), '..', 'files')
@@ -79,7 +79,7 @@ def main():
     if args.offline:
         if hasattr(cfg, 'cosmo_grid'):
             print('Add two-cell boundary on COSMO grid')
-            cfg.cosmo_grid = epro.grids.COSMOGrid(
+            cfg.cosmo_grid = emiproc.grids.COSMOGrid(
                 nx = cfg.cosmo_grid.nx + 4,
                 ny = cfg.cosmo_grid.ny + 4,
                 dx = cfg.cosmo_grid.dx,
@@ -104,7 +104,7 @@ def main():
         if cfg is None:
             raise RuntimeError("Please supply a config file.")
 
-        epro.main(cfg)
+        emiproc.main(cfg)
 
 
     elif args.task in ['merge']:
@@ -211,7 +211,7 @@ def main():
             raise RuntimeError("Please supply a config file.")
 
         output_path = os.path.join(cfg.output_path, "..")
-        epro.misc.create_input_tracers(cfg, output_path)
+        emiproc.misc.create_input_tracers(cfg, output_path)
 
     else:
         raise ValueError('Unknown task "%s"' % task)

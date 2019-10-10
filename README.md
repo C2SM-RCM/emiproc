@@ -27,13 +27,13 @@ be obtained separately.
 
 2. Generate the emission files:
 ```
-    $ python -m epro grid --case config_{tno|ch}
+    $ python -m emiproc grid --case config_{tno|ch}
 ```
 
 3. Generate the profiles:
 ```
-    $ python -m epro tp --case-file <filename>  # for temporal profiles
-    $ python -m epro vp                         # for vertical profiles
+    $ python -m emiproc tp --case-file <filename>  # for temporal profiles
+    $ python -m emiproc vp                         # for vertical profiles
 ```
 
 ## Gridded annual emissions

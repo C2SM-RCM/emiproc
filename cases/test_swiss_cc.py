@@ -1,7 +1,7 @@
 import os
 import time
 
-from epro.grids import COSMOGrid, SwissGrid
+from emiproc.grids import COSMOGrid, SwissGrid
 
 # inventory
 inventory = 'swiss-cc'
