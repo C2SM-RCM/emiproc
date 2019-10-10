@@ -1,7 +1,7 @@
 
 import time
 import os
-from epro.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid
 
 inv_1 = os.path.join('outputs', '{online}', 'tno.nc')
 inv_name_1 = '_TNO'

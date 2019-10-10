@@ -1,7 +1,7 @@
 import os
 import time
 
-from epro.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid
 
 # inventory
 inventory = 'TNO'

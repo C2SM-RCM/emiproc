@@ -2,7 +2,9 @@
 import datetime
 import os
 
-from epro.hourly_emissions import speciation as spec
+from emiproc.hourly_emissions import speciation as spec
+
+model = 'cosmo-ghg'
 
 path_emi = os.path.join('outputs', 'offline','all_emissions.nc')
 

@@ -1,4 +1,4 @@
-from epro.grids import COSMOGrid, EDGARGrid
+from emiproc.grids import COSMOGrid, EDGARGrid
 import os
 import time
 

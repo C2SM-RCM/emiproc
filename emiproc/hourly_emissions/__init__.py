@@ -120,7 +120,7 @@ class CountryToGridTranslator:
         return extract_to_grid(self.grid_to_index, x)
 
 
-def write_metadata(outfile, emi_file, ver_file, variables):
+def write_metadata(outfile, emi_file, ver_file, variables, model):
     """Write the metadata of the outfile.
 
     Determine rlat, rlon from emi_file, levels from ver_file.
@@ -130,7 +130,7 @@ def write_metadata(outfile, emi_file, ver_file, variables):
     Create "rlon", "rlat" variables from emi_file.
 
     Create an emtpy variable with dimensions ("time", "level", "rlat", "rlon")
-    for element of varaibles.
+    for element of variables.
 
     Parameters
     ----------
@@ -142,6 +142,8 @@ def write_metadata(outfile, emi_file, ver_file, variables):
         Containing the variable "level_bnds" and varaible & dimension "level"
     variables : list(str)
         List of variable-names to be created
+    model : str
+        'cosmo-ghg' or 'cosmo-art'
     """
     rlat = emi_file.dimensions["rlat"].size
     rlon = emi_file.dimensions["rlon"].size
@@ -202,6 +204,7 @@ def write_metadata(outfile, emi_file, ver_file, variables):
             dimensions=src_file[varname].dimensions,
         )
         outfile[varname].setncatts(src_file[varname].__dict__)
+        outfile[varname].grid_mapping = "rotated_pole"
 
     outfile["time"][:] = 0
     outfile["level"][:] = ver_file["layer_mid"][:]
@@ -217,7 +220,12 @@ def write_metadata(outfile, emi_file, ver_file, variables):
             datatype="float32",
             dimensions=("time", "level", "rlat", "rlon"),
         )
-        outfile[varname].units = "kg m-2 s-1"
+        if model == 'cosmo-ghg':
+            outfile[varname].units = "kg m-2 s-1"
+        elif model == 'cosmo-art':
+            outfile[varname].units = "kg h-1 cell-1"
+        else:
+            raise ValueError('model has to be "cosmo-ghg" or "cosmo-art"')
 
 
 def extract_matrices(infile, var_list, indices, transform=None):
@@ -263,7 +271,7 @@ def extract_matrices(infile, var_list, indices, transform=None):
     return res
 
 
-def process_day(date, path_template, lists, matrices, datasets):
+def process_day(date, path_template, lists, matrices, datasets, model):
     """Process one day of emissions, resulting in 24 hour-files.
 
     Loop over all hours of the day, create one file for each hour.
@@ -351,6 +359,7 @@ def process_day(date, path_template, lists, matrices, datasets):
                     emi_file=emi,
                     ver_file=ver,
                     variables=lists["variables"],
+                    model=model
                 )
 
                 for v, var in enumerate(lists["variables"]):
@@ -402,6 +411,7 @@ def generate_arguments(
     contribution_list,
     output_path,
     output_prefix,
+    model
 ):
     """Prepare the arguments for process_day() (mainly extract the relevant data
     from netcdf-files) and yield them as tuples.
@@ -530,35 +540,8 @@ def generate_arguments(
             "ver_mats": ver_mats,
         }
 
-        yield (day_date, path_template, lists, matrices, datasets)
+        yield (day_date, path_template, lists, matrices, datasets, model)
 
-
-def create_lists():
-    """Create var_list, catlist, tplist, vplist"""
-    tracers = ["CO2"]
-    categories = ["ALL"]
-    var_list = []
-    for (s, nfr) in [(s, nfr) for s in tracers for nfr in categories]:
-        var_list.append(s + "_" + nfr + "_E")
-
-
-    # Make sure catlist, tplist, vplist have the same shape
-    catlist, tplist, vplist = [], [], []
-    for v in range(len(var_list)):
-        subcat = []
-        subtp = []
-        subvp = []
-        for cat, tp, vp in zip(
-            catlist_prelim[v], tplist_prelim[v], vplist_prelim[v]
-        ):
-            subcat.append(cat)
-            subtp.append(tp)
-            subvp.append(vp)
-        catlist.append(subcat)
-        tplist.append(subtp)
-        vplist.append(subvp)
-
-    return var_list, catlist, tplist, vplist
 
 
 def main(
@@ -573,6 +556,7 @@ def main(
     tplist,
     vplist,
     contribution_list,
+    model
 ):
     point1 = time.time()
 
@@ -595,6 +579,7 @@ def main(
         contribution_list=contribution_list,
         output_path=output_path,
         output_prefix=output_name,
+        model=model
     )
 
     with Pool(14) as pool:  # 2 weeks in parallel
