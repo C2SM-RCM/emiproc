@@ -1,6 +1,6 @@
 
 import time
-from epro.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid
 
 
 

@@ -42,7 +42,7 @@ def merge_inventories(base_inv, nested_invs, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     with Dataset(output_path, "w") as out_dataset:
-        with Dataset(base) as base_dataset:
+        with Dataset(base_inv) as base_dataset:
             copy_dataset(base_dataset, out_dataset)
 
         for nest_path, nest_code in nested_invs.items():
