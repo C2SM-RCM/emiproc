@@ -87,6 +87,42 @@ def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
                                 unit)
 
 
+def process_rotgrid(cfg, interpolation, country_mask, out, latname, lonname):
+    """
+    Process Emission defined on a COSMO rotated grid.
+    Could have been created by an inversion system and needs to be remapped.
+    """
+    with Dataset(cfg.input_path) as cosmo_in:
+        for cat in cfg.categories:
+            for var in cfg.species:
+                print('Species', var, 'Category', cat)
+
+                emi = cosmo_in[var]*cfg.input_grid.gridcell_areas().T
+                out_var = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+                for lon in range(np.shape(emi)[1]):
+                    for lat in range(np.shape(emi)[0]):
+                        for (x, y, r) in interpolation[lon, lat]:
+                            out_var[y, x] += emi[lon, lat] * r 
+
+                cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
+
+                # convert units
+
+                # COSMO-GHG: kg.s-1.cell-1 to kg.m-2.s-1
+                out_var *= cosmo_area.T 
+                unit = 'kg m-2 s-1'
+
+                # only allow positive fluxes
+                out_var[out_var < 0] = 0
+
+                # write new or add to exisiting variable
+                out_var_name = util.get_out_varname(var, cat, cfg)
+                print('Write as variable:', out_var_name)
+                util.write_variable(out, out_var, out_var_name, latname, lonname,
+                                    unit)
+
+
+
 def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
     """
     Process TNO inventories.
@@ -257,6 +293,9 @@ def main(cfg):
 
         elif cfg.inventory in ['swiss-cc', 'swiss-art']:
             process_swiss(cfg, interpolation, country_mask, out, latname,
+                        lonname)
+        elif cfg.inventory == 'COSMO':
+            process_rotgrid(cfg, interpolation, country_mask, out, latname,
                         lonname)
 
         elif cfg.inventory == 'EDGAR':
