@@ -96,13 +96,12 @@ def process_rotgrid(cfg, interpolation, country_mask, out, latname, lonname):
         for cat in cfg.categories:
             for var in cfg.species:
                 print('Species', var, 'Category', cat)
-
-                emi = cosmo_in[var]*cfg.input_grid.gridcell_areas().T
+                emi = cosmo_in[var]*(cfg.input_grid.gridcell_areas().T)
                 out_var = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
                 for lon in range(np.shape(emi)[1]):
                     for lat in range(np.shape(emi)[0]):
                         for (x, y, r) in interpolation[lon, lat]:
-                            out_var[y, x] += emi[lon, lat] * r 
+                            out_var[y, x] += emi[lat, lon] * r 
 
                 cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
 
