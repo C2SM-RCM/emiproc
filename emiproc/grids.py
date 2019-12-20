@@ -515,7 +515,7 @@ class SwissGrid(Grid):
 
 class COSMOGrid(Grid):
     """Class to manage a COSMO-domain
-    This grid is defined with a rotated pole coordinate system. 
+    This grid is defined as a rotated pole coordinate system. 
     The gridpoints are at the center of the cell.
     """
     
