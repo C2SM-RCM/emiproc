@@ -94,7 +94,10 @@ class Grid:
 
 
 class TNOGrid(Grid):
-    """Contains the grid from the TNO emission inventory"""
+    """Contains the grid from the TNO emission inventory
+    This grid is defined as a standard lat/lon coordinate system. 
+    The gridpoints are at the center of the cell.
+    """
 
     def __init__(self, dataset_path, name="TNO"):
         """Open the netcdf-dataset and read the relevant grid information.
@@ -511,8 +514,11 @@ class SwissGrid(Grid):
 
 
 class COSMOGrid(Grid):
-    """Class to manage a COSMO-domain"""
-
+    """Class to manage a COSMO-domain
+    This grid is defined as a rotated pole coordinate system. 
+    The gridpoints are at the center of the cell.
+    """
+    
     nx: int
     ny: int
     dx: float
@@ -522,7 +528,7 @@ class COSMOGrid(Grid):
     pollon: float
     pollat: float
 
-    def __init__(self, nx, ny, dx, dy, xmin, ymin, pollon, pollat):
+    def __init__(self, nx, ny, dx, dy, xmin, ymin, pollon=180, pollat=90):
         """Store the grid information.
 
         Parameters
