@@ -746,6 +746,10 @@ class COSMOGrid(Grid):
         # Here we assume a flat earth. The error is less than 1% for typical
         # grid sizes over europe. Since we're interested in the ratio of areas,
         # we can calculate in degrees^2.
+        lambconf = ccrs.LambertConformal()
+        corners_bis = lambconf.transform_points(self.projection,corners[:,0],corners[:,1])
+        inv_cell_bis = Polygon(corners_bis)
+
         inv_cell = Polygon(corners)
 
         intersections = []
@@ -753,10 +757,14 @@ class COSMOGrid(Grid):
         for i in range(max(0, lon_idx_min), min(self.nx, lon_idx_max)):
             for j in range(max(0, lat_idx_min), min(self.ny, lat_idx_max)):
                 corners = list(zip(*self.cell_corners(i, j)))
+                corners_arr = np.array(corners)
+                corners_bis = lambconf.transform_points(self.projection,corners_arr[:,0],corners_arr[:,1])
+                
                 cosmo_cell = Polygon(corners)
-
+                cosmo_cell_bis = Polygon(corners_bis)
                 if cosmo_cell.intersects(inv_cell):
                     overlap = cosmo_cell.intersection(inv_cell)
-                    intersections.append((i, j, overlap.area / inv_cell.area))
+                    overlap_bis = cosmo_cell_bis.intersection(inv_cell_bis)
+                    intersections.append((i, j, overlap.area / inv_cell.area, overlap_bis.area / inv_cell_bis.area))
 
         return intersections
