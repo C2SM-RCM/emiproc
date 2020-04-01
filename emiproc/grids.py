@@ -743,7 +743,6 @@ class COSMOGrid(Grid):
             # The inventory cell lies outside the cosmo grid
             return []
 
-        #inv_cell = Polygon(corners)
         molly = ccrs.Mollweide()
         corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
         inv_cell = Polygon(corners)
@@ -753,12 +752,10 @@ class COSMOGrid(Grid):
         # make sure we iterate only over valid gridpoint indices
         for i in range(max(0, lon_idx_min), min(self.nx, lon_idx_max)):
             for j in range(max(0, lat_idx_min), min(self.ny, lat_idx_max)):
-                corners = list(zip(*self.cell_corners(i, j)))
-                corners_arr = np.array(corners)
-                corners_bis = molly.transform_points(self.projection,corners_arr[:,0],corners_arr[:,1])
-                
-                #cosmo_cell = Polygon(corners)
-                cosmo_cell = Polygon(corners_bis)
+                corners = np.array(list(zip(*self.cell_corners(i, j))))
+                corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
+                                
+                cosmo_cell = Polygon(corners)
                 if cosmo_cell.intersects(inv_cell):
                     overlap = cosmo_cell.intersection(inv_cell)
                     intersections.append((i, j, overlap.area / inv_cell.area))
