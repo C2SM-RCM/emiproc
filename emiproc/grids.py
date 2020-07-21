@@ -6,7 +6,7 @@ import numpy as np
 import cartopy.crs as ccrs
 
 from netCDF4 import Dataset
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 
 
 class Grid:
@@ -759,5 +759,160 @@ class COSMOGrid(Grid):
                 if cosmo_cell.intersects(inv_cell):
                     overlap = cosmo_cell.intersection(inv_cell)
                     intersections.append((i, j, overlap.area / inv_cell.area))
+
+        return intersections
+
+
+class ICONGrid(Grid):
+    """Class to manage an ICON-domain
+    This grid is defined as an unstuctured triangular grid (1D).
+    The cells are ordered in a deliberate way and indexed with ascending integer numbers. 
+    The grid file contains variables like midpoint coordinates etc as a fct of the index.
+    """
+    
+    def __init__(self, dataset_path):
+       """Open the netcdf-dataset and read the relevant grid information.
+
+        Parameters
+        ----------
+        dataset_path : str
+        name : str, optional
+        """
+        self.dataset_path = dataset_path
+
+        with Dataset(dataset_path) as dataset:
+            self.clon_var = np.array(dataset["clon"][:])
+            self.clat_var = np.array(dataset["clat"][:])
+            self.cell_areas = np.array(dataset["cell_area"][:])
+            self.vlon = np.array(dataset["vlat"][:])
+            self.vlon = np.array(dataset["vlon"][:])
+            self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
+
+
+        self.ncell = len(self.clat_var)
+
+        super().__init__(name, ccrs.PlateCarree())
+
+
+    def cell_corners(self, n):
+        """Return the corners of the cell with index n.
+
+        Parameters
+        ----------
+        n : int
+
+        Returns
+        -------
+        tuple(np.array(shape=(3,), dtype=float),
+              np.array(shape=(3,), dtype=float))
+            Arrays containing the lon and lat coordinates of the corners
+        """
+
+        self.vlon[vertex_of_cell[:,n]]
+
+        return self.vlon[self.vertex_of_cell[:,n]], self.vlon[self.vertex_of_cell[:,n]] self.cell_x[:,i]
+
+
+    def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
+        """Return the indices of the grid cell that contains the point (lon, lat)
+
+        Parameters
+        ----------
+        lat : float
+            The latitude of the point source
+        lon : float
+            The longitude of the point source
+
+        Returns
+        -------
+        int
+            (icon_indn),
+            the index of the ICON grid cell containing the source.
+
+        Raises
+        ------
+        IndexError
+            If the point lies outside the grid.
+        """
+
+        indn = -1
+
+        pnt = Point(lon,lat)
+
+        for n in np.arange(self.ncell):
+            corners = np.array(list(zip(*self.cell_corners(n))))
+            icon_cell = Polygon(corners)
+            if icon_cell.contains(pnt):
+                indn = n
+        if indn == -1:
+            raise IndexError("Point lies outside the ICON Grid")
+
+        return int(indn)
+
+    def intersected_cells(self, corners):
+        """Given a inventory cell, return a list of ICON-cell-indices and
+        intersection fractions.
+
+        The inventory cell is specified by it's corners. The output is a list
+        of tuples, specifying the indices and overlap as a fraction of the
+        inventory cell area.
+
+        Parameters
+        ----------
+        corners : np.array(shape=(4,2), dtype=float)
+            The corners of the inventory cell in the COSMO coordinate system
+
+        Returns
+        -------
+        list(tuple(int, float))
+            A list containing triplets (x,y,r)
+               - n : index of ICON grid cell
+               - r : ratio of the area of the intersection compared to the total
+                     area of the inventory cell.
+                     r is in (0,1] (only nonzero intersections are reported)
+        """
+        # Find around which ICON grid index the inventory cell lies.
+
+        cell_xmin = min(k[0] for k in corners)
+        icon_xmax = max(self.vlon)
+
+        if cell_xmin > icon_max:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        cell_xmax = max(k[0] for k in corners)
+        icon_xmin = min(self.vlon)
+
+        if cell_xmax < icon_xmin:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        cell_ymin = min(k[1] for k in corners)
+        icon_ymax = max(self.vlat)
+
+        if lat_idx_min > icon_ymax:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        cell_ymax = max(k[1] for k in corners)
+        icon_ymin = min(self.vlat)
+
+        if lat_idx_max < icon_ymin:
+            # The inventory cell lies outside the cosmo grid
+            return []
+
+        molly = ccrs.Mollweide()
+        inv_cell = Polygon(corners)
+
+
+        intersections = []
+        # make sure we iterate only over valid gridpoint indices
+        for n in np.arange(self.ncell):
+            corners = np.array(list(zip(*self.cell_corners(n))))
+            
+            icon_cell = Polygon(corners)
+            if icon_cell.intersects(inv_cell):
+               overlap = icon_cell.intersection(inv_cell)
+               intersections.append((n, overlap.area / inv_cell.area))
 
         return intersections
