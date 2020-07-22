@@ -902,6 +902,7 @@ class ICONGrid(Grid):
             return []
 
         molly = ccrs.Mollweide()
+        corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
         inv_cell = Polygon(corners)
 
 
@@ -909,7 +910,7 @@ class ICONGrid(Grid):
         # make sure we iterate only over valid gridpoint indices
         for n in np.arange(self.ncell):
             corners = np.array(list(zip(*self.cell_corners(n))))
-            
+            corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
             icon_cell = Polygon(corners)
             if icon_cell.intersects(inv_cell):
                overlap = icon_cell.intersection(inv_cell)
