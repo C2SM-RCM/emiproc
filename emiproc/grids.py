@@ -808,8 +808,6 @@ class ICONGrid(Grid):
             Arrays containing the lon and lat coordinates of the corners
         """
 
-        self.vlon[vertex_of_cell[:,n]]
-
         return self.vlon[self.vertex_of_cell[:,n]], self.vlon[self.vertex_of_cell[:,n]] self.cell_x[:,i]
 
 
