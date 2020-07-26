@@ -770,8 +770,8 @@ class ICONGrid(Grid):
     The grid file contains variables like midpoint coordinates etc as a fct of the index.
     """
     
-    def __init__(self, dataset_path):
-       """Open the netcdf-dataset and read the relevant grid information.
+    def __init__(self, dataset_path, name="ICON"):
+        """Open the netcdf-dataset and read the relevant grid information.
 
         Parameters
         ----------
@@ -791,15 +791,20 @@ class ICONGrid(Grid):
 
         self.ncell = len(self.clat_var)
 
+        # Consider the ICON-grid as a 1-dimensional grid where ny=1
+        self.nx = self.ncell
+        self.ny = 1
+
         super().__init__(name, ccrs.PlateCarree())
 
 
-    def cell_corners(self, n):
+    def cell_corners(self, n, j):
         """Return the corners of the cell with index n.
 
         Parameters
         ----------
         n : int
+        j : int
 
         Returns
         -------
@@ -808,7 +813,7 @@ class ICONGrid(Grid):
             Arrays containing the lon and lat coordinates of the corners
         """
 
-        return self.vlon[self.vertex_of_cell[:,n]], self.vlon[self.vertex_of_cell[:,n]] self.cell_x[:,i]
+        return self.vlon[self.vertex_of_cell[:,n]], self.vlat[self.vertex_of_cell[:,n]]
 
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
@@ -912,6 +917,6 @@ class ICONGrid(Grid):
             icon_cell = Polygon(corners)
             if icon_cell.intersects(inv_cell):
                overlap = icon_cell.intersection(inv_cell)
-               intersections.append((n, overlap.area / inv_cell.area))
+               intersections.append((n, 1,  overlap.area / inv_cell.area))
 
         return intersections

@@ -150,7 +150,7 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
         selection_point = tno["source_type_index"][:] == 2
 
         # Area of the COSMO grid cells
-        cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
+        output_area = 1.0 / cfg.output_grid.gridcell_areas()
 
         for cat in cfg.categories:
 
@@ -209,10 +209,10 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                 print("Gridding took %.1f seconds" % (end - start))
 
                 # convert units
-                if cfg.model == 'cosmo-ghg':
+                if cfg.model == 'cosmo-ghg' or cfg.model == 'icon':
                     # COSMO-GHG: kg.year-1.cell-1 to kg.m-2.s-1
-                    out_var_point *= cosmo_area.T / util.SEC_PER_YR
-                    out_var_area *= cosmo_area.T / util.SEC_PER_YR
+                    out_var_point *= output_area.T / util.SEC_PER_YR
+                    out_var_area *= output_area.T / util.SEC_PER_YR
                     unit = 'kg m-2 s-1'
 
                 elif cfg.model == 'cosmo-art':
@@ -233,8 +233,12 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                         out_var_name = util.get_out_varname(s, cat, cfg,
                                                        source_type=t)
                         print('Write as variable:', out_var_name)
-                        util.write_variable(out, out_var, out_var_name,
-                                            latname, lonname, unit)
+			if cfg.model.startswith("cosmo"):
+                            util.write_variable(out, out_var, out_var_name,
+                                                latname, lonname, unit)
+                        elif cfg.model.startswith("icon"):
+                            util.write_variable_ICON(out, out_var,
+                                                out_var_name, unit)
 
 
 
@@ -247,43 +251,51 @@ def main(cfg):
     # Load or compute the country mask
     country_mask = util.get_country_mask(
         cfg.output_path,
-        cfg.cosmo_grid.name,
-        cfg.cosmo_grid,
+        cfg.output_grid.name,
+        cfg.output_grid,
         cfg.shpfile_resolution,
         cfg.nprocs,
     )
-    # Load or compute the mapping between the inventory and COSMO grid
+    # Load or compute the mapping between the inventory and output grid
     interpolation = util.get_gridmapping(
         cfg.output_path,
         cfg.input_grid.name,
-        cfg.cosmo_grid,
+        cfg.output_grid,
         cfg.input_grid,
         cfg.nprocs,
     )
 
     # Set names for longitude and latitude
-    if (
-        cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0
-    ) and cfg.cosmo_grid.pollat == 90:
-        lonname = "lon"
-        latname = "lat"
-        print(
-            "Non-rotated grid: pollon = %f, pollat = %f"
-            % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
-        )
-    else:
-        lonname = "rlon"
-        latname = "rlat"
-        print(
-            "Rotated grid: pollon = %f, pollat = %f"
-            % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
-        )
+    if cfg.model.startswith("cosmo"):
+        if (
+            cfg.output_grid.pollon == 180 or cfg.output_grid.pollon == 0
+        ) and cfg.output_grid.pollat == 90:
+            lonname = "lon"
+            latname = "lat"
+            print(
+                "Non-rotated grid: pollon = %f, pollat = %f"
+                % (cfg.output_grid.pollon, cfg.output_grid.pollat)
+             )
+        else:
+            lonname = "rlon"
+            latname = "rlat"
+            print(
+                "Rotated grid: pollon = %f, pollat = %f"
+                % (cfg.output_grid.pollon, cfg.output_grid.pollat)
+            )
+    elif cfg.model.startswith("icon"):
+        lonname = None
+        latname = None
+        print("ICON grid")
 
     # Starts writing out the output file
     output_file = os.path.join(cfg.output_path, cfg.output_name)
 
     with Dataset(output_file, "w") as out:
-        util.prepare_output_file(cfg.cosmo_grid, cfg.nc_metadata, out)
+        if cfg.model.startswith("cosmo"):
+            util.prepare_output_file(cfg.output_grid, cfg.nc_metadata, out)
+        elif cfg.model.starswith("icon"):
+            util.prepare_ICON_output_file(cfg.output_grid, cfg.nc_metadata, out)
         util.add_country_mask(country_mask, out)
 
         if cfg.inventory == 'TNO':
