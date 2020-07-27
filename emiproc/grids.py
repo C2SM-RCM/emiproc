@@ -781,11 +781,11 @@ class ICONGrid(Grid):
         self.dataset_path = dataset_path
 
         with Dataset(dataset_path) as dataset:
-            self.clon_var = np.array(dataset["clon"][:])
-            self.clat_var = np.array(dataset["clat"][:])
+            self.clon_var = np.array(dataset["clon"][:]) * 180 / np.pi
+            self.clat_var = np.array(dataset["clat"][:]) * 180 / np.pi
             self.cell_areas = np.array(dataset["cell_area"][:])
-            self.vlat = np.array(dataset["vlat"][:])
-            self.vlon = np.array(dataset["vlon"][:])
+            self.vlat = np.array(dataset["vlat"][:]) * 180 / np.pi
+            self.vlon = np.array(dataset["vlon"][:]) * 180 / np.pi
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
 
 
@@ -850,7 +850,7 @@ class ICONGrid(Grid):
         if indn == -1:
             raise IndexError("Point lies outside the ICON Grid")
 
-        return int(indn)
+        return int(indn), 0
 
     def gridcell_areas(self):
         """Calculate 2D array of the areas (m^2) of a regular rectangular grid
@@ -913,7 +913,7 @@ class ICONGrid(Grid):
         cell_ymax = max(k[1] for k in corners)
         icon_ymin = min(self.vlat)
 
-        if cell_y_max < icon_ymin:
+        if cell_ymax < icon_ymin:
             # The inventory cell lies outside the cosmo grid
             return []
 
@@ -925,11 +925,11 @@ class ICONGrid(Grid):
         intersections = []
         # make sure we iterate only over valid gridpoint indices
         for n in np.arange(self.ncell):
-            corners = np.array(list(zip(*self.cell_corners(n))))
+            corners = np.array(list(zip(*self.cell_corners(n,0))))
             corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
             icon_cell = Polygon(corners)
             if icon_cell.intersects(inv_cell):
                overlap = icon_cell.intersection(inv_cell)
-               intersections.append((n, 1,  overlap.area / inv_cell.area))
+               intersections.append((n, 0,  overlap.area / inv_cell.area))
 
         return intersections

@@ -21,19 +21,19 @@ species = ['co2_ff', 'co2_bf']
 # input categories
 categories = [
     "A",
-    "B",
-    "C",
+#    "B",
+#    "C",
     "D",
-    "E",
-    "F1",
-    "F2",
-    "F3",
+#    "E",
+#    "F1",
+#    "F2",
+#    "F3",
     "G",
     "H",
-    "I",
-    "J",
-    "K",
-    "L",
+#    "I",
+#    "J",
+#    "K",
+#    "L",
 ]
 
 # mapping from input to output species (input is used for missing keys)

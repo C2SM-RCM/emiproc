@@ -284,6 +284,7 @@ def get_country_mask(output_path, suffix, output_grid, resolution, nprocs):
             "DATE CREATED": time.ctime(time.time()),
         }
         country_mask = compute_country_mask(output_grid, resolution, nprocs)
+        print(np.nanmax(country_mask))
         with nc.Dataset(cmask_path, "w") as dataset:
             if output_grid.__class__.__name__ == "COSMOGrid":
                 prepare_output_file(output_grid, nc_metadata, dataset)
