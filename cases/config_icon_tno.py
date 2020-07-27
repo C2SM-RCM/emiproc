@@ -1,13 +1,13 @@
 import os
 import time
 
-from emiproc.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid, ICONGrid
 
 # inventory
 inventory = 'TNO'
 
-# model either "cosmo-art" or "cosmo-ghg" (affect the output units)
-model = 'cosmo-ghg'
+# model either "cosmo-art" or "cosmo-ghg" or "icon" (affect the output units)
+model = 'icon'
 
 # path to input inventory
 input_path = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
@@ -52,7 +52,7 @@ varname_format = '{species}_{category}' # not providing source_type will add up
                                         # point and area sources
 
 # path to ICON output grid
-icon_path = "/newhome/stem/git/C2SM-RCM/europe_DOM01.nc"
+icon_path = "/newhome/stem/git/C2SM-RCM/domain1_DOM01.nc"
 
 # output ICON grid
 output_grid = ICONGrid(icon_path)

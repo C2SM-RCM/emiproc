@@ -784,7 +784,7 @@ class ICONGrid(Grid):
             self.clon_var = np.array(dataset["clon"][:])
             self.clat_var = np.array(dataset["clat"][:])
             self.cell_areas = np.array(dataset["cell_area"][:])
-            self.vlon = np.array(dataset["vlat"][:])
+            self.vlat = np.array(dataset["vlat"][:])
             self.vlon = np.array(dataset["vlon"][:])
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
 
@@ -813,7 +813,7 @@ class ICONGrid(Grid):
             Arrays containing the lon and lat coordinates of the corners
         """
 
-        return self.vlon[self.vertex_of_cell[:,n]], self.vlat[self.vertex_of_cell[:,n]]
+        return self.vlon[self.vertex_of_cell[:,n]-1], self.vlat[self.vertex_of_cell[:,n]-1]
 
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
@@ -843,7 +843,7 @@ class ICONGrid(Grid):
         pnt = Point(lon,lat)
 
         for n in np.arange(self.ncell):
-            corners = np.array(list(zip(*self.cell_corners(n))))
+            corners = np.array(list(zip(*self.cell_corners(n,0))))
             icon_cell = Polygon(corners)
             if icon_cell.contains(pnt):
                 indn = n
@@ -851,6 +851,19 @@ class ICONGrid(Grid):
             raise IndexError("Point lies outside the ICON Grid")
 
         return int(indn)
+
+    def gridcell_areas(self):
+        """Calculate 2D array of the areas (m^2) of a regular rectangular grid
+        on earth.
+
+        Returns
+        -------
+        np.array
+            2D array containing the areas of the gridcells in m^2
+            shape: (ncell)
+        """
+
+        return self.cell_areas
 
     def intersected_cells(self, corners):
         """Given a inventory cell, return a list of ICON-cell-indices and
@@ -879,7 +892,7 @@ class ICONGrid(Grid):
         cell_xmin = min(k[0] for k in corners)
         icon_xmax = max(self.vlon)
 
-        if cell_xmin > icon_max:
+        if cell_xmin > icon_xmax:
             # The inventory cell lies outside the cosmo grid
             return []
 
@@ -893,14 +906,14 @@ class ICONGrid(Grid):
         cell_ymin = min(k[1] for k in corners)
         icon_ymax = max(self.vlat)
 
-        if lat_idx_min > icon_ymax:
+        if cell_ymin > icon_ymax:
             # The inventory cell lies outside the cosmo grid
             return []
 
         cell_ymax = max(k[1] for k in corners)
         icon_ymin = min(self.vlat)
 
-        if lat_idx_max < icon_ymin:
+        if cell_y_max < icon_ymin:
             # The inventory cell lies outside the cosmo grid
             return []
 

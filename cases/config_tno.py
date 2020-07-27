@@ -52,11 +52,11 @@ varname_format = '{species}_{category}' # not providing source_type will add up
                                         # point and area sources
 
 # COSMO domain
-cosmo_grid = COSMOGrid(
-    nx=900,
-    ny=600,
-    dx=0.01,
-    dy=0.01,
+output_grid = COSMOGrid(
+    nx=450, #900
+    ny=300, #600
+    dx=0.02, #0.01
+    dy=0.02, #0.01
     xmin=-4.92,
     ymin=-3.18,
     pollon=-170.0,

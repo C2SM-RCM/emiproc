@@ -71,7 +71,7 @@ def write_variable(ncfile, variable, var_name, latname, lonname, unit,
         ncfile[var_name][:] += variable
 
 
-def write_variable_ICON(ncfile, variable, var_name, unit, overwrite=False)
+def write_variable_ICON(ncfile, variable, var_name, unit, overwrite=False):
     """
     As function 'write_variable' but for the case of an ICON output grid
     """
@@ -79,12 +79,12 @@ def write_variable_ICON(ncfile, variable, var_name, unit, overwrite=False)
         ncfile.createVariable(var_name, float, ("cell"))
 
         ncfile[var_name].units = unit
-        ncfile[var_name][:] = variable
+        ncfile[var_name][:] = variable[0,:]
 
     elif overwrite:
-        ncfile[var_name][:] = variable
+        ncfile[var_name][:] = variable[0,:]
     else:
-        ncfile[var_name][:] += variable
+        ncfile[var_name][:] += variable[0,:]
 
 
 def read_emi_from_file(path):
@@ -199,7 +199,7 @@ def prepare_ICON_output_file(output_grid, metadata, dataset):
         # copy dimensions
         for name, dimension in src.dimensions.items():
             dataset.createDimension(
-                name, (len(dimension) if not dimension.isunlimited else None))
+                name, (len(dimension)))
         # copy all file data
         for name, variable in src.variables.items():
             x = dataset.createVariable(name, variable.datatype, variable.dimensions)
@@ -208,7 +208,7 @@ def prepare_ICON_output_file(output_grid, metadata, dataset):
     dataset.setncatts(metadata)
 
 
-def add_country_mask(country_mask, dataset):
+def add_country_mask(country_mask, dataset, model):
     """Create and write the country mask to the dataset.
 
     Parameters
@@ -218,19 +218,23 @@ def add_country_mask(country_mask, dataset):
     dataset : netCDF4.Dataset
         Writable netCDF Dataset
     """
-    if "ICON" not in dataset.title:
+    if model == "cosmo":
         if "rotated_pole" in dataset.variables:
             var = dataset.createVariable("country_ids", "short", ("rlat", "rlon"))
             var.grid_mapping = "rotated_pole"
         else:
             var = dataset.createVariable("country_ids", "short", ("lat", "lon"))
-    else:
+    elif model == "icon":
         var = dataset.createVariable("country_ids", "short", ("cell"))
 
     var.long_name = "EMEP_country_code"
     # Transpose the country mask to conform with the storage of netcdf
     # python: (lon, lat), FORTRAN: (lat, lon)
-    var[:] = country_mask.T
+
+    if model == "cosmo":
+        var[:] = country_mask.T
+    elif model == "icon":
+        var[:] = country_mask
 
 
 def get_country_mask(output_path, suffix, output_grid, resolution, nprocs):
@@ -283,9 +287,10 @@ def get_country_mask(output_path, suffix, output_grid, resolution, nprocs):
         with nc.Dataset(cmask_path, "w") as dataset:
             if output_grid.__class__.__name__ == "COSMOGrid":
                 prepare_output_file(output_grid, nc_metadata, dataset)
+                add_country_mask(country_mask, dataset, "cosmo")
             elif output_grid.__class__.__name__ == "ICONGrid":
                 prepare_ICON_output_file(output_grid, nc_metadata, dataset)
-            add_country_mask(country_mask, dataset)
+                add_country_mask(country_mask, dataset, "icon")
     else:
         # Transpose country mask when reading in
         # netCDF/Fortran: (lat, lon), python: (lon, lat)
@@ -400,9 +405,10 @@ def assign_country_code(indices, output_grid, projections, countries):
     # Have to recreate the COSMO projection since cartopy projections
     # don't work with deepcopy (which is used by multiprocessing to send
     # arguments of functions to other processes)
-    projections["cosmo"] = ccrs.RotatedPole(
-        pole_longitude=output_grid.pollon, pole_latitude=output_grid.pollat
-    )
+    if output_grid.__class__.__name__ == "COSMOGrid":
+        projections["cosmo"] = ccrs.RotatedPole(
+            pole_longitude=output_grid.pollon, pole_latitude=output_grid.pollat
+        )
 
     # Name of the country attribute holding the ISO3 country abbreviation
     iso3 = "ADM0_A3"
@@ -415,6 +421,7 @@ def assign_country_code(indices, output_grid, projections, countries):
 
     country_mask = np.empty(len(indices), dtype=int)
     for k, (i, j) in enumerate(indices):
+
         output_cell_x, output_cell_y = output_grid.cell_corners(i, j)
 
         if output_grid.__class__.__name__ == "COSMOGrid":
@@ -422,7 +429,7 @@ def assign_country_code(indices, output_grid, projections, countries):
                 projections["cosmo"], output_cell_x, output_cell_y
             )
         elif output_grid.__class__.__name__ == "ICONGrid":
-            projected_corner = np.array([
+            projected_corners = np.array([
                 output_cell_x, output_cell_y, np.zeros(output_cell_x.shape)
             ]).T
 
