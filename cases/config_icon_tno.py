@@ -6,7 +6,8 @@ from emiproc.grids import COSMOGrid, TNOGrid, ICONGrid
 # inventory
 inventory = 'TNO'
 
-# model either "cosmo-art" or "cosmo-ghg" or "icon" (affect the output units)
+# model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
+# output units and handling of the output grid)
 model = 'icon'
 
 # path to input inventory
@@ -21,19 +22,19 @@ species = ['co2_ff', 'co2_bf']
 # input categories
 categories = [
     "A",
-#    "B",
-#    "C",
+    "B",
+    "C",
     "D",
-#    "E",
-#    "F1",
-#    "F2",
-#    "F3",
+    "E",
+    "F1",
+    "F2",
+    "F3",
     "G",
     "H",
-#    "I",
-#    "J",
-#    "K",
-#    "L",
+    "I",
+    "J",
+    "K",
+    "L",
 ]
 
 # mapping from input to output species (input is used for missing keys)

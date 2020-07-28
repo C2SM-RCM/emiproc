@@ -4,12 +4,13 @@
 import os
 import time
 
-from emiproc.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid, ICONGrid
 
 # inventory
 inventory = 'TNO'
 
-# model either "cosmo-art" or "cosmo-ghg" (affects the output units)
+# model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
+# output units and handling of the output grid)
 model = 'cosmo-art'
 
 # input filename
@@ -53,7 +54,7 @@ output_path = os.path.join('oae-art-example', '{online}', 'tno')
 output_name = 'tno-art.nc'
 
 # Output grid is European domain (rotated pole coordinates)
-cosmo_grid = COSMOGrid(
+output_grid = COSMOGrid(
     nx=192,
     ny=164,
     dx=0.12,

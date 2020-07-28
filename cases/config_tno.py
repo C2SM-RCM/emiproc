@@ -1,12 +1,13 @@
 import os
 import time
 
-from emiproc.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid, ICONGrid
 
 # inventory
 inventory = 'TNO'
 
-# model either "cosmo-art" or "cosmo-ghg" (affect the output units)
+# model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
+# output units and handling of the output grid)
 model = 'cosmo-ghg'
 
 # path to input inventory

@@ -1,12 +1,13 @@
 import os
 import time
 
-from emiproc.grids import COSMOGrid, SwissGrid
+from emiproc.grids import COSMOGrid, SwissGrid, ICONGrid
 
 # inventory
 inventory = 'swiss-art'
 
-# model is "cosmo-art" or "cosmo-ghg" (affects the output units)
+# model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
+# output units and handling of the output grid)
 model = 'cosmo-art'
 
 # add total emissions (only for swiss inventory)
@@ -58,7 +59,7 @@ ymin =  -9.54
 nx = 192
 ny = 164
 
-cosmo_grid = COSMOGrid(
+output_grid = COSMOGrid(
     nx=nx,
     ny=ny,
     dx=0.12,
