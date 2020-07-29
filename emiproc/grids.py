@@ -743,7 +743,7 @@ class COSMOGrid(Grid):
             # The inventory cell lies outside the cosmo grid
             return []
 
-        molly = ccrs.Mollweide()
+        molly = ccrs.Mollweide(central_longitude=180)
         corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
         inv_cell = Polygon(corners)
 
@@ -787,9 +787,14 @@ class ICONGrid(Grid):
             self.vlat = np.array(dataset["vlat"][:]) * 180 / np.pi
             self.vlon = np.array(dataset["vlon"][:]) * 180 / np.pi
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
+            self.cell_of_vertex = np.array(dataset["cells_of_vertex"][:])
 
 
         self.ncell = len(self.clat_var)
+
+        # Initiate a list of polygons, which is updated whenever the polygon of a cell
+        # is called for the first time
+        self.polygons = [None] * self.ncell
 
         # Consider the ICON-grid as a 1-dimensional grid where ny=1
         self.nx = self.ncell
@@ -842,11 +847,41 @@ class ICONGrid(Grid):
 
         pnt = Point(lon,lat)
 
-        for n in np.arange(self.ncell):
-            corners = np.array(list(zip(*self.cell_corners(n,0))))
-            icon_cell = Polygon(corners)
+#       for n in np.arange(self.ncell):
+
+            
+        closest_vertex = ((self.vlon - lon)**2 + (self.vlat - lat)**2).argmin()
+        cell_range = self.cell_of_vertex[:,closest_vertex] - 1
+
+        for n in cell_range:
+
+            if n == -1:
+                continue
+
+#            icon_cell_xmax = max(self.vlon[self.vertex_of_cell[:,n]-1])
+#            if icon_cell_xmax < lon:
+#                continue
+#            icon_cell_xmin = min(self.vlon[self.vertex_of_cell[:,n]-1])
+#            if icon_cell_xmin > lon:
+#                continue
+#            icon_cell_ymax = max(self.vlat[self.vertex_of_cell[:,n]-1])
+#            if icon_cell_ymax < lat:
+#                continue
+#            icon_cell_ymin = min(self.vlat[self.vertex_of_cell[:,n]-1])
+#            if icon_cell_ymin > lat:
+#                continue
+
+            if self.polygons[n] is not None:
+                icon_cell = self.polygons[n]
+            else:
+                corners = np.array(list(zip(*self.cell_corners(n,0))))
+                icon_cell = Polygon(corners)
+                self.polygons[n] = icon_cell
+
             if icon_cell.contains(pnt):
                 indn = n
+                break
+
         if indn == -1:
             raise IndexError("Point lies outside the ICON Grid")
 
@@ -925,6 +960,18 @@ class ICONGrid(Grid):
         intersections = []
         # make sure we iterate only over valid gridpoint indices
         for n in np.arange(self.ncell):
+            icon_cell_xmin = min(self.vlon[self.vertex_of_cell[:,n]-1])
+            if cell_xmax < icon_cell_xmin:
+                continue
+            icon_cell_xmax = max(self.vlon[self.vertex_of_cell[:,n]-1])           
+            if cell_xmin > icon_cell_xmax:
+                continue
+            icon_cell_ymin = min(self.vlat[self.vertex_of_cell[:,n]-1])
+            if cell_ymax < icon_cell_ymin:
+                continue
+            icon_cell_ymax = max(self.vlat[self.vertex_of_cell[:,n]-1])
+            if cell_ymin > icon_cell_ymax:
+                continue
             corners = np.array(list(zip(*self.cell_corners(n,0))))
             corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
             icon_cell = Polygon(corners)

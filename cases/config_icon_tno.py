@@ -53,7 +53,7 @@ varname_format = '{species}_{category}' # not providing source_type will add up
                                         # point and area sources
 
 # path to ICON output grid
-icon_path = "/newhome/stem/git/C2SM-RCM/domain1_DOM01.nc"
+icon_path = "/newhome/stem/git/C2SM-RCM/ICON_grids/MCH10km/domain1_DOM01.nc"
 
 # output ICON grid
 output_grid = ICONGrid(icon_path)
