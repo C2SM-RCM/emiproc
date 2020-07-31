@@ -743,7 +743,7 @@ class COSMOGrid(Grid):
             # The inventory cell lies outside the cosmo grid
             return []
 
-        molly = ccrs.Mollweide(central_longitude=180)
+        molly = ccrs.Mollweide(central_longitude = self.pollon)
         corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
         inv_cell = Polygon(corners)
 
