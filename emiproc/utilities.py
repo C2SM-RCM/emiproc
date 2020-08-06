@@ -580,7 +580,7 @@ def get_gridmapping(output_path, suffix, cosmo_grid, inv_grid, nprocs):
 
         np.save(mapping_path, mapping)
     else:
-        mapping = np.load(mapping_path)
+        mapping = np.load(mapping_path,allow_pickle=True)
 
     return mapping
 
