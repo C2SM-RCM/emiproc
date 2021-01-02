@@ -209,11 +209,17 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                 print("Gridding took %.1f seconds" % (end - start))
 
                 # convert units
-                if cfg.model == 'cosmo-ghg' or cfg.model == 'icon':
+                if cfg.model == 'cosmo-ghg':
                     # COSMO-GHG: kg.year-1.cell-1 to kg.m-2.s-1
                     out_var_point *= output_area.T / util.SEC_PER_YR
                     out_var_area *= output_area.T / util.SEC_PER_YR
                     unit = 'kg m-2 s-1'
+
+                if cfg.model == 'icon':
+                    # ICON-OEM: kg.year-1.cell-1 to kg.cell-1.s-1
+                    out_var_point *= 1.0 / util.SEC_PER_YR
+                    out_var_area *= 1.0 / util.SEC_PER_YR
+                    unit = 'kg cell-1 s-1'
 
                 elif cfg.model == 'cosmo-art':
                     # COSMO-ART:  kg.year-1.cell-1 to kg.h-1.cell-1
