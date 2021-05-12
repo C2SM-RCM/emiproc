@@ -237,7 +237,6 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                             util.write_variable(out, out_var, out_var_name,
                                                 latname, lonname, unit)
                         elif cfg.model.startswith("icon"):
-                            print(out_var.shape)
                             util.write_variable_ICON(out, out_var,
                                                 out_var_name, unit)
 

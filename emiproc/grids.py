@@ -847,9 +847,6 @@ class ICONGrid(Grid):
 
         pnt = Point(lon,lat)
 
-#       for n in np.arange(self.ncell):
-
-            
         closest_vertex = ((self.vlon - lon)**2 + (self.vlat - lat)**2).argmin()
         cell_range = self.cell_of_vertex[:,closest_vertex] - 1
 
@@ -857,19 +854,6 @@ class ICONGrid(Grid):
 
             if n == -1:
                 continue
-
-#            icon_cell_xmax = max(self.vlon[self.vertex_of_cell[:,n]-1])
-#            if icon_cell_xmax < lon:
-#                continue
-#            icon_cell_xmin = min(self.vlon[self.vertex_of_cell[:,n]-1])
-#            if icon_cell_xmin > lon:
-#                continue
-#            icon_cell_ymax = max(self.vlat[self.vertex_of_cell[:,n]-1])
-#            if icon_cell_ymax < lat:
-#                continue
-#            icon_cell_ymin = min(self.vlat[self.vertex_of_cell[:,n]-1])
-#            if icon_cell_ymin > lat:
-#                continue
 
             if self.polygons[n] is not None:
                 icon_cell = self.polygons[n]
