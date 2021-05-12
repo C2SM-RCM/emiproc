@@ -1,6 +1,6 @@
 
 import time
-from emiproc.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid, ICONGrid
 
 
 
@@ -14,7 +14,7 @@ inv_out = 'oae-art-example/{online}/emis_2015_d1.nc'
 
 
 # Output grid is European domain (rotated pole coordinates)
-cosmo_grid = COSMOGrid(
+output_grid = COSMOGrid(
     nx=192,
     ny=164,
     dx=0.12,

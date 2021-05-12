@@ -1,7 +1,7 @@
 
 import time
 import os
-from emiproc.grids import COSMOGrid, TNOGrid
+from emiproc.grids import COSMOGrid, TNOGrid, ICONGrid
 
 inv_1 = os.path.join('outputs', '{online}', 'tno.nc')
 inv_name_1 = '_TNO'
@@ -12,7 +12,7 @@ inv_out = os.path.join('outputs', '{online}', 'all_emissions.nc')
 
 
 # COSMO domain
-cosmo_grid = COSMOGrid(
+output_grid = COSMOGrid(
     nx=900,
     ny=600,
     dx=0.01,

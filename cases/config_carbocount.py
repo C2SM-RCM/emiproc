@@ -1,12 +1,13 @@
 import os
 import time
 
-from emiproc.grids import COSMOGrid, SwissGrid
+from emiproc.grids import COSMOGrid, SwissGrid, ICONGrid
 
 # inventory
 inventory = 'swiss-cc'
 
-# model either "cosmo-art" or "cosmo-ghg" (affects the output units)
+# model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
+# output units and handling of the output grid)
 model = 'cosmo-ghg'
 
 # path to input inventory
@@ -85,7 +86,7 @@ in2out_category = {
 varname_format = '{species}_{category}'
 
 # COSMO domain
-cosmo_grid = COSMOGrid(
+output_grid = COSMOGrid(
     nx=900,
     ny=600,
     dx=0.01,

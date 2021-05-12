@@ -24,7 +24,7 @@ def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
         total_flux = {}
         for var in cfg.species:
             var_name = cfg.in2out_species.get(var, var)
-            total_flux[var_name] = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+            total_flux[var_name] = np.zeros((cfg.output_grid.ny, cfg.output_grid.nx))
 
     for cat in cfg.categories:
         for var in cfg.species:
@@ -44,18 +44,18 @@ def process_swiss(cfg, interpolation, country_mask, out, latname, lonname):
                 print(filename)
                 emi += util.read_emi_from_file(filename)  # (lon,lat) 
 
-            out_var = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+            out_var = np.zeros((cfg.output_grid.ny, cfg.output_grid.nx))
             for lon in range(np.shape(emi)[0]):
                 for lat in range(np.shape(emi)[1]):
                     for (x, y, r) in interpolation[lon, lat]:
                         out_var[y, x] += emi[lon, lat] * r
 
-            cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
+            output_area = 1.0 / cfg.output_grid.gridcell_areas()
 
             # convert units
             if cfg.model == 'cosmo-ghg':
                 # COSMO-GHG: kg.year-1.cell-1 to kg.m-2.s-1
-                out_var *= cosmo_area.T / util.SEC_PER_YR
+                out_var *= output_area.T / util.SEC_PER_YR
                 unit = 'kg m-2 s-1'
             elif cfg.model == 'cosmo-art':
                 # COSMO-ART:  g.year-1.cell-1 to kg.h-1.cell-1
@@ -97,18 +97,18 @@ def process_rotgrid(cfg, interpolation, country_mask, out, latname, lonname):
             for var in cfg.species:
                 print('Species', var, 'Category', cat)
                 emi = cosmo_in[var]*(cfg.input_grid.gridcell_areas().T)
-                out_var = np.zeros((cfg.cosmo_grid.ny, cfg.cosmo_grid.nx))
+                out_var = np.zeros((cfg.output_grid.ny, cfg.output_grid.nx))
                 for lon in range(np.shape(emi)[1]):
                     for lat in range(np.shape(emi)[0]):
                         for (x, y, r) in interpolation[lon, lat]:
                             out_var[y, x] += emi[lat, lon] * r 
 
-                cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
+                output_area = 1.0 / cfg.output_grid.gridcell_areas()
 
                 # convert units
 
                 # COSMO-GHG: kg.s-1.cell-1 to kg.m-2.s-1
-                out_var *= cosmo_area.T 
+                out_var *= output_area.T 
                 unit = 'kg m-2 s-1'
 
                 # only allow positive fluxes
@@ -150,7 +150,7 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
         selection_point = tno["source_type_index"][:] == 2
 
         # Area of the COSMO grid cells
-        cosmo_area = 1.0 / cfg.cosmo_grid.gridcell_areas()
+        output_area = 1.0 / cfg.output_grid.gridcell_areas()
 
         for cat in cfg.categories:
 
@@ -176,10 +176,10 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
             for s in cfg.species:
                 print("Species", s, "Category", cat)
                 out_var_area = np.zeros(
-                    (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
+                    (cfg.output_grid.ny, cfg.output_grid.nx)
                 )
                 out_var_point = np.zeros(
-                    (cfg.cosmo_grid.ny, cfg.cosmo_grid.nx)
+                    (cfg.output_grid.ny, cfg.output_grid.nx)
                 )
 
                 var = tno[s][:]
@@ -195,7 +195,7 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                             out_var_area[y, x] += var[i] * r
                     if selection_cat_point[i]:
                         try:
-                            indx, indy = cfg.cosmo_grid.indices_of_point(
+                            indx, indy = cfg.output_grid.indices_of_point(
                                 tno["longitude_source"][i],
                                 tno["latitude_source"][i],
                             )
@@ -209,10 +209,10 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                 print("Gridding took %.1f seconds" % (end - start))
 
                 # convert units
-                if cfg.model == 'cosmo-ghg':
+                if cfg.model == 'cosmo-ghg' or cfg.model == 'icon':
                     # COSMO-GHG: kg.year-1.cell-1 to kg.m-2.s-1
-                    out_var_point *= cosmo_area.T / util.SEC_PER_YR
-                    out_var_area *= cosmo_area.T / util.SEC_PER_YR
+                    out_var_point *= output_area.T / util.SEC_PER_YR
+                    out_var_area *= output_area.T / util.SEC_PER_YR
                     unit = 'kg m-2 s-1'
 
                 elif cfg.model == 'cosmo-art':
@@ -231,10 +231,14 @@ def process_tno(cfg, interpolation, country_mask, out, latname, lonname):
                 ):
                     if sel.any():
                         out_var_name = util.get_out_varname(s, cat, cfg,
-                                                       source_type=t)
+                            				source_type=t)
                         print('Write as variable:', out_var_name)
-                        util.write_variable(out, out_var, out_var_name,
-                                            latname, lonname, unit)
+                        if cfg.model.startswith("cosmo"):
+                            util.write_variable(out, out_var, out_var_name,
+                                                latname, lonname, unit)
+                        elif cfg.model.startswith("icon"):
+                            util.write_variable_ICON(out, out_var,
+                                                out_var_name, unit)
 
 
 
@@ -247,44 +251,53 @@ def main(cfg):
     # Load or compute the country mask
     country_mask = util.get_country_mask(
         cfg.output_path,
-        cfg.cosmo_grid.name,
-        cfg.cosmo_grid,
+        cfg.output_grid.name,
+        cfg.output_grid,
         cfg.shpfile_resolution,
         cfg.nprocs,
     )
-    # Load or compute the mapping between the inventory and COSMO grid
+    # Load or compute the mapping between the inventory and output grid
     interpolation = util.get_gridmapping(
         cfg.output_path,
         cfg.input_grid.name,
-        cfg.cosmo_grid,
+        cfg.output_grid,
         cfg.input_grid,
         cfg.nprocs,
     )
 
     # Set names for longitude and latitude
-    if (
-        cfg.cosmo_grid.pollon == 180 or cfg.cosmo_grid.pollon == 0
-    ) and cfg.cosmo_grid.pollat == 90:
-        lonname = "lon"
-        latname = "lat"
-        print(
-            "Non-rotated grid: pollon = %f, pollat = %f"
-            % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
-        )
-    else:
-        lonname = "rlon"
-        latname = "rlat"
-        print(
-            "Rotated grid: pollon = %f, pollat = %f"
-            % (cfg.cosmo_grid.pollon, cfg.cosmo_grid.pollat)
-        )
+    if cfg.model.startswith("cosmo"):
+        if (
+            cfg.output_grid.pollon == 180 or cfg.output_grid.pollon == 0
+        ) and cfg.output_grid.pollat == 90:
+            lonname = "lon"
+            latname = "lat"
+            print(
+                "Non-rotated grid: pollon = %f, pollat = %f"
+                % (cfg.output_grid.pollon, cfg.output_grid.pollat)
+             )
+        else:
+            lonname = "rlon"
+            latname = "rlat"
+            print(
+                "Rotated grid: pollon = %f, pollat = %f"
+                % (cfg.output_grid.pollon, cfg.output_grid.pollat)
+            )
+    elif cfg.model.startswith("icon"):
+        lonname = None
+        latname = None
+        print("ICON grid")
 
     # Starts writing out the output file
     output_file = os.path.join(cfg.output_path, cfg.output_name)
 
     with Dataset(output_file, "w") as out:
-        util.prepare_output_file(cfg.cosmo_grid, cfg.nc_metadata, out)
-        util.add_country_mask(country_mask, out)
+        if cfg.model.startswith("cosmo"):
+            util.prepare_output_file(cfg.output_grid, cfg.nc_metadata, out)
+            util.add_country_mask(country_mask, out, "cosmo")
+        elif cfg.model.startswith("icon"):
+            util.prepare_ICON_output_file(cfg.output_grid, cfg.nc_metadata, out)
+            util.add_country_mask(country_mask, out, "icon")
 
         if cfg.inventory == 'TNO':
             process_tno(cfg, interpolation, country_mask, out, latname,

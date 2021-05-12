@@ -1,11 +1,12 @@
-from emiproc.grids import COSMOGrid, EDGARGrid
+from emiproc.grids import COSMOGrid, EDGARGrid, ICONGrid
 import os
 import time
 
 # inventory
 inventory = 'EDGAR'
 
-# model either "cosmo-art" or "cosmo-ghg" (affect the output units)
+# model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
+# output units and handling of the output grid)
 model = 'cosmo-ghg'
 
 # path to input inventory
@@ -64,7 +65,7 @@ varname_format = '{species}_EDGAR'
 
 # Domain
 # CHE_Europe domain
-cosmo_grid = COSMOGrid(
+output_grid = COSMOGrid(
     nx=760,
     ny=610,
     dx=0.05,

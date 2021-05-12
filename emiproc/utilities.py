@@ -71,6 +71,20 @@ def write_variable(ncfile, variable, var_name, latname, lonname, unit,
         ncfile[var_name][:] += variable
 
 
+def write_variable_ICON(ncfile, variable, var_name, unit, overwrite=False):
+    """
+    As function 'write_variable' but for the case of an ICON output grid
+    """
+    if var_name not in ncfile.variables.keys():
+        ncfile.createVariable(var_name, float, ("cell"))
+
+        ncfile[var_name].units = unit
+        ncfile[var_name][:] = variable[0,:]
+
+    elif overwrite:
+        ncfile[var_name][:] = variable[0,:]
+    else:
+        ncfile[var_name][:] += variable[0,:]
 
 
 def read_emi_from_file(path):
@@ -110,7 +124,7 @@ def load_cfg(cfg_path):
     return cfg
 
 
-def prepare_output_file(cosmo_grid, metadata, dataset):
+def prepare_output_file(output_grid, metadata, dataset):
     """Add lat & lon dimensions and variables to the dataset, handle rotated pole
 
     Creates & writes dimensions and variables for longitude and latitude.
@@ -119,8 +133,8 @@ def prepare_output_file(cosmo_grid, metadata, dataset):
 
     Parameters
     ----------
-    cosmo_grid : COSMOGrid
-        Contains information about the cosmo grid
+    output_grid : COSMOGrid
+        Contains information about the output grid (only called for COSMOGrid)
     metadata : dict(str : str)
         Containing global file attributes. Used as argument to
         netCDF4.Dataset.setncatts.
@@ -129,8 +143,8 @@ def prepare_output_file(cosmo_grid, metadata, dataset):
     """
     # Create the dimensions and the rotated pole
     if (
-        cosmo_grid.pollon == 180 or cosmo_grid.pollon == 0
-    ) and cosmo_grid.pollat == 90:
+        output_grid.pollon == 180 or output_grid.pollon == 0
+    ) and output_grid.pollat == 90:
         lonname = "lon"
         latname = "lat"
     else:
@@ -138,30 +152,63 @@ def prepare_output_file(cosmo_grid, metadata, dataset):
         latname = "rlat"
         var_rotpol = dataset.createVariable("rotated_pole", str)
         var_rotpol.grid_mapping_name = "rotated_latitude_longitude"
-        var_rotpol.grid_north_pole_latitude = cosmo_grid.pollat
-        var_rotpol.grid_north_pole_longitude = cosmo_grid.pollon
+        var_rotpol.grid_north_pole_latitude = output_grid.pollat
+        var_rotpol.grid_north_pole_longitude = output_grid.pollon
         var_rotpol.north_pole_grid_longitude = 0.0
 
-    dataset.createDimension(lonname, cosmo_grid.nx)
-    dataset.createDimension(latname, cosmo_grid.ny)
+    dataset.createDimension(lonname, output_grid.nx)
+    dataset.createDimension(latname, output_grid.ny)
 
     # Create the variables associated to the dimensions
     var_lon = dataset.createVariable(lonname, "float32", lonname)
     var_lon.axis = "X"
     var_lon.units = "degrees_east"
     var_lon.standard_name = "longitude"
-    var_lon[:] = cosmo_grid.lon_range()
+    var_lon[:] = output_grid.lon_range()
 
     var_lat = dataset.createVariable(latname, "float32", latname)
     var_lat.axis = "Y"
     var_lat.units = "degrees_north"
     var_lat.standard_name = "latitude"
-    var_lat[:] = cosmo_grid.lat_range()
+    var_lat[:] = output_grid.lat_range()
 
     dataset.setncatts(metadata)
 
 
-def add_country_mask(country_mask, dataset):
+def prepare_ICON_output_file(output_grid, metadata, dataset):
+    """Prepares the output file in the format of the unstructered ICON-grid.
+
+    Copies all dimensions, variables and attributes from the input file
+    Adds the supplied metadata attributes.
+
+    Parameters
+    ----------
+    output_grid : ICONGrid
+        Contains information about the output grid (only called for ICONGrid)
+    metadata : dict(str : str)
+        Containing global file attributes. Used as argument to
+        netCDF4.Dataset.setncatts.
+    dataset : netCDF4.Dataset
+        Writable (empty) netCDF Dataset
+    """
+
+    with nc.Dataset(output_grid.dataset_path) as src:
+        # copy attributes
+        for name in src.ncattrs():
+            dataset.setncattr(name, src.getncattr(name))
+        # copy dimensions
+        for name, dimension in src.dimensions.items():
+            dataset.createDimension(
+                name, (len(dimension)))
+        # copy all file data
+        for name, variable in src.variables.items():
+            x = dataset.createVariable(name, variable.datatype, variable.dimensions)
+            dataset.variables[name][:] = src.variables[name][:]
+
+    dataset.setncatts(metadata)
+
+
+def add_country_mask(country_mask, dataset, model):
     """Create and write the country mask to the dataset.
 
     Parameters
@@ -171,19 +218,26 @@ def add_country_mask(country_mask, dataset):
     dataset : netCDF4.Dataset
         Writable netCDF Dataset
     """
-    if "rotated_pole" in dataset.variables:
-        var = dataset.createVariable("country_ids", "short", ("rlat", "rlon"))
-        var.grid_mapping = "rotated_pole"
-    else:
-        var = dataset.createVariable("country_ids", "short", ("lat", "lon"))
+    if model == "cosmo":
+        if "rotated_pole" in dataset.variables:
+            var = dataset.createVariable("country_ids", "short", ("rlat", "rlon"))
+            var.grid_mapping = "rotated_pole"
+        else:
+            var = dataset.createVariable("country_ids", "short", ("lat", "lon"))
+    elif model == "icon":
+        var = dataset.createVariable("country_ids", "short", ("cell"))
 
     var.long_name = "EMEP_country_code"
     # Transpose the country mask to conform with the storage of netcdf
     # python: (lon, lat), FORTRAN: (lat, lon)
-    var[:] = country_mask.T
+
+    if model == "cosmo":
+        var[:] = country_mask.T
+    elif model == "icon":
+        var[:] = country_mask
 
 
-def get_country_mask(output_path, suffix, cosmo_grid, resolution, nprocs):
+def get_country_mask(output_path, suffix, output_grid, resolution, nprocs):
     """Returns the country-mask, either loaded from disk or computed.
 
     If there already exists a file at
@@ -195,8 +249,8 @@ def get_country_mask(output_path, suffix, cosmo_grid, resolution, nprocs):
     output_path : str
         Path to the directory where the country-mask is stored
     suffix : str
-    cosmo_grid : grids.COSMOGrid
-        Contains all necessary information about the cosmo grid
+    output_grid : grids.COSMOGrid or grids.ICONGrid
+        Contains all necessary information about the output grid
     resolution : str
         The resolution for the used shapefile, used as argument for
         cartopy.io.shapereader.natural_earth()
@@ -205,7 +259,7 @@ def get_country_mask(output_path, suffix, cosmo_grid, resolution, nprocs):
 
     Returns
     -------
-    np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
+    np.array(shape(output_grid.nx, output_grid.ny), dtype=int)
     """
     cmask_path = os.path.join(
         output_path, f"country_mask_{resolution}_{suffix}.nc"
@@ -229,10 +283,15 @@ def get_country_mask(output_path, suffix, cosmo_grid, resolution, nprocs):
             "AFFILIATION": "Empa Duebendorf, Switzerland",
             "DATE CREATED": time.ctime(time.time()),
         }
-        country_mask = compute_country_mask(cosmo_grid, resolution, nprocs)
+        country_mask = compute_country_mask(output_grid, resolution, nprocs)
+        print(np.nanmax(country_mask))
         with nc.Dataset(cmask_path, "w") as dataset:
-            prepare_output_file(cosmo_grid, nc_metadata, dataset)
-            add_country_mask(country_mask, dataset)
+            if output_grid.__class__.__name__ == "COSMOGrid":
+                prepare_output_file(output_grid, nc_metadata, dataset)
+                add_country_mask(country_mask, dataset, "cosmo")
+            elif output_grid.__class__.__name__ == "ICONGrid":
+                prepare_ICON_output_file(output_grid, nc_metadata, dataset)
+                add_country_mask(country_mask, dataset, "icon")
     else:
         # Transpose country mask when reading in
         # netCDF/Fortran: (lat, lon), python: (lon, lat)
@@ -241,7 +300,7 @@ def get_country_mask(output_path, suffix, cosmo_grid, resolution, nprocs):
     return country_mask
 
 
-def compute_country_mask(cosmo_grid, resolution, nprocs):
+def compute_country_mask(output_grid, resolution, nprocs):
     """Determine the country-code for each gridcell and return the grid.
 
     Each gridcell gets assigned to code of the country with the most
@@ -255,8 +314,8 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
 
     Parameters
     ----------
-    cosmo_grid : grids.COSMOGrid
-        Contains all necessary information about the cosmo grid
+    output_grid : grids.COSMOGrid or grids.ICONGrid
+        Contains all necessary information about the output grid
     resolution : str
         The resolution for the used shapefile, used as argument for
         cartopy.io.shapereader.natural_earth()
@@ -265,7 +324,7 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
 
     Returns
     -------
-    np.array(shape(cosmo_grid.nx, cosmo_grid.ny), dtype=int)
+    np.array(shape(output_grid.nx, output_grid.ny), dtype=int)
     """
     print(
         f"Computing the country mask with {resolution} resolution.\n"
@@ -282,18 +341,18 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
     projections = {
         # Projection of the shapefile: WGS84, which the PlateCarree defaults to
         "shapefile": ccrs.PlateCarree(),
-        "cosmo": cosmo_grid.get_projection(),
+        "cosmo": output_grid.get_projection(),
     }
 
     # arguments to assign_country_code()
     arguments = [
         (
-            [(i, j) for j in range(cosmo_grid.ny)],  # indices of cells
-            cosmo_grid,
+            [(i, j) for j in range(output_grid.ny)],  # indices of cells
+            output_grid,
             projections,
             countries,
         )
-        for i in range(cosmo_grid.nx)
+        for i in range(output_grid.nx)
     ]
 
     if nprocs == 1:
@@ -313,7 +372,7 @@ def compute_country_mask(cosmo_grid, resolution, nprocs):
     return country_mask
 
 
-def assign_country_code(indices, cosmo_grid, projections, countries):
+def assign_country_code(indices, output_grid, projections, countries):
     """Assign the country codes on the gridcells indicated by indices.
 
     Each gridcell gets assigned to code of the country with the most
@@ -330,8 +389,8 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
     indices : list(tuple(int, int))
         A list of indices indicating for which gridcells to compute the
         country code.
-    cosmo_grid : grids.COSMOGrid
-        Contains all necessary information about the cosmo grid
+    output_grid : grids.COSMOGrid or grids.ICONGrid
+        Contains all necessary information about the output grid
     projections : dict(str, cartopy.crs.Projection)
         Dict containing two elements:
         'shapefile': Projection used in the coordinates of the countries
@@ -347,9 +406,10 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
     # Have to recreate the COSMO projection since cartopy projections
     # don't work with deepcopy (which is used by multiprocessing to send
     # arguments of functions to other processes)
-    projections["cosmo"] = ccrs.RotatedPole(
-        pole_longitude=cosmo_grid.pollon, pole_latitude=cosmo_grid.pollat
-    )
+    if output_grid.__class__.__name__ == "COSMOGrid":
+        projections["cosmo"] = ccrs.RotatedPole(
+            pole_longitude=output_grid.pollon, pole_latitude=output_grid.pollat
+        )
 
     # Name of the country attribute holding the ISO3 country abbreviation
     iso3 = "ADM0_A3"
@@ -362,11 +422,18 @@ def assign_country_code(indices, cosmo_grid, projections, countries):
 
     country_mask = np.empty(len(indices), dtype=int)
     for k, (i, j) in enumerate(indices):
-        cosmo_cell_x, cosmo_cell_y = cosmo_grid.cell_corners(i, j)
 
-        projected_corners = projections["shapefile"].transform_points(
-            projections["cosmo"], cosmo_cell_x, cosmo_cell_y
-        )
+        output_cell_x, output_cell_y = output_grid.cell_corners(i, j)
+
+        if output_grid.__class__.__name__ == "COSMOGrid":
+            projected_corners = projections["shapefile"].transform_points(
+                projections["cosmo"], output_cell_x, output_cell_y
+            )
+        elif output_grid.__class__.__name__ == "ICONGrid":
+            projected_corners = np.array([
+                output_cell_x, output_cell_y, np.zeros(output_cell_x.shape)
+            ]).T
+
         projected_cell = Polygon(projected_corners)
 
         intersected_countries = [
@@ -460,7 +527,7 @@ def intersection_possible(points, c_minx, c_miny, c_maxx, c_maxy):
     return c_miny < p_maxy and c_maxy > p_miny
 
 
-def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
+def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
     """Compute the mapping from inventory to cosmo grid.
 
     Loop over all inventory cells and determine which cosmo cells they overlap
@@ -473,8 +540,8 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
 
     Parameters
     ----------
-    cosmo_grid : grids.COSMOGrid
-        Contains all necessary information about the cosmo grid
+    output_grid : grids.COSMOGrid or grids.ICONGrid
+        Contains all necessary information about the output grid
     inv_grid : grids.InventoryGrid
         Contains all necessary information about the inventory grid
     nprocs : int
@@ -497,7 +564,7 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
     inv_projection = inv_grid.get_projection()
 
     # Projection used to convert to the cosmo grid
-    cosmo_projection = cosmo_grid.get_projection()
+    output_projection = output_grid.get_projection()
 
     progress = ProgressIndicator(lon_size)
 
@@ -509,12 +576,12 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
                 inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
                     i, j
                 )
-                cell_in_cosmo_projection = cosmo_projection.transform_points(
+                cell_in_output_projection = output_projection.transform_points(
                     inv_projection, inv_cell_corners_x, inv_cell_corners_y
                 )
-                cells.append(cell_in_cosmo_projection)
+                cells.append(cell_in_output_projection)
 
-            mapping[i, : ] = [cosmo_grid.intersected_cells(c) for c in cells]
+            mapping[i, : ] = [output_grid.intersected_cells(c) for c in cells]
     else:
         with Pool(nprocs) as pool:
             for i in range(lon_size):
@@ -524,12 +591,12 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
                     inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
                         i, j
                     )
-                    cell_in_cosmo_projection = cosmo_projection.transform_points(
+                    cell_in_output_projection = output_projection.transform_points(
                         inv_projection, inv_cell_corners_x, inv_cell_corners_y
                     )
-                    cells.append(cell_in_cosmo_projection)
+                    cells.append(cell_in_output_projection)
 
-                mapping[i, :] = pool.map(cosmo_grid.intersected_cells, cells)
+                mapping[i, :] = pool.map(output_grid.intersected_cells, cells)
 
     end = time.time()
 
@@ -538,7 +605,7 @@ def compute_map_from_inventory_to_cosmo(cosmo_grid, inv_grid, nprocs):
     return mapping
 
 
-def get_gridmapping(output_path, suffix, cosmo_grid, inv_grid, nprocs):
+def get_gridmapping(output_path, suffix, output_grid, inv_grid, nprocs):
     """Returns the interpolation between the inventory and COSMO grid.
 
     If there already exists a file at output_path/mapping_{suffix}.npy ask
@@ -549,8 +616,8 @@ def get_gridmapping(output_path, suffix, cosmo_grid, inv_grid, nprocs):
     output_path : str
         Path to the directory where the country-mask is stored
     suffix : str
-    cosmo_grid : grids.COSMOGrid
-        Contains all necessary information about the cosmo grid
+    output_grid : grids.COSMOGrid or grids.ICONGrid
+        Contains all necessary information about the output grid
     inv_grid : grids.Grid
         Contains all necessary information about the inventory grid
     nprocs : int
@@ -575,7 +642,7 @@ def get_gridmapping(output_path, suffix, cosmo_grid, inv_grid, nprocs):
 
     if compute_map:
         mapping = compute_map_from_inventory_to_cosmo(
-            cosmo_grid, inv_grid, nprocs
+            output_grid, inv_grid, nprocs
         )
 
         np.save(mapping_path, mapping)

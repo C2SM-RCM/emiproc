@@ -8,7 +8,7 @@ inventory = 'TNO'
 
 # model either "cosmo-art", "cosmo-ghg" or "icon" (affects the
 # output units and handling of the output grid)
-model = 'cosmo-ghg'
+model = 'icon'
 
 # path to input inventory
 input_path = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year2015.nc"
@@ -16,23 +16,25 @@ input_path = "/input/TNOMACC/TNO_GHGco/TNO_6x6_GHGco_v1_1/TNO_GHGco_v1_1_year201
 # input grid
 input_grid = TNOGrid(input_path)
 
-# species and categories read from input file
-species = ["co2_ff", "co2_bf"]
+# input species
+species = ['co2_ff', 'co2_bf']
+
+# input categories
 categories = [
     "A",
-#    "B",
-#    "C",
-#    "D",
-#    "E",
+    "B",
+    "C",
+    "D",
+    "E",
     "F1",
     "F2",
     "F3",
-#    "G",
-#    "H",
-#    "I",
-#    "J",
-#    "K",
-#    "L",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
 ]
 
 # mapping from input to output species (input is used for missing keys)
@@ -41,33 +43,27 @@ in2out_species = {
     'co2_bf': 'CO2'
 }
 
-# mapping from input to output category (input is used for missing keys)
-in2out_category = {'F1': 'F', 'F2': 'F', 'F3': 'F'}
-
+# mapping from input to output species (input is used for missing keys)
+in2out_category = {}
 
 # output variables are written in the following format using species and
-# category after applying the mapping
-varname_format = '{species}_{category}_{source_type}'
+# category after applying mapping as well as source_type (AREA or POINT) for
+# TNO inventories
+varname_format = '{species}_{category}' # not providing source_type will add up
+                                        # point and area sources
 
-# COSMO domain
-output_grid = COSMOGrid(
-    nx=90,
-    ny=60,
-    dx=0.1,
-    dy=0.1,
-    xmin=-4.92,
-    ymin=-3.18,
-    pollon=-170.0,
-    pollat=43.0,
-)
+# path to ICON output grid
+icon_path = "/newhome/stem/git/C2SM-RCM/ICON_grids/MCH2km/domain1_DOM01.nc"
+
+# output ICON grid
+output_grid = ICONGrid(icon_path)
 
 # output path and filename
-output_path = os.path.join("TNO-test", '{online}')
-output_name = "test-tno.nc"
+output_path = os.path.join('outputs', '{online}')
+output_name = "tno.nc"
 
-
-# resolution of shapefile used for country mask
-shpfile_resolution = "110m"
+# resolution of shape file used for country mask
+shpfile_resolution = "10m" 
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
@@ -76,12 +72,8 @@ nprocs = 18
 nc_metadata = {
     "DESCRIPTION": "Gridded annual emissions",
     "DATAORIGIN": "TNO",
-    "CREATOR": "Gerrit Kuhlmann",
-    "EMAIL": "gerrit.kuhlmann@empa.ch",
+    "CREATOR": "Jean-Matthieu Haussaire",
+    "EMAIL": "jean-matthieu.haussaire@empa.ch",
     "AFFILIATION": "Empa Duebendorf, Switzerland",
     "DATE CREATED": time.ctime(time.time()),
 }
-
-# Add total emissions (only for swiss inventory)
-add_total_emissions = False
-

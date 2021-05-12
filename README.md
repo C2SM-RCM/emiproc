@@ -36,6 +36,8 @@ be obtained separately.
     $ python -m emiproc vp                         # for vertical profiles
 ```
 
+Further examples, including the generation of offline files and inventory merging, can be found in [cases/README.md](cases/README.md)
+
 ## Gridded annual emissions
 
 Emissions are read from the inventory and projected onto the COSMO grid.
