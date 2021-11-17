@@ -12,3 +12,6 @@ def test_performance_at_rlon():
 
     with nc.Dataset(out_filename) as own, nc.Dataset(out_filename_ref) as ref:
         assert amrs.nc.compare.datasets_equal(own, ref, [])
+
+if __name__ == '__main__':
+    test_performance_at_rlon()
