@@ -42,12 +42,12 @@ varname_format = '{species}_{category}_{source_type}' # not providing source_typ
 
 # COSMO domain
 output_grid = COSMOGrid(
-    nx=150, #900
-    ny=150, #600
+    nx=26, #900
+    ny=26, #600
     dx=0.01, #0.01
     dy=0.01, #0.01
-    xmin=-0.75,
-    ymin=0.75,
+    xmin=-0.13,
+    ymin=-0.13,
     pollon=-169.0,
     pollat=43.0,
 )
@@ -55,7 +55,7 @@ output_grid = COSMOGrid(
 
 # output path and filename
 output_path = os.path.join('outputs', '{online}')
-output_name = "faketno.nc"
+output_name = "outgrid.nc"
 
 # resolution of shape file used for country mask
 shpfile_resolution = "10m" 
