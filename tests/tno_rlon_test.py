@@ -11,7 +11,7 @@ inventory = 'TNO'
 model = 'cosmo-ghg'
 
 # path to input inventory
-input_path = "/project/koer/CoCO2_JAE/input/oae/fake_emissions.nc"
+input_path = "test_emissions.nc"
 
 # input grid
 input_grid = TNOGrid(input_path)
@@ -27,7 +27,6 @@ categories = [
 # mapping from input to output species (input is used for missing keys)
 in2out_species = {
     'co2_ff': 'CO2',
-#     'co2_bf': 'CO2',
 }
 
 # mapping from input to output species (input is used for missing keys)
@@ -58,7 +57,7 @@ output_path = os.path.join('outputs', '{online}')
 output_name = "outgrid.nc"
 
 # resolution of shape file used for country mask
-shpfile_resolution = "10m" 
+shpfile_resolution = "110m" 
 
 # number of processes computing the mapping inventory->COSMO-grid
 nprocs = 18
