@@ -18,6 +18,7 @@ def test_performance_at_rlon():
     # working directory
     cwd = os.path.dirname(__file__)
 
+    # Unzip test emissions file
     with zipfile.ZipFile('test_emissions.zip', 'r') as zip_ref:
         zip_ref.extractall()
 
@@ -36,5 +37,7 @@ def test_performance_at_rlon():
     out_filename = os.path.join(cwd, "outputs", "online", "outgrid.nc")
     out_filename_ref = os.path.join(cwd, "tno_ref.nc")
 
+    # assert that the two datasets are (nearly) identical
     with nc.Dataset(out_filename) as own, nc.Dataset(out_filename_ref) as ref:
-        assert amrs.nc.compare.datasets_equal(own, ref, []) 
+        check1, check2 = amrs.nc.compare.datasets_equal(own, ref, []) 
+        assert check1 and check2
