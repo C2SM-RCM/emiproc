@@ -19,7 +19,7 @@ def test_performance_at_rlon():
     cwd = os.path.dirname(__file__)
 
     # Unzip test emissions file
-    with zipfile.ZipFile('test_emissions.zip', 'r') as zip_ref:
+    with zipfile.ZipFile(os.path.join(cwd, 'test_emissions.zip'), 'r') as zip_ref:
         zip_ref.extractall()
 
     # remove outputs from previous tests
@@ -30,7 +30,7 @@ def test_performance_at_rlon():
 
     # run emiproc
     subprocess.run(["python", "-m", "emiproc", "grid", "--case-file",
-                    "tno_rlon_test.py"], shell=False,
+                    "tno_rlon.py"], shell=False,
                     cwd=cwd)
 
     # compare output with reference
