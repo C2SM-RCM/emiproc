@@ -18,10 +18,6 @@ def test_performance_at_rlon():
     # working directory
     cwd = os.path.dirname(__file__)
 
-    # Unzip test emissions file
-    with zipfile.ZipFile(os.path.join(cwd, 'test_emissions.zip'), 'r') as zip_ref:
-        zip_ref.extractall()
-
     # remove outputs from previous tests
     try:
         shutil.rmtree(os.path.join(cwd, 'outputs'))
