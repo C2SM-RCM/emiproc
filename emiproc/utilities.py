@@ -551,7 +551,13 @@ def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
     -------
     np.array(shape=(inv_grid.shape), dtype=list(tuple(int, int, float)))
     """
-    print("Computing the mapping between the cosmo and the inventory grid...")
+    print(
+        "Computing the mapping from the", 
+        getattr(output_grid, 'name', 'output_grid'),
+        "and the inventory",
+        getattr(inv_grid, "name", ''),
+        "grid..."
+    )
     start = time.time()
 
     lon_size = len(inv_grid.lon_range())
