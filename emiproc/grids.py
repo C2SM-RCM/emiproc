@@ -3,6 +3,7 @@ Classes handling different grids, namely the COSMO simulation grid and
 grids used in different emissions inventories.
 """
 import numpy as np
+import xarray as xr
 import cartopy.crs as ccrs
 
 from netCDF4 import Dataset
@@ -92,6 +93,75 @@ class Grid:
         """
         raise NotImplementedError("Method not implemented")
 
+class LatLonNcGrid(Grid):
+    """A regular grid with lat/lon values from a nc file.
+    
+    This is a copy of the tno grid basically, but reading a nc file.
+    """
+
+    def __init__(self, dataset_path, lat_name='clat', lon_name='clon', name='LatLon'):
+
+        self.dataset_path = dataset_path
+
+        ds = xr.load_dataset(dataset_path)
+
+        self.lon_var = np.unique(ds[lon_name])
+        self.lat_var = np.unique(ds[lat_name])
+
+        self.nx = len(self.lon_var)
+        self.ny = len(self.lat_var)
+
+        # The lat/lon values are the cell-centers
+        self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
+        self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
+
+        # Compute the cell corners
+        x = self.lon_var
+        y = self.lat_var
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+
+        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
+
+
+        super().__init__(name, ccrs.PlateCarree())
+
+    def cell_corners(self, i, j):
+        """Return the corners of the cell with indices (i,j).
+
+        See also the docstring of Grid.cell_corners.
+
+        Parameters
+        ----------
+        i : int
+        j : int
+
+        Returns
+        -------
+        tuple(np.array(shape=(4,), dtype=float),
+              np.array(shape=(4,), dtype=float))
+            Arrays containing the x and y coordinates of the corners
+        """
+        return self.cell_x[:,i], self.cell_y[:,j]
+
+    def lon_range(self):
+        """Return an array containing all the longitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(nx,), dtype=float)
+        """
+        return self.lon_var
+
+    def lat_range(self):
+        """Return an array containing all the latitudinal points on the grid.
+
+        Returns
+        -------
+        np.array(shape=(ny,), dtype=float)
+        """
+        return self.lat_var
 
 class TNOGrid(Grid):
     """Contains the grid from the TNO emission inventory
