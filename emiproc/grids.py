@@ -870,6 +870,8 @@ class ICONGrid(Grid):
         self.nx = self.ncell
         self.ny = 1
 
+        self.molly = ccrs.Mollweide()
+
         super().__init__(name, ccrs.PlateCarree())
 
 
@@ -1006,8 +1008,8 @@ class ICONGrid(Grid):
             # The inventory cell lies outside the cosmo grid
             return []
 
-        molly = ccrs.Mollweide()
-        corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
+        
+        corners = self.molly.transform_points(self.projection,corners[:,0],corners[:,1])
         inv_cell = Polygon(corners)
 
 
@@ -1027,7 +1029,7 @@ class ICONGrid(Grid):
             if cell_ymin > icon_cell_ymax:
                 continue
             corners = np.array(list(zip(*self.cell_corners(n,0))))
-            corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
+            corners = self.molly.transform_points(self.projection,corners[:,0],corners[:,1])
             icon_cell = Polygon(corners)
             if icon_cell.intersects(inv_cell):
                overlap = icon_cell.intersection(inv_cell)
