@@ -449,19 +449,22 @@ class SwissGrid(Grid):
         """Store the grid information.
 
         Swiss grids use LV03 coordinates, which switch the axes:
-        x <-> Northing
-        y <-> Easting
+
+        * x <-> Northing
+        * y <-> Easting
 
         For consistency with the other Grids, we use:
-        x <-> Longitude ~ "swiss y"
-        y <-> Latitude  ~ "swiss x"
+
+        * x <-> Longitude ~ "swiss y"
+        * y <-> Latitude  ~ "swiss x"
 
         Thus, a header of a .asc file translates as follows:
-        ncols     -> nx
-        nrows     -> ny
-        xllcorner -> ymin
-        yllcorner -> xmin
-        cellsize  -> dx, dy
+
+        * ncols     -> nx
+        * nrows     -> ny
+        * xllcorner -> ymin
+        * yllcorner -> xmin
+        * cellsize  -> dx, dy
 
         Parameters
         ----------
@@ -544,8 +547,10 @@ class SwissGrid(Grid):
         Based on swisstopo approximated solution (0.1" accuracy)
 
         For better comparability with other implementations, here:
-        x <-> Northing
-        y <-> Easting,
+
+        * x <-> Northing
+        * y <-> Easting,
+        
         contrary to the rest of this class.
 
         Parameters
@@ -851,11 +856,11 @@ class ICONGrid(Grid):
         self.dataset_path = dataset_path
 
         with Dataset(dataset_path) as dataset:
-            self.clon_var = np.array(dataset["clon"][:]) * 180 / np.pi
-            self.clat_var = np.array(dataset["clat"][:]) * 180 / np.pi
+            self.clon_var = np.rad2deg(dataset["clon"][:])
+            self.clat_var = np.rad2deg(dataset["clat"][:])
             self.cell_areas = np.array(dataset["cell_area"][:])
-            self.vlat = np.array(dataset["vlat"][:]) * 180 / np.pi
-            self.vlon = np.array(dataset["vlon"][:]) * 180 / np.pi
+            self.vlat = np.rad2deg(dataset["vlat"][:])
+            self.vlon = np.rad2deg(dataset["vlon"][:])
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
             self.cell_of_vertex = np.array(dataset["cells_of_vertex"][:])
 
