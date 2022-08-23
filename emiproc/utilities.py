@@ -5,6 +5,7 @@ This file contains a collection of functions and constants used for generating
 gridded emissions for COSMO
 """
 import os
+from pathlib import Path
 import sys
 import time
 
@@ -18,6 +19,7 @@ from importlib import import_module
 from multiprocessing import Pool
 from shapely.geometry import Polygon
 
+from .grids import Grid
 from .country_code import country_codes
 
 
@@ -527,7 +529,12 @@ def intersection_possible(points, c_minx, c_miny, c_maxx, c_maxy):
     return c_miny < p_maxy and c_maxy > p_miny
 
 
-def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
+def compute_map_from_inventory_to_cosmo(
+    output_grid: Grid,
+    inv_grid: Grid,
+    nprocs: int,
+    method: str,
+):
     """Compute the mapping from inventory to cosmo grid.
 
     Loop over all inventory cells and determine which cosmo cells they overlap
@@ -560,8 +567,8 @@ def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
     )
     start = time.time()
 
-    lon_size = len(inv_grid.lon_range())
-    lat_size = len(inv_grid.lat_range())
+    lon_size = inv_grid.nx
+    lat_size = inv_grid.ny
 
     # This is the interpolation that will be returned
     mapping = np.empty((lon_size, lat_size), dtype=object)
@@ -572,24 +579,41 @@ def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
     # Projection used to convert to the cosmo grid
     output_projection = output_grid.get_projection()
 
-    progress = ProgressIndicator(lon_size)
+    
 
-    if nprocs == 1:
-        for i in range(lon_size):
+    if method == 'geopandas':
+        import geopandas as gpd
+        
+        progress = ProgressIndicator(lon_size * lat_size)
+        out_grid_df = gpd.GeoDataFrame(
+            geometry=output_grid.cells_as_polylist(),
+        )
+        out_lon_size = output_grid.nx
+
+        for i, shape in enumerate(inv_grid.cells_as_polylist()):
             progress.step()
-            cells = []
-            for j in range(lat_size):
-                inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
-                    i, j
-                )
-                cell_in_output_projection = output_projection.transform_points(
-                    inv_projection, inv_cell_corners_x, inv_cell_corners_y
-                )
-                cells.append(cell_in_output_projection)
+            lon_i = i % lon_size
+            lat_i = i // lon_size
+            intersect = out_grid_df.intersects(shape)
+            if np.any(intersect):
+                areas = out_grid_df.intersection(shape).area
 
-            mapping[i, : ] = [output_grid.intersected_cells(c) for c in cells]
+                out_indexes = np.argwhere(intersect)[0]
+
+                mapping[lon_i, lat_i] = [
+                    (i, j, val) for i, j, val in zip(
+                        out_indexes % out_lon_size,
+                        out_indexes // out_lon_size,
+                        areas / np.sum(areas)
+                    )
+                ]
+            else:
+                mapping[lon_i, lat_i] = []
+
     else:
-        with Pool(nprocs) as pool:
+        # default method
+        progress = ProgressIndicator(lon_size)
+        if nprocs == 1:
             for i in range(lon_size):
                 progress.step()
                 cells = []
@@ -602,7 +626,22 @@ def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
                     )
                     cells.append(cell_in_output_projection)
 
-                mapping[i, :] = pool.map(output_grid.intersected_cells, cells)
+                mapping[i, : ] = [output_grid.intersected_cells(c) for c in cells]
+        else:
+            with Pool(nprocs) as pool:
+                for i in range(lon_size):
+                    progress.step()
+                    cells = []
+                    for j in range(lat_size):
+                        inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
+                            i, j
+                        )
+                        cell_in_output_projection = output_projection.transform_points(
+                            inv_projection, inv_cell_corners_x, inv_cell_corners_y
+                        )
+                        cells.append(cell_in_output_projection)
+
+                    mapping[i, :] = pool.map(output_grid.intersected_cells, cells)
 
     end = time.time()
 
@@ -611,7 +650,7 @@ def compute_map_from_inventory_to_cosmo(output_grid, inv_grid, nprocs):
     return mapping
 
 
-def get_gridmapping(output_path, suffix, output_grid, inv_grid, nprocs):
+def get_gridmapping(output_path, suffix, output_grid, inv_grid, nprocs, method='geopandas'):
     """Returns the interpolation between the inventory and COSMO grid.
 
     If there already exists a file at output_path/mapping_{suffix}.npy ask
@@ -644,11 +683,14 @@ def get_gridmapping(output_path, suffix, output_grid, inv_grid, nprocs):
         answer = input("y/[n] \n")
         compute_map = answer == "y"
     else:
+        # Make sure we create the ouptut dir
+        Path(output_path).mkdir(exist_ok=True, parents=True)
+        
         compute_map = True
 
     if compute_map:
         mapping = compute_map_from_inventory_to_cosmo(
-            output_grid, inv_grid, nprocs
+            output_grid, inv_grid, nprocs, method=method
         )
 
         np.save(mapping_path, mapping)

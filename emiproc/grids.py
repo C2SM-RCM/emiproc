@@ -97,7 +97,7 @@ class Grid:
     
     def cells_as_polylist(self):
         return [
-            Polygon(self.cell_corners(i, j)) 
+            Polygon(zip(*self.cell_corners(i, j))) 
             for i in range(self.nx)  
             for j in range(self.ny)
         ]
