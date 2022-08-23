@@ -16,6 +16,8 @@ class Grid:
     an appropriate implementation of the required methods.
     As an example you can look at TNOGrid.
     """
+    nx: int
+    ny: int
 
     def __init__(self, name, projection):
         """
@@ -92,6 +94,13 @@ class Grid:
         np.array(shape=(ny,), dtype=float)
         """
         raise NotImplementedError("Method not implemented")
+    
+    def cells_as_polylist(self):
+        return [
+            Polygon(self.cell_corners(i, j)) 
+            for i in range(self.nx)  
+            for j in range(self.ny)
+        ]
 
 class LatLonNcGrid(Grid):
     """A regular grid with lat/lon values from a nc file.
@@ -429,8 +438,7 @@ class SwissGrid(Grid):
     """Represent a grid used by swiss inventories, such as meteotest, maiolica
     or carbocount."""
 
-    nx: int
-    ny: int
+
     dx: float
     dy: float
     xmin: float
