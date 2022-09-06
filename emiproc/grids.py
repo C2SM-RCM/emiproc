@@ -2,12 +2,17 @@
 Classes handling different grids, namely the COSMO simulation grid and
 grids used in different emissions inventories.
 """
+from functools import cache, cached_property
 import numpy as np
 import xarray as xr
 import cartopy.crs as ccrs
 
 from netCDF4 import Dataset
 from shapely.geometry import Polygon, Point
+import geopandas as gpd
+
+WGS84 = 4326
+SWISS_CRS = 2056  # EPSG:2056
 
 
 class Grid:
@@ -18,6 +23,10 @@ class Grid:
     """
     nx: int
     ny: int
+
+    # The crs value as an integer
+    crs: int = WGS84
+    gdf: gpd.GeoDataFrame | None = None
 
     def __init__(self, name, projection):
         """
@@ -95,6 +104,7 @@ class Grid:
         """
         raise NotImplementedError("Method not implemented")
     
+    @cache
     def cells_as_polylist(self):
         return [
             Polygon(zip(*self.cell_corners(i, j))) 
@@ -444,6 +454,7 @@ class SwissGrid(Grid):
     xmin: float
     ymin: float
 
+
     def __init__(
         self,
         name,
@@ -453,6 +464,7 @@ class SwissGrid(Grid):
         dy,
         xmin,
         ymin,
+        crs:  int = WGS84
     ):
         """Store the grid information.
 
@@ -488,6 +500,10 @@ class SwissGrid(Grid):
             EASTERLY distance of bottom left gridpoint in meters
         ymin : float
             NORTHLY distance of bottom left gridpoint in meters
+        crs:
+            The projection to use.
+            only 
+            work with WGS84 or  SWISS .
         """
         self.nx = nx
         self.ny = ny
@@ -496,6 +512,7 @@ class SwissGrid(Grid):
         self.xmin = xmin
         self.ymin = ymin
 
+        self.crs = crs   
         # The swiss grid is not technically using a PlateCarree projection
         # (in fact it is not using any projection implemented by cartopy),
         # however the points returned by the cell_corners() method are in
@@ -519,17 +536,28 @@ class SwissGrid(Grid):
             Arrays containing the x and y coordinates of the corners
 
         """
-        x1, y1 = self._LV03_to_WGS84(
-            self.xmin + i * self.dx, self.ymin + j * self.dy
-        )
-        x2, y2 = self._LV03_to_WGS84(
-            self.xmin + (i + 1) * self.dx, self.ymin + (j + 1) * self.dy
-        )
+        if self.crs == WGS84:
+            x1, y1 = self._LV03_to_WGS84(
+                self.xmin + i * self.dx, self.ymin + j * self.dy
+            )
+            x2, y2 = self._LV03_to_WGS84(
+                self.xmin + (i + 1) * self.dx, self.ymin + (j + 1) * self.dy
+            )
 
-        cell_x = np.array([x2, x2, x1, x1])
-        cell_y = np.array([y2, y1, y1, y2])
+            cell_x = np.array([x2, x2, x1, x1])
+            cell_y = np.array([y2, y1, y1, y2])
 
-        return cell_x, cell_y
+            return cell_x, cell_y
+        elif self.crs == SWISS_CRS:
+            x1, y1 = self.xmin + i * self.dx, self.ymin + j * self.dy
+            x2, y2 = self.xmin + (i + 1) * self.dx, self.ymin + (j + 1) * self.dy
+
+            cell_x = np.array([x2, x2, x1, x1])
+            cell_y = np.array([y2, y1, y1, y2])
+
+            return cell_x, cell_y              
+        else:
+            raise ValueError(f"Unkonw crs {self.crs}")
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -538,7 +566,7 @@ class SwissGrid(Grid):
         -------
         np.array(shape=(nx,), dtype=float)
         """
-        return np.array([self.xmin + i * self.dx for i in range(self.nx)])
+        return np.array([self.xmin + i * self.dx for i in range(self.nx + 1)])
 
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
@@ -547,7 +575,7 @@ class SwissGrid(Grid):
         -------
         np.array(shape=(ny,), dtype=float)
         """
-        return np.array([self.ymin + j * self.dy for j in range(self.ny)])
+        return np.array([self.ymin + j * self.dy for j in range(self.ny + 1)])
 
     def _LV03_to_WGS84(self, y, x):
         """Convert LV03 to WSG84.
@@ -594,6 +622,8 @@ class SwissGrid(Grid):
         ) / 0.36
 
         return lon, lat
+
+
 
 
 class COSMOGrid(Grid):
@@ -877,7 +907,14 @@ class ICONGrid(Grid):
 
         # Initiate a list of polygons, which is updated whenever the polygon of a cell
         # is called for the first time
-        self.polygons = [None] * self.ncell
+        self.polygons = [Polygon(zip(*self._cell_corners(i))) for i in range(self.ncell)]
+
+        # Create a geopandas df
+        #ICON_FILE_CRS = 6422
+        # Apparently the crs of icon is not what is written in the nc file.
+        ICON_FILE_CRS = WGS84
+        self.crs = ICON_FILE_CRS
+        self.gdf = gpd.GeoDataFrame(geometry=self.polygons, crs=ICON_FILE_CRS)
 
         # Consider the ICON-grid as a 1-dimensional grid where ny=1
         self.nx = self.ncell
@@ -887,6 +924,11 @@ class ICONGrid(Grid):
 
         super().__init__(name, ccrs.PlateCarree())
 
+
+    def _cell_corners(self, n):
+        """Internal cell corners"""
+
+        return self.vlon[self.vertex_of_cell[:,n]-1], self.vlat[self.vertex_of_cell[:,n]-1]
 
     def cell_corners(self, n, j):
         """Return the corners of the cell with index n.
@@ -902,9 +944,8 @@ class ICONGrid(Grid):
               np.array(shape=(3,), dtype=float))
             Arrays containing the lon and lat coordinates of the corners
         """
-
-        return self.vlon[self.vertex_of_cell[:,n]-1], self.vlat[self.vertex_of_cell[:,n]-1]
-
+        
+        return self.gdf.geometry.iloc[n].exterior.coords.xy
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
         """Return the indices of the grid cell that contains the point (lon, lat)

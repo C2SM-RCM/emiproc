@@ -586,25 +586,40 @@ def compute_map_from_inventory_to_cosmo(
         
         progress = ProgressIndicator(lon_size * lat_size)
         out_grid_df = gpd.GeoDataFrame(
-            geometry=output_grid.cells_as_polylist(),
+            geometry=output_grid.cells_as_polylist(), crs=output_grid.crs
         )
+        if inv_grid.crs != output_grid.crs:
+            # Remap 
+            print(f"Remapping {output_grid} to crs:{inv_grid.crs}")
+            out_grid_df = out_grid_df.to_crs(inv_grid.crs)
+
         out_lon_size = output_grid.nx
 
-        for i, shape in enumerate(inv_grid.cells_as_polylist()):
+        mapping_dict = {
+            "inv_indexes": [],
+            "output_indexes": [],
+            "weights": [],
+        }
+
+        for inv_index, shape in enumerate(inv_grid.cells_as_polylist()):
             progress.step()
-            lon_i = i % lon_size
-            lat_i = i // lon_size
+            lon_i = inv_index % lon_size
+            lat_i = inv_index // lon_size
             intersect = out_grid_df.intersects(shape)
             if np.any(intersect):
-                areas = out_grid_df.intersection(shape).area
+                intersecting_gdf = out_grid_df.loc[intersect]
+                areas = intersecting_gdf.intersection(shape).area
 
-                out_indexes = np.argwhere(intersect)[0]
+                out_indexes =  list(np.argwhere(intersect.to_numpy()).reshape(-1))
+                mapping_dict["output_indexes"].extend(out_indexes)
+                mapping_dict["inv_indexes"].extend([inv_index] * len(out_indexes))
+                mapping_dict["weights"].extend(areas / shape.area)
 
                 mapping[lon_i, lat_i] = [
                     (i, j, val) for i, j, val in zip(
                         out_indexes % out_lon_size,
                         out_indexes // out_lon_size,
-                        areas / np.sum(areas)
+                        areas / shape.area
                     )
                 ]
             else:
@@ -613,6 +628,8 @@ def compute_map_from_inventory_to_cosmo(
     else:
         # default method
         progress = ProgressIndicator(lon_size)
+        if inv_grid.crs != output_grid.crs:
+            raise ValueError("CRS of inventory and output grid don't match.")
         if nprocs == 1:
             for i in range(lon_size):
                 progress.step()
