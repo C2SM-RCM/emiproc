@@ -650,7 +650,14 @@ def compute_map_from_inventory_to_cosmo(
     return mapping
 
 
-def get_gridmapping(output_path, suffix, output_grid, inv_grid, nprocs, method='geopandas'):
+def get_gridmapping(
+    output_path: Path | str,
+    suffix: str,
+    output_grid: Grid,
+    inv_grid: Grid,
+    nprocs: int = 1,
+    method: str = 'geopandas'
+):
     """Returns the interpolation between the inventory and COSMO grid.
 
     If there already exists a file at output_path/mapping_{suffix}.npy ask
