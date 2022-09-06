@@ -214,7 +214,7 @@ def main():
         emiproc.misc.create_input_tracers(cfg, output_path)
 
     else:
-        raise ValueError('Unknown task "%s"' % task)
+        raise ValueError(f'Unknown task "{args.task}"')
 
 
 if __name__ == '__main__':
