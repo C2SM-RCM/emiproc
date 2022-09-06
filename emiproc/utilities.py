@@ -679,6 +679,12 @@ def get_gridmapping(
     -------
     np.array(shape=(inv_grid.shape), dtype=list(tuple(int, int, float)))
         See the docstring of compute_map_from_inventory_to_cosmo()
+
+
+    Warning
+    -------
+    To load the grid file, pickle is used.
+    This is not safe. Only files that you trust should be loaded this way.
     """
     mapping_path = os.path.join(output_path, f"mapping_{suffix}.npy")
 
@@ -702,7 +708,7 @@ def get_gridmapping(
 
         np.save(mapping_path, mapping)
     else:
-        mapping = np.load(mapping_path)
+        mapping = np.load(mapping_path, allow_pickle=True)
 
     return mapping
 
@@ -713,22 +719,29 @@ class ProgressIndicator:
     To not break the progress indicator, make sure there is no
     output to stdout between calls to step()
     """
+    steps: int
+    curr_step: int
 
-    def __init__(self, steps):
+    def __init__(self, steps: int):
         """steps : int
             How many steps the operation takes
         """
         self.curr_step = 0
-        self.tot_steps = steps
+        self.steps = steps
         self.stream = sys.stdout
+
+        self._curr_progress_step = 0
 
     def step(self):
         """Advance one step, update the progress indicator"""
         self.curr_step += 1
-        self._show_progress()
+        if (self.curr_step - self._curr_progress_step) / self.steps > 0.001:
+            # Show progress when you can update a x.x % value only
+            self._show_progress()
 
     def _show_progress(self):
-        progress = self.curr_step / self.tot_steps * 100
+        self._curr_progress_step = self.curr_step
+        progress = self.curr_step / self.steps * 100
         self.stream.write(f"\r{progress:.1f}%")
-        if self.curr_step == self.tot_steps:
+        if self.curr_step == self.steps:
             self.stream.write("\r")
