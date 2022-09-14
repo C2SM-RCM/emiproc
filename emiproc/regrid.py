@@ -86,7 +86,7 @@ def calculate_weights_mapping(
     elif isinstance(shapes_vectorized, gpd.GeoSeries):
         gdf_vect = shapes_vectorized
     elif isinstance(shapes_vectorized, list):
-        gdf_vect = gpd.GeoSeries(geometry=shapes_vectorized).geometry
+        gdf_vect = gpd.GeoSeries(shapes_vectorized)
     else:
         raise TypeError("'Given illegal type for shapes to process'")
     gdf_vect: gpd.GeoSeries
