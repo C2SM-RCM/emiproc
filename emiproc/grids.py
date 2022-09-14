@@ -12,7 +12,7 @@ from shapely.geometry import Polygon, Point
 import geopandas as gpd
 
 WGS84 = 4326
-SWISS_CRS = 2056  # EPSG:2056
+LV95 = 2056  # EPSG:2056, swiss CRS
 
 
 class Grid:
@@ -21,6 +21,7 @@ class Grid:
     an appropriate implementation of the required methods.
     As an example you can look at TNOGrid.
     """
+
     nx: int
     ny: int
 
@@ -103,22 +104,23 @@ class Grid:
         np.array(shape=(ny,), dtype=float)
         """
         raise NotImplementedError("Method not implemented")
-    
+
     @cache
     def cells_as_polylist(self):
         return [
-            Polygon(zip(*self.cell_corners(i, j))) 
-            for i in range(self.nx)  
+            Polygon(zip(*self.cell_corners(i, j)))
+            for i in range(self.nx)
             for j in range(self.ny)
         ]
 
+
 class LatLonNcGrid(Grid):
     """A regular grid with lat/lon values from a nc file.
-    
+
     This is a copy of the tno grid basically, but reading a nc file.
     """
 
-    def __init__(self, dataset_path, lat_name='clat', lon_name='clon', name='LatLon'):
+    def __init__(self, dataset_path, lat_name="clat", lon_name="clon", name="LatLon"):
 
         self.dataset_path = dataset_path
 
@@ -143,7 +145,6 @@ class LatLonNcGrid(Grid):
         self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
         self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
-
         super().__init__(name, ccrs.PlateCarree())
 
     def cell_corners(self, i, j):
@@ -162,7 +163,7 @@ class LatLonNcGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        return self.cell_x[:,i], self.cell_y[:,j]
+        return self.cell_x[:, i], self.cell_y[:, j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -182,9 +183,10 @@ class LatLonNcGrid(Grid):
         """
         return self.lat_var
 
+
 class TNOGrid(Grid):
     """Contains the grid from the TNO emission inventory
-    This grid is defined as a standard lat/lon coordinate system. 
+    This grid is defined as a standard lat/lon coordinate system.
     The gridpoints are at the center of the cell.
     """
 
@@ -236,7 +238,7 @@ class TNOGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        return self.cell_x[:,i], self.cell_y[:,j]
+        return self.cell_x[:, i], self.cell_y[:, j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -324,7 +326,7 @@ class EDGARGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        return self.cell_x[:,i], self.cell_y[:,j]
+        return self.cell_x[:, i], self.cell_y[:, j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -423,7 +425,7 @@ class VPRMGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        return self.cell_x[:,i], self.cell_y[:,j]
+        return self.cell_x[:, i], self.cell_y[:, j]
 
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
@@ -448,24 +450,12 @@ class SwissGrid(Grid):
     """Represent a grid used by swiss inventories, such as meteotest, maiolica
     or carbocount."""
 
-
     dx: float
     dy: float
     xmin: float
     ymin: float
 
-
-    def __init__(
-        self,
-        name,
-        nx,
-        ny,
-        dx,
-        dy,
-        xmin,
-        ymin,
-        crs:  int = WGS84
-    ):
+    def __init__(self, name, nx, ny, dx, dy, xmin, ymin, crs: int = WGS84):
         """Store the grid information.
 
         Swiss grids use LV03 coordinates, which switch the axes:
@@ -502,7 +492,7 @@ class SwissGrid(Grid):
             NORTHLY distance of bottom left gridpoint in meters
         crs:
             The projection to use.
-            only 
+            only
             work with WGS84 or  SWISS .
         """
         self.nx = nx
@@ -512,7 +502,7 @@ class SwissGrid(Grid):
         self.xmin = xmin
         self.ymin = ymin
 
-        self.crs = crs   
+        self.crs = crs
         # The swiss grid is not technically using a PlateCarree projection
         # (in fact it is not using any projection implemented by cartopy),
         # however the points returned by the cell_corners() method are in
@@ -548,14 +538,14 @@ class SwissGrid(Grid):
             cell_y = np.array([y2, y1, y1, y2])
 
             return cell_x, cell_y
-        elif self.crs == SWISS_CRS:
+        elif self.crs == LV95:
             x1, y1 = self.xmin + i * self.dx, self.ymin + j * self.dy
             x2, y2 = self.xmin + (i + 1) * self.dx, self.ymin + (j + 1) * self.dy
 
             cell_x = np.array([x2, x2, x1, x1])
             cell_y = np.array([y2, y1, y1, y2])
 
-            return cell_x, cell_y              
+            return cell_x, cell_y
         else:
             raise ValueError(f"Unkonw crs {self.crs}")
 
@@ -586,7 +576,7 @@ class SwissGrid(Grid):
 
         * x <-> Northing
         * y <-> Easting,
-        
+
         contrary to the rest of this class.
 
         Parameters
@@ -608,17 +598,17 @@ class SwissGrid(Grid):
             2.6779094
             + 4.728982 * y
             + 0.791484 * y * x
-            + 0.1306 * y * x ** 2
-            - 0.0436 * y ** 3
+            + 0.1306 * y * x**2
+            - 0.0436 * y**3
         ) / 0.36
 
         lat = (
             16.9023892
             + 3.238272 * x
-            - 0.270978 * y ** 2
-            - 0.002528 * x ** 2
-            - 0.0447 * y ** 2 * x
-            - 0.0140 * x ** 3
+            - 0.270978 * y**2
+            - 0.002528 * x**2
+            - 0.0447 * y**2 * x
+            - 0.0140 * x**3
         ) / 0.36
 
         return lon, lat
@@ -628,10 +618,10 @@ class SwissGrid(Grid):
 
 class COSMOGrid(Grid):
     """Class to manage a COSMO-domain
-    This grid is defined as a rotated pole coordinate system. 
+    This grid is defined as a rotated pole coordinate system.
     The gridpoints are at the center of the cell.
     """
-    
+
     nx: int
     ny: int
     dx: float
@@ -763,8 +753,7 @@ class COSMOGrid(Grid):
               np.array(shape=(4,), dtype=float))
             Arrays containing the x and y coordinates of the corners
         """
-        return self.cell_x[:,i], self.cell_y[:,j]
-
+        return self.cell_x[:, i], self.cell_y[:, j]
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
         """Return the indices of the grid cell that contains the point (lon, lat)
@@ -856,18 +845,19 @@ class COSMOGrid(Grid):
             # The inventory cell lies outside the cosmo grid
             return []
 
-        molly = ccrs.Mollweide(central_longitude = self.pollon)
-        corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
+        molly = ccrs.Mollweide(central_longitude=self.pollon)
+        corners = molly.transform_points(self.projection, corners[:, 0], corners[:, 1])
         inv_cell = Polygon(corners)
-
 
         intersections = []
         # make sure we iterate only over valid gridpoint indices
         for i in range(max(0, lon_idx_min), min(self.nx, lon_idx_max)):
             for j in range(max(0, lat_idx_min), min(self.ny, lat_idx_max)):
                 corners = np.array(list(zip(*self.cell_corners(i, j))))
-                corners = molly.transform_points(self.projection,corners[:,0],corners[:,1])
-                                
+                corners = molly.transform_points(
+                    self.projection, corners[:, 0], corners[:, 1]
+                )
+
                 cosmo_cell = Polygon(corners)
                 if cosmo_cell.intersects(inv_cell):
                     overlap = cosmo_cell.intersection(inv_cell)
@@ -879,10 +869,10 @@ class COSMOGrid(Grid):
 class ICONGrid(Grid):
     """Class to manage an ICON-domain
     This grid is defined as an unstuctured triangular grid (1D).
-    The cells are ordered in a deliberate way and indexed with ascending integer numbers. 
+    The cells are ordered in a deliberate way and indexed with ascending integer numbers.
     The grid file contains variables like midpoint coordinates etc as a fct of the index.
     """
-    
+
     def __init__(self, dataset_path, name="ICON"):
         """Open the netcdf-dataset and read the relevant grid information.
 
@@ -902,15 +892,16 @@ class ICONGrid(Grid):
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
             self.cell_of_vertex = np.array(dataset["cells_of_vertex"][:])
 
-
         self.ncell = len(self.clat_var)
 
         # Initiate a list of polygons, which is updated whenever the polygon of a cell
         # is called for the first time
-        self.polygons = [Polygon(zip(*self._cell_corners(i))) for i in range(self.ncell)]
+        self.polygons = [
+            Polygon(zip(*self._cell_corners(i))) for i in range(self.ncell)
+        ]
 
         # Create a geopandas df
-        #ICON_FILE_CRS = 6422
+        # ICON_FILE_CRS = 6422
         # Apparently the crs of icon is not what is written in the nc file.
         ICON_FILE_CRS = WGS84
         self.crs = ICON_FILE_CRS
@@ -924,11 +915,13 @@ class ICONGrid(Grid):
 
         super().__init__(name, ccrs.PlateCarree())
 
-
     def _cell_corners(self, n):
         """Internal cell corners"""
 
-        return self.vlon[self.vertex_of_cell[:,n]-1], self.vlat[self.vertex_of_cell[:,n]-1]
+        return (
+            self.vlon[self.vertex_of_cell[:, n] - 1],
+            self.vlat[self.vertex_of_cell[:, n] - 1],
+        )
 
     def cell_corners(self, n, j):
         """Return the corners of the cell with index n.
@@ -944,7 +937,7 @@ class ICONGrid(Grid):
               np.array(shape=(3,), dtype=float))
             Arrays containing the lon and lat coordinates of the corners
         """
-        
+
         return self.gdf.geometry.iloc[n].exterior.coords.xy
 
     def indices_of_point(self, lon, lat, proj=ccrs.PlateCarree()):
@@ -971,10 +964,10 @@ class ICONGrid(Grid):
 
         indn = -1
 
-        pnt = Point(lon,lat)
+        pnt = Point(lon, lat)
 
-        closest_vertex = ((self.vlon - lon)**2 + (self.vlat - lat)**2).argmin()
-        cell_range = self.cell_of_vertex[:,closest_vertex] - 1
+        closest_vertex = ((self.vlon - lon) ** 2 + (self.vlat - lat) ** 2).argmin()
+        cell_range = self.cell_of_vertex[:, closest_vertex] - 1
 
         for n in cell_range:
 
@@ -984,7 +977,7 @@ class ICONGrid(Grid):
             if self.polygons[n] is not None:
                 icon_cell = self.polygons[n]
             else:
-                corners = np.array(list(zip(*self.cell_corners(n,0))))
+                corners = np.array(list(zip(*self.cell_corners(n, 0))))
                 icon_cell = Polygon(corners)
                 self.polygons[n] = icon_cell
 
@@ -1062,31 +1055,33 @@ class ICONGrid(Grid):
             # The inventory cell lies outside the cosmo grid
             return []
 
-        
-        corners = self.molly.transform_points(self.projection,corners[:,0],corners[:,1])
+        corners = self.molly.transform_points(
+            self.projection, corners[:, 0], corners[:, 1]
+        )
         inv_cell = Polygon(corners)
-
 
         intersections = []
         # make sure we iterate only over valid gridpoint indices
         for n in np.arange(self.ncell):
-            icon_cell_xmin = min(self.vlon[self.vertex_of_cell[:,n]-1])
+            icon_cell_xmin = min(self.vlon[self.vertex_of_cell[:, n] - 1])
             if cell_xmax < icon_cell_xmin:
                 continue
-            icon_cell_xmax = max(self.vlon[self.vertex_of_cell[:,n]-1])           
+            icon_cell_xmax = max(self.vlon[self.vertex_of_cell[:, n] - 1])
             if cell_xmin > icon_cell_xmax:
                 continue
-            icon_cell_ymin = min(self.vlat[self.vertex_of_cell[:,n]-1])
+            icon_cell_ymin = min(self.vlat[self.vertex_of_cell[:, n] - 1])
             if cell_ymax < icon_cell_ymin:
                 continue
-            icon_cell_ymax = max(self.vlat[self.vertex_of_cell[:,n]-1])
+            icon_cell_ymax = max(self.vlat[self.vertex_of_cell[:, n] - 1])
             if cell_ymin > icon_cell_ymax:
                 continue
-            corners = np.array(list(zip(*self.cell_corners(n,0))))
-            corners = self.molly.transform_points(self.projection,corners[:,0],corners[:,1])
+            corners = np.array(list(zip(*self.cell_corners(n, 0))))
+            corners = self.molly.transform_points(
+                self.projection, corners[:, 0], corners[:, 1]
+            )
             icon_cell = Polygon(corners)
             if icon_cell.intersects(inv_cell):
-               overlap = icon_cell.intersection(inv_cell)
-               intersections.append((n, 0,  overlap.area / inv_cell.area))
+                overlap = icon_cell.intersection(inv_cell)
+                intersections.append((n, 0, overlap.area / inv_cell.area))
 
         return intersections
