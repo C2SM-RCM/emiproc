@@ -1,5 +1,5 @@
 """Differnt tools for doing the weights remapping."""
-
+#%%
 from pathlib import Path
 import numpy as np
 import geopandas as gpd
@@ -79,8 +79,6 @@ def calculate_weights_mapping(
         shapes_vectorized = shapes_inv
         shapes_looped = shapes_out
 
-    
-
     if isinstance(shapes_vectorized, gpd.GeoDataFrame):
         gdf_vect = shapes_vectorized.geometry
     elif isinstance(shapes_vectorized, gpd.GeoSeries):
@@ -95,8 +93,6 @@ def calculate_weights_mapping(
         shapes_looped = shapes_looped.geometry.to_list()
     elif isinstance(shapes_looped, gpd.GeoSeries):
         shapes_looped = shapes_looped.to_list()
-
-
 
     progress = ProgressIndicator(len(shapes_looped))
 
@@ -203,7 +199,7 @@ def calculate_weights_mapping_matrix(
         shapes_vectorized = shapes_inv
         shapes_looped = shapes_out
 
-    w_mapping = dok_matrix(( len(shapes_out), len(shapes_inv)), dtype=float)
+    w_mapping = dok_matrix((len(shapes_out), len(shapes_inv)), dtype=float)
 
     progress = ProgressIndicator(len(shapes_looped))
     progress.step()
@@ -252,5 +248,72 @@ def calculate_weights_mapping_matrix(
                 else:
                     w_mapping[looped_indexes, from_indexes] = areas / shape.area
 
-
     return w_mapping
+
+
+def geoserie_intersection(
+    geometry: gpd.GeoSeries,
+    shape: Polygon,
+    keep_outside: bool = False,
+    drop_unused: bool = True,
+) -> tuple[gpd.GeoSeries, np.ndarray]:
+    """Calculate the intersection of a geoserie and a shape.
+
+    This can be an expensive operation you might want to cache.
+
+    :arg geometry: The serie of shapes from you inventory or grid.
+    :arg shape: A polygon which will be used for cropping.
+    :arg keep_outside: Whether to keep only the outer region of the geometry
+        instead the of the inner.
+        If this is true, the weigth
+    :arg drop_unused: Whether all the shapes from the geometry serie should
+        be kept. If True, the returned serie will remove these grid shapes.
+        If False, the returned geoserie will contain geometries from the 
+        original grid but the weights will be 0.
+
+    :return cropped_shapes, weights: Return a tuple containing
+        the shapes of the data but
+        cropped with respect to the shape and
+        the weights that correspond to the proportion of the original
+        geometry shapes that is present in the cropping shape.
+        The weights are 0 if the geometry is not included in the cropping shape
+        and 1 if the geometry is fully included. This is the opposite
+        when keep_outside is set to True.
+
+    """
+    # Check the geometry that intersect the shape
+    mask_intersect = geometry.intersects(shape)
+    mask_within = geometry.within(shape)
+    mask_boundary_intersect = mask_intersect & (~mask_within)
+
+    # Find the intersection sahpes of the boundary shapes
+    shapes_boundary_intersect = geometry.loc[mask_boundary_intersect].intersection(
+        shape
+    )
+    weigths_boundary_intersect = (
+        shapes_boundary_intersect.area / geometry.loc[mask_boundary_intersect].area
+    )
+
+    weights = np.zeros(len(geometry))
+    weights[mask_within] = 1.0
+    weights[mask_boundary_intersect] = weigths_boundary_intersect
+    intersection_shapes = geometry.copy()
+
+    if keep_outside:
+        # Outside inverses the weights
+        weights = 1.0 - weights
+        mask = (~mask_within) | mask_boundary_intersect
+        intersection_shapes.loc[mask_boundary_intersect] = intersection_shapes.loc[
+            mask_boundary_intersect
+        ].difference(shape)
+    else:
+        mask = mask_within | mask_boundary_intersect
+        intersection_shapes.loc[mask_boundary_intersect] = shapes_boundary_intersect
+
+    # Return only what was used
+    if drop_unused:
+        return intersection_shapes.loc[mask], weights[mask]
+    else:
+        return intersection_shapes, weights
+
+

@@ -1,14 +1,19 @@
 """Utilities for the diffenrent inventory."""
-
+from __future__ import annotations
 import collections
 import itertools
 from os import PathLike
+from typing import TYPE_CHECKING
 
 import fiona
 import geopandas as gpd
 import numpy as np
 
 from shapely.geometry import Point, MultiPolygon, Polygon
+
+from emiproc.regrid import geoserie_intersection
+if TYPE_CHECKING:
+    from emiproc.inventories import Inventory
 
 
 def list_categories(file: PathLike) -> list[str]:
@@ -61,3 +66,85 @@ def process_emission_category(
         vector_geometry = vector_geometry.buffer(line_width, cap_style=3)
 
     return vector_geometry, emission_values
+
+
+def validate_group(categories_groups: dict[str, list[str]], all_categories: list[str]):
+    """Check the validity of a group.
+
+    The categories_groups is a mapping from group_name: list_of_categories_in_group.
+    all_categories is a list contaning all categories to check.
+
+    This will check that
+    1. A category is not included in two groups.
+    2. That all categories are inside a group.
+
+    Raises error if the mapping is not valid.
+    """
+
+    all_categories_in_groupes = itertools.chain(*categories_groups.values())
+
+    c_groups = collections.Counter(all_categories_in_groupes)
+    c_all = collections.Counter(all_categories)
+    if c_groups != c_all:
+        raise ValueError(
+            "Categories in 'categories_groups' are not matching 'all_categories'."
+            " Problem cause by "
+            f"duplicates: {c_groups - c_all} or "
+            f"missing: {c_all - c_groups}"
+        )
+
+def crop_with_shape(
+    inv: Inventory, shape: Polygon, keep_outside: bool = False
+) -> Inventory:
+    """Crop the inventory in place so that only what is inside the requested shape stays.
+
+    For each shape/grid_cell of the inventory. Only the part that
+    is included inside the shape will stay.
+    The emission of the shape remaining will be determined using the
+    ratio of the areas.
+
+    .. warning::
+        Make sure your shape is in the same crs as the inventory.
+    """
+    inv_out = inv.copy(no_gdfs=True)
+    if inv.gdf is not None:
+
+        # We keep the grid of the main gdf
+        _, weights = geoserie_intersection(
+            inv.geometry, shape, keep_outside=keep_outside, drop_unused=False
+        )
+        inv_out.gdf = gpd.GeoDataFrame(
+            {
+                col: inv.gdf[col] * weights
+                for col in inv.gdf.columns
+                if not isinstance(inv.gdf[col].dtype, gpd.array.GeometryDtype)
+            },
+            geometry=inv.geometry,
+            crs=inv.gdf.crs,
+        )
+
+    inv_out.gdfs = {}
+    for cat, gdf in inv.gdfs.items():
+        if isinstance(gdf.geometry.iloc[0], Point):
+            # Simply remove the point sources outside
+            mask_within = gdf.geometry.within(shape)
+            inv_out.gdfs[cat] = gdf.loc[~mask_within if keep_outside else mask_within]
+        else:
+            # We keep the grid of the main gdf
+            new_geometry, weights = geoserie_intersection(
+                gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
+            )
+            mask_non_zero = weights > 0
+            inv_out.gdfs[cat] = gpd.GeoDataFrame(
+                {
+                    col: inv.gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
+                    for col in inv.gdf.columns
+                    if col != "geometry"
+                }
+                | {"_weights": weights[mask_non_zero]},
+                geometry=new_geometry[mask_non_zero],
+                crs=inv.gdf.crs,
+            )
+
+    inv_out.history.append(f"Cropped using {shape=}, {keep_outside=}")
+    return inv_out
