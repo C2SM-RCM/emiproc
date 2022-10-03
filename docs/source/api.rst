@@ -1,0 +1,3 @@
+
+
+.. autoclass:: emiproc.inventories.Inventory
