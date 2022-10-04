@@ -122,14 +122,15 @@ CH_2_GNFR = {
     ],
     # Road transport
     "GNFR_F": [
-        "evstr_ch4",
-        "evstr_co",
-        "evstr_co2",
-        "evstr_n2o",
-        "evstr_nh3",
-        "evstr_nmvoc",
-        "evstr_nox",
-        "evstr_so2",
+        #"evstr_ch4",
+        #"evstr_co",
+        #"evstr_co2",
+        #"evstr_n2o",
+        #"evstr_nh3",
+        #"evstr_nmvoc",
+        #"evstr_nox",
+        #"evstr_so2",
+        "evstr",
         "evzon",
     ],
     # Shipping

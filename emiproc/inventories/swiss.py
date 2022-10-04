@@ -22,6 +22,7 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         df_eipwp: gpd.GeoDataFrame,
         df_emission: pd.DataFrame,
+        requires_grid: bool = True,
     ) -> None:
         """Create a swiss raster inventory.
 
@@ -34,6 +35,10 @@ class SwissRasters(Inventory):
         :arg df_emission: A dataframe, where columns are the substances
             and rows are the rasters name.
             The data is the total emission for the category in [kg/y].
+        :arg requires_grid: Whether the grid should be created as well.
+            Creating the shapes for the swiss grid is quite expensive process.
+            Most of the weights for remapping can be cached so if you
+            have them generated already, set that to false.
         """
         super().__init__()
 
@@ -51,12 +56,13 @@ class SwissRasters(Inventory):
             r.stem[:-2] for r in str_rasters
         ]
         # All categories
-        self.categories = self.raster_categories + ["eipwp"]
 
         self.df_eipwp = df_eipwp
         self.df_emission = df_emission
 
-        self.substances = df_emission.columns.to_list()
+        self._substances = df_emission.columns.to_list()
+
+        self.requires_grid = requires_grid
 
         # Grid on which the inventory is created
         self.grid = SwissGrid(
@@ -86,6 +92,43 @@ class SwissRasters(Inventory):
             )
             self._gdf = gpd.GeoDataFrame(
                 # This vector is same as raster data reshaped using reshape(-1)
+                crs=LV95,
+                geometry=(
+                    [
+                        Polygon(
+                            (
+                                (x, y),
+                                (x, y + self.grid.dy),
+                                (x + self.grid.dx, y + self.grid.dy),
+                                (x + self.grid.dx, y),
+                            )
+                        )
+                        for y in reversed(ys)
+                        for x in xs
+                    ]
+                    if self.requires_grid
+                    else np.full(self.grid.nx * self.grid.ny, np.nan)
+                ),
+            )
+            mapping = {}
+            # Loading all the raster categories
+            for raster_file, category in zip(
+                self.all_raster_files, self.raster_categories
+            ):
+                _raster_array = self.load_raster(raster_file).reshape(-1)
+                if "_" in category:
+                    cat, sub = category.split("_")
+                    mapping[(cat, sub.upper())] = _raster_array
+                else:
+                    for sub in self._substances:
+                        factor = self.df_emission.loc[category, sub]
+                        if factor:
+                            mapping[(category, sub)] = _raster_array * factor
+
+            self._gdf = gpd.GeoDataFrame(
+                # This vector is same as raster data reshaped using reshape(-1)
+                data=mapping,
+                crs=LV95,
                 geometry=[
                     Polygon(
                         (
@@ -95,17 +138,12 @@ class SwissRasters(Inventory):
                             (x + self.grid.dx, y),
                         )
                     )
+                    if self.requires_grid
+                    else None
                     for y in reversed(ys)
                     for x in xs
                 ],
-                crs=LV95,
             )
-
-            # Loading all the raster categories
-            for raster_file, category in zip(
-                self.all_raster_files, self.raster_categories
-            ):
-                self._gdf[category] = self.load_raster(raster_file).reshape(-1)
             # Finally add the point sources
             self.gdfs = {}
             self.gdfs["eipwp"] = self.df_eipwp

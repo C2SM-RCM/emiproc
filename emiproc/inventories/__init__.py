@@ -12,8 +12,8 @@ from shapely.geometry import Polygon, Point
 import numpy as np
 import rasterio
 
-#Represent a substance that is emitted and can be present in a dataset.
-Substance = NewType('Substance', str)
+# Represent a substance that is emitted and can be present in a dataset.
+Substance = NewType("Substance", str)
 
 
 class Inventory:
@@ -61,6 +61,8 @@ class Inventory:
 
     history: list[str]
 
+    _groupping: dict[str, list[str]] | None = None
+
     def __init__(self) -> None:
         self.history = [f"Created as {type(self).__name__}"]
 
@@ -80,6 +82,23 @@ class Inventory:
             )
             | set(self.gdfs.keys())
         )
+
+    @property
+    def substances(self) -> list[Substance]:
+        # Unique substances in the inventories
+        subs= list(
+            set(
+                [
+                    sub
+                    for _, sub in self.gdf.columns
+                    if not isinstance(self.gdf[(_, sub)].dtype, gpd.array.GeometryDtype)
+                ]
+            )
+            | set(sum([gdf.keys().to_list() for gdf in self.gdfs.values()], []))
+        )
+        if 'geometry' in subs:
+            subs.remove('geometry')
+        return subs
 
     def copy(self, no_gdfs: bool = False) -> Inventory:
         """Copy the inventory."""
@@ -159,7 +178,6 @@ class Inventory:
         inv.gdfs = gdfs
 
         return inv
-
 
 
 class EmiprocNetCDF(Inventory):

@@ -58,6 +58,12 @@ inv_with_pnt_sources.gdfs["liku"] = gpd.GeoDataFrame(
     },
     geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
 )
+inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
+    {
+        "AITS": [1, 2],
+    },
+    geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
+)
 
 #%%
 
@@ -155,4 +161,6 @@ explore_inventory(inv_with_pnt_sources, category="liku", substance="CO2")
 cropped = crop_with_shape(inv_with_pnt_sources, triangle, keep_outside=False)
 # %%
 explore_inventory(cropped, category="liku", substance="CO2")
+# %%
+inv.substances, inv_with_pnt_sources.substances
 # %%

@@ -6,3 +6,4 @@
 testdata/
 emiproc.egg-info
 docs/build/
+*.npz
