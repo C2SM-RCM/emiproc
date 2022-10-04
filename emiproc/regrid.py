@@ -1,6 +1,7 @@
 """Differnt tools for doing the weights remapping."""
 #%%
 from pathlib import Path
+from warnings import warn
 import numpy as np
 import geopandas as gpd
 from typing import Iterable
@@ -22,6 +23,17 @@ def get_weights_mapping(
     and save the weights once computed.
     :arg weights_filepath: The name of the file in which to save the
         weights data. Emiproc will add some metadata to it.
+        This file has to be a npz archive ending with suffix .npz .
+        Emiproc will add the suffix if you don't.
+    :arg shapes_inv: The shapes of the inventory.
+        Shapes from which the remapping will be done.
+    :arg shapes_out: The shapes to which the remapping will be done.
+    :arg loop_over_inv_objects: Whether the loop should happend on the 
+        the inventory objects instead of the output shapes.
+        This will be where the performance bottleneck resides.
+        It is difficult to guess what is the good option but it 
+        can make big differences in some cases.
+
 
     """
 
@@ -86,13 +98,22 @@ def calculate_weights_mapping(
     elif isinstance(shapes_vectorized, list):
         gdf_vect = gpd.GeoSeries(shapes_vectorized)
     else:
-        raise TypeError("'Given illegal type for shapes to process'")
+        raise TypeError(f"'shapes_vectorized' cannot be {type(shapes_vectorized)}")
     gdf_vect: gpd.GeoSeries
 
     if isinstance(shapes_looped, gpd.GeoDataFrame):
-        shapes_looped = shapes_looped.geometry.to_list()
+        shapes_looped = shapes_looped.geometry
     elif isinstance(shapes_looped, gpd.GeoSeries):
-        shapes_looped = shapes_looped.to_list()
+        shapes_looped = shapes_looped
+    elif isinstance(shapes_looped, list):
+        shapes_looped = gpd.GeoSeries(shapes_looped)
+    else:
+        raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
+    minx, miny, maxx, maxy = shapes_looped.total_bounds
+    bound_poly = Polygon(((minx, miny),(minx, maxy),(maxx, maxy),(maxx, miny) ))
+    mask_vect_in_bounds =  gdf_vect.intersects(bound_poly)
+    # Mask with only what is in the bounds
+    gdf_vect = gdf_vect.loc[mask_vect_in_bounds]
 
     progress = ProgressIndicator(len(shapes_looped))
 
@@ -102,11 +123,14 @@ def calculate_weights_mapping(
 
         intersect = gdf_vect.intersects(shape)
         if np.any(intersect):
+            # Find where the intesection occurs
+            intersecting_serie = gdf_vect.loc[intersect]
+            from_indexes = intersecting_serie.index.to_list()
             if isinstance(shape, Point):
                 # Should be only one intersection
                 # Note. it happened to me that one point was right at the border !
                 # This will not be handleld
-                from_indexe = np.nonzero(intersect.to_numpy())[0][0]
+                from_indexe = from_indexes[0]
                 w_mapping["output_indexes"].append(
                     [from_indexe] if loop_over_inv_objects else [looped_index]
                 )
@@ -116,17 +140,21 @@ def calculate_weights_mapping(
                 )
 
                 w_mapping["weights"].append([1])
+                if len(from_indexes) > 1:
+                    warn(
+                        f"A point {shapes_looped.iloc[looped_index]} was present"
+                        f" in more than one cells: {intersecting_serie}."
+                    )
 
             else:
-                # Find where the intesection occurs
-                intersecting_serie = gdf_vect.loc[intersect]
+                
                 # Calculate the intersection areas
                 areas = (
                     intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
                 )
 
                 # Find out the mapping indexes
-                from_indexes = np.nonzero(intersect.to_numpy())[0].reshape(-1)
+                
                 looped_indexes = np.full_like(from_indexes, looped_index)
                 w_mapping["output_indexes"].append(
                     from_indexes if loop_over_inv_objects else looped_indexes
