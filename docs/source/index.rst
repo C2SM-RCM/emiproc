@@ -10,7 +10,9 @@ Welcome to emiproc's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   inventories
    api
+   tutos/tutorials
 
 
 

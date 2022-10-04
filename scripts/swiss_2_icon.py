@@ -4,8 +4,9 @@ import collections
 import itertools
 from pathlib import Path
 import pandas as pd
-from emiproc.inventories import Inventory, SwissRasters
-from emiproc.inventories.utils import load_category
+from emiproc.inventories import Inventory
+from emiproc.inventories.swiss import SwissRasters
+from emiproc.inventories.utils import crop_with_shape, load_category
 from emiproc.grids import LV95, WGS84
 from shapely.geometry import Polygon, Point
 from emiproc.regrid import geoserie_intersection
@@ -88,7 +89,7 @@ zh_poly = load_zurich_shape()
         #)
 
 
-out_inv = inv.crop_with_shape(zh_poly, keep_outside=True)
+out_inv = crop_with_shape(inv, zh_poly, keep_outside=True)
 # %%
 
 from emiproc.inventories.utils import validate_group
