@@ -347,6 +347,17 @@ class EDGARGrid(Grid):
         return self.lat_vals
 
 
+class GeoPandasGrid(Grid):
+    """A grid that can be easily constructed on a geopandas dataframe."""
+
+    def __init__(self, gdf: gpd.GeoDataFrame, name: str = "gpd_grid"):
+        super().__init__(name, gdf.crs)
+
+        self.gdf = gdf
+
+        self.nx = len(gdf)
+        self.ny = 1
+
 class VPRMGrid(Grid):
     """Contains the grid from the VPRM emission inventory.
 

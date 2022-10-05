@@ -1,13 +1,17 @@
 """Differnt tools for doing the weights remapping."""
-#%%
+from __future__ import annotations
 from pathlib import Path
 from warnings import warn
 import numpy as np
 import geopandas as gpd
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
+if TYPE_CHECKING:
+    from os import PathLike
+    from emiproc.inventories import Inventory
+    from emiproc.grids import Grid
 
 
 def get_weights_mapping(
@@ -33,6 +37,8 @@ def get_weights_mapping(
         This will be where the performance bottleneck resides.
         It is difficult to guess what is the good option but it 
         can make big differences in some cases.
+        If you have point sources in your shapes_inv, this MUST be set 
+        to True.
 
 
     """
@@ -110,10 +116,8 @@ def calculate_weights_mapping(
     else:
         raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
     minx, miny, maxx, maxy = shapes_looped.total_bounds
-    bound_poly = Polygon(((minx, miny),(minx, maxy),(maxx, maxy),(maxx, miny) ))
-    mask_vect_in_bounds =  gdf_vect.intersects(bound_poly)
     # Mask with only what is in the bounds
-    gdf_vect = gdf_vect.loc[mask_vect_in_bounds]
+    gdf_vect =  gdf_vect.cx[minx:maxx, miny:maxy]
 
     progress = ProgressIndicator(len(shapes_looped))
 
@@ -152,6 +156,13 @@ def calculate_weights_mapping(
                 areas = (
                     intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
                 )
+                if loop_over_inv_objects:
+                    # Take the ratio of the shape from the overlap from the shape i
+                    weights = areas / shape.area
+                else:
+                    # Take ratio of all the inventory shapes that were crossed
+                    weights = areas / intersecting_serie.area 
+
 
                 # Find out the mapping indexes
                 
@@ -164,7 +175,7 @@ def calculate_weights_mapping(
                     looped_indexes if loop_over_inv_objects else from_indexes
                 )
 
-                w_mapping["weights"].append(areas / shape.area)
+                w_mapping["weights"].append(weights)
 
     for key, l in w_mapping.items():
         if l:  # If any weights were added
@@ -207,7 +218,14 @@ def calculate_weights_mapping_matrix(
 ) -> coo_array:
     """Return a dictionary with the mapping.
 
+    
     TODO: FIX this wont work
+
+    .. warning::
+        Not implemented yet.
+        Some changes might have occur from the original function
+        (weights mapping without matrix).
+
     Every weight means: From which shape in the invetory
     to which shape in the output and the weight value is the proportion
     of the inventory weight present in the output.
@@ -218,6 +236,9 @@ def calculate_weights_mapping_matrix(
     :arg weights: The weight of this connexion (between 0 and 1).
             It means the percentage of the inv shape that should go in
             the output.
+
+
+
     """
 
     if loop_over_inv_objects:
@@ -345,3 +366,64 @@ def geoserie_intersection(
         return intersection_shapes, weights
 
 
+def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inventory:
+    """Remap any inventory on the desired grid.
+
+    This will also remap the additional gdfs of the inventory on that grid.
+
+
+    :arg inv: The inventory from which to remap.
+    :arg grid: The grid to remap to.
+    :arg weigths_file: The file storing the weights.
+
+    .. warning::
+
+        Make sure the grid is defined on the same crs as the inventory.
+
+
+    """
+    weigths_file = Path(weigths_file)
+    if inv.gdf.crs is not None:
+        grid_cells = grid.gdf.to_crs(inv.gdf.crs)
+    else:
+        grid_cells = grid.gdf
+    w_mapping = get_weights_mapping(
+        weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False
+    )
+    out_gdf = gpd.GeoDataFrame(
+        {
+            key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
+            for key in inv.gdf.columns
+            if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
+        },
+        geometry=grid_cells.geometry,
+        crs=inv.gdf.crs,
+    )
+    # Add the other mappings
+    for category, gdf in inv.gdfs.items():
+        # Get the weights of that gdf
+        w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+        w_mapping = get_weights_mapping(
+            w_file,
+            gdf.geometry,
+            grid_cells,
+            loop_over_inv_objects=True,
+        )
+        # Remap each substance
+        for sub in gdf.columns:
+            if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
+                continue  # Geometric column
+            remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
+            if (category, sub) not in out_gdf:
+                # Create new entry
+                out_gdf[(category, sub)] = remapped
+            else:
+                # Add it to the category
+                out_gdf[(category, sub)] += remapped
+
+    # Return the output object
+    out_inv = inv.copy(no_gdfs=True)
+    out_inv.gdf = out_gdf
+    out_inv.gdfs = {}
+    out_inv.history.append(f"Remapped to grid {grid}")
+    return out_inv

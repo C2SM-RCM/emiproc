@@ -7,8 +7,14 @@ from typing import Any, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.inventories.utils import crop_with_shape
 from emiproc.utilities import ProgressIndicator
-from emiproc.regrid import geoserie_intersection
+from emiproc.regrid import (
+    calculate_weights_mapping,
+    geoserie_intersection,
+    get_weights_mapping,
+    remap_inventory,
+)
 from emiproc.inventories import Inventory
+from emiproc.grids import GeoPandasGrid
 
 #%%
 serie = gpd.GeoSeries(
@@ -163,4 +169,36 @@ cropped = crop_with_shape(inv_with_pnt_sources, triangle, keep_outside=False)
 explore_inventory(cropped, category="liku", substance="CO2")
 # %%
 inv.substances, inv_with_pnt_sources.substances
+# %%
+
+test_remap_grid = GeoPandasGrid(
+    gpd.GeoDataFrame(
+        geometry=[
+            Polygon(((0.5, 0.5), (0.5, 1.5), (1.5, 1.5))),
+            Polygon(((0.5, 0.5), (1.5, 0.5), (1.5, 1.5))),
+            Polygon(((2.5, 0.5), (1.5, 1.5), (1.5, 0.5))),
+            Polygon(((2.5, 0.5), (2.5, 1.5), (1.5, 1.5))),
+        ]
+    )
+)
+
+# %%
+remapped_inv = remap_inventory(
+    inv_with_pnt_sources, test_remap_grid, weigths_file=".weightstest"
+)
+# %%
+import importlib
+import emiproc.regrid
+
+importlib.reload(emiproc.regrid)
+
+from emiproc.regrid import calculate_weights_mapping
+
+calculate_weights_mapping(
+    inv.gdf,
+    #inv_with_pnt_sources.gdfs["blek"],
+    test_remap_grid.gdf.geometry,
+    loop_over_inv_objects=True,
+)
+
 # %%

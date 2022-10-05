@@ -11,7 +11,7 @@ from emiproc.inventories.utils import crop_with_shape, load_category
 from emiproc.plots import explore_inventory, explore_multilevel
 from emiproc.grids import LV95, WGS84, Grid, ICONGrid
 from shapely.geometry import Polygon, Point
-from emiproc.regrid import geoserie_intersection, get_weights_mapping, weights_remap
+from emiproc.regrid import geoserie_intersection, get_weights_mapping, remap_inventory, weights_remap
 import geopandas as gpd
 import numpy as np
 
@@ -150,78 +150,15 @@ def group_categories(
 groupped_inv = group_categories(out_inv, CH_2_GNFR)
 
 # %%
-import importlib
-import emiproc.regrid
-
-importlib.reload(emiproc.regrid)
-import emiproc.regrid
-from emiproc.regrid import geoserie_intersection, get_weights_mapping, weights_remap
 
 
-def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inventory:
-    """Remap any inventory on the desired grid.
-
-    This will also remap the additional gdfs of the inventory on that grid.
-
-
-    :arg inv: The inventory from which to remap.
-    :arg grid: The grid to remap to.
-    :arg weigths_file: The file storing the weights.
-
-    .. warning::
-
-        Make sure the grid is defined on the same crs as the inventory.
-
-
-    """
-    weigths_file = Path(weigths_file)
-    grid_cells = grid.gdf.to_crs(inv.gdf.crs)
-    w_mapping = get_weights_mapping(
-        weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False
-    )
-    out_gdf = gpd.GeoDataFrame(
-        {
-            key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
-            for key in inv.gdf.columns
-            if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
-        },
-        geometry=grid_cells.geometry,
-        crs=inv.gdf.crs,
-    )
-    # Add the other mappings
-    for category, gdf in inv.gdfs.items():
-        # Get the weights of that gdf
-        w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
-        w_mapping = get_weights_mapping(
-            w_file,
-            gdf.geometry,
-            grid_cells,
-            loop_over_inv_objects=True,
-        )
-        # Remap each substance
-        for sub in gdf.columns:
-            if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
-                continue  # Geometric column
-            remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
-            if (category, sub) not in out_gdf:
-                # Create new entry
-                out_gdf[(category, sub)] = remapped
-            else:
-                # Add it to the category
-                out_gdf[(category, sub)] += remapped
-
-    # Return the output object
-    out_inv = inv.copy(no_gdfs=True)
-    out_inv.gdf = out_gdf
-    out_inv.history.append(f"Remapped to grid {grid}")
-    return out_gdf
 
 
 grid_file = Path(
     r"C:\Users\coli\Documents\ZH-CH-emission\icon_Zurich_R19B9_wide_DOM01.nc"
 )
 icon_grid = ICONGrid(grid_file)
-remaped_df = remap_inventory(groupped_inv, icon_grid, ".test_ch2icon")
+remaped_inv = remap_inventory(groupped_inv, icon_grid, ".test_ch2icon")
 
 # %%
 def add_inventories(inv: Inventory, other_inv: Inventory):
