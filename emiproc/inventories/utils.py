@@ -2,7 +2,9 @@
 from __future__ import annotations
 import collections
 import itertools
+import json
 from os import PathLike
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import fiona
@@ -34,40 +36,33 @@ def load_category(file: PathLike, category: str) -> gpd.GeoDataFrame:
 def process_emission_category(
     file: PathLike,
     category: str,
-    emission_names: list[str] = ["Emission_CO2"],
     line_width: float = 10,
-) -> tuple[gpd.GeoSeries, dict[str : list[float]]]:
+) -> gpd.GeoDataFrame:
     """Process an emission category.
+
+    Is used for Zurich Mapluft but could be adapted to other inventories.
+
+    Does the following:
+
+    * Load the categorie from the file
+    * Convert the line shapes to polygon using :py:arg:`line_width` .
 
     The absolute Emission for each shape are in unit: [kg / a].
     We convert here the line emissions in polygons.
 
-    :return: A list of tuples containing the shape and its emission value.
+    :return: A list of tuples containing the shapes and their emission value.
     """
-    df = load_category(file, category)
+    gdf = load_category(file, category)
 
-    emission_values = {
-        emission_name: ... for emission_name in emission_names if emission_name in df
-    }
-
-    # Extract the emissions
-    for emission_name in emission_values.keys():
-        emission_values[emission_name] = df[emission_name].to_numpy()
-        print(
-            category,
-            "total",
-            emission_name,
-            "{:e}".format(emission_values[emission_name].sum()),
-        )
-
-    vector_geometry = df.geometry
-
-    if "Shape_Length" in df or "SHAPE_Length" in df:
+    # Sometimes it is written in big and sometimes in small 🤷
+    if "Shape_Length" in gdf or "SHAPE_Length" in gdf:
         # Convert lines into Polygon
 
-        vector_geometry = vector_geometry.buffer(line_width, cap_style=3)
+        vector_geometry = gdf.geometry.buffer(line_width, cap_style=3)
 
-    return vector_geometry, emission_values
+        gdf.geometry = vector_geometry
+
+    return gdf
 
 
 def validate_group(categories_groups: dict[str, list[str]], all_categories: list[str]):
@@ -207,3 +202,13 @@ def group_categories(
     inv._groupping = catergories_group
 
     return out_inv
+
+
+if __name__ == "__main__":
+    file = r"H:\ZurichEmissions\Data\mapLuft_2020_v2021\mapLuft_2020_v2021.gdb"
+    categories = list_categories(file)
+    info_mapping = {}
+    for cat in categories:
+        info_mapping[cat] = process_emission_category(file, cat).columns.to_list()
+    with open(Path(file).with_suffix('.json'), "w+") as f:
+        json.dump(info_mapping, f, indent=4)
