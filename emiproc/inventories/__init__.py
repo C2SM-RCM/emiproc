@@ -1,5 +1,6 @@
 """Inventories of emissions."""
 from __future__ import annotations
+from copy import deepcopy
 from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
@@ -104,7 +105,7 @@ class Inventory:
         """Copy the inventory."""
         inv = Inventory()
         inv.__class__ = self.__class__
-        inv.history = self.history.copy()
+        inv.history = deepcopy(self.history)
         if hasattr(self, "grid"):
             inv.grid = self.grid
 
