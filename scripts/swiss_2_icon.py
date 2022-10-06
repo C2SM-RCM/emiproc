@@ -6,12 +6,15 @@ from os import PathLike
 from pathlib import Path
 import pandas as pd
 from emiproc.inventories import Inventory
+from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.inventories.swiss import SwissRasters
-from emiproc.inventories.utils import crop_with_shape, load_category
+from emiproc.inventories.utils import crop_with_shape, group_categories, load_category
 from emiproc.plots import explore_inventory, explore_multilevel
 from emiproc.grids import LV95, WGS84, Grid, ICONGrid
 from shapely.geometry import Polygon, Point
-from emiproc.regrid import geoserie_intersection, get_weights_mapping, remap_inventory, weights_remap
+from emiproc.regrid import remap_inventory
+from emiproc.inventories.categories_groups import CH_2_GNFR
+
 import geopandas as gpd
 import numpy as np
 
@@ -92,58 +95,7 @@ zh_poly = load_zurich_shape()
 
 
 out_inv = crop_with_shape(inv, zh_poly, keep_outside=True)
-# %%
 
-from emiproc.inventories.utils import validate_group
-from emiproc.inventories.categories_groups import CH_2_GNFR
-
-validate_group(CH_2_GNFR, inv.categories)
-
-#%%
-def group_categories(
-    inv: Inventory, catergories_group: dict[str, list[str]]
-) -> Inventory:
-    """Group the categories of an inventory in new categories.
-
-    :arg inv: The Inventory to group.
-    :arg categories_group: A mapping of which groups should be greated
-        out of which categries. This will be checked using
-        :py:func:`validate_group` .
-    """
-    validate_group(catergories_group, inv.categories)
-    out_inv = inv.copy(no_gdfs=True)
-
-    out_inv.gdf = gpd.GeoDataFrame(
-        {
-            # Sum all the categories containing that substance
-            (group, substance): sum(
-                (
-                    inv.gdf[(cat, substance)]
-                    for cat in categories
-                    if (cat, substance) in inv.gdf
-                )
-            )
-            for substance in inv.substances
-            for group, categories in catergories_group.items()
-        },
-        geometry=inv.gdf.geometry,
-        crs=inv.gdf.crs,
-    )
-    # Add the additional gdfs as well
-    # Merging the categories directly
-    out_inv.gdfs = {}
-    for group, categories in catergories_group.items():
-        group_gdfs = [inv.gdfs[cat] for cat in categories if cat in inv.gdfs]
-        if group_gdfs:
-            if len(group_gdfs) == 1:
-                out_inv.gdfs[group] = group_gdfs[0]
-            else:
-                out_inv.gdfs[group] = pd.concat(group_gdfs, ignore_index=True)
-
-    inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
-    inv._groupping = catergories_group
-
-    return out_inv
 
 
 # %%
@@ -152,13 +104,16 @@ groupped_inv = group_categories(out_inv, CH_2_GNFR)
 # %%
 
 
-
-
 grid_file = Path(
     r"C:\Users\coli\Documents\ZH-CH-emission\icon_Zurich_R19B9_wide_DOM01.nc"
 )
 icon_grid = ICONGrid(grid_file)
 remaped_inv = remap_inventory(groupped_inv, icon_grid, ".test_ch2icon")
+
+# %% load mapluft 
+
+# TODO implmement
+MapLuftZurich()
 
 # %%
 def add_inventories(inv: Inventory, other_inv: Inventory):

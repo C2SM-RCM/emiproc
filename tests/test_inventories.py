@@ -1,3 +1,11 @@
+"""This file has for purpose to test different inventories processing.
+
+It could be implemented as real python tests if one is motivated.
+Otherwise the tests are mostly looking at the values uisng the plots 
+or direclty reading the data.
+"""
+
+
 #%%
 import pandas as pd
 from pathlib import Path
@@ -6,6 +14,7 @@ import geopandas as gpd
 from typing import Any, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.inventories.utils import crop_with_shape
+from emiproc.plots import explore_inventory, explore_multilevel
 from emiproc.utilities import ProgressIndicator
 from emiproc.regrid import (
     calculate_weights_mapping,
@@ -15,8 +24,9 @@ from emiproc.regrid import (
 )
 from emiproc.inventories import Inventory
 from emiproc.grids import GeoPandasGrid
+from emiproc.inventories.utils import group_categories
 
-#%%
+#%% Create the geometetries of an inventory
 serie = gpd.GeoSeries(
     [
         Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
@@ -27,13 +37,15 @@ serie = gpd.GeoSeries(
     ]
 )
 triangle = Polygon(((0.5, 0.5), (1.5, 0.5), (1.5, 1.5)))
+
+# Check the intersection
 cropped, weights = geoserie_intersection(
     serie, triangle, keep_outside=True, drop_unused=False
 )
 #%%
 # gdf = gpd.GeoDataFrame({"weights": weights}, geometry=cropped)
 # gdf.explore("weights")
-# %%
+# %% Generate a 'template' inventory
 
 inv = Inventory.from_gdf(
     gpd.GeoDataFrame(
@@ -85,78 +97,6 @@ gdf = gpd.GeoDataFrame(
 )
 gdf[("cat1", "sub2")] = 1
 gdf
-# %%
-def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
-    """Explore a multilevel GeodataFrame."""
-    col_name = str(colum)
-    data = gdf[colum]
-    if logscale:
-        data[data == 0] = np.nan
-        data = np.log(data)
-    gdf_plot = gpd.GeoDataFrame({col_name: data}, geometry=gdf.geometry)
-    return gdf_plot.explore(gdf[colum])
-
-
-def explore_inventory(
-    inv: Inventory, category: None | str = None, substance: None | str = None
-):
-    """Explore the emission of an inventory."""
-    # First check if the data is available
-    if (
-        category is not None
-        and category not in inv.gdfs
-        and category not in inv.gdf.columns
-    ):
-        raise IndexError(f"Category '{category}' not in inventory '{inv}'")
-    if (
-        substance is not None
-        and all((substance not in gdf for gdf in inv.gdfs))
-        and substance not in inv.gdf.columns.swaplevel(0, 1)
-    ):
-        raise IndexError(f"Substance '{substance}' not in inventory '{inv}'")
-    if (
-        substance is not None
-        and category is not None
-        and (category, substance) not in inv.gdf
-        and (category not in inv.gdfs or substance not in inv.gdfs[category])
-    ):
-        raise IndexError(
-            f"Substance '{substance}' for Category '{category}' not in inventory '{inv}'"
-        )
-
-    if category is None and substance is None:
-        gdf = gpd.GeoDataFrame(
-            geometry=pd.concat(
-                [inv.geometry, *(gdf.geometry for gdf in inv.gdfs.values())]
-            )
-        )
-        return gdf.explore()
-    elif category is not None and substance is None:
-
-        gdf = gpd.GeoDataFrame(
-            geometry=pd.concat(
-                ([inv.geometry] if category in inv.gdf.columns else [])
-                + ([inv.gdfs[category].geometry] if category in inv.gdfs else [])
-            )
-        )
-        return gdf.explore()
-    elif category is not None and substance is not None:
-        on_main_grid = (category, substance) in inv.gdf.columns
-        on_others_gdfs = category in inv.gdfs and substance in inv.gdfs[category]
-        gdf = gpd.GeoDataFrame(
-            {
-                str((category, substance)): pd.concat(
-                    ([inv.gdf[(category, substance)]] if on_main_grid else [])
-                    + ([inv.gdfs[category][substance]] if on_others_gdfs else [])
-                )
-            },
-            geometry=pd.concat(
-                ([inv.geometry] if on_main_grid else [])
-                + ([inv.gdfs[category].geometry] if on_others_gdfs else [])
-            ),
-        )
-        return gdf.explore(gdf[str((category, substance))])
-    raise NotImplementedError()
 
 
 #%%
@@ -169,8 +109,9 @@ cropped = crop_with_shape(inv_with_pnt_sources, triangle, keep_outside=False)
 explore_inventory(cropped, category="liku", substance="CO2")
 # %%
 inv.substances, inv_with_pnt_sources.substances
-# %%
+# %% Create a grid for remapping
 
+# Few trangles indide the grid
 test_remap_grid = GeoPandasGrid(
     gpd.GeoDataFrame(
         geometry=[
@@ -187,18 +128,44 @@ remapped_inv = remap_inventory(
     inv_with_pnt_sources, test_remap_grid, weigths_file=".weightstest"
 )
 # %%
-import importlib
-import emiproc.regrid
-
-importlib.reload(emiproc.regrid)
-
-from emiproc.regrid import calculate_weights_mapping
 
 calculate_weights_mapping(
     inv.gdf,
-    #inv_with_pnt_sources.gdfs["blek"],
+    # inv_with_pnt_sources.gdfs["blek"],
     test_remap_grid.gdf.geometry,
     loop_over_inv_objects=True,
 )
 
+# %%
+
+# Squareas way bigger than grid
+test_remap_grid_big = GeoPandasGrid(
+    gpd.GeoDataFrame(
+        geometry=[
+            Polygon(((-1, -1), (-1, 2), (1, 2), (1, -1))),
+            Polygon(((5, -1), (5, 2), (1, 2), (1, -1))),
+        ]
+    )
+)
+
+#%%
+
+calculate_weights_mapping(
+    inv.gdf,
+    # inv_with_pnt_sources.gdfs["blek"],
+    test_remap_grid_big.gdf.geometry,
+    loop_over_inv_objects=False,
+)
+# %%
+import importlib
+import emiproc.inventories.utils
+importlib.reload(emiproc.inventories.utils)
+from emiproc.inventories.utils import group_categories
+groupped_inv = group_categories(
+    inv_with_pnt_sources, {"New": ["liku", "adf", "other"], "other": ["blek", "test"]}
+)
+
+# TODO: make sure the nan values are 0 instead
+# %%
+inv2 = remap_inventory(groupped_inv, test_remap_grid, weigths_file=".weightstest2")
 # %%

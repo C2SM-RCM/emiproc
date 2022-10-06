@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING
 
 import fiona
 import geopandas as gpd
+import pandas as pd
 import numpy as np
 
 from shapely.geometry import Point, MultiPolygon, Polygon
 
 from emiproc.regrid import geoserie_intersection
+
 if TYPE_CHECKING:
     from emiproc.inventories import Inventory
 
@@ -93,6 +95,7 @@ def validate_group(categories_groups: dict[str, list[str]], all_categories: list
             f"missing: {c_all - c_groups}"
         )
 
+
 def crop_with_shape(
     inv: Inventory, shape: Polygon, keep_outside: bool = False
 ) -> Inventory:
@@ -148,3 +151,59 @@ def crop_with_shape(
 
     inv_out.history.append(f"Cropped using {shape=}, {keep_outside=}")
     return inv_out
+
+
+def group_categories(
+    inv: Inventory, catergories_group: dict[str, list[str]]
+) -> Inventory:
+    """Group the categories of an inventory in new categories.
+
+    :arg inv: The Inventory to group.
+    :arg categories_group: A mapping of which groups should be greated
+        out of which categries. This will be checked using
+        :py:func:`validate_group` .
+    """
+    validate_group(catergories_group, inv.categories)
+    out_inv = inv.copy(no_gdfs=True)
+
+    out_inv.gdf = gpd.GeoDataFrame(
+        {
+            # Sum all the categories containing that substance
+            (group, substance): group_sum
+            for substance in inv.substances
+            for group, categories in catergories_group.items()
+            # Only add the group if there are some non zero value
+            if np.any(
+                group_sum := sum(
+                    (
+                        inv.gdf[(cat, substance)]
+                        for cat in categories
+                        if (cat, substance) in inv.gdf
+                    )
+                )
+            )
+        },
+        geometry=inv.gdf.geometry,
+        crs=inv.gdf.crs,
+    )
+    # Add the additional gdfs as well
+    # Merging the categories directly
+    out_inv.gdfs = {}
+    for group, categories in catergories_group.items():
+        group_gdfs = [inv.gdfs[cat] for cat in categories if cat in inv.gdfs]
+        if group_gdfs:
+            if len(group_gdfs) == 1:
+                # Case only one dataframe is registered
+                out_inv.gdfs[group] = group_gdfs[0]
+            else:
+                # Otherwise merge the dataframes
+                df_merged = pd.concat(group_gdfs, ignore_index=True)
+                # Na values are no emission
+                are_na = pd.isna(df_merged)
+                # Replaces nan by 0                
+                out_inv.gdfs[group] = df_merged.mask(are_na, 0.) 
+
+    inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
+    inv._groupping = catergories_group
+
+    return out_inv
