@@ -27,19 +27,25 @@ def explore_inventory(
 ):
     """Explore the emission of an inventory."""
     # First check if the data is available
-    if (
+    if inv.gdf is None:
+        if category is not None and substance is not None:
+            on_others_gdfs = category in inv.gdfs and substance in inv.gdfs[category]
+            return inv.gdfs[category].explore()
+        # TODO: implement some checks
+        raise NotImplementedError()
+    elif (
         category is not None
         and category not in inv.gdfs
         and category not in inv.gdf.columns
     ):
         raise IndexError(f"Category '{category}' not in inventory '{inv}'")
-    if (
+    elif (
         substance is not None
         and all((substance not in gdf for gdf in inv.gdfs))
         and substance not in inv.gdf.columns.swaplevel(0, 1)
     ):
         raise IndexError(f"Substance '{substance}' not in inventory '{inv}'")
-    if (
+    elif (
         substance is not None
         and category is not None
         and (category, substance) not in inv.gdf
@@ -48,6 +54,9 @@ def explore_inventory(
         raise IndexError(
             f"Substance '{substance}' for Category '{category}' not in inventory '{inv}'"
         )
+    else:
+        # Valid choice
+        pass
 
     if category is None and substance is None:
         gdf = gpd.GeoDataFrame(

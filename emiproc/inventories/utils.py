@@ -86,8 +86,8 @@ def validate_group(categories_groups: dict[str, list[str]], all_categories: list
         raise ValueError(
             "Categories in 'categories_groups' are not matching 'all_categories'."
             " Problem cause by "
-            f"duplicates: {c_groups - c_all} or "
-            f"missing: {c_all - c_groups}"
+            f"duplicates or not in data: {c_groups - c_all} or "
+            f"missing in group mapping: {c_all - c_groups}"
         )
 
 
@@ -120,6 +120,8 @@ def crop_with_shape(
             geometry=inv.geometry,
             crs=inv.gdf.crs,
         )
+    else: 
+        inv_out.gdf = None
 
     inv_out.gdfs = {}
     for cat, gdf in inv.gdfs.items():
@@ -128,20 +130,19 @@ def crop_with_shape(
             mask_within = gdf.geometry.within(shape)
             inv_out.gdfs[cat] = gdf.loc[~mask_within if keep_outside else mask_within]
         else:
-            # We keep the grid of the main gdf
+            # We keep crop the geometry
             new_geometry, weights = geoserie_intersection(
                 gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
             )
             mask_non_zero = weights > 0
             inv_out.gdfs[cat] = gpd.GeoDataFrame(
                 {
-                    col: inv.gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
-                    for col in inv.gdf.columns
+                    col: gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
+                    for col in gdf.columns
                     if col != "geometry"
-                }
-                | {"_weights": weights[mask_non_zero]},
+                },
                 geometry=new_geometry[mask_non_zero],
-                crs=inv.gdf.crs,
+                crs=gdf.crs,
             )
 
     inv_out.history.append(f"Cropped using {shape=}, {keep_outside=}")
@@ -161,26 +162,29 @@ def group_categories(
     validate_group(catergories_group, inv.categories)
     out_inv = inv.copy(no_gdfs=True)
 
-    out_inv.gdf = gpd.GeoDataFrame(
-        {
-            # Sum all the categories containing that substance
-            (group, substance): group_sum
-            for substance in inv.substances
-            for group, categories in catergories_group.items()
-            # Only add the group if there are some non zero value
-            if np.any(
-                group_sum := sum(
-                    (
-                        inv.gdf[(cat, substance)]
-                        for cat in categories
-                        if (cat, substance) in inv.gdf
+    if inv.gdf is not None:
+        out_inv.gdf = gpd.GeoDataFrame(
+            {
+                # Sum all the categories containing that substance
+                (group, substance): group_sum
+                for substance in inv.substances
+                for group, categories in catergories_group.items()
+                # Only add the group if there are some non zero value
+                if np.any(
+                    group_sum := sum(
+                        (
+                            inv.gdf[(cat, substance)]
+                            for cat in categories
+                            if (cat, substance) in inv.gdf
+                        )
                     )
                 )
-            )
-        },
-        geometry=inv.gdf.geometry,
-        crs=inv.gdf.crs,
-    )
+            },
+            geometry=inv.gdf.geometry,
+            crs=inv.crs,
+        )
+    else: 
+        out_inv.gdf = None
     # Add the additional gdfs as well
     # Merging the categories directly
     out_inv.gdfs = {}

@@ -383,21 +383,28 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inven
 
     """
     weigths_file = Path(weigths_file)
-    if inv.gdf.crs is not None:
-        grid_cells = grid.gdf.to_crs(inv.gdf.crs)
+    if inv.crs is not None:
+        grid_cells = grid.gdf.to_crs(inv.crs)
     else:
         grid_cells = grid.gdf
-    w_mapping = get_weights_mapping(
-        weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False
-    )
+    
+    if inv.gdf is not None:
+        # Remap the main data
+        w_mapping = get_weights_mapping(
+            weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False
+        )
+        mapping_dict = {
+                key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
+                for key in inv.gdf.columns
+                if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
+            }
+    else:
+        mapping_dict = {}
+    
     out_gdf = gpd.GeoDataFrame(
-        {
-            key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
-            for key in inv.gdf.columns
-            if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
-        },
+        mapping_dict,
         geometry=grid_cells.geometry,
-        crs=inv.gdf.crs,
+        crs=inv.crs,
     )
     # Add the other mappings
     for category, gdf in inv.gdfs.items():

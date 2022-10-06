@@ -70,6 +70,13 @@ class Inventory:
     @property
     def geometry(self) -> gpd.GeoSeries:
         return self.gdf.geometry
+    
+    @property
+    def crs(self) -> int | None:
+        if self.gdf is not None:
+            return self.gdf.crs 
+        else:
+            return self.gdfs[list(self.gdfs.keys())[0]].crs
 
     @property
     def categories(self) -> list[str]:
@@ -77,7 +84,7 @@ class Inventory:
             set(
                 [
                     cat
-                    for cat, _ in self.gdf.columns
+                    for cat, _ in (self.gdf.columns if self.gdf is not None else [])
                     if not isinstance(self.gdf[(cat, _)].dtype, gpd.array.GeometryDtype)
                 ]
             )
@@ -87,18 +94,18 @@ class Inventory:
     @property
     def substances(self) -> list[Substance]:
         # Unique substances in the inventories
-        subs= list(
+        subs = list(
             set(
                 [
                     sub
-                    for _, sub in self.gdf.columns
+                    for _, sub in (self.gdf.columns if self.gdf is not None else [])
                     if not isinstance(self.gdf[(_, sub)].dtype, gpd.array.GeometryDtype)
                 ]
             )
             | set(sum([gdf.keys().to_list() for gdf in self.gdfs.values()], []))
         )
-        if 'geometry' in subs:
-            subs.remove('geometry')
+        if "geometry" in subs:
+            subs.remove("geometry")
         return subs
 
     def copy(self, no_gdfs: bool = False) -> Inventory:
