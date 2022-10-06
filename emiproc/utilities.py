@@ -730,6 +730,17 @@ def get_gridmapping(
     return mapping
 
 
+def confirm_prompt(question: str) -> bool:
+    """Small funciton to as a prompt with y/n to the user.
+    
+    :return: True if the ueser said y, False if use said no
+    """
+    reply = None
+    while reply not in ("y", "n"):
+        reply = input(f"{question} (y/n): ").casefold()
+    return (reply == "y")
+
+
 class ProgressIndicator:
     """Used to show progress for long operations.
 
@@ -762,3 +773,6 @@ class ProgressIndicator:
         self.stream.write(f"\r{progress:.1f}%")
         if self.curr_step == self.steps:
             self.stream.write("\r")
+
+
+

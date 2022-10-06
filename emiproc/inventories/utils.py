@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 
 from shapely.geometry import Point, MultiPolygon, Polygon
+from emiproc.grids import Grid
 
 from emiproc.regrid import geoserie_intersection
 
@@ -92,7 +93,7 @@ def validate_group(categories_groups: dict[str, list[str]], all_categories: list
 
 
 def crop_with_shape(
-    inv: Inventory, shape: Polygon, keep_outside: bool = False
+    inv: Inventory, shape: Polygon, keep_outside: bool = False, weight_file: PathLike | None = None,
 ) -> Inventory:
     """Crop the inventory in place so that only what is inside the requested shape stays.
 
@@ -101,16 +102,33 @@ def crop_with_shape(
     The emission of the shape remaining will be determined using the
     ratio of the areas.
 
+    :arg inv: The inventory to crop.
+    :arg shape: The shape around which to crop the inv.
+    :arg keep_outside: Whether to keep only the outside shape.
+    :arg weight_file: A file in which to store the weights.
+
     .. warning::
         Make sure your shape is in the same crs as the inventory.
     """
     inv_out = inv.copy(no_gdfs=True)
-    if inv.gdf is not None:
 
-        # We keep the grid of the main gdf
-        _, weights = geoserie_intersection(
-            inv.geometry, shape, keep_outside=keep_outside, drop_unused=False
-        )
+    if weight_file is not None:
+        weight_file = Path(weight_file).with_suffix(".npy")
+
+
+    if inv.gdf is not None:
+        # Check if the weights are already computed
+        if weight_file is not None and weight_file.is_file():
+            weights = np.load(weight_file)
+        else:
+            # Find the weight of the intersection, keep the same geometry
+            _, weights = geoserie_intersection(
+                inv.geometry, shape, keep_outside=keep_outside, drop_unused=False
+            )
+            if weight_file is not None:
+                # Save the weight file
+                np.save(weight_file, weights)
+        
         inv_out.gdf = gpd.GeoDataFrame(
             {
                 col: inv.gdf[col] * weights
@@ -120,7 +138,7 @@ def crop_with_shape(
             geometry=inv.geometry,
             crs=inv.gdf.crs,
         )
-    else: 
+    else:
         inv_out.gdf = None
 
     inv_out.gdfs = {}
@@ -183,7 +201,7 @@ def group_categories(
             geometry=inv.gdf.geometry,
             crs=inv.crs,
         )
-    else: 
+    else:
         out_inv.gdf = None
     # Add the additional gdfs as well
     # Merging the categories directly
@@ -197,15 +215,103 @@ def group_categories(
             else:
                 # Otherwise merge the dataframes
                 df_merged = pd.concat(group_gdfs, ignore_index=True)
-                # Na values are no emission
-                are_na = pd.isna(df_merged)
-                # Replaces nan by 0                
-                out_inv.gdfs[group] = df_merged.mask(are_na, 0.) 
+                # Na values are no emission, replaces nan by 0
+                out_inv.gdfs[group] = df_merged.mask(pd.isna(df_merged), 0.0)
 
     inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
     inv._groupping = catergories_group
 
     return out_inv
+
+
+def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
+    """Add inventories together.
+
+    The followwing conditions must be required.
+    * if the two invs have a gdf, they must be on the same grid
+    """
+
+    if inv.gdf is None and other_inv.gdf is not None:
+        # as we want to put everything on inv.gdf later for simplicity
+        return add_inventories(other_inv, inv)
+
+    if inv.crs != other_inv.crs:
+        raise ValueError("CRS of both inventories differ.")
+
+    out_inv = inv.copy(no_gdfs=True)
+
+    if inv.gdf is not None and other_inv.gdf is not None:
+        # Check that they somehow have the same grid
+        if not np.all(
+            gpd.GeoSeries.geom_equals(inv.gdf.geometry, other_inv.gdf.geometry)
+        ):
+            raise ValueError(
+                "Grids of the gdf of the two inventories are not the same."
+            )
+        # Get the columns for the new gdf
+        cols_a = inv._gdf_columns
+        cols_b = other_inv._gdf_columns
+        all_cols = set(cols_a) | set(cols_b)
+
+        # Sum the two gdfs
+        gdf = gpd.GeoDataFrame(
+            {
+                col: (inv.gdf[col] if col in inv.gdf else 0)
+                + (other_inv.gdf[col] if col in other_inv.gdf else 0)
+                for col in all_cols
+            },
+            geometry=inv.gdf.geometry,
+            crs=inv.crs,
+        )
+    elif inv.gdf is not None:
+        # Just copy the gdf
+        gdf = inv.gdf.copy()
+    else:
+        gdf = None
+
+    out_inv.gdf = gdf
+
+    # Process the gdfs
+    gdfs = {}
+    for cat, gdf in itertools.chain(inv.gdfs.items(), other_inv.gdfs.items()):
+        if cat in gdfs:
+            df_merged = pd.concat([gdfs[cat], gdf], ignore_index=True)
+            # Na values are no emission, replaces nan by 0
+            gdfs[cat] = df_merged.mask(pd.isna(df_merged), 0.0)
+        else:
+            gdfs[cat] = gdf.copy()
+    out_inv.gdfs = gdfs
+
+    out_inv.history.append(f"Added inventory {other_inv}")
+
+    return out_inv
+
+
+def combine_inventories(
+    inv_inside: Inventory,
+    inv_outside: Inventory,
+    separated_shape: Polygon,
+    output_grid: Grid | None = None,
+):
+    """Combine two inventories and use a shape as the boundary between the two inventories.
+
+    .. note::
+        This is not implemented yet.
+        One should be careful about this implementation steps.
+        Some comments are already in the code for what should be done.
+    """
+    # Crop the inventories around the shape
+
+    # Drop substances/categories if only in one of them
+    # Or assume they are 0
+
+    # Check if an output grid was given
+    # If yes, remap both on new grid
+    # if false remap one of the two on the other: Decide how
+
+    # Now that the two are on the same grid, we can simply
+
+    raise NotImplementedError()
 
 
 if __name__ == "__main__":
@@ -214,5 +320,5 @@ if __name__ == "__main__":
     info_mapping = {}
     for cat in categories:
         info_mapping[cat] = process_emission_category(file, cat).columns.to_list()
-    with open(Path(file).with_suffix('.json'), "w+") as f:
+    with open(Path(file).with_suffix(".json"), "w+") as f:
         json.dump(info_mapping, f, indent=4)

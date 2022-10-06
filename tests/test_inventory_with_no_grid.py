@@ -156,3 +156,12 @@ groupped_inv = group_categories(
 # %%
 inv2 = remap_inventory(groupped_inv, test_remap_grid, weigths_file=".weightstest2")
 # %%
+import importlib
+import emiproc.inventories.utils
+
+importlib.reload(emiproc.inventories.utils)
+from emiproc.inventories.utils import add_inventories
+
+added_inv = add_inventories(groupped_inv, inv_with_pnt_sources)
+
+# %%

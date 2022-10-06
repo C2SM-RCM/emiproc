@@ -13,7 +13,7 @@ import numpy as np
 import geopandas as gpd
 from typing import Any, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.inventories.utils import crop_with_shape
+from emiproc.inventories.utils import add_inventories, crop_with_shape
 from emiproc.plots import explore_inventory, explore_multilevel
 from emiproc.utilities import ProgressIndicator
 from emiproc.regrid import (
@@ -87,6 +87,9 @@ inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
 
 
 cropped = crop_with_shape(inv, triangle, keep_outside=False)
+cropped
+
+cropped = crop_with_shape(inv, triangle, keep_outside=False, weight_file=".test_crop_weight")
 cropped
 # %%
 
@@ -169,3 +172,5 @@ groupped_inv = group_categories(
 # %%
 inv2 = remap_inventory(groupped_inv, test_remap_grid, weigths_file=".weightstest2")
 # %%
+added_inv = add_inventories(groupped_inv, inv_with_pnt_sources)
+#%%

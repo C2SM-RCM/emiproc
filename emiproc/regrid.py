@@ -401,11 +401,6 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inven
     else:
         mapping_dict = {}
     
-    out_gdf = gpd.GeoDataFrame(
-        mapping_dict,
-        geometry=grid_cells.geometry,
-        crs=inv.crs,
-    )
     # Add the other mappings
     for category, gdf in inv.gdfs.items():
         # Get the weights of that gdf
@@ -421,16 +416,21 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inven
             if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
                 continue  # Geometric column
             remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
-            if (category, sub) not in out_gdf:
+            if (category, sub) not in mapping_dict:
                 # Create new entry
-                out_gdf[(category, sub)] = remapped
+                mapping_dict[(category, sub)] = remapped
             else:
                 # Add it to the category
-                out_gdf[(category, sub)] += remapped
+                mapping_dict[(category, sub)] += remapped
 
-    # Return the output object
+    # Create the output inv
     out_inv = inv.copy(no_gdfs=True)
-    out_inv.gdf = out_gdf
+    out_inv.gdf = gpd.GeoDataFrame(
+        mapping_dict,
+        geometry=grid_cells.geometry,
+        crs=inv.crs,
+    )
     out_inv.gdfs = {}
     out_inv.history.append(f"Remapped to grid {grid}")
+
     return out_inv

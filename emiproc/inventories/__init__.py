@@ -57,7 +57,7 @@ class Inventory:
     substances: list[Substance]
     categories: list[str]
     gdf: gpd.GeoDataFrame | None
-    gdfs: dict[str, gpd.GeoDataFrame] | None
+    gdfs: dict[str, gpd.GeoDataFrame]
     geometry: gpd.GeoSeries
 
     history: list[str]
@@ -70,11 +70,11 @@ class Inventory:
     @property
     def geometry(self) -> gpd.GeoSeries:
         return self.gdf.geometry
-    
+
     @property
     def crs(self) -> int | None:
         if self.gdf is not None:
-            return self.gdf.crs 
+            return self.gdf.crs
         else:
             return self.gdfs[list(self.gdfs.keys())[0]].crs
 
@@ -121,10 +121,10 @@ class Inventory:
                 inv.gdf = self.gdf.copy(deep=True)
             else:
                 inv.gdf = None
-            if self.gdfs is not None:
+            if self.gdfs:
                 inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in self.gdfs.items()}
             else:
-                inv.gdfs = None
+                inv.gdfs = {}
 
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
@@ -186,6 +186,17 @@ class Inventory:
         inv.gdfs = gdfs
 
         return inv
+
+    @property
+    def _gdf_columns(self) -> list[tuple[str, Substance]]:
+        """All the columsn but not the geometric columns."""
+        if self.gdf is None:
+            return []
+        return [
+            col
+            for col in self.gdf.columns
+            if not isinstance(self.gdf[col].dtype, gpd.array.GeometryDtype)
+        ]
 
 
 class EmiprocNetCDF(Inventory):

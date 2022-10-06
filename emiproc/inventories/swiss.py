@@ -118,7 +118,10 @@ class SwissRasters(Inventory):
                 _raster_array = self.load_raster(raster_file).reshape(-1)
                 if "_" in category:
                     cat, sub = category.split("_")
-                    mapping[(cat, sub.upper())] = _raster_array
+                    sub_name = sub.upper()
+                    if sub_name == "NOX":
+                        sub_name = 'NOx'
+                    mapping[(cat, sub_name)] = _raster_array
                 else:
                     for sub in self._substances:
                         factor = self.df_emission.loc[category, sub]
