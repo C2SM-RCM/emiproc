@@ -1,4 +1,5 @@
 # %%
+from pathlib import Path
 import xarray as xr
 import numpy as np
 from matplotlib.collections import PolyCollection
@@ -26,8 +27,9 @@ corners =  np.rad2deg(corners)
 
 
 #%%
-%matplotlib qt
+#%matplotlib qt
 matplotlib.style.use('default')
+plt.ioff()
 for var in emiproc_generated_variables:
     fig, ax = plt.subplots()
 
@@ -53,8 +55,8 @@ for var in emiproc_generated_variables:
     poly_coll.set_array(da)
     ax.set_title(da.attrs['long_name'])
     fig.colorbar(poly_coll)
-
-    fig.show()
+    fig.savefig(Path(r"C:\Users\coli\Pictures\icon_ch_zh", f"{var}.png"))
+    #fig.show()
 #%%
 
 
