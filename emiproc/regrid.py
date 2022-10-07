@@ -22,9 +22,10 @@ def get_weights_mapping(
 ) -> dict[str, np.ndarray]:
     """Get the requested weights mapping.
 
-    If it does not exists, calls :py:func:`calculate_weights_mapping`
+    If it does not exists, calls :py:func:`calculate_weights_mapping` .
     See that function for the other arguments.
     and save the weights once computed.
+
     :arg weights_filepath: The name of the file in which to save the
         weights data. Emiproc will add some metadata to it.
         This file has to be a npz archive ending with suffix .npz .
@@ -77,11 +78,12 @@ def calculate_weights_mapping(
     of the inventory weight present in the output.
 
     The output contains the weigths mapping.
+
     :arg inv_indexes: The indexes from which shape in the inverntory
     :arg output_indexes: The indexes from which shape in the output
     :arg weights: The weight of this connexion (between 0 and 1).
-            It means the percentage of the inv shape that should go in
-            the output.
+        It means the percentage of the inv shape that should go in
+        the output.
     """
 
     w_mapping = {
@@ -218,10 +220,8 @@ def calculate_weights_mapping_matrix(
 ) -> coo_array:
     """Return a dictionary with the mapping.
 
-    
-    TODO: FIX this wont work
-
     .. warning::
+
         Not implemented yet.
         Some changes might have occur from the original function
         (weights mapping without matrix).
@@ -231,11 +231,12 @@ def calculate_weights_mapping_matrix(
     of the inventory weight present in the output.
 
     The output contains the weigths mapping.
+
     :arg inv_indexes: The indexes from which shape in the inverntory
     :arg output_indexes: The indexes from which shape in the output
     :arg weights: The weight of this connexion (between 0 and 1).
-            It means the percentage of the inv shape that should go in
-            the output.
+        It means the percentage of the inv shape that should go in
+        the output.
 
 
 

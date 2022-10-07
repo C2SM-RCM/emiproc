@@ -72,11 +72,14 @@ def validate_group(categories_groups: dict[str, list[str]], all_categories: list
     The categories_groups is a mapping from group_name: list_of_categories_in_group.
     all_categories is a list contaning all categories to check.
 
-    This will check that
-    1. A category is not included in two groups.
-    2. That all categories are inside a group.
+    This will check that :
 
-    Raises error if the mapping is not valid.
+    * A category is not included in two groups.
+    * That all categories are inside a group.
+
+    :arg categories_groups: The mapping of how the categories are to be groupped.
+    :arg all_categories: A list of the name of the categories in the inventar.
+    :raise  ValueError: if the mapping is not valid.
     """
 
     all_categories_in_groupes = itertools.chain(*categories_groups.values())
@@ -93,7 +96,10 @@ def validate_group(categories_groups: dict[str, list[str]], all_categories: list
 
 
 def crop_with_shape(
-    inv: Inventory, shape: Polygon, keep_outside: bool = False, weight_file: PathLike | None = None,
+    inv: Inventory,
+    shape: Polygon,
+    keep_outside: bool = False,
+    weight_file: PathLike | None = None,
 ) -> Inventory:
     """Crop the inventory in place so that only what is inside the requested shape stays.
 
@@ -115,7 +121,6 @@ def crop_with_shape(
     if weight_file is not None:
         weight_file = Path(weight_file).with_suffix(".npy")
 
-
     if inv.gdf is not None:
         # Check if the weights are already computed
         if weight_file is not None and weight_file.is_file():
@@ -128,7 +133,7 @@ def crop_with_shape(
             if weight_file is not None:
                 # Save the weight file
                 np.save(weight_file, weights)
-        
+
         inv_out.gdf = gpd.GeoDataFrame(
             {
                 col: inv.gdf[col] * weights
@@ -168,7 +173,8 @@ def crop_with_shape(
 
 
 def group_categories(
-    inv: Inventory, catergories_group: dict[str, list[str]]
+    inv: Inventory,
+    categories_group: dict[str, list[str]],
 ) -> Inventory:
     """Group the categories of an inventory in new categories.
 
@@ -177,7 +183,7 @@ def group_categories(
         out of which categries. This will be checked using
         :py:func:`validate_group` .
     """
-    validate_group(catergories_group, inv.categories)
+    validate_group(categories_group, inv.categories)
     out_inv = inv.copy(no_gdfs=True)
 
     if inv.gdf is not None:
@@ -186,7 +192,7 @@ def group_categories(
                 # Sum all the categories containing that substance
                 (group, substance): group_sum
                 for substance in inv.substances
-                for group, categories in catergories_group.items()
+                for group, categories in categories_group.items()
                 # Only add the group if there are some non zero value
                 if np.any(
                     group_sum := sum(
@@ -206,7 +212,7 @@ def group_categories(
     # Add the additional gdfs as well
     # Merging the categories directly
     out_inv.gdfs = {}
-    for group, categories in catergories_group.items():
+    for group, categories in categories_group.items():
         group_gdfs = [inv.gdfs[cat] for cat in categories if cat in inv.gdfs]
         if group_gdfs:
             if len(group_gdfs) == 1:
@@ -219,7 +225,7 @@ def group_categories(
                 out_inv.gdfs[group] = df_merged.mask(pd.isna(df_merged), 0.0)
 
     inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
-    inv._groupping = catergories_group
+    inv._groupping = categories_group
 
     return out_inv
 
