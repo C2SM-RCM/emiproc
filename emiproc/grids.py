@@ -559,7 +559,7 @@ class SwissGrid(Grid):
             return cell_x, cell_y
         else:
             raise ValueError(f"Unkonw crs {self.crs}")
-
+    @cache
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -568,7 +568,7 @@ class SwissGrid(Grid):
         np.array(shape=(nx,), dtype=float)
         """
         return np.array([self.xmin + i * self.dx for i in range(self.nx + 1)])
-
+    @cache
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
