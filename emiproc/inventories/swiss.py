@@ -55,7 +55,7 @@ class SwissRasters(Inventory):
             "N2O_15": "N2O",
             "NOx_15": "NOx",
             "CO_15": "CO",
-            "NMVOC_15": "NMVOC",
+            "NMVOC_15": "VOC",
             "SO2_15": "SO2",
             "NH3_15": "NH3",
         }
