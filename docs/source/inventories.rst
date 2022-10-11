@@ -9,4 +9,6 @@ There are already several inventories compatible with emiproc.
 
 .. autoclass:: emiproc.inventories.zurich.MapLuftZurich
 
+.. autoclass:: emiproc.inventories.tno.TNO_Inventory
+    
 .. autoclass:: emiproc.inventories.EmiprocNetCDF

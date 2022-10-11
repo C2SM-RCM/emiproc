@@ -72,6 +72,25 @@ class Inventory:
         return self.gdf.geometry
 
     @property
+    def cell_areas(self) -> np.ndarray:
+        """Area of the cells in m2 .
+        
+        These match the geometry from the gdf.
+        """
+        if hasattr(self, "_cell_area"):
+            return self._cell_area
+        raise NotImplementedError(f"implement or assign 'cell_areas' in {self.name}")
+
+    @cell_areas.setter
+    def cell_areas(self, cell_areas):
+        if len(cell_areas) != len(self.gdf):
+            raise ValueError(
+                f"size does not match, got {len(cell_areas) }, expected {len(self.gdf)}"
+            )
+
+        self._cell_area = cell_areas
+
+    @property
     def crs(self) -> int | None:
         if self.gdf is not None:
             return self.gdf.crs
@@ -198,6 +217,12 @@ class Inventory:
             if not isinstance(self.gdf[col].dtype, gpd.array.GeometryDtype)
         ]
 
+    def to_crs(self, *args, **kwargs):
+        """Same as geopandas.to_crs() but for inventories."""
+        if self.gdf is not None:
+            self.gdf.to_crs(*args, **kwargs)
+        for gdf in self.gdfs.values():
+            gdf.to_crs(*args, **kwargs)
 
 class EmiprocNetCDF(Inventory):
     """An output from emiproc.
