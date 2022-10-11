@@ -16,7 +16,7 @@ def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False
     col_name = str(colum)
     data = gdf[colum]
     if logscale:
-        data[data == 0] = np.nan
+        data.loc[data == 0] = np.nan
         data = np.log(data)
     gdf_plot = gpd.GeoDataFrame({col_name: data}, geometry=gdf.geometry)
     return gdf_plot.explore(gdf[colum])
