@@ -7,6 +7,10 @@ Inventory Class
 
 .. autoclass:: emiproc.inventories.Inventory
 
+Grid Class
+----------
+
+.. autoclass:: emiproc.grids.Grid
 
 Inventory Operators
 -------------------
@@ -24,8 +28,7 @@ Geometric Transformations
 Remapping
 ---------
 
-.. automodule:: emiproc.regrid
-    :members:
+.. autofunction:: emiproc.regrid.remap_inventory
 
 Categories Manipulations 
 ------------------------
