@@ -12,6 +12,7 @@ from shapely.geometry import Polygon, Point
 import geopandas as gpd
 
 WGS84 = 4326
+WGS84_PROJECTED = 3857
 LV95 = 2056  # EPSG:2056, swiss CRS
 
 

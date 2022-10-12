@@ -180,3 +180,53 @@ CH_2_GNFR = {
         "enwal",
     ],
 }
+
+
+TNO_2_GNFR = {
+    # PublicPower+Fugitive
+    "GNFR_A+D": [
+        "A",
+        "D",
+
+    ],
+    # Industry
+    "GNFR_B": [
+        "B",
+    ],
+    # Other stationary combustion (services, residential, agriculture)
+    "GNFR_C": [
+        "C",
+    ],
+    # Road transport
+    "GNFR_F": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+    ],
+    # Shipping
+    "GNFR_G": [
+        "G",
+    ],
+    # Aviation
+    "GNFR_H": [
+        "H",
+    ],
+    # Offroad mobility
+    "GNFR_I": [
+        "I",
+        ],
+    # Waste
+    "GNFR_J": [
+        "J",
+        ],
+    # AgriLivestock + AgriOther
+    "GNFR_K+L": [
+        "K",
+        "L",
+    ],
+    # Others
+    "GNFR_R": [
+        "E", # E is not in the zh or swiss to we set e to that
+    ],
+}
