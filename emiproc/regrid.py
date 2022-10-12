@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
+
 if TYPE_CHECKING:
     from os import PathLike
     from emiproc.inventories import Inventory
@@ -33,12 +34,12 @@ def get_weights_mapping(
     :arg shapes_inv: The shapes of the inventory.
         Shapes from which the remapping will be done.
     :arg shapes_out: The shapes to which the remapping will be done.
-    :arg loop_over_inv_objects: Whether the loop should happend on the 
+    :arg loop_over_inv_objects: Whether the loop should happend on the
         the inventory objects instead of the output shapes.
         This will be where the performance bottleneck resides.
-        It is difficult to guess what is the good option but it 
+        It is difficult to guess what is the good option but it
         can make big differences in some cases.
-        If you have point sources in your shapes_inv, this MUST be set 
+        If you have point sources in your shapes_inv, this MUST be set
         to True.
 
 
@@ -119,7 +120,7 @@ def calculate_weights_mapping(
         raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
     minx, miny, maxx, maxy = shapes_looped.total_bounds
     # Mask with only what is in the bounds
-    gdf_vect =  gdf_vect.cx[minx:maxx, miny:maxy]
+    gdf_vect = gdf_vect.cx[minx:maxx, miny:maxy]
 
     progress = ProgressIndicator(len(shapes_looped))
 
@@ -153,7 +154,7 @@ def calculate_weights_mapping(
                     )
 
             else:
-                
+
                 # Calculate the intersection areas
                 areas = (
                     intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
@@ -163,11 +164,10 @@ def calculate_weights_mapping(
                     weights = areas / shape.area
                 else:
                     # Take ratio of all the inventory shapes that were crossed
-                    weights = areas / intersecting_serie.area 
-
+                    weights = areas / intersecting_serie.area
 
                 # Find out the mapping indexes
-                
+
                 looped_indexes = np.full_like(from_indexes, looped_index)
                 w_mapping["output_indexes"].append(
                     from_indexes if loop_over_inv_objects else looped_indexes
@@ -318,7 +318,7 @@ def geoserie_intersection(
         If this is true, the weigth
     :arg drop_unused: Whether all the shapes from the geometry serie should
         be kept. If True, the returned serie will remove these grid shapes.
-        If False, the returned geoserie will contain geometries from the 
+        If False, the returned geoserie will contain geometries from the
         original grid but the weights will be 0.
 
     :return cropped_shapes, weights: Return a tuple containing
@@ -379,7 +379,9 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inven
 
     .. warning::
 
-        Make sure the grid is defined on the same crs as the inventory.
+        To make sure the grid is defined on the same crs as the inventory,
+        this funciton will call geopandas.to_crs to the grid geometries.
+
 
 
     """
@@ -388,20 +390,20 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inven
         grid_cells = grid.gdf.to_crs(inv.crs)
     else:
         grid_cells = grid.gdf
-    
+
     if inv.gdf is not None:
         # Remap the main data
         w_mapping = get_weights_mapping(
             weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False
         )
         mapping_dict = {
-                key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
-                for key in inv.gdf.columns
-                if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
-            }
+            key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
+            for key in inv.gdf.columns
+            if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
+        }
     else:
         mapping_dict = {}
-    
+
     # Add the other mappings
     for category, gdf in inv.gdfs.items():
         # Get the weights of that gdf
