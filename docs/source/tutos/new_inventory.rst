@@ -71,3 +71,13 @@ Add crs information
 
 When you create the gdf and gdfs, make sure you add 
 the information about the crs directly in the gdf and gdfs.
+
+Think about the Units
+---------------------
+
+By convention emiproc uses units :math:`\frac{kg}{y}` .
+In particular, every emission value in the gdf and gdfs means
+kg/y per geometry (== per grid cell in gdf) .
+
+Some export function will then convert automatically to the 
+unit required when saving to file.
