@@ -220,9 +220,9 @@ class Inventory:
     def to_crs(self, *args, **kwargs):
         """Same as geopandas.to_crs() but for inventories."""
         if self.gdf is not None:
-            self.gdf.to_crs(*args, **kwargs)
+            self.gdf.to_crs(*args, **kwargs, inplace=True)
         for gdf in self.gdfs.values():
-            gdf.to_crs(*args, **kwargs)
+            gdf.to_crs(*args, **kwargs, inplace=True)
 
 class EmiprocNetCDF(Inventory):
     """An output from emiproc.
