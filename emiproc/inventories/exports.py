@@ -18,11 +18,17 @@ def export_icon_oem(
     output_file: Path,
     group_dict: dict[str, list[str]] = {},
 ):
-    """Export to a netcdf file for OEM.
+    """Export to a netcdf file for ICON OEM.
 
-    The inventory should have already been remapped to the icon_grid.
+    The inventory should have already been remapped to the
+    :py:class:`emiproc.grids.IconGrid` .
 
-    Values will be convergted from kg/year to kg/m2/s
+    Values will be convergted from kg/y to kg/m2/s .
+
+    .. warning::
+
+        Country codes are not yet implemented
+
     """
 
     # Load the output xarray

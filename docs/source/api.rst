@@ -36,3 +36,12 @@ Categories Manipulations
 .. autofunction:: emiproc.inventories.utils.validate_group
 
 .. autofunction:: emiproc.inventories.utils.group_categories
+
+
+Exporting 
+---------
+
+.. autofunction:: emiproc.inventories.exports.export_icon_oem
+
+.. autofunction:: emiproc.inventories.exports.export_netcdf
+    
