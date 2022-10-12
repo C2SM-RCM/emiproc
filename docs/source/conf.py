@@ -21,7 +21,8 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = []
 
-
+autodoc_typehints = 'description'  # show type hints in doc body instead of signature
+autoclass_content = 'both'  # get docstring from class level and init simultaneously
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
