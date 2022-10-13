@@ -99,7 +99,7 @@ class SwissRasters(Inventory):
                 "N2O",
                 "NOx",
                 "CO",
-                "NMVOC",
+                "VOC",
                 "SO2",
                 "NH3",
                 "F-Gase",
