@@ -354,11 +354,12 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
     -------
     np.array(shape(output_grid.nx, output_grid.ny), dtype=int)
     """
-    print(
-        f"Computing the country mask with {resolution} resolution.\n"
-        "Consider using a coarser resolution to speed up the process "
-        "if necessary."
-    )
+    if resolution in ['10m', '50m']:
+        print(
+            f"Computing the country mask with {resolution} resolution.\n"
+            "Consider using a coarser resolution to speed up the process "
+            "if necessary."
+        )
     start = time.time()
 
     shpfilename = shpreader.natural_earth(
