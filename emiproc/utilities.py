@@ -8,18 +8,19 @@ import os
 from pathlib import Path
 import sys
 import time
-
+from warnings import warn
 import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
 import netCDF4 as nc
 import numba
 import numpy as np
+import geopandas as gpd
 
 from importlib import import_module
 from multiprocessing import Pool
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 
-from .grids import Grid
+from .grids import Grid, WGS84, WGS84_PROJECTED
 from .country_code import country_codes
 
 
@@ -41,6 +42,31 @@ def get_out_varname(var, cat, cfg, **kw_format):
 
     return varname_format.format(species=var, category=cat, **kw_format)
 
+
+def grid_polygon_intersects(grid: gpd.GeoSeries, poly: Polygon | MultiPolygon) -> np.ndarray:
+    """Return a mask of the intersection from grid with the polygon.
+
+    This will be fast if the grid is way lareger than the polygon.
+    Or if the polygon is mostly ouside of the picture
+    """
+    if isinstance(poly, MultiPolygon):
+        return np.logical_or.reduce([grid_polygon_intersects(grid, p) for p in poly.geoms])
+
+    grid_boundary = Polygon.from_bounds(*grid.total_bounds)
+
+    # poly boundaries
+    minx, miny, maxx, maxy = poly.bounds
+    sub_grid = grid.cx[minx:maxx, miny:maxy]
+
+    # Crop the part outside of the country
+    # TODO: check if this is really useful
+    poly_cropped = poly.intersection(grid_boundary)
+
+    out = np.zeros(len(grid), dtype=bool)
+
+    out[sub_grid.index] = sub_grid.intersects(poly_cropped)
+     
+    return out
 
 def write_variable(ncfile, variable, var_name, latname, lonname, unit,
                    overwrite=False):
@@ -302,7 +328,7 @@ def get_country_mask(output_path, suffix, output_grid, resolution, nprocs):
     return country_mask
 
 
-def compute_country_mask(output_grid, resolution, nprocs):
+def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
     """Determine the country-code for each gridcell and return the grid.
 
     Each gridcell gets assigned to code of the country with the most
@@ -316,12 +342,12 @@ def compute_country_mask(output_grid, resolution, nprocs):
 
     Parameters
     ----------
-    output_grid : grids.COSMOGrid or grids.ICONGrid
+    output_grid : 
         Contains all necessary information about the output grid
-    resolution : str
+    resolution : 
         The resolution for the used shapefile, used as argument for
         cartopy.io.shapereader.natural_earth()
-    nprocs : int
+    nprocs : 
         Number of processes used to compute the codes in parallel
 
     Returns
@@ -340,40 +366,107 @@ def compute_country_mask(output_grid, resolution, nprocs):
     )
     countries = list(shpreader.Reader(shpfilename).records())
 
-    projections = {
-        # Projection of the shapefile: WGS84, which the PlateCarree defaults to
-        "shapefile": ccrs.PlateCarree(),
-        "cosmo": output_grid.get_projection(),
-    }
-
-    # arguments to assign_country_code()
-    arguments = [
-        (
-            [(i, j) for j in range(output_grid.ny)],  # indices of cells
-            output_grid,
-            projections,
-            countries,
+    if hasattr(output_grid, 'gdf') and output_grid.gdf is not None:
+        grid_gdf = output_grid.gdf
+    else:
+        grid_gdf = gpd.GeoDataFrame(
+            geometry=output_grid.cells_as_polylist(),
+            crs=output_grid.crs
         )
-        for i in range(output_grid.nx)
+
+    if output_grid.crs != WGS84:
+        # make sure the grid is in WGS84 as is the country data
+        grid_gdf = grid_gdf.to_crs(WGS84)
+
+    progress = ProgressIndicator(len(countries) + 10)
+
+    grid_boundary = Polygon.from_bounds(*grid_gdf.geometry.total_bounds)
+
+    country_shapes: dict[str, Polygon] = {}
+    country_corresponding_codes: list[int] = []
+    country_mask = np.zeros(len(grid_gdf), dtype=int)
+    for i, country in enumerate(countries):
+        
+        progress.step()
+        iso3 = country.attributes["ADM0_A3"]
+        # Reduce to the bounds
+
+        if not country.geometry.intersects(grid_boundary):
+            # They dont match
+            continue
+
+        mask_intersect = grid_polygon_intersects(grid_gdf.geometry, country.geometry)
+        if np.any(mask_intersect):
+            grid_gdf.loc[grid_gdf.index, iso3] = mask_intersect
+            country_shapes[iso3] = country.geometry
+            if iso3 not in country_codes.keys():
+                warn(
+                    f"{iso3} not in emiproc country list. "
+                    "Mask value of -1 will be assigned."
+                )
+            country_corresponding_codes.append(
+                # Set to -1 if not known
+                country_codes.get(iso3, -1)
+            )
+    country_corresponding_codes = np.array(country_corresponding_codes)
+
+    # Find how many countries each cell intersected
+    progress.step()
+    number_of_intersections = grid_gdf[country_shapes.keys()].sum(axis=1)
+
+    # Cells having only one country 
+    progress.step()
+    one_cell_df = grid_gdf.loc[number_of_intersections == 1, country_shapes.keys()]
+    # Will have in col-0 the index of countries from on_cell_df and col-1 the codes
+    cell_country_maps = np.argwhere(one_cell_df.to_numpy())
+    country_mask[one_cell_df.index[cell_country_maps[:, 0]]] = country_corresponding_codes[
+        cell_country_maps[:, 1]
     ]
 
-    if nprocs == 1:
-        res = []
-        for args in arguments:
-            res.append( assign_country_code(*args) )
-        country_mask = np.array(res, dtype=int)
+    # Find indexes of cell in more than one country
+    progress.step()
+    many_cells_df = grid_gdf.loc[number_of_intersections > 1, country_shapes.keys()]
 
-    else:
-        with Pool(nprocs) as pool:
-            res = pool.starmap(assign_country_code, arguments)
-            country_mask = np.array(res, dtype=int)
+    cell_country_duplicates = np.argwhere(many_cells_df.to_numpy())
+
+    # Create two arrays for preparing intersection area between grid cells and countries
+    grid_shapes = gpd.GeoSeries(
+        grid_gdf.loc[number_of_intersections > 1].geometry.iloc[
+            cell_country_duplicates[:, 0]
+        ],
+        crs=grid_gdf.crs,
+    )
+    countries = gpd.GeoSeries(
+        np.array([s for s in country_shapes.values()], dtype=object)[
+            cell_country_duplicates[:, 1]
+        ],
+        crs=grid_gdf.crs,
+    )
+    # Calculate the intersection area 
+    intersection_shapes = grid_shapes.intersection(countries, align=False)
+    # Use projected crs to get correct area
+    intersection_areas = intersection_shapes.to_crs(WGS84_PROJECTED).area
+
+    # Prepare a matrix for comparing the area of intersection of cells with each country
+    u, i = np.unique(intersection_areas.index, return_inverse=True)
+
+    # rows match each cell that contain duplicate, columns match
+    areas_matrix = np.zeros((np.max(i) + 1, np.max(cell_country_duplicates[:, 1]) + 1))
+    areas_matrix[
+        cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]
+    ] = intersection_areas
+    # Find the countries in which the area is the largest
+    country_mask[many_cells_df.index] = country_corresponding_codes[
+        np.argmax(areas_matrix, axis=1)
+    ]
+
 
     end = time.time()
     print(f"Computation is over, it took\n{int(end - start)} seconds")
 
-    return country_mask
+    return country_mask.reshape((output_grid.nx, output_grid.ny))
 
-
+# This is an old function not used any more !
 def assign_country_code(indices, output_grid, projections, countries):
     """Assign the country codes on the gridcells indicated by indices.
 
@@ -426,6 +519,8 @@ def assign_country_code(indices, output_grid, projections, countries):
     for k, (i, j) in enumerate(indices):
 
         output_cell_x, output_cell_y = output_grid.cell_corners(i, j)
+        output_cell_x = np.array(output_cell_x)
+        output_cell_y = np.array(output_cell_y)
 
         if output_grid.__class__.__name__ == "COSMOGrid":
             projected_corners = projections["shapefile"].transform_points(
@@ -533,7 +628,6 @@ def compute_map_from_inventory_to_cosmo(
     output_grid: Grid,
     inv_grid: Grid,
     nprocs: int,
-    method: str,
 ):
     """Compute the mapping from inventory to cosmo grid.
 
@@ -580,57 +674,26 @@ def compute_map_from_inventory_to_cosmo(
     output_projection = output_grid.get_projection()
 
     
-
-    if method == 'geopandas':
-        import geopandas as gpd
-        
-        progress = ProgressIndicator(lon_size * lat_size)
-        out_grid_df = gpd.GeoDataFrame(
-            geometry=output_grid.cells_as_polylist(), crs=output_grid.crs
-        )
-        if inv_grid.crs != output_grid.crs:
-            # Remap 
-            print(f"Remapping {output_grid} to crs:{inv_grid.crs}")
-            out_grid_df = out_grid_df.to_crs(inv_grid.crs)
-
-        out_lon_size = output_grid.nx
-
-        mapping_dict = {
-            "inv_indexes": [],
-            "output_indexes": [],
-            "weights": [],
-        }
-
-        for inv_index, shape in enumerate(inv_grid.cells_as_polylist()):
+    # default method
+    progress = ProgressIndicator(lon_size)
+    if inv_grid.crs != output_grid.crs:
+        raise ValueError("CRS of inventory and output grid don't match.")
+    if nprocs == 1:
+        for i in range(lon_size):
             progress.step()
-            lon_i = inv_index % lon_size
-            lat_i = inv_index // lon_size
-            intersect = out_grid_df.intersects(shape)
-            if np.any(intersect):
-                intersecting_gdf = out_grid_df.loc[intersect]
-                areas = intersecting_gdf.intersection(shape).area
+            cells = []
+            for j in range(lat_size):
+                inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
+                    i, j
+                )
+                cell_in_output_projection = output_projection.transform_points(
+                    inv_projection, inv_cell_corners_x, inv_cell_corners_y
+                )
+                cells.append(cell_in_output_projection)
 
-                out_indexes =  list(np.argwhere(intersect.to_numpy()).reshape(-1))
-                mapping_dict["output_indexes"].extend(out_indexes)
-                mapping_dict["inv_indexes"].extend([inv_index] * len(out_indexes))
-                mapping_dict["weights"].extend(areas / shape.area)
-
-                mapping[lon_i, lat_i] = [
-                    (i, j, val) for i, j, val in zip(
-                        out_indexes % out_lon_size,
-                        out_indexes // out_lon_size,
-                        areas / shape.area
-                    )
-                ]
-            else:
-                mapping[lon_i, lat_i] = []
-
+            mapping[i, : ] = [output_grid.intersected_cells(c) for c in cells]
     else:
-        # default method
-        progress = ProgressIndicator(lon_size)
-        if inv_grid.crs != output_grid.crs:
-            raise ValueError("CRS of inventory and output grid don't match.")
-        if nprocs == 1:
+        with Pool(nprocs) as pool:
             for i in range(lon_size):
                 progress.step()
                 cells = []
@@ -643,22 +706,7 @@ def compute_map_from_inventory_to_cosmo(
                     )
                     cells.append(cell_in_output_projection)
 
-                mapping[i, : ] = [output_grid.intersected_cells(c) for c in cells]
-        else:
-            with Pool(nprocs) as pool:
-                for i in range(lon_size):
-                    progress.step()
-                    cells = []
-                    for j in range(lat_size):
-                        inv_cell_corners_x, inv_cell_corners_y = inv_grid.cell_corners(
-                            i, j
-                        )
-                        cell_in_output_projection = output_projection.transform_points(
-                            inv_projection, inv_cell_corners_x, inv_cell_corners_y
-                        )
-                        cells.append(cell_in_output_projection)
-
-                    mapping[i, :] = pool.map(output_grid.intersected_cells, cells)
+                mapping[i, :] = pool.map(output_grid.intersected_cells, cells)
 
     end = time.time()
 
@@ -673,7 +721,6 @@ def get_gridmapping(
     output_grid: Grid,
     inv_grid: Grid,
     nprocs: int = 1,
-    method: str = 'geopandas'
 ):
     """Returns the interpolation between the inventory and COSMO grid.
 
@@ -720,7 +767,7 @@ def get_gridmapping(
 
     if compute_map:
         mapping = compute_map_from_inventory_to_cosmo(
-            output_grid, inv_grid, nprocs, method=method
+            output_grid, inv_grid, nprocs
         )
 
         np.save(mapping_path, mapping)

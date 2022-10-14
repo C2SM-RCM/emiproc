@@ -70,7 +70,7 @@ import time
 import numpy as np
 import netCDF4
 
-from .country_code import country_codes as cc
+from ..country_code import country_codes as cc
 from . import io
 
 
