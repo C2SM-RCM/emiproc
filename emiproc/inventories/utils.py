@@ -100,6 +100,7 @@ def crop_with_shape(
     shape: Polygon,
     keep_outside: bool = False,
     weight_file: PathLike | None = None,
+    modify_grid: bool = False,
 ) -> Inventory:
     """Crop the inventory in place so that only what is inside the requested shape stays.
 
@@ -112,6 +113,10 @@ def crop_with_shape(
     :arg shape: The shape around which to crop the inv.
     :arg keep_outside: Whether to keep only the outside shape.
     :arg weight_file: A file in which to store the weights.
+    :arg modify_grid: Whether the main grid (the gdf) should be modified.
+        Grid cells cropped will disappear.
+        Grid cells intersected will be replace by the intersection with 
+        the shape.
 
     .. warning::
         Make sure your shape is in the same crs as the inventory.
@@ -127,8 +132,8 @@ def crop_with_shape(
             weights = np.load(weight_file)
         else:
             # Find the weight of the intersection, keep the same geometry
-            _, weights = geoserie_intersection(
-                inv.geometry, shape, keep_outside=keep_outside, drop_unused=False
+            intersection_shapes, weights = geoserie_intersection(
+                inv.geometry, shape, keep_outside=keep_outside, drop_unused=modify_grid
             )
             if weight_file is not None:
                 # Save the weight file
@@ -136,11 +141,10 @@ def crop_with_shape(
 
         inv_out.gdf = gpd.GeoDataFrame(
             {
-                col: inv.gdf[col] * weights
-                for col in inv.gdf.columns
-                if not isinstance(inv.gdf[col].dtype, gpd.array.GeometryDtype)
+                col: (inv.gdf.loc[intersection_shapes.index,col] if modify_grid else inv.gdf[col]) * weights
+                for col in inv._gdf_columns
             },
-            geometry=inv.geometry,
+            geometry=intersection_shapes if modify_grid else inv.geometry,
             crs=inv.gdf.crs,
         )
     else:
@@ -161,8 +165,7 @@ def crop_with_shape(
             inv_out.gdfs[cat] = gpd.GeoDataFrame(
                 {
                     col: gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
-                    for col in gdf.columns
-                    if col != "geometry"
+                    for col in inv._gdf_columns
                 },
                 geometry=new_geometry[mask_non_zero],
                 crs=gdf.crs,
