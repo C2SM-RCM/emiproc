@@ -218,7 +218,10 @@ class Inventory:
         ]
 
     def to_crs(self, *args, **kwargs):
-        """Same as geopandas.to_crs() but for inventories."""
+        """Same as geopandas.to_crs() but for inventories.
+        
+        Perform the conversion in place.
+        """
         if self.gdf is not None:
             self.gdf.to_crs(*args, **kwargs, inplace=True)
         for gdf in self.gdfs.values():
