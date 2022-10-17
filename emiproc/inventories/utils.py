@@ -6,6 +6,7 @@ import json
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING
+from warnings import warn
 
 import fiona
 import geopandas as gpd
@@ -126,9 +127,17 @@ def crop_with_shape(
     if weight_file is not None:
         weight_file = Path(weight_file).with_suffix(".npy")
 
+        if modify_grid:
+            warn(
+                "Cannot cache the modified grid. Will compute it. "
+                "Set 'modify_grid' to False or 'weight_file' to None "
+                "to remove this warning."
+            )
+
+
     if inv.gdf is not None:
         # Check if the weights are already computed
-        if weight_file is not None and weight_file.is_file():
+        if weight_file is not None and weight_file.is_file() and modify_grid == False:
             weights = np.load(weight_file)
         else:
             # Find the weight of the intersection, keep the same geometry
