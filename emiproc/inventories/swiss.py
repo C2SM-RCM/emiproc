@@ -124,66 +124,44 @@ class SwissRasters(Inventory):
             crs=LV95,
         )
 
-    # Make this a property as creating it is expensive
-    @property
-    def gdf(self) -> gpd.GeoDataFrame:
-        if not hasattr(self, "_gdf"):
-            xs = np.arange(
-                self.grid.xmin,
-                self.grid.xmin + self.grid.nx * self.grid.dx,
-                step=self.grid.dx,
-            )
-            ys = np.arange(
-                self.grid.ymin,
-                self.grid.ymin + self.grid.ny * self.grid.dy,
-                step=self.grid.dy,
-            )
-            self._gdf = gpd.GeoDataFrame(
-                # This vector is same as raster data reshaped using reshape(-1)
-                crs=LV95,
-                geometry=(
-                    [
-                        Polygon(
-                            (
-                                (x, y),
-                                (x, y + self.grid.dy),
-                                (x + self.grid.dx, y + self.grid.dy),
-                                (x + self.grid.dx, y),
-                            )
-                        )
-                        for y in reversed(ys)
-                        for x in xs
-                    ]
-                    if self.requires_grid
-                    else np.full(self.grid.nx * self.grid.ny, np.nan)
-                ),
-            )
-            mapping = {}
-            # Loading all the raster categories
-            for raster_file, category in zip(
-                self.all_raster_files, self.raster_categories
-            ):
-                _raster_array = self.load_raster(raster_file).reshape(-1)
-                if "_" in category:
-                    cat, sub = category.split("_")
-                    sub_name = sub.upper()
-                    if sub_name == "NOX":
-                        sub_name = "NOx"
-                    # t/ y -> kg/y
-                    # These rasters don't need the mutliplication by factor
-                    mapping[(cat, sub_name)] = _raster_array * 1000
-                else:
-                    for sub in self._substances:
-                        # emissions are in t/ y in the file -> kg/y
-                        factor = self.df_emission.loc[category, sub] * 1000
-                        if factor:
-                            mapping[(category, sub)] = _raster_array * factor
+        xs = np.arange(
+            self.grid.xmin,
+            self.grid.xmin + self.grid.nx * self.grid.dx,
+            step=self.grid.dx,
+        )
+        ys = np.arange(
+            self.grid.ymin,
+            self.grid.ymin + self.grid.ny * self.grid.dy,
+            step=self.grid.dy,
+        )
 
-            self._gdf = gpd.GeoDataFrame(
-                # This vector is same as raster data reshaped using reshape(-1)
-                data=mapping,
-                crs=LV95,
-                geometry=[
+        mapping = {}
+        # Loading all the raster categories
+        for raster_file, category in zip(
+            self.all_raster_files, self.raster_categories
+        ):
+            _raster_array = self.load_raster(raster_file).reshape(-1)
+            if "_" in category:
+                cat, sub = category.split("_")
+                sub_name = sub.upper()
+                if sub_name == "NOX":
+                    sub_name = "NOx"
+                # t/ y -> kg/y
+                # These rasters don't need the mutliplication by factor
+                mapping[(cat, sub_name)] = _raster_array * 1000
+            else:
+                for sub in self._substances:
+                    # emissions are in t/ y in the file -> kg/y
+                    factor = self.df_emission.loc[category, sub] * 1000
+                    if factor:
+                        mapping[(category, sub)] = _raster_array * factor
+
+        self.gdf = gpd.GeoDataFrame(
+            mapping,
+            crs=LV95,
+            # This vector is same as raster data reshaped using reshape(-1)
+            geometry=(
+                [
                     Polygon(
                         (
                             (x, y),
@@ -192,21 +170,18 @@ class SwissRasters(Inventory):
                             (x + self.grid.dx, y),
                         )
                     )
-                    if self.requires_grid
-                    else None
                     for y in reversed(ys)
                     for x in xs
-                ],
-            )
-            # Finally add the point sources
-            self.gdfs = {}
-            self.gdfs["eipwp"] = self.df_eipwp
+                ]
+                if self.requires_grid
+                else np.full(self.grid.nx * self.grid.ny, np.nan)
+            ),
+        )
+        # Finally add the point sources
+        self.gdfs = {}
+        self.gdfs["eipwp"] = self.df_eipwp
 
-        return self._gdf
 
-    @gdf.setter
-    def gdf(self, gdf=gpd.GeoDataFrame):
-        self._gdf = gdf
 
     def load_raster(self, raster_file: Path) -> np.ndarray:
         # Load and save as npy fast reading format
