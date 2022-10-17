@@ -80,6 +80,8 @@ def calculate_weights_mapping(
 
     The output contains the weigths mapping.
 
+    Point source ending in more than one cell will be splitt among the cells.
+
     :arg inv_indexes: The indexes from which shape in the inverntory
     :arg output_indexes: The indexes from which shape in the output
     :arg weights: The weight of this connexion (between 0 and 1).
@@ -110,6 +112,14 @@ def calculate_weights_mapping(
         raise TypeError(f"'shapes_vectorized' cannot be {type(shapes_vectorized)}")
     gdf_vect: gpd.GeoSeries
 
+    # Check that only area sources are vectorized
+    if not np.all(
+        gdf_vect.map(lambda shape: isinstance(shape, Polygon | MultiPolygon))
+    ):
+        raise TypeError(
+            "Non Polygon geometries were found on the grid but cannot be used for remapping"
+        )
+
     if isinstance(shapes_looped, gpd.GeoDataFrame):
         shapes_looped = shapes_looped.geometry
     elif isinstance(shapes_looped, gpd.GeoSeries):
@@ -134,27 +144,11 @@ def calculate_weights_mapping(
             intersecting_serie = gdf_vect.loc[intersect]
             from_indexes = intersecting_serie.index.to_list()
             if isinstance(shape, Point):
-                # Should be only one intersection
-                # Note. it happened to me that one point was right at the border !
-                # This will not be handleld
-                from_indexe = from_indexes[0]
-                w_mapping["output_indexes"].append(
-                    [from_indexe] if loop_over_inv_objects else [looped_index]
-                )
-
-                w_mapping["inv_indexes"].append(
-                    [looped_index] if loop_over_inv_objects else [from_indexe]
-                )
-
-                w_mapping["weights"].append([1])
-                if len(from_indexes) > 1:
-                    warn(
-                        f"A point {shapes_looped.iloc[looped_index]} was present"
-                        f" in more than one cells: {intersecting_serie}."
-                    )
+                # Check in which areas the point ended
+                n_areas = len(from_indexes)
+                weights = np.full(n_areas, 1.0 / n_areas)
 
             else:
-
                 # Calculate the intersection areas
                 areas = (
                     intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
@@ -166,18 +160,17 @@ def calculate_weights_mapping(
                     # Take ratio of all the inventory shapes that were crossed
                     weights = areas / intersecting_serie.area
 
-                # Find out the mapping indexes
+            # Find out the mapping indexes
+            looped_indexes = np.full_like(from_indexes, looped_index)
+            w_mapping["output_indexes"].append(
+                from_indexes if loop_over_inv_objects else looped_indexes
+            )
 
-                looped_indexes = np.full_like(from_indexes, looped_index)
-                w_mapping["output_indexes"].append(
-                    from_indexes if loop_over_inv_objects else looped_indexes
-                )
+            w_mapping["inv_indexes"].append(
+                looped_indexes if loop_over_inv_objects else from_indexes
+            )
 
-                w_mapping["inv_indexes"].append(
-                    looped_indexes if loop_over_inv_objects else from_indexes
-                )
-
-                w_mapping["weights"].append(weights)
+            w_mapping["weights"].append(weights)
 
     for key, l in w_mapping.items():
         if l:  # If any weights were added
