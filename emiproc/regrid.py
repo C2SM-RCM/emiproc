@@ -356,7 +356,8 @@ def geoserie_intersection(
     # Return only what was used
     if drop_unused:
         mask = mask & (weights > 0)
-        return intersection_shapes.loc[mask], weights[mask]
+        # Reset the index to make sure we just created a new grid
+        return intersection_shapes.loc[mask].reset_index(drop=True), weights[mask]
     else:
         return intersection_shapes, weights
 
