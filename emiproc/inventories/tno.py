@@ -63,8 +63,8 @@ class TNO_Inventory(Inventory):
             mask_points_this_cat = mask_this_category & mask_point_sources
             point_sources_gdf = gpd.GeoDataFrame(
                 geometry=gpd.GeoSeries.from_xy(
-                    ds["latitude_source"][mask_points_this_cat],
                     ds["longitude_source"][mask_points_this_cat],
+                    ds["latitude_source"][mask_points_this_cat],
                 ),
                 crs=crs,
             )
