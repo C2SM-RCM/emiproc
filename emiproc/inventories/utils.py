@@ -116,7 +116,7 @@ def crop_with_shape(
     :arg weight_file: A file in which to store the weights.
     :arg modify_grid: Whether the main grid (the gdf) should be modified.
         Grid cells cropped will disappear.
-        Grid cells intersected will be replace by the intersection with 
+        Grid cells intersected will be replace by the intersection with
         the shape.
 
     .. warning::
@@ -128,17 +128,17 @@ def crop_with_shape(
         weight_file = Path(weight_file).with_suffix(".npy")
 
         if modify_grid:
-            warn(
-                "Cannot cache the modified grid. Will compute it. "
-                "Set 'modify_grid' to False or 'weight_file' to None "
-                "to remove this warning."
-            )
-
+            shapes_file = Path(weight_file).with_suffix(".gdb")
 
     if inv.gdf is not None:
         # Check if the weights are already computed
-        if weight_file is not None and weight_file.is_file() and modify_grid == False:
+        if weight_file is not None and weight_file.is_file():
             weights = np.load(weight_file)
+            if modify_grid:
+                # Load cached shapes
+                gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(shapes_file)
+                # Index was set with cache
+                intersection_shapes = gdf_cached_shapes.set_index("index").geometry
         else:
             # Find the weight of the intersection, keep the same geometry
             intersection_shapes, weights = geoserie_intersection(
@@ -147,10 +147,20 @@ def crop_with_shape(
             if weight_file is not None:
                 # Save the weight file
                 np.save(weight_file, weights)
+                if modify_grid:
+                    gpd.GeoDataFrame(
+                        {"index": intersection_shapes.index},
+                        geometry=intersection_shapes,
+                    ).to_file(shapes_file)
 
         inv_out.gdf = gpd.GeoDataFrame(
             {
-                col: (inv.gdf.loc[intersection_shapes.index,col] if modify_grid else inv.gdf[col]) * weights
+                col: (
+                    inv.gdf.loc[intersection_shapes.index, col]
+                    if modify_grid
+                    else inv.gdf[col]
+                )
+                * weights
                 for col in inv._gdf_columns
             },
             geometry=intersection_shapes if modify_grid else inv.geometry,
