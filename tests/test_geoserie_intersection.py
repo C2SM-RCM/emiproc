@@ -25,12 +25,16 @@ def test_normal_intersection():
 
     intersection, weights = geoserie_intersection(serie, triangle)
 
-    # Shape number 1 shoud have disappeared
-    assert 0 in intersection.index
-    assert 1 not in intersection.index
-    assert 2 not in intersection.index
-    assert 3 in intersection.index
-    assert 4 in intersection.index
+    # Shape number 1 and 2 shoud have disappeared
+    assert len(intersection) == 3
+    # We cannot test the follwoing sadly
+    print(intersection.iloc[0])
+    
+    # Test the shapes are what we expect
+    assert intersection.iloc[0].equals(Polygon(((0.5, 0.5), (1, 0.5), (1, 1))))
+    assert intersection.iloc[1].equals(Polygon(((1, 0.5), (1.5, 0.5), (1.5, 1), (1, 1))))
+    assert intersection.iloc[2].equals(Polygon(((1.5, 1.5), (1.5, 1), (1, 1))))
+
     assert np.all(expected_weights_droped == weights)
 
 def test_intersection_drop_unused():
