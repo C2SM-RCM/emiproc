@@ -311,6 +311,7 @@ def geoserie_intersection(
         If this is true, the weigth
     :arg drop_unused: Whether all the shapes from the geometry serie should
         be kept. If True, the returned serie will remove these grid shapes.
+        The index of the returned serie will correspond to the original shapes.
         If False, the returned geoserie will contain geometries from the
         original grid but the weights will be 0.
 
@@ -322,6 +323,7 @@ def geoserie_intersection(
         The weights are 0 if the geometry is not included in the cropping shape
         and 1 if the geometry is fully included. This is the opposite
         when keep_outside is set to True.
+
 
     """
     # Check the geometry that intersect the shape
@@ -357,7 +359,7 @@ def geoserie_intersection(
     if drop_unused:
         mask = mask & (weights > 0)
         # Reset the index to make sure we just created a new grid
-        return intersection_shapes.loc[mask].reset_index(drop=True), weights[mask]
+        return intersection_shapes.loc[mask], weights[mask]
     else:
         return intersection_shapes, weights
 

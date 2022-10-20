@@ -58,3 +58,12 @@ def test_with_modify_grid():
     cropped = crop_with_shape(inv, triangle, modify_grid=True)
 
     assert 4 not in cropped.gdf.index
+
+def test_with_modify_grid_and_cached():
+    w_file = Path('.emiproc_test_with_modify_grid_and_cached')
+    cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
+
+    assert 4 not in cropped.gdf.index
+    cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
+
+    assert 4 not in cropped.gdf.index

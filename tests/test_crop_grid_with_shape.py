@@ -1,4 +1,6 @@
+"""Test case of a grid that intersects a shape."""
 #%%
+import shutil
 import pandas as pd
 from pathlib import Path
 import numpy as np
@@ -50,7 +52,18 @@ grid = gpd.GeoSeries(
 )
 
 poly = Polygon(((5.5, 7.5), (5.5, 3.5), (2.5, 3.5), (2.5, 8.5)))
-
+non_convex_poly = Polygon(
+    (
+        (5.5, 7.5),
+        (5.5, 3.5),
+        (2.5, 3.5),
+        (2.5, 6.5),
+        (4.5, 6.5),
+        (4.5, 7.5),
+        (2.5, 7.5),
+        (2.5, 8.5),
+    )
+)
 
 inv = Inventory.from_gdf(
     gpd.GeoDataFrame({"val": np.linspace(0, 1, len(grid))}, geometry=grid)
@@ -112,11 +125,40 @@ def test_crop_inventory_outside_pnt_sources():
 
 
 def test_read_weights():
-    w_file = ".emiproc.__test_weights__"
+    w_file = Path(".emiproc__test_read_weights")
+    if w_file.with_suffix('.gdb').is_dir():
+        shutil.rmtree(w_file.with_suffix('.gdb'))
+    w_file.with_suffix('.npy').unlink(missing_ok=True)
 
-    inv_cropped = crop_with_shape(inv, poly, weight_file=w_file)
+    inv_cropped_1 = crop_with_shape(inv, poly, weight_file=w_file)
     # This time the weights should have been created
-    inv_cropped = crop_with_shape(inv, poly, weight_file=w_file)
+    inv_cropped_2 = crop_with_shape(inv, poly, weight_file=w_file)
+    assert all(inv_cropped_1.gdf.index == inv_cropped_2.gdf.index)
+    # Check that the polygons are the same
+    assert inv_cropped_1.gdf.geometry.equals(inv_cropped_2.gdf.geometry)
+    # Check that there is not none geomtery
+    assert all([t is not None for t in inv_cropped_1.gdf.geometry])
 
+def test_read_weights_modified_grid():
+    w_file = Path(".emiproc_test_read_weights_modified_grid")
+    if w_file.with_suffix('.gdb').is_dir():
+        shutil.rmtree(w_file.with_suffix('.gdb'))
+    w_file.with_suffix('.npy').unlink(missing_ok=True)
+    inv_cropped_1 = crop_with_shape(inv, poly, weight_file=w_file, modify_grid=True)
+    # This time the weights should have been created
+    inv_cropped_2 = crop_with_shape(inv, poly, weight_file=w_file, modify_grid=True)
+    
+    assert all(inv_cropped_1.gdf.index == inv_cropped_2.gdf.index)
+    # Check that the polygons are the same
+    assert inv_cropped_1.gdf.geometry.equals(inv_cropped_2.gdf.geometry)
+    # Check that there is not none geomtery
+    assert all([t is not None for t in inv_cropped_1.gdf.geometry])
 
 # %%
+intersected_shapes, weigths = geoserie_intersection(
+    grid, non_convex_poly, keep_outside=True, drop_unused=True
+)
+# %%
+cropped_inv =  crop_with_shape(inv_with_point_sources, non_convex_poly, keep_outside=True, modify_grid=True)
+# %%
+cropped_inv.gdf.geom_type

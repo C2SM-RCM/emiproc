@@ -135,10 +135,15 @@ def crop_with_shape(
         if weight_file is not None and weight_file.is_file():
             weights = np.load(weight_file)
             if modify_grid:
+                if not shapes_file.is_dir():
+                    raise RuntimeError(
+                        f"A {weight_file=} was found but no {shapes_file=}."
+                        " Delete the weight file to recompute it."
+                    )
                 # Load cached shapes
                 gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(shapes_file)
                 # Index was set with cache
-                intersection_shapes = gdf_cached_shapes.set_index("index").geometry
+                intersection_shapes = gdf_cached_shapes.set_index("index", drop=True).geometry
         else:
             # Find the weight of the intersection, keep the same geometry
             intersection_shapes, weights = geoserie_intersection(
@@ -151,19 +156,21 @@ def crop_with_shape(
                     gpd.GeoDataFrame(
                         {"index": intersection_shapes.index},
                         geometry=intersection_shapes,
+                        index=intersection_shapes.index,
                     ).to_file(shapes_file)
 
         inv_out.gdf = gpd.GeoDataFrame(
             {
                 col: (
-                    inv.gdf.loc[intersection_shapes.index, col]
+                    # Select the correct values from the shapes
+                    inv.gdf.loc[intersection_shapes.index, col].to_numpy()
                     if modify_grid
                     else inv.gdf[col]
                 )
                 * weights
                 for col in inv._gdf_columns
             },
-            geometry=intersection_shapes if modify_grid else inv.geometry,
+            geometry=intersection_shapes.reset_index(drop=True) if modify_grid else inv.geometry,
             crs=inv.gdf.crs,
         )
     else:
