@@ -6,15 +6,21 @@ from functools import cache, cached_property
 import numpy as np
 import xarray as xr
 import cartopy.crs as ccrs
-
-from netCDF4 import Dataset
-from shapely.geometry import Polygon, Point
 import geopandas as gpd
+import pyproj
+import math
+
+from copy import deepcopy
+from netCDF4 import Dataset
+from shapely.geometry import Polygon, Point, box, LineString, MultiPolygon
+from shapely.ops import split
 
 WGS84 = 4326
 WGS84_PROJECTED = 3857
 LV95 = 2056  # EPSG:2056, swiss CRS
+WGS84_NSIDC = 6933
 
+R_TERRE = 6371000  # m
 
 class Grid:
     """Abstract base class for a grid.
@@ -263,51 +269,38 @@ class TNOGrid(Grid):
 class EDGARGrid(Grid):
     """Contains the grid from the EDGAR emission inventory
 
-    The grid is similar to the TNO grid in that it uses a regular lat/lon
-    coordinate system. However, the gridpoints are the lower left corners
-    of the cell.
+    The grid is similar to the TNO grid.
     """
 
-    xmin: float
-    xmax: float
-    ymin: float
-    ymax: float
-    dx: float
-    dy: float
-
-    def __init__(self, xmin, xmax, ymin, ymax, dx, dy, name="EDGAR"):
-        """Store the grid information.
+    def __init__(self, dataset_path, name="EDGAR"):
+        """Open the netcdf-dataset and read the relevant grid information.
 
         Parameters
         ----------
-        xmin : float
-            Longitude of bottom left gridpoint in degrees
-        xmax : float
-            Longitude of top right gridpoint in degrees
-        ymin : float
-            Latitude of bottom left gridpoint in degrees
-        ymax : float
-            Latitude of top right gridpoint in degrees
-        dx : float
-            Longitudinal size of a gridcell in degrees
-        dy : float
-            Latitudinal size of a gridcell in degrees
+        dataset_path : str
         name : str, optional
         """
-        self.xmin = xmin
-        self.xmax = xmax
-        self.ymin = ymin
-        self.ymax = ymax
-        self.dx = dx
-        self.dy = dy
+        self.dataset_path = dataset_path
 
-        self.lon_vals = np.arange(self.xmin, self.xmax, self.dx)
-        self.lat_vals = np.arange(self.ymin, self.ymax, self.dy)
+        with Dataset(dataset_path) as dataset:
+            self.lon_var = np.array(dataset["lon"][:])
+            self.lat_var = np.array(dataset["lat"][:])
 
-        x = self.lon_vals
-        y = self.lat_vals
-        self.cell_x = np.array([x + self.dx, x + self.dx, x, x])
-        self.cell_y = np.array([y + self.dy, y, y, y + self.dy])
+        self.nx = len(self.lon_var)
+        self.ny = len(self.lat_var)
+
+        # The lat/lon values are the cell-centers
+        self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
+        self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
+
+        # Compute the cell corners
+        x = self.lon_var
+        y = self.lat_var
+        dx2 = self.dx / 2
+        dy2 = self.dy / 2
+
+        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
+        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
         super().__init__(name, ccrs.PlateCarree())
 
@@ -336,7 +329,7 @@ class EDGARGrid(Grid):
         -------
         np.array(shape=(nx,), dtype=float)
         """
-        return self.lon_vals
+        return self.lon_var
 
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
@@ -345,7 +338,25 @@ class EDGARGrid(Grid):
         -------
         np.array(shape=(ny,), dtype=float)
         """
-        return self.lat_vals
+        return self.lat_var
+
+    
+    def cell_areas(self):
+        """Return an array containing the grid cell areas.
+
+        Returns
+        -------
+        np.array(shape=(nx,ny), dtype=float)
+        """
+        lons_c = np.append(self.cell_x[-1], self.cell_x[0, 0])
+        lats_c = np.append(self.cell_y[-1], self.cell_y[0, 0])
+        lats_c = np.deg2rad(lats_c)
+
+        dlon = 2 * np.pi / self.nx
+        areas = R_TERRE * R_TERRE * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
+        areas = np.broadcast_to(areas[:, np.newaxis], (self.ny, self.nx))
+
+        return areas.flatten()
 
 
 class GeoPandasGrid(Grid):
@@ -918,6 +929,7 @@ class ICONGrid(Grid):
         ICON_FILE_CRS = WGS84
         self.crs = ICON_FILE_CRS
         self.gdf = gpd.GeoDataFrame(geometry=self.polygons, crs=ICON_FILE_CRS)
+        self.process_overlap_antimeridian()
 
         # Consider the ICON-grid as a 1-dimensional grid where ny=1
         self.nx = self.ncell
@@ -1096,4 +1108,70 @@ class ICONGrid(Grid):
                 overlap = icon_cell.intersection(inv_cell)
                 intersections.append((n, 0, overlap.area / inv_cell.area))
 
-        return intersections
+        return intersections  
+
+
+    def process_overlap_antimeridian(self):
+        """Find polygons intersecting the antimeridian line 
+        and split them into two polygons represented by a 
+        MultiPolygon.
+        """
+
+        def shift_lon_poly(poly):
+            coords = poly.exterior.coords 
+            lons = np.array([coord[0] for coord in coords])
+            lats = [coord[1] for coord in coords]
+            if np.any(lons > 180):
+                lons -= 360
+            elif np.any(lons < -180):
+                lons += 360
+            return Polygon([*zip(lons, lats)]) 
+
+        def detect_antimeridian_poly(poly):
+            coords = poly.exterior.coords
+            lon1, lon2, lon3 = coords[0][0], coords[1][0], coords[2][0]
+            coords_cond1 = [list(c) for c in coords[:-1]]
+
+            cond1 = np.count_nonzero(np.array([lon1, lon2, lon3]) > 180. - 1e-5) == 2
+            if cond1:
+                if lon1 < 0:
+                    coords_cond1[1][0] = lon2 - 360
+                    coords_cond1[2][0] = lon3 - 360
+                elif lon2 < 0:
+                    coords_cond1[0][0] = lon1 - 360
+                    coords_cond1[2][0] = lon3 - 360
+                elif lon3 < 0:
+                    coords_cond1[0][0] = lon1 - 360
+                    coords_cond1[1][0] = lon2 - 360
+
+            vmin = -140
+            vmax = 140
+            lon1, lon2, lon3 = coords_cond1[0][0], coords_cond1[1][0], coords_cond1[2][0]
+            cond2 = (lon1 > vmax or lon1 < vmin) or (lon2 > vmax or lon2 < vmin) or (lon3 > vmax or lon3 < vmin)
+            coords_cond2 = [list(c) for c in coords_cond1]
+
+            if cond2:
+
+                if lon1 * lon2 < 0 and lon1 * lon3 < 0:
+                    coords_cond2[0][0] = lon1 - math.copysign(1, lon1) * 360
+
+                elif lon2 * lon1 < 0 and lon2 * lon3 < 0:
+                    coords_cond2[1][0] = lon2 - math.copysign(1, lon2) * 360
+
+                elif lon3 * lon1 < 0 and lon3 * lon2 < 0:
+                    coords_cond2[2][0] = lon3 - math.copysign(1, lon3) * 360 
+
+            return Polygon(coords_cond2) 
+
+        crs = pyproj.CRS.from_epsg(WGS84)
+        bounds = crs.area_of_use.bounds
+
+        xx_bounds, yy_bounds = box(*bounds).exterior.coords.xy
+        coords_bounds = [(x, y) for x, y in zip(xx_bounds, yy_bounds)]
+        bounds_line = LineString(coords_bounds)
+
+        self.gdf = self.gdf.set_geometry(self.gdf.geometry.apply(lambda poly: detect_antimeridian_poly(poly)))
+        gdf_inter = self.gdf.loc[self.gdf.intersects(bounds_line)]
+        gdf_inter = gdf_inter.set_geometry(gdf_inter.geometry.apply(lambda poly: MultiPolygon(split(poly, bounds_line))))
+        gdf_inter = gdf_inter.set_geometry(gdf_inter.geometry.apply(lambda mpoly: MultiPolygon([shift_lon_poly(poly) for poly in mpoly.geoms])))
+        self.gdf.loc[gdf_inter.index, 'geometry'] = gdf_inter.geometry
