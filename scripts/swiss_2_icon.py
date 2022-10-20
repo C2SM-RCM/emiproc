@@ -82,13 +82,13 @@ ch_poly = load_swiss_shape()
 
 
 cropped_ch = crop_with_shape(
-    inv_ch, zh_poly, keep_outside=True, weight_file=weights_path / "ch_out_zh", modify_grid=True
+    inv_ch, zh_poly, keep_outside=True, modify_grid=True
 )
 cropped_zh = crop_with_shape(
-    inv_zh, zh_poly, keep_outside=False, weight_file=weights_path / "zh_in_zh"
+    inv_zh, zh_poly, keep_outside=False,
 )
 cropped_tno = crop_with_shape(
-    inv_tno, ch_poly, keep_outside=True, weight_file=weights_path / "tno_out_ch", modify_grid=True
+    inv_tno, ch_poly, keep_outside=True, modify_grid=True
 )
 
 

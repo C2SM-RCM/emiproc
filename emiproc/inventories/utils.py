@@ -114,6 +114,9 @@ def crop_with_shape(
     :arg shape: The shape around which to crop the inv.
     :arg keep_outside: Whether to keep only the outside shape.
     :arg weight_file: A file in which to store the weights.
+        If modify_grid is True, this will also save the shapes of the output.
+        However saving/reading those shape can be slower than computing 
+        them.
     :arg modify_grid: Whether the main grid (the gdf) should be modified.
         Grid cells cropped will disappear.
         Grid cells intersected will be replace by the intersection with
