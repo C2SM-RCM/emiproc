@@ -427,39 +427,39 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
     # Find indexes of cell in more than one country
     progress.step()
     many_cells_df = grid_gdf.loc[number_of_intersections > 1, country_shapes.keys()]
+    if len(many_cells_df) > 0:
+        cell_country_duplicates = np.argwhere(many_cells_df.to_numpy())
 
-    cell_country_duplicates = np.argwhere(many_cells_df.to_numpy())
+        # Create two arrays for preparing intersection area between grid cells and countries
+        grid_shapes = gpd.GeoSeries(
+            grid_gdf.loc[number_of_intersections > 1].geometry.iloc[
+                cell_country_duplicates[:, 0]
+            ],
+            crs=grid_gdf.crs,
+        )
+        countries = gpd.GeoSeries(
+            np.array([s for s in country_shapes.values()], dtype=object)[
+                cell_country_duplicates[:, 1]
+            ],
+            crs=grid_gdf.crs,
+        )
+        # Calculate the intersection area 
+        intersection_shapes = grid_shapes.intersection(countries, align=False)
+        # Use projected crs to get correct area
+        intersection_areas = intersection_shapes.to_crs(WGS84_PROJECTED).area
 
-    # Create two arrays for preparing intersection area between grid cells and countries
-    grid_shapes = gpd.GeoSeries(
-        grid_gdf.loc[number_of_intersections > 1].geometry.iloc[
-            cell_country_duplicates[:, 0]
-        ],
-        crs=grid_gdf.crs,
-    )
-    countries = gpd.GeoSeries(
-        np.array([s for s in country_shapes.values()], dtype=object)[
-            cell_country_duplicates[:, 1]
-        ],
-        crs=grid_gdf.crs,
-    )
-    # Calculate the intersection area 
-    intersection_shapes = grid_shapes.intersection(countries, align=False)
-    # Use projected crs to get correct area
-    intersection_areas = intersection_shapes.to_crs(WGS84_PROJECTED).area
+        # Prepare a matrix for comparing the area of intersection of cells with each country
+        u, i = np.unique(intersection_areas.index, return_inverse=True)
 
-    # Prepare a matrix for comparing the area of intersection of cells with each country
-    u, i = np.unique(intersection_areas.index, return_inverse=True)
-
-    # rows match each cell that contain duplicate, columns match
-    areas_matrix = np.zeros((np.max(i) + 1, np.max(cell_country_duplicates[:, 1]) + 1))
-    areas_matrix[
-        cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]
-    ] = intersection_areas
-    # Find the countries in which the area is the largest
-    country_mask[many_cells_df.index] = country_corresponding_codes[
-        np.argmax(areas_matrix, axis=1)
-    ]
+        # rows match each cell that contain duplicate, columns match
+        areas_matrix = np.zeros((np.max(i) + 1, np.max(cell_country_duplicates[:, 1]) + 1))
+        areas_matrix[
+            cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]
+        ] = intersection_areas
+        # Find the countries in which the area is the largest
+        country_mask[many_cells_df.index] = country_corresponding_codes[
+            np.argmax(areas_matrix, axis=1)
+        ]
 
 
     end = time.time()
