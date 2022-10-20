@@ -20,6 +20,7 @@ def get_weights_mapping(
     shapes_inv: Iterable[Polygon | Point],
     shapes_out: Iterable[Polygon],
     loop_over_inv_objects: bool = False,
+    method: str = 'new',
 ) -> dict[str, np.ndarray]:
     """Get the requested weights mapping.
 
@@ -57,6 +58,7 @@ def get_weights_mapping(
             shapes_inv,
             shapes_out,
             loop_over_inv_objects,
+            method
         )
         # Make sure dir is created
         weights_filepath.parent.mkdir(exist_ok=True, parents=True)
@@ -71,6 +73,7 @@ def calculate_weights_mapping(
     shapes_inv: Iterable[Polygon | Point | MultiPolygon],
     shapes_out: Iterable[Polygon],
     loop_over_inv_objects: bool = False,
+    method: str = 'new',
 ) -> dict[str, np.ndarray]:
     """Return a dictionary with the mapping.
 
@@ -88,6 +91,10 @@ def calculate_weights_mapping(
         It means the percentage of the inv shape that should go in
         the output.
     """
+
+    # shapes_inv = inv.gdf.geometry
+    # shapes_out = grid.gdf.to_crs(inv.crs)
+    # loop_over_inv_objects=False
 
     w_mapping = {
         "inv_indexes": [],
@@ -134,50 +141,87 @@ def calculate_weights_mapping(
 
     progress = ProgressIndicator(len(shapes_looped))
 
-    # Loop over the output shapes
-    for looped_index, shape in enumerate(shapes_looped):
-        progress.step()
+    if method == 'old':
+        # Loop over the output shapes
+        for looped_index, shape in enumerate(shapes_looped):
+            progress.step()
 
-        intersect = gdf_vect.intersects(shape)
-        if np.any(intersect):
-            # Find where the intesection occurs
-            intersecting_serie = gdf_vect.loc[intersect]
-            from_indexes = intersecting_serie.index.to_list()
-            if isinstance(shape, Point):
-                # Check in which areas the point ended
-                n_areas = len(from_indexes)
-                weights = np.full(n_areas, 1.0 / n_areas)
+            intersect = gdf_vect.intersects(shape)
+            if np.any(intersect):
+                # Find where the intesection occurs
+                intersecting_serie = gdf_vect.loc[intersect]
+                from_indexes = intersecting_serie.index.to_list()
+                if isinstance(shape, Point):
+                    # Check in which areas the point ended
+                    n_areas = len(from_indexes)
+                    weights = np.full(n_areas, 1.0 / n_areas)
 
-            else:
-                # Calculate the intersection areas
-                areas = (
-                    intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
-                )
-                if loop_over_inv_objects:
-                    # Take the ratio of the shape from the overlap from the shape i
-                    weights = areas / shape.area
                 else:
-                    # Take ratio of all the inventory shapes that were crossed
-                    weights = areas / intersecting_serie.area
+                    # Calculate the intersection areas
+                    areas = (
+                        intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
+                    )
+                    if loop_over_inv_objects:
+                        # Take the ratio of the shape from the overlap from the shape i
+                        weights = areas / shape.area
+                    else:
+                        # Take ratio of all the inventory shapes that were crossed
+                        weights = areas / intersecting_serie.area
 
-            # Find out the mapping indexes
-            looped_indexes = np.full_like(from_indexes, looped_index)
-            w_mapping["output_indexes"].append(
-                from_indexes if loop_over_inv_objects else looped_indexes
-            )
+                # Find out the mapping indexes
+                looped_indexes = np.full_like(from_indexes, looped_index)
+                w_mapping["output_indexes"].append(
+                    from_indexes if loop_over_inv_objects else looped_indexes
+                )
 
-            w_mapping["inv_indexes"].append(
-                looped_indexes if loop_over_inv_objects else from_indexes
-            )
+                w_mapping["inv_indexes"].append(
+                    looped_indexes if loop_over_inv_objects else from_indexes
+                )
 
-            w_mapping["weights"].append(weights)
+                w_mapping["weights"].append(weights)
 
-    for key, l in w_mapping.items():
-        if l:  # If any weights were added
-            w_mapping[key] = np.concatenate(l, axis=0).reshape(-1)
+        for key, l in w_mapping.items():
+            if l:  # If any weights were added
+                w_mapping[key] = np.concatenate(l, axis=0).reshape(-1)
 
-    w_mapping["output_indexes"] = np.array(w_mapping["output_indexes"], dtype=int)
-    w_mapping["inv_indexes"] = np.array(w_mapping["inv_indexes"], dtype=int)
+        w_mapping["output_indexes"] = np.array(w_mapping["output_indexes"], dtype=int)
+        w_mapping["inv_indexes"] = np.array(w_mapping["inv_indexes"], dtype=int)
+
+    elif method == "new":
+
+        # Merge the two geometries using intersections
+        gdf_in = gpd.GeoDataFrame(geometry=shapes_vectorized)
+        gdf_out = gpd.GeoDataFrame(geometry=shapes_looped)
+        gdf_weights = gdf_in.sjoin(gdf_out, rsuffix='out')
+        gdf_weights = gdf_weights.merge(gdf_out, left_on="index_out", right_index=True, suffixes=("", "_out"))
+        gdf_weights.index.name = 'index_inv'
+        gdf_weights = gdf_weights.assign(geometry_inter=lambda d: (d["geometry"].intersection(gpd.GeoSeries(d["geometry_out"]))))
+
+        if loop_over_inv_objects:
+            # Calculate weights for polygons
+            gdf_weights["weights"] = gdf_weights.geometry_inter.area / gdf_weights.geometry_out.area
+
+            # Process the points
+            gdf_points =  gdf_weights.loc[gdf_weights.geometry_out.type == 'Point']
+            if gdf_points.shape[0]:
+                nareas_points = gdf_points.groupby('index_out').transform(np.count_nonzero)['geometry']
+                gdf_weights.loc[gdf_weights.geometry_out.type == 'Point', 'weights'] = 1 / nareas_points
+
+            # Extract indices
+            gdf_weights = gdf_weights.sort_values(by=['index_inv', 'index_out'])
+            w_mapping["inv_indexes"] = gdf_weights.index_out.to_numpy()
+            w_mapping["output_indexes"] = gdf_weights.index.to_numpy()
+
+
+        else:
+            # Calculate weights and extract indices
+            gdf_weights["weights"] = gdf_weights.geometry_inter.area / gdf_weights.geometry.area
+            gdf_weights = gdf_weights.sort_values(by=['index_out', 'index_inv'])
+            w_mapping["inv_indexes"] = gdf_weights.index.to_numpy()
+            w_mapping["output_indexes"] = gdf_weights.index_out.to_numpy()
+
+        w_mapping["weights"] = gdf_weights.weights.to_numpy()
+
 
     return w_mapping
 
@@ -364,7 +408,7 @@ def geoserie_intersection(
         return intersection_shapes, weights
 
 
-def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inventory:
+def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike, method: str = 'new') -> Inventory:
     """Remap any inventory on the desired grid.
 
     This will also remap the additional gdfs of the inventory on that grid.
@@ -391,7 +435,7 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike) -> Inven
     if inv.gdf is not None:
         # Remap the main data
         w_mapping = get_weights_mapping(
-            weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False
+            weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False, method=method
         )
         mapping_dict = {
             key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
