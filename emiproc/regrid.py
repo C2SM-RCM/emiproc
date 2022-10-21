@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
+from emiproc.grids import Grid
 
 if TYPE_CHECKING:
     from os import PathLike
     from emiproc.inventories import Inventory
-    from emiproc.grids import Grid
 
 
 def get_weights_mapping(
@@ -408,7 +408,12 @@ def geoserie_intersection(
         return intersection_shapes, weights
 
 
-def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike, method: str = 'new') -> Inventory:
+def remap_inventory(
+    inv: Inventory,
+    grid: Grid | gpd.GeoSeries,
+    weigths_file: PathLike,
+    method: str = "new",
+) -> Inventory:
     """Remap any inventory on the desired grid.
 
     This will also remap the additional gdfs of the inventory on that grid.
@@ -427,20 +432,38 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike, method: 
 
     """
     weigths_file = Path(weigths_file)
-    if inv.crs is not None:
-        grid_cells = grid.gdf.to_crs(inv.crs)
+
+    if isinstance(grid, Grid):
+        grid_cells = grid.gdf.geometry
+    elif isinstance(grid, gpd.GeoSeries):
+        grid_cells = grid
     else:
-        grid_cells = grid.gdf
+        raise TypeError(f"grid must be of type Grid or gpd.Geoseries, not {type(grid)}")
+
+    # Treat possible issues with crs not matching
+    if inv.crs is not None:
+        if grid_cells.crs != inv.crs:
+            # convert the grid cells to the correct crs
+            grid_cells = grid_cells.to_crs(inv.crs)
+    else:
+        if grid_cells.crs is not None:
+            raise ValueError(
+                "The inventory given has no crs, but the grid has. "
+                "Assign a crs to the inventory before remapping."
+            )
 
     if inv.gdf is not None:
         # Remap the main data
         w_mapping = get_weights_mapping(
-            weigths_file, inv.gdf.geometry, grid_cells, loop_over_inv_objects=False, method=method
+            weigths_file,
+            inv.gdf.geometry,
+            grid_cells,
+            loop_over_inv_objects=False,
+            method=method,
         )
         mapping_dict = {
             key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
-            for key in inv.gdf.columns
-            if not isinstance(inv.gdf[key].dtype, gpd.array.GeometryDtype)
+            for key in inv._gdf_columns
         }
     else:
         mapping_dict = {}
@@ -454,6 +477,7 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike, method: 
             gdf.geometry,
             grid_cells,
             loop_over_inv_objects=True,
+            method=method,
         )
         # Remap each substance
         for sub in gdf.columns:
@@ -471,7 +495,7 @@ def remap_inventory(inv: Inventory, grid: Grid, weigths_file: PathLike, method: 
     out_inv = inv.copy(no_gdfs=True)
     out_inv.gdf = gpd.GeoDataFrame(
         mapping_dict,
-        geometry=grid_cells.geometry,
+        geometry=grid_cells,
         crs=inv.crs,
     )
     out_inv.gdfs = {}
