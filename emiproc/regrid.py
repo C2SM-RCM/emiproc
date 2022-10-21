@@ -110,18 +110,18 @@ def calculate_weights_mapping(
         shapes_looped = shapes_out
 
     if isinstance(shapes_vectorized, gpd.GeoDataFrame):
-        gdf_vect = shapes_vectorized.geometry
+        shapes_vect = shapes_vectorized.geometry
     elif isinstance(shapes_vectorized, gpd.GeoSeries):
-        gdf_vect = shapes_vectorized
+        shapes_vect = shapes_vectorized
     elif isinstance(shapes_vectorized, list):
-        gdf_vect = gpd.GeoSeries(shapes_vectorized)
+        shapes_vect = gpd.GeoSeries(shapes_vectorized)
     else:
         raise TypeError(f"'shapes_vectorized' cannot be {type(shapes_vectorized)}")
-    gdf_vect: gpd.GeoSeries
+    shapes_vect: gpd.GeoSeries
 
     # Check that only area sources are vectorized
     if not np.all(
-        gdf_vect.map(lambda shape: isinstance(shape, Polygon | MultiPolygon))
+        shapes_vect.map(lambda shape: isinstance(shape, Polygon | MultiPolygon))
     ):
         raise TypeError(
             "Non Polygon geometries were found on the grid but cannot be used for remapping"
@@ -137,7 +137,7 @@ def calculate_weights_mapping(
         raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
     minx, miny, maxx, maxy = shapes_looped.total_bounds
     # Mask with only what is in the bounds
-    gdf_vect = gdf_vect.cx[minx:maxx, miny:maxy]
+    shapes_vect = shapes_vect.cx[minx:maxx, miny:maxy]
 
     progress = ProgressIndicator(len(shapes_looped))
 
@@ -146,10 +146,10 @@ def calculate_weights_mapping(
         for looped_index, shape in enumerate(shapes_looped):
             progress.step()
 
-            intersect = gdf_vect.intersects(shape)
+            intersect = shapes_vect.intersects(shape)
             if np.any(intersect):
                 # Find where the intesection occurs
-                intersecting_serie = gdf_vect.loc[intersect]
+                intersecting_serie = shapes_vect.loc[intersect]
                 from_indexes = intersecting_serie.index.to_list()
                 if isinstance(shape, Point):
                     # Check in which areas the point ended
@@ -190,7 +190,7 @@ def calculate_weights_mapping(
     elif method == "new":
 
         # Merge the two geometries using intersections
-        gdf_in = gpd.GeoDataFrame(geometry=shapes_vectorized)
+        gdf_in = gpd.GeoDataFrame(geometry=shapes_vect)
         gdf_out = gpd.GeoDataFrame(geometry=shapes_looped)
         gdf_weights = gdf_in.sjoin(gdf_out, rsuffix='out')
         gdf_weights = gdf_weights.merge(gdf_out, left_on="index_out", right_index=True, suffixes=("", "_out"))
@@ -292,20 +292,20 @@ def calculate_weights_mapping_matrix(
     progress.step()
 
     if isinstance(shapes_vectorized, gpd.GeoDataFrame):
-        gdf_vect = shapes_vectorized.geometry
+        shapes_vect = shapes_vectorized.geometry
     elif isinstance(shapes_vectorized, gpd.GeoSeries):
-        gdf_vect = shapes_vectorized
+        shapes_vect = shapes_vectorized
     elif isinstance(shapes_vectorized, list):
-        gdf_vect = gpd.GeoSeries(shapes_vectorized)
+        shapes_vect = gpd.GeoSeries(shapes_vectorized)
     else:
         raise TypeError("'Given illegal type for shapes to process'")
-    gdf_vect: gpd.GeoSeries
+    shapes_vect: gpd.GeoSeries
 
     # Loop over the output shapes
     for looped_index, shape in enumerate(shapes_looped):
         progress.step()
 
-        intersect = gdf_vect.intersects(shape)
+        intersect = shapes_vect.intersects(shape)
         if np.any(intersect):
             if isinstance(shape, Point):
                 # Should be only one intersection
@@ -320,7 +320,7 @@ def calculate_weights_mapping_matrix(
 
             else:
                 # Find where the intesection occurs
-                intersecting_serie = gdf_vect.loc[intersect]
+                intersecting_serie = shapes_vect.loc[intersect]
                 # Calculate the intersection areas
                 areas = (
                     intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
