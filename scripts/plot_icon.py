@@ -1,3 +1,4 @@
+"""plot an icon exported file."""
 # %%
 from pathlib import Path
 import xarray as xr
@@ -8,16 +9,17 @@ import matplotlib.pyplot as plt
 import matplotlib
 from emiproc.plots.nclcmaps import cmap
 
-#%%
-icon_file = r"C:\Users\coli\Documents\emiproc\scripts\.emiproc_weights_swiss_2_icon\icon_Zurich_R19B9_wide_DOM01_zh_ch_combined.nc"
-
+#%% Load the file of icon
+icon_file = r"C:\Users\coli\Documents\emiproc\scripts\.emiproc_weights_swiss_2_icon\icon_Zurich_R19B9_wide_DOM01_zh_ch_tno_combined.nc"
+out_folder = Path(r"C:\Users\coli\Pictures\icon_zh_ch_tno_combined")
+out_folder.mkdir(exist_ok=True)
 ds = xr.load_dataset(icon_file)
 
-#%%
+#%% choose the variables to plot
 emiproc_generated_variables = [
     v for v in ds.variables if "created_by_emiproc" in ds[v].attrs
-]
-# %%
+] + ['country_ids']
+# %% Loads the icon grid
 n_cells = ds["cell"].size
 corners = np.zeros((n_cells, 3, 2))
 corners[:, :, 0] = ds["vlon"][ds["vertex_of_cell"] - 1].T
@@ -55,9 +57,7 @@ for var in emiproc_generated_variables:
     poly_coll.set_array(da)
     ax.set_title(da.attrs['long_name'])
     fig.colorbar(poly_coll)
-    fig.savefig(Path(r"C:\Users\coli\Pictures\icon_ch_zh", f"{var}.png"))
+    fig.savefig(out_folder/ f"{var}.png")
     #fig.show()
 #%%
-
-
 # %%

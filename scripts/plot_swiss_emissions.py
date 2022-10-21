@@ -63,7 +63,8 @@ for substance in inv_ch.substances:
         # cax = fig.add_axes([0.87, 0.15, 0.02, 0.7])
 
         emission_non_zero_values = emissions[emissions > 0]
-        q = 0.005
+        #q = 0.005
+        q = 0.001
         norm = LogNorm(
             vmin=np.quantile(emission_non_zero_values, q),
             vmax=np.quantile(emission_non_zero_values, 1 - q),
@@ -133,7 +134,7 @@ for substance in inv_ch.substances:
     # cax = fig.add_axes([0.87, 0.15, 0.02, 0.7])
 
     emission_non_zero_values = emissions[emissions > 0]
-    q = 0.005
+    q = 0.001
     norm = LogNorm(
         vmin=np.quantile(emission_non_zero_values, q),
         vmax=np.quantile(emission_non_zero_values, 1 - q),
