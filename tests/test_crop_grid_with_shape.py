@@ -66,13 +66,13 @@ non_convex_poly = Polygon(
 )
 
 inv = Inventory.from_gdf(
-    gpd.GeoDataFrame({"val": np.linspace(0, 1, len(grid))}, geometry=grid)
+    gpd.GeoDataFrame({("main", "val"): np.linspace(0, 1, len(grid))}, geometry=grid)
 )
 
 point_inside = Point((4.5, 5.5))
 point_outside = Point((1.5, 5.5))
 inv_with_point_sources = Inventory.from_gdf(
-    gpd.GeoDataFrame({"val": np.linspace(0, 1, len(grid))}, geometry=grid),
+    gpd.GeoDataFrame({("main", "val"): np.linspace(0, 1, len(grid))}, geometry=grid),
     gdfs={
         "pnt_sources": gpd.GeoDataFrame(
             {"val": [1, 2]}, geometry=[point_inside, point_outside]
