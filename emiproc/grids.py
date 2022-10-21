@@ -20,7 +20,8 @@ WGS84_PROJECTED = 3857
 LV95 = 2056  # EPSG:2056, swiss CRS
 WGS84_NSIDC = 6933
 
-R_TERRE = 6371000  # m
+# Radius of the earth
+R_EARTH = 6371000  # m
 
 class Grid:
     """Abstract base class for a grid.
@@ -353,7 +354,7 @@ class EDGARGrid(Grid):
         lats_c = np.deg2rad(lats_c)
 
         dlon = 2 * np.pi / self.nx
-        areas = R_TERRE * R_TERRE * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
+        areas = R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
         areas = np.broadcast_to(areas[:, np.newaxis], (self.ny, self.nx))
 
         return areas.flatten()
