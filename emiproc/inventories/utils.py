@@ -110,12 +110,15 @@ def crop_with_shape(
     The emission of the shape remaining will be determined using the
     ratio of the areas.
 
+    Point sources at the boundary will have their emissions value divided
+    by 2.
+
     :arg inv: The inventory to crop.
     :arg shape: The shape around which to crop the inv.
     :arg keep_outside: Whether to keep only the outside shape.
     :arg weight_file: A file in which to store the weights.
         If modify_grid is True, this will also save the shapes of the output.
-        However saving/reading those shape can be slower than computing 
+        However saving/reading those shape can be slower than computing
         them.
     :arg modify_grid: Whether the main grid (the gdf) should be modified.
         Grid cells cropped will disappear.
@@ -146,7 +149,9 @@ def crop_with_shape(
                 # Load cached shapes
                 gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(shapes_file)
                 # Index was set with cache
-                intersection_shapes = gdf_cached_shapes.set_index("index", drop=True).geometry
+                intersection_shapes = gdf_cached_shapes.set_index(
+                    "index", drop=True
+                ).geometry
         else:
             # Find the weight of the intersection, keep the same geometry
             intersection_shapes, weights = geoserie_intersection(
@@ -173,7 +178,9 @@ def crop_with_shape(
                 * weights
                 for col in inv._gdf_columns
             },
-            geometry=intersection_shapes.reset_index(drop=True) if modify_grid else inv.geometry,
+            geometry=intersection_shapes.reset_index(drop=True)
+            if modify_grid
+            else inv.geometry,
             crs=inv.gdf.crs,
         )
     else:
@@ -181,10 +188,20 @@ def crop_with_shape(
 
     inv_out.gdfs = {}
     for cat, gdf in inv.gdfs.items():
+        cols = [col for col in inv.substances if col in gdf]
         if isinstance(gdf.geometry.iloc[0], Point):
             # Simply remove the point sources outside
-            mask_within = gdf.geometry.within(shape)
-            inv_out.gdfs[cat] = gdf.loc[~mask_within if keep_outside else mask_within]
+            mask_intersects = gdf.geometry.intersects(shape)
+            mask_boundary = gdf.geometry.intersects(shape.boundary)
+
+            # Takes shapes of interest and the ones at the bounday
+            mask_shapes = (
+                ~mask_intersects if keep_outside else mask_intersects
+            ) | mask_boundary
+            new_gdf = gdf.copy()
+            # Points at the boundary are divided by 2
+            new_gdf.loc[mask_boundary, cols] /= 2
+            inv_out.gdfs[cat] = new_gdf.loc[mask_shapes].reset_index(drop=True)
         else:
             # We keep crop the geometry
             new_geometry, weights = geoserie_intersection(
@@ -194,11 +211,11 @@ def crop_with_shape(
             inv_out.gdfs[cat] = gpd.GeoDataFrame(
                 {
                     col: gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
-                    for col in inv._gdf_columns
+                    for col in cols
                 },
                 geometry=new_geometry[mask_non_zero],
                 crs=gdf.crs,
-            )
+            ).reset_index(drop=True)
 
     inv_out.history.append(f"Cropped using {shape=}, {keep_outside=}")
     return inv_out
