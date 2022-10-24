@@ -147,7 +147,10 @@ def crop_with_shape(
                         " Delete the weight file to recompute it."
                     )
                 # Load cached shapes
-                gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(shapes_file)
+                gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(
+                    shapes_file, 
+                    engine="pyogrio"
+                )
                 # Index was set with cache
                 intersection_shapes = gdf_cached_shapes.set_index(
                     "index", drop=True
@@ -165,7 +168,7 @@ def crop_with_shape(
                         {"index": intersection_shapes.index},
                         geometry=intersection_shapes,
                         index=intersection_shapes.index,
-                    ).to_file(shapes_file)
+                    ).to_file(shapes_file, engine="pyogrio")
 
         inv_out.gdf = gpd.GeoDataFrame(
             {
