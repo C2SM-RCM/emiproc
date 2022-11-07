@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emiproc"
+description = "Emission Processing Tool"
+authors = [
+    {name = "M. Jähn"},
+    {name = "G. Kuhlmann"},
+    {name = "Q. Mu"},
+    {name = "J.M. Haussaire"},
+    {name = "D. Ochsner"},
+    {name = "K. Osterried"},
+    {name = "V. Clément"},
+    {name = "L. Constantin", email="lionel.constantin@empa.ch"},
+    {name = "D. Brunner", email="dominik.brunner@empa.ch"},
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "geopandas",
+    "cartopy",
+    "netCDF4",
+    "numba",
+    "shapely",
+    "xarray",
+    "rasterio",
+]
+license = {file = "LICENSE.txt"}
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["emission", "processing", "inventory", "cosmo", "icon-art"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+
+dynamic = ["version"]
+
+
+[tool.setuptools.packages.find]
+include = ["emiproc"]  # package names should match these glob patterns (["*"] by default)
+
+
+
+[project.optional-dependencies]
+doc = [
+    "sphinx",
+    "furo",
+]
+dev = ["black"]
