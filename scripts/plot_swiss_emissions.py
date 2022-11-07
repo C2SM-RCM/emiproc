@@ -6,10 +6,12 @@ from emiproc.regrid import get_weights_mapping, remap_inventory, weights_remap
 
 # Whether to plot only the place over zurich
 OVER_ZH = True
-
+year = 2020
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
+plots_path = Path(r"C:\Users\coli\Pictures") / ( "ch_inv_over_zh" if OVER_ZH else "ch_rasters") / str(year)
 weights_path = Path(".emiproc_weights_swiss_2_icon")
 weights_path.mkdir(parents=True, exist_ok=True)
+plots_path.mkdir(parents=True, exist_ok=True)
 
 
 # %% Create the inventory object
@@ -18,6 +20,7 @@ inv_ch = SwissRasters(
     rasters_dir=data_path / "ekat_gridascii",
     rasters_str_dir=data_path / "ekat_str_gridascii",
     requires_grid=False,
+    year=year,
 )
 inv_ch.gdf
 
@@ -94,8 +97,7 @@ for substance in inv_ch.substances:
             ax.set_xlim(2675000,2690000)
             ax.set_ylim(1242000, 1255000)
         fig.tight_layout()
-        file_name = data_path / "plots" /( "ch_inv_over_zh" if OVER_ZH else "ch_rasters")/ f"raster_{substance}_{cat}"
-        file_name.parent.mkdir(parents=True, exist_ok=True)
+        file_name = plots_path / f"raster_{substance}_{cat}"
         fig.savefig(file_name.with_suffix(".png"))
         # fig.savefig(file_name.with_suffix(".pdf"))
         fig.clear()
@@ -164,9 +166,8 @@ for substance in inv_ch.substances:
         ax.set_xlim(2675000,2690000)
         ax.set_ylim(1242000, 1255000)
     fig.tight_layout()
-    file_name = data_path / "plots" / ( "ch_inv_over_zh" if OVER_ZH else "ch_rasters")/ f"raster_total_{substance}"
+    file_name = plots_path / f"raster_total_{substance}"
 
-    file_name.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(file_name.with_suffix(".png"))
     # fig.savefig(file_name.with_suffix(".pdf"))
     fig.clear()
