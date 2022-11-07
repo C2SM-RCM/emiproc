@@ -82,7 +82,9 @@ class SwissRasters(Inventory):
         # Rasters with emission
         rasters_str_dir = Path(rasters_str_dir)
         str_rasters = [
-            r for r in rasters_str_dir.rglob("*.asc") if "_tun" not in r.stem
+            r for r in rasters_str_dir.rglob("*.asc")
+            # Don't include the tunnel specific rasters as already included in the files 
+            if "_tun" not in r.stem
         ]
 
         self.all_raster_files = normal_rasters + str_rasters
@@ -142,6 +144,8 @@ class SwissRasters(Inventory):
         ):
             _raster_array = self.load_raster(raster_file).reshape(-1)
             if "_" in category:
+                # this is for the traffic raster and it is a different 
+                # raster pro substance
                 cat, sub = category.split("_")
                 sub_name = sub.upper()
                 if sub_name == "NOX":
@@ -149,6 +153,7 @@ class SwissRasters(Inventory):
                 # t/ y -> kg/y
                 # These rasters don't need the mutliplication by factor
                 mapping[(cat, sub_name)] = _raster_array * 1000
+                # TODO: add a rescaling to 1
             else:
                 for sub in self._substances:
                     # emissions are in t/ y in the file -> kg/y
