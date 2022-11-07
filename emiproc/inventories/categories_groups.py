@@ -101,6 +101,8 @@ CH_2_GNFR = {
         "eilgk",
         "evklm",
         "evtrk",
+        # Waste incinerator we agreed on nov. 22 to put them in the public power category
+        "eipkv", # Punktquellen KVA (Kehrichtverbrennungsanlagen ) == Waste incinerators
 
     ],
     # Industry
@@ -161,7 +163,6 @@ CH_2_GNFR = {
         "eidep",
         "eikla",
         "eikmp",
-        "eipkv",
         "elabf",
         "elver",
     ],
