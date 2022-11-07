@@ -17,6 +17,7 @@ authors = [
     {name = "D. Brunner", email="dominik.brunner@empa.ch"},
 ]
 dependencies = [
+    "geos",
     "numpy",
     "pandas",
     "geopandas",
