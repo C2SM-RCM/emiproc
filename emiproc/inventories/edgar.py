@@ -12,14 +12,17 @@ from emiproc.inventories import Inventory
 class EDGAR_Inventory(Inventory):
     """The EDGAR inventory.
     
-    TNO has only grid cell sources.
+    `Emissions Database for Global Atmospheric Research <https://edgar.jrc.ec.europa.eu/>`_
+    
+    EDGAR has only grid cell sources.
     """
     grid: EDGARGrid
 
     def __init__(self, nc_file_pattern: PathLike) -> None:
         """Create a EDGAR_Inventory.
         
-        :arg nc_file_pattern: Pattern of files, e.g "EDGAR\SF6\PRU\v7.0_FT2021_SF6_*_PRU.0.1x0.1.nc"
+        :arg nc_file_pattern: Pattern of files, e.g "EDGAR/SF6/PRU/v7.0_FT2021_SF6_*_PRU.0.1x0.1.nc"
+        
         """
         super().__init__()
 
