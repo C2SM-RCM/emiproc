@@ -44,7 +44,10 @@ class SwissRasters(Inventory):
             Most of the weights for remapping can be cached so if you
             have them generated already, set that to false.
         :arg year: The year of the inventory that should be used.
-            Currently accepted 2015 or 2020
+            Currently accepted 2015 or 2020.
+            The raster files are the same for both years. Only the scaling 
+            of the full raster pro substance changes. 
+            The original rasters were made for year 2015.
         """
         super().__init__()
 
