@@ -11,7 +11,6 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
 import numpy as np
-import rasterio
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)

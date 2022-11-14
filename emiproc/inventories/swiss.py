@@ -7,7 +7,6 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
 from emiproc.inventories.utils import load_category
-from openpyxl import load_workbook
 import numpy as np
 import rasterio
 

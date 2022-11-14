@@ -1,10 +1,8 @@
 """Script used for creating raster data of zurich."""
 #%%
-from collections import namedtuple
 from math import floor
 from pathlib import Path
 
-from rasterio import features
 
 from emiproc.grids import SwissGrid, LV95, WGS84
 from emiproc.inventories.zurich import MapLuftZurich
