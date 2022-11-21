@@ -31,9 +31,11 @@ Contents
 .. toctree::
    :maxdepth: 2
 
+   installation
    inventories
    api
    tutos/tutorials
+   support
 
 
 

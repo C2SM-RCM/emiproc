@@ -1,6 +1,9 @@
 Implementing a new Inventory
 ============================
 
+If you want to implement a new inventory, you can take as an example
+the tno inventory which has an easy to understand implementation.
+
 Inherit from the base class 
 ---------------------------
 
@@ -9,8 +12,8 @@ You should first create a class that inherits from
 :py:class:`~emiproc.inventories.Inventory` .
 
 
-Create initializtion of the class 
----------------------------------
+Create __init__ of the class 
+----------------------------
 
 Make sure your class is as easy as possible to use, such that 
 for example you only need to specify the paths of the files.
