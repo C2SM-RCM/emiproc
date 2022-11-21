@@ -1,6 +1,5 @@
-Available Inventories
-=====================
-
+Inventories
+===========
 
 There are already several inventories compatible with emiproc.
 
@@ -16,8 +15,8 @@ Make sure you follow the rules set by the data provide in how you can
 use and distribute the data.
 
 
-Inventory Objects 
------------------
+Available Inventory Objects 
+---------------------------
 
 
 .. autoclass:: emiproc.inventories.tno.TNO_Inventory

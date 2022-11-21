@@ -892,6 +892,7 @@ class COSMOGrid(Grid):
 
 class ICONGrid(Grid):
     """Class to manage an ICON-domain
+    
     This grid is defined as an unstuctured triangular grid (1D).
     The cells are ordered in a deliberate way and indexed with ascending integer numbers.
     The grid file contains variables like midpoint coordinates etc as a fct of the index.

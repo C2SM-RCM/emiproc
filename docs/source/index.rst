@@ -9,6 +9,9 @@ emiproc documentation
 emiproc is a python package for processing emission inventories, generating
 input files for athmospheric transport models.
 
+It can handle gridded annual emissions inventories, as well as hourly defined
+data.
+
 
 .. image:: diagrams/pipeline.drawio.svg
 
@@ -24,7 +27,6 @@ Features
 * Plotting the inventory
 * Conservative spatial regridding
 
-
 Contents 
 --------
 
@@ -33,6 +35,7 @@ Contents
 
    installation
    inventories
+   grids
    api
    tutos/tutorials
    support
