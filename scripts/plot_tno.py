@@ -1,9 +1,4 @@
 #%%
-from os import PathLike
-from pathlib import Path
-import pandas as pd
-import xarray as xr
-import numpy as np
 from emiproc.inventories.tno import TNO_Inventory
 
 
