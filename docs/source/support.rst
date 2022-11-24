@@ -1,10 +1,9 @@
 Support
 ======= 
 
-If you have any question or problem with emiproc, 
-please make sure that you do not find the answer on this documentation first.
+If you have any question or problem, please check this documentation first.
 
-Otherwise we are happy to provide you any support.
+Otherwise we will be happy to provide you any support.
 
 Bugs & Issues
 -------------
