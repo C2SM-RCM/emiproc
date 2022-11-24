@@ -1,18 +1,18 @@
 Inventories
 ===========
 
-There are already several inventories compatible with emiproc.
+There are already several popular inventories compatible with emiproc.
 
 
 Disclaimer
 ----------
 
-Please note emission inventories datasets
-are not included in the repository, but have to
+Please note that the emission inventories 
+are not included in the repository but have to
 be obtained separately.
 
-Make sure you follow the rules set by the data provide in how you can 
-use and distribute the data.
+Make sure you follow the rules defined by the data provider 
+regarding usage and distribution of the data.
 
 
 Available Inventory Objects 
