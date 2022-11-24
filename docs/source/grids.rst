@@ -2,13 +2,17 @@ Grids
 =====
 
 In the file `grids.py` you can find definitions for classes handling common gridtypes
-(COSMO, TNO, swiss). Use them in your configuration file to specify your grid.
+(regular lat/lon grids, rotated lat/lon grids as used by COSMO,
+unstructured grids as used by ICON, cartesian grids, etc.). 
 
-Grids are implemented for inventories as well as for models.
+Grids are implemented for inventories as well as for models. Grid classes
+are named accordingly.
 
+Use them in your configuration file to specify your grid.
 
 If your grid can not be represented by an existing one, implement your own grid class
-by inheriting from the `Grid` baseclass and implementing the required methods.
+by inheriting from the `Grid` baseclass and implementing the required methods,
+e.g. projections.
 
 
 Available Grids 

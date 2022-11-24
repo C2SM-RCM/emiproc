@@ -1,7 +1,7 @@
 Tutorials
 =========
 
-Many examples of using emiproc can be find in the folder 
+Many examples of using emiproc can be found in the folder 
 examples from the github repository:
 
 https://github.com/C2SM-RCM/cosmo-emission-processing/tree/master/scripts

@@ -1,14 +1,14 @@
 Implementing a new Inventory
 ============================
 
-If you want to implement a new inventory, you can take as an example
-the tno inventory which has an easy to understand implementation.
+If you want to implement a new inventory, you may take the tno inventory
+as an example, since it has an easy-to-understand implementation.
 
 Inherit from the base class 
 ---------------------------
 
-If you want to include a new inventory in emiproc. 
-You should first create a class that inherits from 
+If you want to include a new inventory in emiproc, 
+you should first create a class that inherits from 
 :py:class:`~emiproc.inventories.Inventory` .
 
 
@@ -27,25 +27,24 @@ Fill data into the geodataframe
 
 There are 2 possible ways of specifing emissions:
 1. give emissions values for categories and substances on a grid 
-2. give custom geometries (e.g. point sources) that emit some substance/category
+2. give custom geometries (e.g. point or area sources) that emit some substance/category
 
 emiproc can handle both simulatenously but it has to follow this pattern:
 
 1. gridded emissions will be stored in a :py:mod:`geopandas.GeoDataFrame`  called `gdf`
-2. gridded emissions will be stored in a dictionary 
+2. custom geometries will be stored in a dictionary called `gdfs` 
    mapping categories to :py:mod:`geopandas.GeoDataFrame`
 
 
 gdf 
 ^^^
 
-Contains information on the grid.
-The geometry column contains all the grid cells of the grid.
+Contains information on the grid including the coordinate reference system `crs`.
+The geometry column contains all the grid cells (polygons) of the grid.
 
-Other columns contain values for the emissions for each category/substance in that grid.
-Columns are mutliindex column, with 
-the first line containing the categories and second line 
-the substnces.
+Other columns contain values for the emissions for each category/substance.
+Columns are multi-index columns, with the first line containing the categories and second line 
+the substances.
 
 
 .. image::
@@ -59,9 +58,10 @@ This is a python dict mapping the name of the category
 to geodataframes.
 
 For each dataframe, 
-the geometry column contains all the geometries from that category.
+the geometry column contains all the custom geometries from that source category,
+which can be points or polygons.
 
-Other columns contain values for the emissions for each substance in that categories sources.
+Other columns contain values for the emissions for each substance in that category.
 
 .. image::
     ../../images/gdfs_head.png
@@ -75,12 +75,13 @@ Add crs information
 When you create the gdf and gdfs, make sure you add 
 the information about the crs directly in the gdf and gdfs.
 
-Think about the Units
----------------------
+Take care of correct units
+---------------------------
 
 By convention emiproc uses units :math:`\frac{kg}{y}` .
 In particular, every emission value in the gdf and gdfs means
-kg/y per geometry (== per grid cell in gdf) .
+kg/y per geometry (== per grid cell in gdf). 
+Note that one year corresponds to 365.25 days.
 
-Some export function will then convert automatically to the 
+Some export functions will then convert automatically to the 
 unit required when saving to file.
