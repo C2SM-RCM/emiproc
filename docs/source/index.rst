@@ -39,6 +39,7 @@ Contents
    api
    tutos/tutorials
    support
+   bibliography
 
 
 
