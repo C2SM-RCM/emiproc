@@ -345,6 +345,56 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     return out_inv
 
 
+def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
+    """Get the total emissions from the inventory.
+
+    :arg inv: The inventory from which to get the total emissions.
+    
+    :return: A dictionary mapping substances to another dictionary
+        which maps categories to values.
+        A '__total__' key will be created in each substnace mapping 
+        with the total of all the categories.
+        
+        For exemple ::
+
+            {
+                "CO2": {
+                    "cat1": 3.2,
+                    "cat2": 4.3,
+                    "__total__": 7.5,
+                },
+                "CH4": {
+                    "cat2": 2.1,
+                    "__total__": 2.1,
+                },
+                ...
+            }
+    """
+
+    # Preapre the output dictionary
+    out_dic = {sub: {} for sub in inv.substances}
+    
+    # First look for the emissions in the gdf
+    for cat, sub in inv._gdf_columns:
+        # Calculate the total sum
+        out_dic[sub][cat] = inv.gdf[(cat, sub)].sum()
+    
+    # Second look for the emissions in the gdfs
+    for cat, gdf in inv.gdfs.items():
+        for sub in inv.substances:
+            if sub not in gdf.columns:
+                # this category does not have the substance
+                continue
+            if cat not in out_dic[sub]:
+                out_dic[sub][cat] = 0
+            # Add the total emissions
+            out_dic[sub][cat] += gdf[sub].sum()
+    # Add the total 
+    for dic in out_dic.values():
+        dic['__total__'] = sum(dic.values())
+
+    return out_dic
+
 def combine_inventories(
     inv_inside: Inventory,
     inv_outside: Inventory,
