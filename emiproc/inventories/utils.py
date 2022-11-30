@@ -354,7 +354,7 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
         which maps categories to values.
         A '__total__' key will be created in each substnace mapping 
         with the total of all the categories.
-        
+
         For exemple ::
 
             {
@@ -394,6 +394,45 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
         dic['__total__'] = sum(dic.values())
 
     return out_dic
+
+def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -> Inventory:
+    """Get the total emissions from the inventory.
+
+    :arg inv: The inventory from which to get the total emissions.
+    
+    :arg scaling_dict: A dictionary mapping substances to another dictionary
+        which maps categories to values.
+        The values must be scaling factor, which will multiply all the objects
+        from the inventory with matching categories and substance.
+        
+        If a category/substance is not in the dict, it will not be scaled.
+        For exemple ::
+
+            {
+                "CO2": {
+                    "cat1": 1.3,
+                    "cat2": 0.7,
+                },
+                "CH4": {
+                    "cat2": 1.2,
+                },
+            }
+            
+    :return: A new inventory with its emission values rescaled.
+    """
+    # Deep copy of the inventory
+    inv = inv.copy()
+    
+    # Iterate over the scaling dict to multiply the values
+    for sub, sub_dict in scaling_dict.items():
+        for cat, scaling_factor in sub_dict.items():
+            if (cat, sub) in inv.gdf.columns:
+                inv.gdf[(cat, sub)] *= scaling_factor
+            if cat in inv.gdfs.keys() and sub in inv.gdfs[cat]:
+                inv.gdfs[cat][sub] *= scaling_factor
+
+    inv.history.append(f"Rescaled using {scaling_dict=}")
+    return inv
 
 def combine_inventories(
     inv_inside: Inventory,

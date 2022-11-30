@@ -19,6 +19,8 @@ Inventory Operators
 
 .. autofunction:: emiproc.inventories.utils.combine_inventories
 
+.. autofunction:: emiproc.inventories.utils.scale_inventory
+
 .. autofunction:: emiproc.inventories.utils.get_total_emissions
 
 Geometric Transformations 
