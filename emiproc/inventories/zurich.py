@@ -28,7 +28,7 @@ class MapLuftZurich(Inventory):
             "NH3",
             "CH4",
             "VOC",
-            "Benzol",
+            "benzene",
         ],
         remove_josefstrasse_khkw: bool = True,
     ) -> None:
@@ -48,7 +48,11 @@ class MapLuftZurich(Inventory):
 
         categories = list_categories(mapluft_gdb)
 
-        emission_names = {f"Emission_{sub}": sub for sub in substances}
+        # Maps substances name from the mapluft files to the names in emiproc 
+        emission_names = {
+            (f"Emission_{sub}" if sub != "benzene" else "Emission_Benzol"): sub
+            for sub in substances
+        }
 
         # Mapluft has no grid
         self.gdf = None
