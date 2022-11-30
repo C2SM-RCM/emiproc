@@ -40,16 +40,17 @@ def nc_cf_attributes(
         Any attribute you want to add the thing.
 
     """
+    dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return {
         "Conventions": "CF-1.10",
         "title": title,
         "comment": comment,
         "source": source,
-        "history": history,
+        "history": dt + ': created by emiproc ;\n' + history,
         "references": references,
         "institution": institution,
         "author": author,
         "contact": contact,
-        "creation_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "creation_time": dt,
         **additional_attributes,
     }
