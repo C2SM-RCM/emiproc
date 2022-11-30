@@ -45,7 +45,7 @@ Categories Manipulations
 Exporting 
 ---------
 
-.. autofunction:: emiproc.inventories.exports.export_icon_oem
+.. autofunction:: emiproc.exports.icon.export_icon_oem
 
-.. autofunction:: emiproc.inventories.exports.export_netcdf
+.. autofunction:: emiproc.exports.rasters.export_netcdf
     
