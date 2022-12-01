@@ -2,24 +2,71 @@ from os import PathLike
 from pathlib import Path
 import xarray as xr
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 
 from emiproc.grids import WGS84, TNOGrid
 from emiproc.inventories import Inventory
 
+from emiproc.profiles.vertical_profiles import (
+    VerticalProfiles,
+    check_valid_vertical_profile,
+)
+
+
+def read_vertical_profiles(file: PathLike) -> tuple[VerticalProfiles, list[str]]:
+    """Read tno vertical profiles.
+
+    Vertical profiles only depend on the category.
+
+    :return: A tuple containing the vertical profiles and a list of the
+        categories that matches each profiles.
+    """
+
+    # These are the names in the sectors column of tno
+    # seems that these should be changed with new versions
+    sectors_column = "TNO GNFR sectors Sept 2018"
+    alternative_name_for_sectors_column = "GNFR_Category"
+
+    df_vertical = pd.read_csv(
+        file,
+        header=17,
+        sep="\t",
+    )
+    boundarys = df_vertical.columns[3:]
+    starts = []
+    ends = []
+    for boundary_str in boundarys:
+        a, b = boundary_str.split("-")
+        starts.append(int(a))
+        ends.append(int(b.replace("m", "")))
+    tops = np.array(ends)
+    bots = np.array(starts)
+    
+    # Store the profiles in the object and check the validity
+    profiles = VerticalProfiles(df_vertical[boundarys].to_numpy(), tops)
+    check_valid_vertical_profile(profiles)
+
+    # Categories are the sectors
+    categories = df_vertical[sectors_column].to_list()
+    
+    return profiles, categories
+
+
 class TNO_Inventory(Inventory):
     """The TNO inventory.
-    
+
     TNO has grid cell sources and point sources.
     This handles both.
 
-    https://topas.tno.nl/emissions/ 
+    https://topas.tno.nl/emissions/
     """
+
     grid: TNOGrid
 
     def __init__(self, nc_file: PathLike) -> None:
         """Create a TNO_Inventory.
-        
+
         :arg nc_file: The TNO NetCDF dataset.
         """
         super().__init__()
@@ -103,3 +150,72 @@ class TNO_Inventory(Inventory):
         )
 
         self.cell_areas = ds["area"].T.to_numpy().reshape(-1)
+
+        # Vertical Profiles are read from a file
+        self.v_profiles, profiles_categories = read_vertical_profiles(nc_file.with_name("TNO_height-distribution_GNFR.csv"))
+        # Set the matching of the profiles
+        self.gdf_v_profiles = xr.DataArray(
+            np.arange(len(profiles_categories), dtype=int),
+            dims=("category"),
+            coords={"category": profiles_categories}
+        )
+
+        
+
+if __name__ == "__main__":
+    # %%
+    v_prof, categories = read_vertical_profiles(
+        r"C:\Users\coli\Documents\emiproc\files\TNO_6x6_GHGco_v4_0\TNO_height-distribution_GNFR.csv"
+    )
+    v_prof
+
+    #%% Read the time profiles
+    def read_tno_time_profile_csv(file: PathLike):
+        df = pd.read_csv(file, header=6, sep=";", encoding="latin")
+
+        return df
+
+    df_hod = read_tno_time_profile_csv(
+        r"C:\Users\coli\Documents\emiproc\files\TNO_6x6_GHGco_v4_0\timeprofiles-hour-in-day_GNFR.CSV"
+    )
+    df_dow = read_tno_time_profile_csv(
+        r"C:\Users\coli\Documents\emiproc\files\TNO_6x6_GHGco_v4_0\timeprofiles-day-in-week_GNFR.CSV"
+    )
+    df_moy = read_tno_time_profile_csv(
+        r"C:\Users\coli\Documents\emiproc\files\TNO_6x6_GHGco_v4_0\timeprofiles-month-in-year_GNFR.csv"
+    )
+
+    sectors_columns = [
+        (
+            df[sectors_column]
+            if sectors_column in df.columns
+            else df[alternative_name_for_sectors_column]
+        ).to_numpy()
+        for df in [df_vertical, df_hod, df_dow, df_moy]
+    ]
+
+    # Check matching of the categories
+    if not np.all(sectors_columns == sectors_columns[0]):
+        raise ValueError("Some categories are not the same in the profiles files.")
+
+    profiles = xr.Dataset(
+        {
+            "vertical": (("category", "level"), df_vertical[boundarys].to_numpy()),
+        },
+        {
+            "level": list(range(len(boundarys))),
+            "layer_top": (
+                "level",
+                tops,
+                {"long_name": "top of layer above ground"} | layer_attrs,
+            ),
+            "layer_bot": (
+                "level",
+                bots,
+                {"long_name": "bottom of layer above ground"} | layer_attrs,
+            ),
+            "categories": df_vertical[sectors_column].to_list(),
+        },
+    )
+    profiles
+    # %%
