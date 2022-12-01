@@ -1,5 +1,6 @@
 """Differnt tools for doing the weights remapping."""
 from __future__ import annotations
+import logging
 from pathlib import Path
 from warnings import warn
 import numpy as np
@@ -9,6 +10,9 @@ from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
 from emiproc.grids import Grid
+
+
+logger = logging.getLogger("emiproc.regrid")
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -45,6 +49,15 @@ def get_weights_mapping(
 
 
     """
+    logger.debug(
+        f"get_weights_mapping("
+        f"{weights_filepath=},"
+        f"{shapes_inv=},"
+        f"{shapes_out=},"
+        f"{loop_over_inv_objects=},"
+        f"{method=},"
+        ")"
+    )
 
     weights_filepath = Path(weights_filepath).with_suffix(f".npz")
     if loop_over_inv_objects:
@@ -95,6 +108,11 @@ def calculate_weights_mapping(
     # shapes_inv = inv.gdf.geometry
     # shapes_out = grid.gdf.to_crs(inv.crs)
     # loop_over_inv_objects=False
+    logger.info(
+        f"calculating weights mapping "
+        f"from {len(shapes_inv)} inventory shapes "
+        f"to {len(shapes_out)} grid cells."
+    )
 
     w_mapping = {
         "inv_indexes": [],
@@ -124,7 +142,8 @@ def calculate_weights_mapping(
         shapes_vect.map(lambda shape: isinstance(shape, Polygon | MultiPolygon))
     ):
         raise TypeError(
-            "Non Polygon geometries were found on the grid but cannot be used for remapping"
+            "Non Polygon geometries were found on the grid but cannot be used for remapping."
+            " Use 'loop_over_inv_objects' if you want to remap points to a grid."
         )
 
     if isinstance(shapes_looped, gpd.GeoDataFrame):
@@ -184,9 +203,6 @@ def calculate_weights_mapping(
             if l:  # If any weights were added
                 w_mapping[key] = np.concatenate(l, axis=0).reshape(-1)
 
-        w_mapping["output_indexes"] = np.array(w_mapping["output_indexes"], dtype=int)
-        w_mapping["inv_indexes"] = np.array(w_mapping["inv_indexes"], dtype=int)
-
     elif method == "new":
 
         # Merge the two geometries using intersections
@@ -222,6 +238,12 @@ def calculate_weights_mapping(
 
         w_mapping["weights"] = gdf_weights.weights.to_numpy()
 
+    else:
+        raise ValueError(f"'method' must be one of ['new', 'old'] not {method}.")
+    # Ensure types 
+    w_mapping["output_indexes"] = np.array(w_mapping["output_indexes"], dtype=int)
+    w_mapping["inv_indexes"] = np.array(w_mapping["inv_indexes"], dtype=int)
+    w_mapping["weights"] = np.array(w_mapping["weights"], dtype=float)
 
     return w_mapping
 
@@ -250,92 +272,17 @@ def weights_remap(
     return A.dot(remapped_values).reshape(output_size)
 
 
-def calculate_weights_mapping_matrix(
-    shapes_inv: Iterable[Polygon | Point | MultiPolygon],
-    shapes_out: Iterable[Polygon],
-    loop_over_inv_objects: bool = False,
-) -> coo_array:
-    """Return a dictionary with the mapping.
+def weights_remap_matrix(
+    w_matrix: coo_array,
+    remapped_values: np.ndarray,
+) -> np.ndarray:
+    """Remap using the weights mapping and a sparse matrix.
 
-    .. warning::
-
-        Not implemented yet.
-        Some changes might have occur from the original function
-        (weights mapping without matrix).
-
-    Every weight means: From which shape in the invetory
-    to which shape in the output and the weight value is the proportion
-    of the inventory weight present in the output.
-
-    The output contains the weigths mapping.
-
-    :arg inv_indexes: The indexes from which shape in the inverntory
-    :arg output_indexes: The indexes from which shape in the output
-    :arg weights: The weight of this connexion (between 0 and 1).
-        It means the percentage of the inv shape that should go in
-        the output.
-
-
-
+    This is the same as :py:func:`weights_remap` but uses a matrix as input.
+    This allow for not having to build the matrix multiple times
     """
+    return w_matrix.dot(remapped_values)
 
-    if loop_over_inv_objects:
-        shapes_vectorized = shapes_out
-        shapes_looped = shapes_inv
-    else:
-        shapes_vectorized = shapes_inv
-        shapes_looped = shapes_out
-
-    w_mapping = dok_matrix((len(shapes_out), len(shapes_inv)), dtype=float)
-
-    progress = ProgressIndicator(len(shapes_looped))
-    progress.step()
-
-    if isinstance(shapes_vectorized, gpd.GeoDataFrame):
-        shapes_vect = shapes_vectorized.geometry
-    elif isinstance(shapes_vectorized, gpd.GeoSeries):
-        shapes_vect = shapes_vectorized
-    elif isinstance(shapes_vectorized, list):
-        shapes_vect = gpd.GeoSeries(shapes_vectorized)
-    else:
-        raise TypeError("'Given illegal type for shapes to process'")
-    shapes_vect: gpd.GeoSeries
-
-    # Loop over the output shapes
-    for looped_index, shape in enumerate(shapes_looped):
-        progress.step()
-
-        intersect = shapes_vect.intersects(shape)
-        if np.any(intersect):
-            if isinstance(shape, Point):
-                # Should be only one intersection
-                # Note. it happened to me that one point was right at the border !
-                # This will not be handleld
-                from_indexe = np.nonzero(intersect.to_numpy())[0][0]
-
-                if loop_over_inv_objects:
-                    w_mapping[from_indexe, looped_index] = 1
-                else:
-                    w_mapping[looped_index, from_indexe] = 1
-
-            else:
-                # Find where the intesection occurs
-                intersecting_serie = shapes_vect.loc[intersect]
-                # Calculate the intersection areas
-                areas = (
-                    intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
-                )
-
-                # Find out the mapping indexes
-                from_indexes = np.nonzero(intersect.to_numpy())[0].reshape(-1)
-                looped_indexes = np.full_like(from_indexes, looped_index)
-
-                if loop_over_inv_objects:
-                    w_mapping[from_indexes, looped_indexes] = areas / shape.area
-                else:
-                    w_mapping[looped_indexes, from_indexes] = areas / shape.area
-
-    return w_mapping
 
 
 def geoserie_intersection(
@@ -461,8 +408,15 @@ def remap_inventory(
             loop_over_inv_objects=False,
             method=method,
         )
+        # Create the weights matrix
+        w_matrix = coo_array(
+            (w_mapping["weights"], (w_mapping["output_indexes"], w_mapping["inv_indexes"])),
+            shape=(len(grid_cells), len(inv.gdf)),
+            dtype=float,
+        )
+        # Perform the remapping on each column
         mapping_dict = {
-            key: weights_remap(w_mapping, inv.gdf[key], len(grid_cells))
+            key: weights_remap_matrix(w_matrix, inv.gdf[key])
             for key in inv._gdf_columns
         }
     else:
