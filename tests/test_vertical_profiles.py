@@ -4,6 +4,8 @@ import xarray as xr
 from pathlib import Path
 import numpy as np
 import pytest
+import geopandas as gpd
+from shapely.geometry import Polygon
 
 from emiproc.inventories import Inventory
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
@@ -41,13 +43,16 @@ check_valid_vertical_profile(test_profiles2)
 
 #%%
 def test_weighted_combination():
-    weights= np.array([1, 2, 3])
+    weights = np.array([1, 2, 3])
     new_profile = weighted_combination(test_profiles2, weights=weights)
     check_valid_vertical_profile(new_profile)
     new_total_emissions = np.sum(weights) * new_profile.ratios
     previous_total_emissions = weights.dot(test_profiles2.ratios)
     # The combination should give the same as summing the emissions one by one
-    assert np.allclose(new_total_emissions, previous_total_emissions), f"{new_total_emissions},{previous_total_emissions}"
+    assert np.allclose(
+        new_total_emissions, previous_total_emissions
+    ), f"{new_total_emissions},{previous_total_emissions}"
+
 
 #%%
 def test_invalid_vertical_profiles():
@@ -81,6 +86,27 @@ def test_invalid_vertical_profiles():
 
 
 test_invalid_vertical_profiles()
+
+#%%
+gdf = gpd.GeoDataFrame(
+    {
+        ("test_cat", "CO2"): [i for i in range(4)],
+        ("test_cat", "CH4"): [i + 3 for i in range(4)],
+        ("test_cat", "NH3"): [2 * i for i in range(4)],
+        ("test_cat2", "CO2"): [i + 1 for i in range(4)],
+        ("test_cat2", "CH4"): [i + 1 for i in range(4)],
+        ("test_cat2", "NH3"): [i + 1 for i in range(4)],
+    },
+    geometry=gpd.GeoSeries(
+        [
+            Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
+            Polygon(((0, 1), (0, 2), (1, 2), (1, 1))),
+            Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
+            Polygon(((1, 1), (1, 2), (2, 2), (2, 1))),
+        ]
+    ),
+)
+gdf
 #%% Corresponding profiles integer array
 # -1 is when the profile is not defined
 corresponding_vertical_profiles = xr.DataArray(
@@ -91,11 +117,52 @@ corresponding_vertical_profiles = xr.DataArray(
     dims=("category", "substance", "cell"),
     coords={
         "category": ["test_cat", "test_cat2"],
-        "substance": ["CH4", "CO2", "NH3"],
-        "cell": [0, 1, 2, 3],
+        "substance": (substances := ["CH4", "CO2", "NH3"]),
+        "cell": (cells :=[0, 1, 2, 3]),
     },
 )
 corresponding_vertical_profiles
+
+
+
+#%% get the weights associatied to each profile
+categories = ["test_cat", "test_cat2"]
+sa = corresponding_vertical_profiles.sel({"category": categories})
+weights = xr.full_like(sa, np.nan)
+for cat in categories:
+    for sub in substances:
+        serie = gdf.loc[:, (cat,sub)]
+        weights.loc[dict(category=cat, substance=sub)] = (
+            # if depend dont get the total of the serie
+            serie if 'cell' in sa.dims else sum(serie)
+        )
+weights
+
+#%% Make an average over the category taking care of putting the weights on the profiles where they should go
+
+new_profiles = np.average(
+    # Access the profile data 
+    test_profiles2.ratios[corresponding_vertical_profiles, :],
+    axis=sa.dims.index('category'),
+    # Weights must be extended on the last dimension such that a weight can take care of the whole time index
+    weights=np.repeat(weights.to_numpy().reshape(*weights.shape, 1), len(test_profiles2.height), -1)
+)
+new_profiles
+
+#%% Get a unique set of profiles
+
+unique_profiles, inverse = np.unique(new_profiles.reshape(-1, new_profiles.shape[-1]), axis=0, return_inverse=True)
+unique_profiles, inverse
+
+#%% Create the new profiles xr.datarray of this group
+shape = list(sa.shape)
+shape.pop(sa.dims.index('category'))
+# These are now the indexes of this category
+this_category= inverse.reshape(shape)
+
+# TODO: make it a loop over the different groups from the dict
+# TODO: make sure to concatenate correctly the indexes
+# TODO: try to make it a function working for merging over categories or cell as well
 # %% Create hourly profiles
 def check_valid_profiles_indexes_array(inv: Inventory, index_array: xr.DataArray):
     for cat, sub in inv._gdf_columns:
