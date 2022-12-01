@@ -25,7 +25,8 @@ def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False
     You can use this instead.
     """
     col_name = str(colum)
-    data = gdf[colum]
+    # Deep copy to avoid changing anything
+    data = gdf[colum].copy(deep=True)
     if logscale:
         data.loc[data == 0] = np.nan
         data = np.log(data)
