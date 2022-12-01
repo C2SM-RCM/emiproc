@@ -5,12 +5,15 @@ from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
 from typing import NewType
-from emiproc.grids import LV95, Grid, SwissGrid
-from emiproc.regrid import get_weights_mapping, weights_remap
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
 import numpy as np
+import xarray as xr
+
+from emiproc.grids import LV95, Grid, SwissGrid
+from emiproc.regrid import get_weights_mapping, weights_remap
+from emiproc.profiles.vertical_profiles import VerticalProfile, VerticalProfiles
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)
@@ -42,6 +45,15 @@ class Inventory:
         where every category has different shape file.
         In this case gdf must be set to None and gdfs will be
         a dictionnary mapping only the categories desired.
+
+    :attr v_profiles: A list of available vertical profiles.
+    :attr gdf_v_profiles: A :py:class:`xarray.DataArray` storing the information
+        of which vertical profile belongs to which cell/category/substance.
+        This allow to map each single emission value from the gdf to a specific
+        profile.
+        See :ref:`vertical_profiles` for more information.
+
+
     :attr history: Stores all the operations that happened to this inventory.
 
     .. note::
@@ -58,6 +70,9 @@ class Inventory:
     gdf: gpd.GeoDataFrame | None
     gdfs: dict[str, gpd.GeoDataFrame]
     geometry: gpd.GeoSeries
+
+    v_profiles: list[VerticalProfile | VerticalProfiles] | None = None
+    gdf_v_profiles: xr.DataArray | None = None
 
     history: list[str]
 

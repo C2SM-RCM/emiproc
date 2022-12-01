@@ -6,16 +6,67 @@
 Vertical Profiles 
 =================
 
-Vertical information can be added in many ways.
+Vertical profiles in emiproc are handled by the class
+:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfile`
+
+Each inventory is assigned a set of profile, which can be attributed
+to a specific substance, category, gridcell or time .
+
+Depending on how the data is gathered, different emission sources will
+have different profiles. In exemple a powerplant will emit at just one height.
+
+When applying operations (regridding, groupping, ...) on the inventories,
+the profiles might need to be changed as well.
 
 Vertical data in emiproc is always the height over the ground.
 
-We can distinguish the cases as follow:
-1. a point in the vertical domain
-2. an area in the vertical domain
 
-Operations to implement 
+Creating profiles
+-----------------
+
+Create the profiles is simple, if you have many profiles on the same
+vertical grid use :py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles`
+If you have different vertical grids create a 
+:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfile`
+for each of your vertical grid.
+
+The two kind of profiles can be combined in the inventory.
+
+In the inventory, the profiles will be stored in a list where every 
+profile has an index in the list.
+Vertical profiles cover a range of indices.
+TODO: add example.
+
+Assigning profiles to emissions
+-------------------------------
+
+We can add vertical profiles the following way:
+
+1. Adding profiles to category / substance / cell / time .
+2. Specify a profile to a shape in the gdfs.
+
+The second method is the simplest. One column of each gdfs can be 
+called `__v_profile__` containing for each shape the index of the matching
+vertical profile.
+
+
+The first option requires to create a data array containing the profile index
+to use for any combination of the 4 coordinates.
+The coordinates don't need to all be present in the file, one could simply
+put one of them, and emiproc assumes the vertical profiles are the same 
+no matter the other coordinates.
+
+TODO: put an example
+
+Behaviour on Operations
 -----------------------
+
+Operations on inventories can be tricky.
+The principle is to always weight correctly the different ratios.
+Sometimes arbitrary decisions have to be done.
+For example when adding two inventories, we need to decide if we 
+use the vertical scales of on of the two, or if we want to go 
+for a fancy merging. 
 
 Add inventories (should scale each grid cell total values to do a weighted sum of the profiles)
 

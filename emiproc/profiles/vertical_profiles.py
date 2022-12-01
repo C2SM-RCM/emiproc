@@ -1,9 +1,87 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+from dataclasses import dataclass
 import time
 import numpy as np
 import netCDF4
+
+
+@dataclass
+class VerticalProfile:
+    """Vertical profile.
+
+    A vertical profile defines how the emission is split vertically on the
+    altitude. A vertical profile is defined simply by its ratios
+    and the height levels.
+
+    You can check the conditions required on the profile in 
+    :py:func:`check_valid_vertical_profile`
+
+    :arg ratios: The proportion of emission that is in each layer.
+    :arg height: The top height of the layers.
+        The first layer starts at 0 meter and ends at height[0].
+        The second layer starts at height[0] and ends at height[1].
+        Over the last height value, there is no emission.
+    """
+
+    ratios: np.ndarray
+    height: np.ndarray
+
+@dataclass
+class VerticalProfiles:
+    """Vertical profiles.
+
+    This is very similar to :py:class:`VerticalProfile` but it can store
+    many ratios for the same height distributions
+
+    :arg ratios: a (n_profiles, n_heights) array.
+    :arg height: Same as :py:attr:`VerticalProfile.height` .
+    """
+
+    ratios: np.ndarray
+    height: np.ndarray
+
+    @property
+    def n_profiles(self) -> int:
+        return self.ratios.shape[0]
+
+
+def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalProfiles):
+    """Check that the vertical profile meets requirements.
+    
+    * height must have positive values
+    * height must have strictly increasing values
+    * ratios must sum up to one
+    * ratios must all be >= 0 
+    * ratios and height must have the same len
+    * no nan values in any of the arrays
+
+    :arg veritcal_profile: The profile to check.
+    :raises AssertionError: If the profile is invalid.
+    """
+
+    assert isinstance(vertical_profile, ( VerticalProfile, VerticalProfiles))
+
+    h = vertical_profile.height
+    r = vertical_profile.ratios
+
+    assert np.all(~np.isnan(r)) and np.all(~np.isnan(h)), "Cannot contain nan values"
+    
+    assert np.all(h > 0)
+    assert np.all(h[1:] > np.roll(h, 1)[1:]), "height must be increasing"
+    if isinstance(vertical_profile, VerticalProfile):
+        assert np.sum(r) == 1.
+        assert len(r) == len(h)
+    else:
+        ratio_sum = np.sum(r, axis=1)
+        assert np.allclose(ratio_sum, 1.), f"Ratios must sum to 1, but {ratio_sum=}"
+        assert r.shape[1] == len(h)
+    assert np.all(r >= 0)
+
+########################################
+# BELOW IS LEGACY CODE FROM EMIPROC v1 #
+########################################
 
 # dimensions:
 #     category = 10 ;
