@@ -26,6 +26,7 @@ Fill data into the geodataframe
 -------------------------------
 
 There are 2 possible ways of specifing emissions:
+
 1. give emissions values for categories and substances on a grid 
 2. give custom geometries (e.g. point or area sources) that emit some substance/category
 
@@ -74,6 +75,47 @@ Add crs information
 
 When you create the gdf and gdfs, make sure you add 
 the information about the crs directly in the gdf and gdfs.
+
+
+Substances Names
+----------------
+
+emiproc requires all the inventories to have the exact same name for 
+the substances in the gdf,
+to allow the different utility functions to work correctly.
+
+The following names already apply: 
+
+* CO2
+* CH4
+* CO
+* NOx
+* NH3
+* SO2
+* N2O
+* VOC
+* F-gases
+* PM10
+* PM25
+* PM10ex
+* PM10non
+* PM25ex
+* PM25non
+* benzene
+
+In case your inventory contain substances that are not in this list,
+you are welcome to add a new line to the list.
+
+
+Categories Names
+----------------
+
+On the opposite of substances, the categories can be the same as the ones
+from the raw data of the inventory.
+
+emiproc provides tools for groupping the categories.
+:ref:`~emiproc.inventories.utils.group_categories`
+
 
 Take care of correct units
 ---------------------------
