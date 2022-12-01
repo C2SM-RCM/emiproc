@@ -44,8 +44,8 @@ class SwissRasters(Inventory):
             have them generated already, set that to false.
         :arg year: The year of the inventory that should be used.
             Currently accepted 2015 or 2020.
-            The raster files are the same for both years. Only the scaling 
-            of the full raster pro substance changes. 
+            The raster files are the same for both years. Only the scaling
+            of the full raster pro substance changes.
             The original rasters were made for year 2015.
         """
         super().__init__()
@@ -54,41 +54,91 @@ class SwissRasters(Inventory):
         if year not in valid_years:
             raise ValueError(f"year must be one of {valid_years}.")
 
-        # Load the file with the point sources
-        # TODO: implement point sources of the correct year
-        # They are now in the same excell sheet as the total emissions
-        # but the location is not found in that spread sheet, to the gdb
-        # might still be required.
-        df_eipwp = load_category(
-            data_path / "ekat_ch_basisraster.gdb" / "ekat_ch_basisraster.gdb",
-            "eipwp" + "_2015",
+        total_emission_file = (
+            data_path / "Emissionen-2015-2020-je-Emittentengruppe_2022-11-02.xlsx"
         )
-        cols_eipwp = {
-            "CO2_15": "CO2",
-            "CH4_15": "CH4",
-            "N2O_15": "N2O",
-            "NOx_15": "NOx",
-            "CO_15": "CO",
-            "NMVOC_15": "VOC",
-            "SO2_15": "SO2",
-            "NH3_15": "NH3",
-        }
 
+        # Load the file with the point sources
+        header_of_year = {
+            2015: 5,
+            2020: 33,
+        }
+        df_eipwp = pd.read_excel(
+            total_emission_file,
+            sheet_name='Punktquellen',
+            nrows=20,
+            header=header_of_year[year],
+        )
+        # The following way of loading, using the gdb
+        # was replaced by reading from the spreadsheet
+        # also the units now cahnged in the excel spreadsheet
+        ##df_eipwp = load_category(
+        ##    data_path / "ekat_ch_basisraster.gdb" / "ekat_ch_basisraster.gdb",
+        ##    "eipwp" + "_2015",
+        ##)
+        ##cols_eipwp = {
+        ##    "CO2_15": "CO2",
+        ##    "CH4_15": "CH4",
+        ##    "N2O_15": "N2O",
+        ##    "NOx_15": "NOx",
+        ##    "CO_15": "CO",
+        ##    "NMVOC_15": "VOC",
+        ##    "SO2_15": "SO2",
+        ##    "NH3_15": "NH3",
+        ##}
+        cols_eipwp = {
+            "CO2": "CO2",
+            "CH4": "CH4",
+            "N2O": "N2O",
+            "NOx": "NOx",
+            "CO": "CO",
+            "NMVOC": "VOC",
+            "SO2": "SO2",
+            "NH3": "NH3",
+        }
+        
         df_eipwp = df_eipwp.rename(columns=cols_eipwp)
         for col in cols_eipwp.values():
-            # t/y -> kg/y
-            df_eipwp[col] *= 1000
-            df_eipwp.loc[pd.isna(df_eipwp[col]), col] = 0.0
-        df_eipwp["F-Gase"] = 0.0
+            serie = df_eipwp[col].copy()
+            serie.loc[serie=="k.A."] = 0.0
+            serie.loc[pd.isna(serie)] = 0.0
+            serie = serie.astype(float)
+            # kt/y -> kg/y  # This was changed since the reading from the gdb
+            serie *= 1e6
+            df_eipwp[col] = serie
+        df_eipwp["F-gases"] = 0.0
+
+        # Point location hardcoded as not in the excel sheet
+        # They were taken from the points data given in the gdb
+        points = [
+            Point(2634640.000, 1127354.000),
+            Point(2563500.000, 1122500.000),
+            Point(2712500.000, 1137900.000),
+            Point(2495114.000, 1118010.000),
+            Point(2533117.000, 1172768.000),
+            Point(2563500.000, 1122500.000),
+            Point(2569384.000, 1209968.000),
+            Point(2649655.000, 1212590.000),
+            Point(2497000.000, 1118130.000),
+            Point(2751520.000, 1188050.000),
+            Point(2644825.000, 1215313.000),
+            Point(2608999.000, 1219558.000),
+            Point(2640650.000, 1266464.000),
+            Point(2634150.000, 1127975.000),
+            Point(2729835.000, 1278930.000),
+            Point(2708128.000, 1268256.000),
+            Point(2587754.000, 1209929.000),
+            Point(2609500.000, 1224900.000),
+            Point(2624370.000, 1128968.000),
+            Point(2662982.000, 1213561.000),
+        ]
+        df_eipwp = gpd.GeoDataFrame(df_eipwp, geometry=points, crs=LV95)
 
         columns_of_year = {
             # Hard coded columns that should be read in the excel sheet of total emissions
             2015: [5, 6, 7, 8, 10, 11, 12, 13, 14, 27],
             2020: [16, 17, 18, 19, 21, 22, 23, 24, 25, 27],
         }
-        total_emission_file = (
-            data_path / "Emissionen-2015-2020-je-Emittentengruppe_2022-11-02.xlsx"
-        )
 
         # Load the excel sheet with the total emissions
         df_emissions = pd.read_excel(
@@ -102,7 +152,11 @@ class SwissRasters(Inventory):
             col[:-2] if col[-2:] == ".1" else col for col in df_emissions.columns
         ]
         df_emissions = df_emissions.rename(
-            columns={"CO2 foss/geog": "CO2", "NMVOC": "VOC"}
+            columns={
+                "CO2 foss/geog": "CO2",
+                "NMVOC": "VOC",
+                "F-Gase": "F-gases",
+            }
         )
         # Remove empty lines at the end of the document
         df_emissions = df_emissions.loc[~pd.isna(df_emissions.index)]
@@ -135,7 +189,7 @@ class SwissRasters(Inventory):
                 "VOC",
                 "SO2",
                 "NH3",
-                "F-Gase",
+                "F-gases",
                 "geometry",
             ]
         ]
@@ -169,7 +223,7 @@ class SwissRasters(Inventory):
         )
 
         mapping = {}
-        print(self.df_emission.keys())
+
         # Loading all the raster categories
         for raster_file, category in zip(self.all_raster_files, self.raster_categories):
             _raster_array = self.load_raster(raster_file).reshape(-1)
@@ -231,3 +285,14 @@ class SwissRasters(Inventory):
             np.save(raster_file.with_suffix(".npy"), src)
             inventory_field = src
         return inventory_field
+
+if __name__ == "__main__":
+    swiss_data_path =  Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
+
+    inv_ch = SwissRasters(
+        data_path=swiss_data_path,
+        rasters_dir=swiss_data_path / "ekat_gridascii",
+        rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
+        requires_grid=False,
+        year=2020,
+    )

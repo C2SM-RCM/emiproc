@@ -1,5 +1,3 @@
-"""Export functions for inventories."""
-
 
 from datetime import datetime
 from os import PathLike
@@ -8,9 +6,8 @@ import xarray as xr
 import numpy as np
 from emiproc.grids import ICONGrid
 from emiproc.inventories import Inventory
-from emiproc.utilities import SEC_PER_YR, compute_country_mask, get_country_mask
+from emiproc.utilities import SEC_PER_YR, compute_country_mask
 
-from emiproc.country_code import country_codes
 
 
 def export_icon_oem(
@@ -93,37 +90,3 @@ def export_icon_oem(
     )
 
     ds_out.to_netcdf(output_file)
-
-
-def export_netcdf(inv: Inventory, path: PathLike):
-    """Export to a netcdf file.
-
-    # TODO: add the grid
-    """
-    n_cells = len(inv.gdf)
-    ds = xr.Dataset(
-        data_vars={
-            "emissions": (
-                ("substance", "category", "ncells"),
-                [
-                    [
-                        inv.gdf[(cat, sub)]
-                        if (cat, sub) in inv.gdf
-                        else np.full(n_cells, np.nan)
-                        for cat in inv.categories
-                    ]
-                    for sub in inv.substances
-                ],
-                {
-                    "name": "emissions",
-                    "unit": "kg/y",
-                    "history": str(inv.history),
-                },
-            )
-        },
-        coords={
-            "substance": inv.substances,
-            "category": inv.categories,
-        },
-    )
-    ds.to_netcdf(Path(path).with_suffix(".nc"))

@@ -6,11 +6,18 @@
 emiproc documentation
 =====================
 
-emiproc is a python package for processing emission inventories, generating
-input files for athmospheric transport models.
+emiproc is a python package to generate emission input files for atmospheric 
+transport models.
 
-It can handle gridded annual emissions inventories, as well as hourly defined
-data.
+It can process inventories available in different formats and on different
+grids and generate input files for models operating on any type of grid
+including complex unstructured grids. It has been designed specifically
+for the models COSMO-ART and ICON-ART but can readily be adapted for other
+models. The output of emiproc is a set of netcdf files with emissions
+mapped onto the model grid. There are two options:
+
+* Single emission file with sector-specific annual mean emissions and additional files describing temporal and vertical profiles and, in case of reactive gases like VOCs, speciation profiles.
+* Separate emission files for each hour of a given time period.
 
 
 .. image:: diagrams/pipeline.drawio.svg
@@ -18,14 +25,14 @@ data.
 Features 
 --------
 
-* Support of different inventories
+* Support of multiple inventories like EDGAR, TNO-CAMS
+* Conservative spatial regridding
 * Exporting to different formats (icon-art, cosmo-art, netcdf rasters)
 * Spatially merging inventories around a region
-* Separate point source handling
+* Separate handling of point sources if desired
 * Categories/Substance selection
-* Groupping categories
-* Plotting the inventory
-* Conservative spatial regridding
+* Re-grouping of emission categories
+* Visualization of the output
 
 Contents 
 --------
@@ -39,6 +46,7 @@ Contents
    api
    tutos/tutorials
    support
+   bibliography
 
 
 

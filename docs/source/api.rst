@@ -19,6 +19,10 @@ Inventory Operators
 
 .. autofunction:: emiproc.inventories.utils.combine_inventories
 
+.. autofunction:: emiproc.inventories.utils.scale_inventory
+
+.. autofunction:: emiproc.inventories.utils.get_total_emissions
+
 Geometric Transformations 
 -------------------------
 
@@ -41,7 +45,7 @@ Categories Manipulations
 Exporting 
 ---------
 
-.. autofunction:: emiproc.inventories.exports.export_icon_oem
+.. autofunction:: emiproc.exports.icon.export_icon_oem
 
-.. autofunction:: emiproc.inventories.exports.export_netcdf
+.. autofunction:: emiproc.exports.rasters.export_netcdf
     
