@@ -14,11 +14,15 @@ from emiproc.profiles.vertical_profiles import (
     VerticalProfiles,
     check_valid_vertical_profile,
 )
-from emiproc.profiles.operators import weighted_combination
+from emiproc.profiles.operators import (
+    weighted_combination,
+    combine_profiles,
+    get_weights_of_gdf_profiles,
+)
 
 # %%
 inv, inv_with_pnt_sources
-#%%
+#%% Create test profiles
 test_profiles = [
     VerticalProfile(np.array([0, 0.3, 0.7, 0.0]), np.array([15, 30, 60, 100])),
     VerticalProfile(
@@ -87,15 +91,15 @@ def test_invalid_vertical_profiles():
 
 test_invalid_vertical_profiles()
 
-#%%
+#%% Create a test geodataframe
 gdf = gpd.GeoDataFrame(
     {
         ("test_cat", "CO2"): [i for i in range(4)],
         ("test_cat", "CH4"): [i + 3 for i in range(4)],
-        ("test_cat", "NH3"): [2 * i for i in range(4)],
+        # ("test_cat", "NH3"): [2 * i for i in range(4)],
         ("test_cat2", "CO2"): [i + 1 for i in range(4)],
         ("test_cat2", "CH4"): [i + 1 for i in range(4)],
-        ("test_cat2", "NH3"): [i + 1 for i in range(4)],
+        # ("test_cat2", "NH3"): [i + 1 for i in range(4)],
     },
     geometry=gpd.GeoSeries(
         [
@@ -111,54 +115,89 @@ gdf
 # -1 is when the profile is not defined
 corresponding_vertical_profiles = xr.DataArray(
     [
-        [[0, -1, 0, 0], [0, 2, 0, 0], [0, 0, 0, 0]],
-        [[0, 0, -1, 0], [0, 0, -1, 0], [0, 1, 0, 0]],
+        [[0, -1, 0, 2], [0, 2, 0, 0], [0, 0, 0, 0]],
+        [[0, -1, -1, 1], [0, 0, -1, 0], [0, 1, 0, 0]],
     ],
     dims=("category", "substance", "cell"),
     coords={
         "category": ["test_cat", "test_cat2"],
         "substance": (substances := ["CH4", "CO2", "NH3"]),
-        "cell": (cells :=[0, 1, 2, 3]),
+        "cell": (cells := [0, 1, 2, 3]),
     },
 )
 corresponding_vertical_profiles
 
 
+#%% select a subset
 
-#%% get the weights associatied to each profile
 categories = ["test_cat", "test_cat2"]
-sa = corresponding_vertical_profiles.sel({"category": categories})
-weights = xr.full_like(sa, np.nan)
-for cat in categories:
-    for sub in substances:
-        serie = gdf.loc[:, (cat,sub)]
-        weights.loc[dict(category=cat, substance=sub)] = (
-            # if depend dont get the total of the serie
-            serie if 'cell' in sa.dims else sum(serie)
-        )
-weights
+selected_profile_indexes = corresponding_vertical_profiles.sel({"category": categories})
+selected_profile_indexes
+#%% get the weights associatied to each profile
 
+
+weights = get_weights_of_gdf_profiles(gdf, selected_profile_indexes)
+weights
 #%% Make an average over the category taking care of putting the weights on the profiles where they should go
 
-new_profiles = np.average(
-    # Access the profile data 
-    test_profiles2.ratios[corresponding_vertical_profiles, :],
-    axis=sa.dims.index('category'),
-    # Weights must be extended on the last dimension such that a weight can take care of the whole time index
-    weights=np.repeat(weights.to_numpy().reshape(*weights.shape, 1), len(test_profiles2.height), -1)
-)
-new_profiles
 
-#%% Get a unique set of profiles
+def test_combination_over_dimensions():
 
-unique_profiles, inverse = np.unique(new_profiles.reshape(-1, new_profiles.shape[-1]), axis=0, return_inverse=True)
-unique_profiles, inverse
+    new_profiles, new_indexes = combine_profiles(
+        test_profiles2,
+        selected_profile_indexes,
+        "cell",
+        weights,
+    )
 
-#%% Create the new profiles xr.datarray of this group
-shape = list(sa.shape)
-shape.pop(sa.dims.index('category'))
-# These are now the indexes of this category
-this_category= inverse.reshape(shape)
+    # Missing data
+    assert all(new_indexes.sel(dict(substance="NH3")) == -1)
+    # The missing data must have been merged (not all were missing)
+    assert ~any(new_indexes.sel(dict(substance="CH4")) == -1)
+    # Access the profiles we want to compare (orginal of cat 0 and 1 for CH4 )
+    assert np.allclose(
+        new_profiles.ratios[
+            new_indexes.sel(dict(substance="CH4", category="test_cat"))
+        ],
+        np.array([0.0, 0.3, 6.8/14, 3./14]),
+    )
+    assert np.allclose(
+        new_profiles.ratios[
+            new_indexes.sel(dict(substance="CH4", category="test_cat2"))
+        ],
+        np.array([0.08, 0.22, 0.7, 0.0]),
+    )
+
+    check_valid_vertical_profile(new_profiles)
+    new_profiles, new_indexes = combine_profiles(
+        test_profiles2,
+        selected_profile_indexes,
+        "category",
+        weights,
+    )
+    # Missing data
+    assert all(new_indexes.sel(dict(substance="NH3")) == -1)
+    assert new_indexes.sel(dict(cell=1, substance="CH4")) == -1
+    # Access the profiles we want to compare (orginal of cells 0, 2, 3 for CH4 )
+    indexes_of_CH4 = new_indexes.sel(dict(substance="CH4"))
+    assert np.all(new_profiles.ratios[indexes_of_CH4[0]] == test_profiles2.ratios[0])
+    assert np.all(new_profiles.ratios[indexes_of_CH4[2]] == test_profiles2.ratios[0])
+    assert np.allclose(
+        new_profiles.ratios[indexes_of_CH4[3]], np.array([0.04, 0.26, 0.4, 0.3])
+    )
+
+    check_valid_vertical_profile(new_profiles)
+    new_profiles, new_indexes = combine_profiles(
+        test_profiles2,
+        selected_profile_indexes,
+        "substance",
+        weights,
+    )
+    check_valid_vertical_profile(new_profiles)
+
+
+test_combination_over_dimensions()
+
 
 # TODO: make it a loop over the different groups from the dict
 # TODO: make sure to concatenate correctly the indexes
