@@ -13,6 +13,7 @@ from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
     check_valid_vertical_profile,
+    get_mid_heights,
 )
 from emiproc.profiles.operators import (
     weighted_combination,
@@ -44,6 +45,29 @@ test_profiles2 = VerticalProfiles(
 for p in test_profiles:
     check_valid_vertical_profile(p)
 check_valid_vertical_profile(test_profiles2)
+
+# %% test grouppping profiles
+
+# Find the boundary of the height levels
+heights = np.unique(np.concatenate([p.height for p in test_profiles]))
+
+from scipy.interpolate import interp1d
+p = test_profiles2
+p = test_profiles[0]
+interpolated_ratios = interp1d(get_mid_heights(p.height),p.ratios,bounds_error=False, fill_value=0)(get_mid_heights(heights))
+if isinstance(p, VerticalProfiles):
+    return 
+    interpolated_ratios / interpolated_ratios.sum(axis=1).reshape(-1, 1)
+else:
+    interpolated_ratios / interpolated_ratios.sum()
+#%% test addition
+def test_addition_vertical_profiles():
+    new_profiles = test_profiles2 + test_profiles2
+    assert new_profiles.n_profiles == 2* test_profiles2.n_profiles
+
+    # Check we can also do +=
+    new_profiles += test_profiles2
+    assert new_profiles.n_profiles == 3* test_profiles2.n_profiles
 
 #%%
 def test_weighted_combination():

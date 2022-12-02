@@ -61,7 +61,7 @@ def combine_profiles(
 
     # Perform the average on the profiles
     new_profiles = np.average(
-        # Access the profile data
+        # Access the profile data (this adds a new dim to the array)
         profiles.ratios[profiles_indexes, :],
         # Find the specified dimension of the profiles
         axis=profiles_indexes.dims.index(dimension),

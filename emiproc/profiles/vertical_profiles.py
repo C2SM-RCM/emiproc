@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
+from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum, auto
 import time
 import numpy as np
 import netCDF4
+from scipy.interpolate import interp1d
 
 
 @dataclass
@@ -45,6 +48,60 @@ class VerticalProfiles:
     @property
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
+    
+    def __add__(self, other: VerticalProfiles):
+        assert isinstance(other, VerticalProfiles)
+        assert np.allclose(other.height, self.height)
+
+        return VerticalProfiles(
+            height=self.height,
+            ratios=np.concatenate([self.ratios, other.ratios], axis=0)
+        )
+
+class GroupingMethod(Enum):
+    KEEP_ALL_LEVELS = auto()
+
+
+def get_mid_heights(max_heights: np.ndarray) -> np.ndarray:
+    """Get the mid position of the height based on emiproc convention for height levels."""
+    min_height = np.roll(max_heights, 1)
+    # First level start at 0
+    min_height[0] = 0
+    mid_heights = (max_heights + min_height) / 2
+    return mid_heights
+
+def group_vertical_profiles(
+    *profiles: VerticalProfile | VerticalProfiles,
+    specified_levels: np.ndarray | None
+) -> VerticalProfiles:
+    """Group vertical profiles into one vertical profiles object.
+    
+    Allows for profiles of different height levels to be groupped into one.
+    Sample the profile on the heights level given.
+    
+    Uses baseic interpolation (np.interp) and rescaling.
+
+    :arg specified_levels: If this is specified, you can select an arbitray 
+        scale on which to reproject. If not specified, all the levels found
+        in the profiles will be used.
+    """
+
+    # Find the levels we want to use
+    levels = specified_levels | np.unique(np.concatenate([p.height for p in profiles]))
+    
+    out_ratios = []
+    for p in profiles:
+        interpolated_ratios = interp1d(get_mid_heights(p.height),p.ratios,bounds_error=False, fill_value=0)(get_mid_heights(levels))
+        if isinstance(p, VerticalProfiles):
+            out_ratios.append(
+            interpolated_ratios / interpolated_ratios.sum(axis=1).reshape(-1, 1)
+            ) 
+        else:
+            out_ratios.append(
+            interpolated_ratios / interpolated_ratios.sum()
+            )
+        
+    return VerticalProfiles(np.concatenate(out_ratios, axis=0), levels)
 
 
 def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalProfiles):
