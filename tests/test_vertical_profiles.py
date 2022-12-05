@@ -14,6 +14,9 @@ from emiproc.profiles.vertical_profiles import (
     VerticalProfiles,
     check_valid_vertical_profile,
     get_mid_heights,
+    rescale_vertical_profiles,
+    get_weights_profiles_interpolation,
+    get_delta_h,
 )
 from emiproc.profiles.operators import (
     weighted_combination,
@@ -45,29 +48,61 @@ test_profiles2 = VerticalProfiles(
 for p in test_profiles:
     check_valid_vertical_profile(p)
 check_valid_vertical_profile(test_profiles2)
+#%%
 
-# %% test grouppping profiles
 
-# Find the boundary of the height levels
-heights = np.unique(np.concatenate([p.height for p in test_profiles]))
+def test_weights_interpolation():
+    from_h = np.array([5, 10, 40, 100, 120])
+    levels = np.array([2, 8, 10, 50, 80])
+    w = get_weights_profiles_interpolation(from_h, levels)
 
-from scipy.interpolate import interp1d
-p = test_profiles2
-p = test_profiles[0]
-interpolated_ratios = interp1d(get_mid_heights(p.height),p.ratios,bounds_error=False, fill_value=0)(get_mid_heights(heights))
-if isinstance(p, VerticalProfiles):
-    return 
-    interpolated_ratios / interpolated_ratios.sum(axis=1).reshape(-1, 1)
-else:
-    interpolated_ratios / interpolated_ratios.sum()
+    assert w[0, 0] == 2/5
+    assert w[-1, -1] == 1.
+    assert w[1, 0] == 3/5
+
+
+#%%
+
+
+def test_rescale():
+    # We just test it runs
+    new_profiles = rescale_vertical_profiles(
+        *test_profiles, test_profiles2, specified_levels=[0, 10, 20, 40, 50, 60]
+    )
+
+    # Visual check
+    # start_from_0 = lambda arr: np.hstack([0, arr])
+    # start_from_1 = lambda arr: np.hstack([1, arr])
+    # for i, profile in enumerate(test_profiles):
+    #     plt.figure()
+    #     plot_profile = lambda h, r, **kwargs: plt.step(
+    #         start_from_0(h),
+    #         # np.cumsum(start_from_0(r)),
+    #         start_from_0(r) / start_from_1(get_delta_h(h)),
+    #         where="pre",
+    #         **kwargs
+    #     )
+    #     plot_profile(new_profiles.height, new_profiles.ratios[i])
+    #     plot_profile(profile.height, profile.ratios, linestyle='--')
+    #     plt.show()
+
+
+#%%
+def test_mid_heights():
+    assert np.allclose(
+        get_mid_heights(np.array([10, 20, 40, 50])), np.array([5, 15, 30, 45])
+    )
+
+
 #%% test addition
 def test_addition_vertical_profiles():
     new_profiles = test_profiles2 + test_profiles2
-    assert new_profiles.n_profiles == 2* test_profiles2.n_profiles
+    assert new_profiles.n_profiles == 2 * test_profiles2.n_profiles
 
     # Check we can also do +=
     new_profiles += test_profiles2
-    assert new_profiles.n_profiles == 3* test_profiles2.n_profiles
+    assert new_profiles.n_profiles == 3 * test_profiles2.n_profiles
+
 
 #%%
 def test_weighted_combination():
@@ -183,7 +218,7 @@ def test_combination_over_dimensions():
         new_profiles.ratios[
             new_indexes.sel(dict(substance="CH4", category="test_cat"))
         ],
-        np.array([0.0, 0.3, 6.8/14, 3./14]),
+        np.array([0.0, 0.3, 6.8 / 14, 3.0 / 14]),
     )
     assert np.allclose(
         new_profiles.ratios[
