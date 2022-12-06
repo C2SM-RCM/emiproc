@@ -72,10 +72,14 @@ class TNO_Inventory(Inventory):
         super().__init__()
 
         nc_file = Path(nc_file)
+        if not nc_file.is_file():
+            raise FileNotFoundError(
+                f"TNO Inventory file {nc_file} is not a file."
+            )
 
         self.name = nc_file.stem
 
-        ds = xr.load_dataset(nc_file)
+        ds = xr.load_dataset(nc_file, engine="netcdf4")
 
         self.grid = TNOGrid(nc_file)
 
@@ -153,13 +157,17 @@ class TNO_Inventory(Inventory):
 
         # Vertical Profiles are read from a file
         self.v_profiles, profiles_categories = read_vertical_profiles(nc_file.with_name("TNO_height-distribution_GNFR.csv"))
+        
         # Set the matching of the profiles
-        self.gdf_v_profiles = xr.DataArray(
+        self.v_profiles_indexes = xr.DataArray(
             np.arange(len(profiles_categories), dtype=int),
             dims=("category"),
             coords={"category": profiles_categories}
         )
 
+        # Set the vertical profiles to the points sources
+        for cat_name, gdf in self.gdfs.items():
+            gdf["_v_profile"] = profiles_categories.index(cat_name)
         
 
 if __name__ == "__main__":
