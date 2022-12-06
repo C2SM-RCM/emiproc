@@ -14,7 +14,7 @@ from emiproc.profiles.vertical_profiles import (
     VerticalProfiles,
     check_valid_vertical_profile,
     get_mid_heights,
-    rescale_vertical_profiles,
+    resample_vertical_profiles,
     get_weights_profiles_interpolation,
     get_delta_h,
 )
@@ -66,7 +66,7 @@ def test_weights_interpolation():
 
 def test_rescale():
     # We just test it runs
-    new_profiles = rescale_vertical_profiles(
+    new_profiles = resample_vertical_profiles(
         *test_profiles, test_profiles2, specified_levels=[0, 10, 20, 40, 50, 60]
     )
 

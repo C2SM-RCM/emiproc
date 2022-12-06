@@ -124,16 +124,19 @@ def get_weights_profiles_interpolation(
     return diff / diff.sum(axis=0)
 
 
-def rescale_vertical_profiles(
+def resample_vertical_profiles(
     *profiles: VerticalProfile | VerticalProfiles,
     specified_levels: np.ndarray | None = None,
 ) -> VerticalProfiles:
-    """Rescale vertical profiles into one vertical profiles object.
+    """Resample vertical profiles into one vertical profiles object.
 
     Allows for profiles of different height levels to be groupped into one.
     Sample the profile on the heights level given.
 
-    Uses a conservative interpolation method.
+    Uses a conservative interpolation method, that ensure that 
+    even on higher resolution the profile will be exactly the same.
+    Note that this sometimes has no physical sense and a linear 
+    interpolation when using profiles at higher resolutions
 
     :arg specified_levels: If this is specified, you can select an arbitray
         scale on which to reproject. If not specified, all the levels found
