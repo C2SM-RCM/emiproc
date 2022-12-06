@@ -41,6 +41,9 @@ classifiers = [
 
 dynamic = ["version"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 
 [tool.setuptools.packages.find]
 include = ["emiproc"]  # package names should match these glob patterns (["*"] by default)
