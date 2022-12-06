@@ -8,6 +8,8 @@ import geopandas as gpd
 from shapely.geometry import Polygon
 
 from emiproc.inventories import Inventory
+from emiproc.inventories.tno import TNO_Inventory
+from emiproc.inventories.utils import group_categories
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
@@ -24,8 +26,7 @@ from emiproc.profiles.operators import (
     get_weights_of_gdf_profiles,
 )
 
-# %%
-inv, inv_with_pnt_sources
+
 #%% Create test profiles
 test_profiles = [
     VerticalProfile(np.array([0, 0.3, 0.7, 0.0]), np.array([15, 30, 60, 100])),
@@ -56,9 +57,9 @@ def test_weights_interpolation():
     levels = np.array([2, 8, 10, 50, 80])
     w = get_weights_profiles_interpolation(from_h, levels)
 
-    assert w[0, 0] == 2/5
-    assert w[-1, -1] == 1.
-    assert w[1, 0] == 3/5
+    assert w[0, 0] == 2 / 5
+    assert w[-1, -1] == 1.0
+    assert w[1, 0] == 3 / 5
 
 
 #%%
@@ -255,12 +256,55 @@ def test_combination_over_dimensions():
     check_valid_vertical_profile(new_profiles)
 
 
-test_combination_over_dimensions()
+#%% test with an inventory
+from shapely.geometry import Point
+
+inv = Inventory.from_gdf(
+    gdf,
+    # Add some point sources
+    gdfs={
+        "test_cat": gpd.GeoDataFrame(
+            {
+                "CO2": [1, 2, 3],
+                "_v_profile": [-1, 2, 1],
+            },
+            geometry=[Point(0.75, 0.75), Point(0.25, 0.25), Point(1.2, 1)],
+        ),
+        "test_cat2": gpd.GeoDataFrame(
+            {
+                "CO2": [1.2, 2.7, 8],
+                "CH4": [4, 2, 8],
+                "_v_profile": [1, 2, -1],
+            },
+            geometry=[Point(0.65, 0.75), Point(1.1, 0.8), Point(1.2, 1)],
+        ),
+        "test_cat3": gpd.GeoDataFrame(
+            {"CO2": [1, 2]},
+            geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
+        ),
+    },
+)
 
 
-# TODO: make it a loop over the different groups from the dict
-# TODO: make sure to concatenate correctly the indexes
-# TODO: try to make it a function working for merging over categories or cell as well
+inv.v_profiles = test_profiles2
+inv.v_profiles_indexes = corresponding_vertical_profiles
+
+g_inv = group_categories(
+    inv, {"new_cat": ["test_cat"], "new_cat2": ["test_cat2", "test_cat3"]}
+)
+g_inv = group_categories(inv, {"new_cat": ["test_cat", "test_cat2", "test_cat3"]})
+g_inv.gdfs
+
+
+def test_point_sources_are_just_appened():
+    assert len(g_inv.gdfs["new_cat"]) == 8
+    # Check that the data was correctly appended
+    assert np.all(g_inv.gdfs["new_cat"]["CO2"] == [1, 2, 3, 1.2, 2.7, 8, 1, 2])
+    assert np.all(g_inv.gdfs["new_cat"]["CH4"] == [0, 0, 0, 4, 2, 8, 0, 0])
+    assert np.all(g_inv.gdfs["new_cat"]["_v_profile"] == [-1, 2, 1, 1, 2, -1, -1, -1])
+
+
+
 # %% Create hourly profiles
 def check_valid_profiles_indexes_array(inv: Inventory, index_array: xr.DataArray):
     for cat, sub in inv._gdf_columns:

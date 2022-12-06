@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,6 +29,9 @@ class VerticalProfile:
     ratios: np.ndarray
     height: np.ndarray
 
+    @property
+    def n_profiles(self) -> int:
+        return 1
 
 @dataclass
 class VerticalProfiles:
@@ -49,6 +50,13 @@ class VerticalProfiles:
     @property
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
+    
+    def copy(self):
+        """Make a deep copy of the profiles."""
+        return VerticalProfiles(
+            self.ratios.copy(),
+            self.height.copy(),
+        )
 
     def __add__(self, other: VerticalProfiles):
         assert isinstance(other, VerticalProfiles)
@@ -133,9 +141,9 @@ def resample_vertical_profiles(
     Allows for profiles of different height levels to be groupped into one.
     Sample the profile on the heights level given.
 
-    Uses a conservative interpolation method, that ensure that 
+    Uses a conservative interpolation method, that ensure that
     even on higher resolution the profile will be exactly the same.
-    Note that this sometimes has no physical sense and a linear 
+    Note that this sometimes has no physical sense and a linear
     interpolation when using profiles at higher resolutions
 
     :arg specified_levels: If this is specified, you can select an arbitray

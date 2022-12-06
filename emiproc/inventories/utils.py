@@ -12,11 +12,14 @@ import fiona
 import geopandas as gpd
 import pandas as pd
 import numpy as np
+import xarray as xr
 
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.grids import Grid
 
 from emiproc.regrid import geoserie_intersection
+from emiproc.profiles.operators import combine_profiles, get_weights_of_gdf_profiles
+from emiproc.profiles.vertical_profiles import VerticalProfiles
 
 if TYPE_CHECKING:
     from emiproc.inventories import Inventory
@@ -148,8 +151,7 @@ def crop_with_shape(
                     )
                 # Load cached shapes
                 gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(
-                    shapes_file, 
-                    engine="pyogrio"
+                    shapes_file, engine="pyogrio"
                 )
                 # Index was set with cache
                 intersection_shapes = gdf_cached_shapes.set_index(
@@ -230,6 +232,11 @@ def group_categories(
 ) -> Inventory:
     """Group the categories of an inventory in new categories.
 
+    Total emissions are summed among the categories.
+    Vertical profiles are weightly averaged, such that the profiles
+    of a category with higher emission is more taken into account.
+    Point sources vertical profiles are not modified.
+
     :arg inv: The Inventory to group.
     :arg categories_group: A mapping of which groups should be greated
         out of which categries. This will be checked using
@@ -266,6 +273,13 @@ def group_categories(
     out_inv.gdfs = {}
     for group, categories in categories_group.items():
         group_gdfs = [inv.gdfs[cat] for cat in categories if cat in inv.gdfs]
+
+        # Add missing profile -1 to the gdfs having no _v_profile column
+        if any(("_v_profile" in gdf.columns for gdf in group_gdfs)):
+            for gdf in group_gdfs:
+                if "_v_profile" not in gdf.columns:
+                    gdf["_v_profile"] = -1
+
         if group_gdfs:
             if len(group_gdfs) == 1:
                 # Case only one dataframe is registered
@@ -276,8 +290,44 @@ def group_categories(
                 # Na values are no emission, replaces nan by 0
                 out_inv.gdfs[group] = df_merged.mask(pd.isna(df_merged), 0.0)
 
-    inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
-    inv._groupping = categories_group
+    # Group the vertical profiles
+    # we group only on the gdf, as the gdfs will keep their own profiles
+    if (
+        inv.v_profiles is not None
+        # if they don't depend on category, we don't need to do anything
+        and "category" in inv.v_profiles_indexes.dims
+    ):
+        groups_indexes_list = []
+        for group, categories in categories_group.items():
+            # Get the profiles we are interested in present in the gdf
+            cats_in_gdf = [
+                c for c in categories if c in [col[0] for col in inv._gdf_columns]
+            ]
+            cats_profiles = inv.v_profiles_indexes.sel(category=cats_in_gdf)
+            new_profiles, group_indexes = combine_profiles(
+                inv.v_profiles,
+                cats_profiles,
+                dimension="category",
+                weights=get_weights_of_gdf_profiles(inv.gdf, cats_profiles),
+            )
+            group_indexes.expand_dims({"category": [group]})
+
+            # Offset the indexes for merging with the profiles
+            groups_indexes_list.append(
+                xr.where(
+                    group_indexes != -1,
+                    group_indexes + out_inv.v_profiles.n_profiles,
+                    -1,
+                )
+            )
+            out_inv.v_profiles += new_profiles
+
+        # Replace the old indexes by the new
+        new_v_indices = xr.concat(groups_indexes_list, dim="category")
+        inv.history.append(f"Generated new vertical profiles for groupping.")
+        out_inv.v_profiles_indexes = new_v_indices
+
+    out_inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
 
     return out_inv
 
@@ -349,10 +399,10 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
     """Get the total emissions from the inventory.
 
     :arg inv: The inventory from which to get the total emissions.
-    
+
     :return: A dictionary mapping substances to another dictionary
         which maps categories to values.
-        A '__total__' key will be created in each substnace mapping 
+        A '__total__' key will be created in each substnace mapping
         with the total of all the categories.
 
         For exemple ::
@@ -373,12 +423,12 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
 
     # Preapre the output dictionary
     out_dic = {sub: {} for sub in inv.substances}
-    
+
     # First look for the emissions in the gdf
     for cat, sub in inv._gdf_columns:
         # Calculate the total sum
         out_dic[sub][cat] = inv.gdf[(cat, sub)].sum()
-    
+
     # Second look for the emissions in the gdfs
     for cat, gdf in inv.gdfs.items():
         for sub in inv.substances:
@@ -389,22 +439,25 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
                 out_dic[sub][cat] = 0
             # Add the total emissions
             out_dic[sub][cat] += gdf[sub].sum()
-    # Add the total 
+    # Add the total
     for dic in out_dic.values():
-        dic['__total__'] = sum(dic.values())
+        dic["__total__"] = sum(dic.values())
 
     return out_dic
 
-def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -> Inventory:
+
+def scale_inventory(
+    inv: Inventory, scaling_dict: dict[str, dict[str, float]]
+) -> Inventory:
     """Get the total emissions from the inventory.
 
     :arg inv: The inventory from which to get the total emissions.
-    
+
     :arg scaling_dict: A dictionary mapping substances to another dictionary
         which maps categories to values.
         The values must be scaling factor, which will multiply all the objects
         from the inventory with matching categories and substance.
-        
+
         If a category/substance is not in the dict, it will not be scaled.
         For exemple ::
 
@@ -417,12 +470,12 @@ def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -
                     "cat2": 1.2,
                 },
             }
-            
+
     :return: A new inventory with its emission values rescaled.
     """
     # Deep copy of the inventory
     inv = inv.copy()
-    
+
     # Iterate over the scaling dict to multiply the values
     for sub, sub_dict in scaling_dict.items():
         for cat, scaling_factor in sub_dict.items():
@@ -433,6 +486,7 @@ def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -
 
     inv.history.append(f"Rescaled using {scaling_dict=}")
     return inv
+
 
 def combine_inventories(
     inv_inside: Inventory,

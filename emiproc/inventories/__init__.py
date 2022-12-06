@@ -46,8 +46,8 @@ class Inventory:
         In this case gdf must be set to None and gdfs will be
         a dictionnary mapping only the categories desired.
 
-    :attr v_profiles: A list of available vertical profiles.
-    :attr gdf_v_profiles: A :py:class:`xarray.DataArray` storing the information
+    :attr v_profiles: A vertical profiles object.
+    :attr v_profiles_indexes: A :py:class:`xarray.DataArray` storing the information
         of which vertical profile belongs to which cell/category/substance.
         This allow to map each single emission value from the gdf to a specific
         profile.
@@ -71,8 +71,8 @@ class Inventory:
     gdfs: dict[str, gpd.GeoDataFrame]
     geometry: gpd.GeoSeries
 
-    v_profiles: list[VerticalProfile | VerticalProfiles] | None = None
-    gdf_v_profiles: xr.DataArray | None = None
+    v_profiles: VerticalProfiles | None = None
+    v_profiles_indexes: xr.DataArray | None = None
 
     history: list[str]
 
@@ -141,7 +141,7 @@ class Inventory:
             subs.remove("geometry")
         return subs
 
-    def copy(self, no_gdfs: bool = False) -> Inventory:
+    def copy(self, no_gdfs: bool = False, no_v_profiles: bool = False) -> Inventory:
         """Copy the inventory."""
         inv = Inventory()
         inv.__class__ = self.__class__
@@ -158,6 +158,10 @@ class Inventory:
                 inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in self.gdfs.items()}
             else:
                 inv.gdfs = {}
+        
+        if not no_v_profiles and self.v_profiles is not None:
+            inv.v_profiles = self.v_profiles.copy()
+            inv.v_profiles_indexes = self.v_profiles_indexes.copy()
 
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
