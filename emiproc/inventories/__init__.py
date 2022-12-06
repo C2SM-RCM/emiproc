@@ -14,6 +14,10 @@ import numpy as np
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)
+# Represent a category of emissions.
+Category = NewType("Category", str)
+# A colum from the gdf
+CatSub = tuple[Category, Substance]
 
 
 class Inventory:
