@@ -42,6 +42,13 @@ Categories Manipulations
 .. autofunction:: emiproc.inventories.utils.group_categories
 
 
+Speciation
+----------
+
+.. autofunction:: emiproc.speciation.speciate_inventory
+
+.. autofunction:: emiproc.speciation.speciate_nox
+
 Exporting 
 ---------
 
