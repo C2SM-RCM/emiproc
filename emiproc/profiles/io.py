@@ -1,4 +1,4 @@
-
+"""Legacy file from v1"""
 import numpy as np
 
 def read_tracer_profiles(tracers, hod_input_file, dow_input_file, moy_input_file):

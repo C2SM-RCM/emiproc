@@ -1,4 +1,4 @@
-
+"""Legacy file from v1"""
 
 from fnmatch import fnmatch
 import os

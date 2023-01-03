@@ -1,3 +1,4 @@
+"""Legacy file from v1"""
 catlist_prelim = [
     [
         'co2_ff_A_AREA_TNO',

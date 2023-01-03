@@ -1,5 +1,6 @@
-"""
-Classes handling different grids, namely the COSMO simulation grid and
+"""Emiproc Grids.
+
+Classes handling different grids, namely the simulation grids and
 grids used in different emissions inventories.
 """
 from functools import cache, cached_property

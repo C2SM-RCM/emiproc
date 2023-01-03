@@ -1,4 +1,4 @@
-"""Differnt tools for doing the weights remapping."""
+"""Different functions for doing the weights remapping."""
 from __future__ import annotations
 import logging
 from pathlib import Path

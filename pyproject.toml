@@ -24,7 +24,6 @@ dependencies = [
     "geopandas",
     "cartopy",
     "netCDF4",
-    "numba",
     "scipy",
     "shapely",
     "xarray",

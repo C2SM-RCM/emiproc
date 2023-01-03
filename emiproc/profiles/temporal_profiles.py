@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
+"""Legacy file from v1"""
+
 """
 Script to create netCDF-files containing temporal emission factors.
 The structure of the generated files is as follows:

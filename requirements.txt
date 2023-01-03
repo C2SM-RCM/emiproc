@@ -1,8 +1,0 @@
-numpy
-cartopy
-netCDF4
-numba
-shapely
-xarray
-geopandas
-rasterio

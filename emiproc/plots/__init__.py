@@ -1,3 +1,4 @@
+"""Few plot functions for the emiproc package."""
 from os import PathLike
 from pathlib import Path
 import geopandas as gpd
@@ -13,8 +14,6 @@ from matplotlib.colors import LogNorm
 from emiproc.plots import nclcmaps
 from emiproc.inventories import Inventory
 from emiproc.regrid import get_weights_mapping, weights_remap
-
-mpl.style.use("default")
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
