@@ -14,7 +14,7 @@ First create a folder for emiproc and go into it
 
 Clone the repository::
 
-    git clone https://github.com/C2SM-RCM/cosmo-emission-processing.git .
+    git clone https://github.com/C2SM-RCM/emiproc.git .
 
 
 Then install using pip.

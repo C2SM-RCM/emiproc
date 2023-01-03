@@ -4,7 +4,7 @@ Tutorials
 Many examples of using emiproc can be found in the folder 
 examples from the github repository:
 
-https://github.com/C2SM-RCM/cosmo-emission-processing/tree/master/scripts
+https://github.com/C2SM-RCM/emiproc/tree/master/scripts
 
 .. toctree::
     :maxdepth: 2
