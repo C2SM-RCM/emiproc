@@ -1,13 +1,7 @@
-#%%
-import pandas as pd
 from pathlib import Path
-import numpy as np
 import geopandas as gpd
-from typing import Any, Iterable
-from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.inventories.utils import add_inventories, crop_with_shape
-from emiproc.plots import explore_inventory, explore_multilevel
-from emiproc.utilities import ProgressIndicator
+from shapely.geometry import Point,  Polygon
+from emiproc.inventories.utils import crop_with_shape
 from emiproc.regrid import (
     calculate_weights_mapping,
     geoserie_intersection,
@@ -15,8 +9,7 @@ from emiproc.regrid import (
     remap_inventory,
 )
 from emiproc.inventories import Inventory
-from emiproc.grids import GeoPandasGrid
-from emiproc.inventories.utils import group_categories
+from emiproc.tests_utils import WEIGHTS_DIR
 
 
 serie = gpd.GeoSeries(
@@ -111,7 +104,7 @@ def test_with_gdfs():
     assert cropped.gdfs["other"]['AITS'].iloc[2] == 4 / 8
 
 def test_with_modify_grid_and_cached():
-    w_file = Path('.emiproc_test_with_modify_grid_and_cached')
+    w_file = WEIGHTS_DIR / '.emiproc_test_with_modify_grid_and_cached'
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
     assert 4 not in cropped.gdf.index

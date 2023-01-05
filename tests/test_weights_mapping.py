@@ -1,20 +1,12 @@
+"""Test the weights mapping function."""
 from __future__ import annotations
-import pandas as pd
-from pathlib import Path
-import numpy as np
+
+import pytest
 import geopandas as gpd
 from typing import Any, Iterable
-from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.regrid import (
-    calculate_weights_mapping,
-    geoserie_intersection,
-    get_weights_mapping,
-    remap_inventory,
-)
-from emiproc.inventories import Inventory
-from emiproc.grids import GeoPandasGrid
-from emiproc.inventories.utils import group_categories
-import pytest
+from shapely.geometry import Point, Polygon
+from emiproc.regrid import calculate_weights_mapping
+
 
 # Create the geometetries of an inventory
 squares = gpd.GeoSeries(
@@ -168,6 +160,7 @@ def test_points():
         weights_points_to_square,
     )
 
+
 def test_points_on_triangles():
     check_equal_to_weights(
         calculate_weights_mapping(points, triangles, loop_over_inv_objects=True),
@@ -181,5 +174,3 @@ def test_points_not_vect_raise_error():
             calculate_weights_mapping(points, squares, loop_over_inv_objects=False),
             weights_points_to_square,
         )
-
-

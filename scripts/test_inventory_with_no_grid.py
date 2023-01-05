@@ -2,12 +2,9 @@
 """
 
 
-#%%
 import pandas as pd
-from pathlib import Path
-import numpy as np
 import geopandas as gpd
-from typing import Any, Iterable
+
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.inventories.utils import crop_with_shape
 from emiproc.plots import explore_inventory, explore_multilevel
@@ -22,7 +19,7 @@ from emiproc.inventories import Inventory
 from emiproc.grids import GeoPandasGrid
 from emiproc.inventories.utils import group_categories
 
-#%% Create the geometetries of an inventory
+#Create the geometetries of an inventory
 serie = gpd.GeoSeries(
     [
         Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
@@ -38,9 +35,7 @@ triangle = Polygon(((0.5, 0.5), (1.5, 0.5), (1.5, 1.5)))
 cropped, weights = geoserie_intersection(
     serie, triangle, keep_outside=True, drop_unused=False
 )
-#%%
-# gdf = gpd.GeoDataFrame({"weights": weights}, geometry=cropped)
-# gdf.explore("weights")
+
 # %% Generate a 'template' inventory
 
 inv = Inventory.from_gdf(
@@ -141,12 +136,6 @@ test_remap_grid_big = GeoPandasGrid(
 )
 
 
-# %%
-import importlib
-import emiproc.inventories.utils
-
-importlib.reload(emiproc.inventories.utils)
-from emiproc.inventories.utils import group_categories
 
 groupped_inv = group_categories(
     inv_with_pnt_sources, {"New": ["liku", "adf", "other"], "other": ["blek"]}

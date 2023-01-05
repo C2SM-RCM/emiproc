@@ -1,11 +1,11 @@
-#%% import the module for doing the speciation
+"""Test the speciation module."""
 from shapely.geometry import Point
 from emiproc.inventories import Inventory
 from emiproc.speciation import speciate_nox, speciate_inventory
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 import numpy as np
 import geopandas as gpd
-#%%
+
 def test_speciate_inventory():
 
     # create a test speciation dictionary
@@ -47,7 +47,6 @@ def test_speciate_inventory():
         0.2 * inv_with_pnt_sources.gdfs["liku"]["CO2"],
     )
 
-#%%
 
 def test_speciate_nox():
     # create a test inventory containg NOx and 2 test categories
@@ -71,4 +70,4 @@ def test_speciate_nox():
     assert np.allclose(s_inv.gdf[("cat1", "NO2")],  0.5 * gdf[("cat1", "NOx")])
     assert np.allclose(s_inv.gdf[("cat2", "NO2")],  0.2 * gdf[("cat2", "NOx")])
 
-# %%
+
