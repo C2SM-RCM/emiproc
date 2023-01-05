@@ -1,13 +1,10 @@
-
+from __future__ import annotations
 import pandas as pd
 from pathlib import Path
 import numpy as np
 import geopandas as gpd
 from typing import Any, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.inventories.utils import crop_with_shape
-from emiproc.plots import explore_inventory, explore_multilevel
-from emiproc.utilities import ProgressIndicator
 from emiproc.regrid import (
     calculate_weights_mapping,
     geoserie_intersection,
@@ -113,7 +110,7 @@ weights_points_to_triangles = [
 
 
 def check_equal_to_weights(
-    weights_tested: dict[str : Iterable[float | int]],
+    weights_tested: dict[str, Iterable[float | int]],
     weights_ref: list[tuple[int, int, float]],
 ):
     # We will remove the weights at each encounter
