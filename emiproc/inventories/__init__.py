@@ -1,16 +1,16 @@
 """Inventories of emissions."""
 from __future__ import annotations
 from copy import deepcopy
-from enum import Enum, auto
+from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from typing import NewType
-from emiproc.grids import LV95, Grid, SwissGrid
-from emiproc.regrid import get_weights_mapping, weights_remap
-import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Point
 import numpy as np
+
+from emiproc.grids import Grid
+from emiproc.regrid import get_weights_mapping, weights_remap
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)
@@ -18,6 +18,33 @@ Substance = NewType("Substance", str)
 Category = NewType("Category", str)
 # A colum from the gdf
 CatSub = tuple[Category, Substance]
+
+
+@dataclass
+class EmissionInfo:
+    """Information about an emission category.
+
+    This additional information is used for some models.
+    It concerns only the :attr:`Inventory.gdfs` features.
+
+    :attr height: The height of the emission source (over the ground).
+    :attr height_over_buildings: If True, the height is taken over buildings.
+    :attr width: The width of the emission source. [m]
+    :attr temperature: The temperature of the emission source. [K]
+    :attr speed: The speed of the emission of the substances. [m/s]
+    :attr comment: A comment about the emission source.
+
+    """
+
+    # Height
+    height: float = 0.0
+    # weight the height is taken over buildings
+    height_over_buildings: bool = True
+
+    width: float = 0.5
+    temperature: float = 353.0
+    speed: float = 5.0
+    comment: str = ""
 
 
 class Inventory:
@@ -29,6 +56,11 @@ class Inventory:
     :attr grid: The grid on which the inventory is.
     :attr substances: The :py:class:`Substance` present in this inventory.
     :attr categories: List of the categories present in the inventory.
+
+    :attr emission_infos: Information about the emissions.
+        Concerns only the :attr:`Inventory.gdfs` features.
+        This is optional, but mandoatory for some models (ex. Gramm-Gral).
+
     :attr gdf: The GeoPandas DataFrame that represent the whole inventory.
         The geometry column contains all the grid cells.
         Optional columns:
@@ -58,7 +90,9 @@ class Inventory:
     name: str
     grid: Grid
     substances: list[Substance]
-    categories: list[str]
+    categories: list[Category]
+    emission_infos: dict[Category, EmissionInfo]
+
     gdf: gpd.GeoDataFrame | None
     gdfs: dict[str, gpd.GeoDataFrame]
     geometry: gpd.GeoSeries
@@ -71,13 +105,32 @@ class Inventory:
         self.history = [f"Created as {type(self).__name__}"]
 
     @property
+    def emission_infos(self) -> dict[Category, EmissionInfo]:
+        if hasattr(self, "_emission_infos"):
+            return self._emission_infos
+        else:
+            raise ValueError(f"'emission_infos' were not set for {self.name}")
+    
+    @emission_infos.setter
+    def emission_infos(self, emission_infos: dict[Category, EmissionInfo]):
+        # Check that the cat is in the emission_infos
+        missing_cats = set(self.categories) - set(emission_infos.keys())
+        if missing_cats:
+            raise ValueError(
+                f"{missing_cats} are not in the emission_infos. "
+                "Please add it to the emission_infos dict."
+            )
+        self._emission_infos = emission_infos
+    
+
+    @property
     def geometry(self) -> gpd.GeoSeries:
         return self.gdf.geometry
 
     @property
     def cell_areas(self) -> np.ndarray:
         """Area of the cells in m2 .
-        
+
         These match the geometry from the gdf.
         """
         if hasattr(self, "_cell_area"):
@@ -222,13 +275,14 @@ class Inventory:
 
     def to_crs(self, *args, **kwargs):
         """Same as geopandas.to_crs() but for inventories.
-        
+
         Perform the conversion in place.
         """
         if self.gdf is not None:
             self.gdf.to_crs(*args, **kwargs, inplace=True)
         for gdf in self.gdfs.values():
             gdf.to_crs(*args, **kwargs, inplace=True)
+
 
 class EmiprocNetCDF(Inventory):
     """An output from emiproc.
