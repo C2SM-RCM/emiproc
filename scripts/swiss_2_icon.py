@@ -17,7 +17,7 @@ from emiproc.inventories.categories_groups import CH_2_GNFR, TNO_2_GNFR, ZH_2_GN
 from emiproc.plots import explore_inventory, explore_multilevel, plot_inventory
 import geopandas as gpd
 import cartopy.io.shapereader as shpreader
-from emiproc.inventories.exports import export_icon_oem
+from emiproc.exports.icon import export_icon_oem
 
 # %% Select the path with my data
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
@@ -41,7 +41,7 @@ inv_ch.gdf
 
 #%% load mapluft
 inv_zh = MapLuftZurich(
-    Path(r"H:\ZurichEmissions\Data\mapLuft_2020_v2021\mapLuft_2020_v2021.gdb")
+    Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\mapLuft_2020_v2021\mapLuft_2020_v2021.gdb"), substances=['CO2', 'CH4']
 )
 
 
@@ -94,7 +94,7 @@ cropped_tno = crop_with_shape(
 
 # %% group the categories
 groupped_ch = group_categories(cropped_ch, CH_2_GNFR)
-groupped_zh = group_categories(cropped_zh, ZH_2_GNFR)
+groupped_zh = group_categories(cropped_zh, ZH_2_GNFR, ignore_missing=True)
 groupped_tno = group_categories(cropped_tno, TNO_2_GNFR)
 
 # Merge the groups

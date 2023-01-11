@@ -113,6 +113,9 @@ def crop_with_shape(
     Point sources at the boundary will have their emissions value divided
     by 2.
 
+    This might removes categories and substances from the inventory, if they
+    are not present anymore !
+
     :arg inv: The inventory to crop.
     :arg shape: The shape around which to crop the inv.
     :arg keep_outside: Whether to keep only the emissions outside of the shape.
@@ -191,6 +194,10 @@ def crop_with_shape(
     inv_out.gdfs = {}
     for cat, gdf in inv.gdfs.items():
         cols = [col for col in inv.substances if col in gdf]
+        if not cols:
+            # No substance of the inventory is in this category
+            # No need to crop anything (cropping this will create accessing error bug later in the loop)
+            continue
 
         mask_points = gdf.geometry.apply(lambda x: isinstance(x, Point))
         if any(mask_points):
@@ -234,6 +241,7 @@ def crop_with_shape(
 def group_categories(
     inv: Inventory,
     categories_group: dict[str, list[str]],
+    ignore_missing: bool = False,
 ) -> Inventory:
     """Group the categories of an inventory in new categories.
 
@@ -241,8 +249,21 @@ def group_categories(
     :arg categories_group: A mapping of which groups should be greated
         out of which categries. This will be checked using
         :py:func:`validate_group` .
+    :arg ignore_missing: If True, function will work even if some categories
+        from the mapping are not in the inventory.
+        Ex. ``{"group1": ["cat1", "cat2"], "group2": ["cat3", "cat4"]}``
+        If ``cat3`` is not in the inventory, the function will work as if
+        ``{"group1": ["cat1", "cat2"], "group2": ["cat4"]}`` was passed.
     """
+    if ignore_missing:
+        # Remove the missing categories
+        categories_group = {
+            group: [cat for cat in categories if cat in inv.categories]
+            for group, categories in categories_group.items()
+        }
+    
     validate_group(categories_group, inv.categories)
+
     out_inv = inv.copy(no_gdfs=True)
 
     if inv.gdf is not None:

@@ -154,7 +154,6 @@ def test_different_points_and_polygons_in_gdfs():
     )
 
     cropped = crop_with_shape(inv, triangle)
-    print(cropped.gdfs)
     # outside shapes are removed
 
     assert len(cropped.gdfs["adf"]) == 5, "Did not crop expected number of shapes"
@@ -162,3 +161,17 @@ def test_different_points_and_polygons_in_gdfs():
     # Check  expected values
     for i, val in enumerate(expected_values):
         assert cropped.gdfs["adf"]["CO2"].iloc[i] == val, f"Failed at {i}"
+
+def test_no_emission():
+    inv = inv_with_pnt_sources.copy()
+    # Remove the only emission  column from the inv
+    inv.gdfs['blek'].drop(columns=['CO2'], inplace=True)
+    cropped = crop_with_shape(inv, triangle)
+
+    assert 'blek' not in cropped.gdfs 
+    assert 'liku' in cropped.gdfs
+
+test_no_emission()
+
+
+# %%
