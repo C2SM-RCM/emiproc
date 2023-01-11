@@ -139,7 +139,7 @@ def calculate_weights_mapping(
 
     # Check that only area sources are vectorized
     if not np.all(
-        shapes_vect.map(lambda shape: isinstance(shape, Polygon | MultiPolygon))
+        shapes_vect.map(lambda shape: isinstance(shape, (Polygon, MultiPolygon)))
     ):
         raise TypeError(
             "Non Polygon geometries were found on the grid but cannot be used for remapping."

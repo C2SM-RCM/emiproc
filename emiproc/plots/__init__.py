@@ -1,4 +1,5 @@
 """Few plot functions for the emiproc package."""
+from __future__ import annotations
 from os import PathLike
 from pathlib import Path
 import geopandas as gpd

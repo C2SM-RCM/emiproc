@@ -22,12 +22,12 @@ dependencies = [
     "numpy",
     "pandas",
     "geopandas",
-    "cartopy",
     "netCDF4",
     "scipy",
     "shapely",
     "xarray",
     "rasterio",
+    "pyogrio",
 ]
 license = {file = "LICENSE.txt"}
 readme = "README.md"

@@ -1,8 +1,8 @@
 """Utility functions and constants for emission processing."""
+from __future__ import annotations
 import sys
 import time
 from warnings import warn
-import cartopy.io.shapereader as shpreader
 import numpy as np
 import geopandas as gpd
 
@@ -74,6 +74,13 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
     -------
     np.array(shape(output_grid.nx, output_grid.ny), dtype=int)
     """
+    try:
+        import cartopy.io.shapereader as shpreader
+    except ImportError:
+        raise ImportError(
+            "The cartopy package is required to compute the country mask."
+        )
+
     if resolution in ["10m", "50m"]:
         print(
             f"Computing the country mask with {resolution} resolution.\n"
