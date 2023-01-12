@@ -8,14 +8,15 @@ import geopandas as gpd
 
 from shapely.geometry import Polygon, MultiPolygon
 
-from .grids import Grid, WGS84, WGS84_PROJECTED
-from .country_code import country_codes
+from emiproc.grids import Grid, WGS84, WGS84_PROJECTED
+from emiproc.country_code import country_codes
 
 
 # constants to convert from yr -> sec
 DAY_PER_YR = 365.25
 SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
+HOUR_PER_YR = DAY_PER_YR * 24
 
 
 def grid_polygon_intersects(

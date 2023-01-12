@@ -134,12 +134,14 @@ class MapLuftZurich(Inventory):
         ],
         categories: list[Category] = [],
         remove_josefstrasse_khkw: bool = True,
+        convert_lines_to_polygons: bool = True,
     ) -> None:
         """Load the mapluft inventory.
 
         :arg mapluft_gdb: The Mapluft file
         :arg substances: A list of substances to load.
-            (by default all of them)
+            (by default all of them).
+            Categories not contianing any of the substances are not loaded.
         :arg categories: A list of categories to load (if one is interested
             in only a subset).
             If not specified, all categories are loaded.
@@ -148,7 +150,10 @@ class MapLuftZurich(Inventory):
             It should be planned to be removed in March 2021.
             In case  remove_josefstrasse_khkw, the emissions are not set to any
             other location in the inventory.
-        :arg emission_infos: Additional infomration on the sources.
+        :arg convert_lines_to_polygons: Whether this should convert line emissions 
+            to polygons. Only few models can handle line emissions.
+            The default width of the line is 10m for all categories.
+            This is not currently not changeable.
         """
         super().__init__()
         self.mapluft_gdb = Path(mapluft_gdb)
@@ -171,12 +176,19 @@ class MapLuftZurich(Inventory):
         self.gdfs = {}
 
         for category in categories:
-            gdf = process_emission_category(mapluft_gdb, category)
+            gdf = process_emission_category(
+                mapluft_gdb, category, convert_lines_to_polygons=convert_lines_to_polygons
+            )
             # Select the columns with the emissions values
             names_in_gdf = [
                 name for name in emission_names.keys() if name in gdf.columns
             ]
+            if not names_in_gdf:
+                # Ignore categories not containing any substance of interest
+                continue
             gdf = gdf.loc[:, list(names_in_gdf) + ["geometry"]]
+
+            
             if remove_josefstrasse_khkw:
                 # Check point sources at the josefstrasse location
                 mask_josefstrasse = gdf.geometry == Point(2681839.000, 1248988.000)

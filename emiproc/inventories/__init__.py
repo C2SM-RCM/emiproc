@@ -1,5 +1,6 @@
 """Inventories of emissions."""
 from __future__ import annotations
+import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from os import PathLike
@@ -30,6 +31,10 @@ class EmissionInfo:
     :attr height: The height of the emission source (over the ground).
     :attr height_over_buildings: If True, the height is taken over buildings.
     :attr width: The width of the emission source. [m]
+    :attr vertical_extension:
+        The vertical extension (thickness) of the emission source. [m]
+        This implies that the emission starts at height
+        and ends at height + vertical_extension.
     :attr temperature: The temperature of the emission source. [K]
     :attr speed: The speed of the emission of the substances. [m/s]
     :attr comment: A comment about the emission source.
@@ -42,6 +47,7 @@ class EmissionInfo:
     height_over_buildings: bool = True
 
     width: float = 0.5
+    vertical_extension: float = 3.0
     temperature: float = 353.0
     speed: float = 5.0
     comment: str = ""
@@ -88,6 +94,7 @@ class Inventory:
     """
 
     name: str
+
     grid: Grid
     substances: list[Substance]
     categories: list[Category]
@@ -97,19 +104,27 @@ class Inventory:
     gdfs: dict[str, gpd.GeoDataFrame]
     geometry: gpd.GeoSeries
 
+    logger: logging.Logger
     history: list[str]
 
     _groupping: dict[str, list[str]] | None = None
 
     def __init__(self) -> None:
-        self.history = [f"Created as {type(self).__name__}"]
+        class_name = type(self).__name__
+        if not hasattr(self, "name"):
+            self.name = class_name
+        self.history = [f"{self} created as type:'{class_name}'"]
+        self.logger = logging.getLogger(f"emiproc.Inventory.{self.name}")
+
+    def __repr__(self) -> str:
+        return f"Inventory({self.name})"
 
     @property
     def emission_infos(self) -> dict[Category, EmissionInfo]:
         if hasattr(self, "_emission_infos"):
             return self._emission_infos
         else:
-            raise ValueError(f"'emission_infos' were not set for {self.name}")
+            raise ValueError(f"'emission_infos' were not set for {self}")
     
     @emission_infos.setter
     def emission_infos(self, emission_infos: dict[Category, EmissionInfo]):
@@ -191,15 +206,18 @@ class Inventory:
         if hasattr(self, "grid"):
             inv.grid = self.grid
 
-        if not no_gdfs:
-            if self.gdf is not None:
-                inv.gdf = self.gdf.copy(deep=True)
-            else:
-                inv.gdf = None
-            if self.gdfs:
-                inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in self.gdfs.items()}
-            else:
-                inv.gdfs = {}
+        if no_gdfs or self.gdf is None:
+            inv.gdf = None 
+        else:
+            inv.gdf = self.gdf.copy(deep=True)
+
+        if self.gdfs and not no_gdfs:
+            inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in self.gdfs.items()}
+        else:
+            inv.gdfs = {}
+        
+        if hasattr(self, "emission_infos"):
+            inv.emission_infos = deepcopy(self.emission_infos)
 
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
