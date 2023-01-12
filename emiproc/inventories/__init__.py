@@ -269,7 +269,7 @@ class Inventory:
     @classmethod
     def from_gdf(
         cls,
-        gdf: gpd.GeoDataFrame,
+        gdf: gpd.GeoDataFrame | None = None,
         name: str = "custom_from_gdf",
         gdfs: dict[str, gpd.GeoDataFrame] = {},
     ) -> Inventory:
@@ -301,6 +301,36 @@ class Inventory:
             self.gdf.to_crs(*args, **kwargs, inplace=True)
         for gdf in self.gdfs.values():
             gdf.to_crs(*args, **kwargs, inplace=True)
+    
+    def add_gdf(self, category: Category, gdf: gpd.GeoDataFrame):
+        """Add a gdf contaning emission sources to the inventory.
+
+        This will add the category to the inventory and add the data to the
+        inventory.gdfs dictionary.
+
+        :arg category: The category to add.
+        :arg gdf: The geodataframe containing the data for the category.
+        """
+        
+        if category not in self.gdfs:
+            self.gdfs[category] = gdf
+            return
+        
+        # if the category is already present, we need to merge the data
+        # this is a bit tricky, because we need to make sure that the
+        # columns are the same
+
+        # Set the values on missing columns to 0
+        missing_columns = set(self.gdfs[category].columns) - set(gdf.columns)
+        for col in missing_columns:
+            gdf[col] = 0
+        # Also set the substance to 0 in the gdfs if not there
+        missing_columns = set(gdf.columns) - set(self.gdfs[category].columns)
+        for col in missing_columns:
+            self.gdfs[category][col] = 0
+            
+        # Now we can append
+        self.gdfs[category] = self.gdfs[category].append(gdf, ignore_index=True)
 
 
 class EmiprocNetCDF(Inventory):

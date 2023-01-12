@@ -295,6 +295,8 @@ def geoserie_intersection(
 
     This can be an expensive operation you might want to cache.
 
+    .. note:: This is used for cropping polygons only.
+
     :arg geometry: The serie of shapes from you inventory or grid.
     :arg shape: A polygon which will be used for cropping.
     :arg keep_outside: Whether to keep only the outer region of the geometry

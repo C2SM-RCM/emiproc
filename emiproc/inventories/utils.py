@@ -19,7 +19,7 @@ from emiproc.grids import Grid
 from emiproc.regrid import geoserie_intersection
 
 if TYPE_CHECKING:
-    from emiproc.inventories import Inventory
+    from emiproc.inventories import Inventory, Category
 
 
 def list_categories(file: PathLike) -> list[str]:
@@ -114,9 +114,12 @@ def crop_with_shape(
     Point sources at the boundary will have their emissions value divided
     by 2.
 
+    This might removes categories and substances from the inventory, if they
+    are not present anymore !
+
     :arg inv: The inventory to crop.
     :arg shape: The shape around which to crop the inv.
-    :arg keep_outside: Whether to keep only the outside shape.
+    :arg keep_outside: Whether to keep only the emissions outside of the shape.
     :arg weight_file: A file in which to store the weights.
         If modify_grid is True, this will also save the shapes of the output.
         However saving/reading those shape can be slower than computing
@@ -149,8 +152,7 @@ def crop_with_shape(
                     )
                 # Load cached shapes
                 gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(
-                    shapes_file, 
-                    engine="pyogrio"
+                    shapes_file, engine="pyogrio"
                 )
                 # Index was set with cache
                 intersection_shapes = gdf_cached_shapes.set_index(
@@ -193,33 +195,45 @@ def crop_with_shape(
     inv_out.gdfs = {}
     for cat, gdf in inv.gdfs.items():
         cols = [col for col in inv.substances if col in gdf]
-        if isinstance(gdf.geometry.iloc[0], Point):
-            # Simply remove the point sources outside
-            mask_intersects = gdf.geometry.intersects(shape)
-            mask_boundary = gdf.geometry.intersects(shape.boundary)
+        if not cols:
+            # No substance of the inventory is in this category
+            # No need to crop anything (cropping this will create accessing error bug later in the loop)
+            continue
 
-            # Takes shapes of interest and the ones at the bounday
+        mask_points = gdf.geometry.apply(lambda x: isinstance(x, Point))
+        if any(mask_points):
+            point_geometries = gdf.geometry.loc[mask_points]
+            points_gdf = gdf.loc[mask_points].copy()
+            # Simply remove the point sources outside
+            mask_intersects = point_geometries.intersects(shape)
+            mask_boundary = point_geometries.intersects(shape.boundary)
+
+            # Takes shapes of interest (inside/outside and the boundary)
             mask_shapes = (
                 ~mask_intersects if keep_outside else mask_intersects
             ) | mask_boundary
-            new_gdf = gdf.copy()
+
             # Points at the boundary are divided by 2
-            new_gdf.loc[mask_boundary, cols] /= 2
-            inv_out.gdfs[cat] = new_gdf.loc[mask_shapes].reset_index(drop=True)
-        else:
+            points_gdf.loc[mask_boundary, cols] /= 2
+            inv_out.add_gdf(cat, points_gdf.loc[mask_shapes].reset_index(drop=True))
+        if not all(mask_points):
             # We keep crop the geometry
+            polys_gdf = gdf.loc[~mask_points]
             new_geometry, weights = geoserie_intersection(
-                gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
+                polys_gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
             )
             mask_non_zero = weights > 0
-            inv_out.gdfs[cat] = gpd.GeoDataFrame(
-                {
-                    col: gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
-                    for col in cols
-                },
-                geometry=new_geometry[mask_non_zero],
-                crs=gdf.crs,
-            ).reset_index(drop=True)
+            inv_out.add_gdf(
+                cat,
+                gpd.GeoDataFrame(
+                    {
+                        col: polys_gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
+                        for col in cols
+                    },
+                    geometry=new_geometry[mask_non_zero],
+                    crs=gdf.crs,
+                ).reset_index(drop=True),
+            )
 
     inv_out.history.append(f"Cropped using {shape=}, {keep_outside=}")
     return inv_out
@@ -228,6 +242,7 @@ def crop_with_shape(
 def group_categories(
     inv: Inventory,
     categories_group: dict[str, list[str]],
+    ignore_missing: bool = False,
 ) -> Inventory:
     """Group the categories of an inventory in new categories.
 
@@ -235,8 +250,21 @@ def group_categories(
     :arg categories_group: A mapping of which groups should be greated
         out of which categries. This will be checked using
         :py:func:`validate_group` .
+    :arg ignore_missing: If True, function will work even if some categories
+        from the mapping are not in the inventory.
+        Ex. ``{"group1": ["cat1", "cat2"], "group2": ["cat3", "cat4"]}``
+        If ``cat3`` is not in the inventory, the function will work as if
+        ``{"group1": ["cat1", "cat2"], "group2": ["cat4"]}`` was passed.
     """
+    if ignore_missing:
+        # Remove the missing categories
+        categories_group = {
+            group: [cat for cat in categories if cat in inv.categories]
+            for group, categories in categories_group.items()
+        }
+    
     validate_group(categories_group, inv.categories)
+
     out_inv = inv.copy(no_gdfs=True)
 
     if inv.gdf is not None:
@@ -350,10 +378,10 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
     """Get the total emissions from the inventory.
 
     :arg inv: The inventory from which to get the total emissions.
-    
+
     :return: A dictionary mapping substances to another dictionary
         which maps categories to values.
-        A '__total__' key will be created in each substnace mapping 
+        A '__total__' key will be created in each substnace mapping
         with the total of all the categories.
 
         For exemple ::
@@ -374,12 +402,12 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
 
     # Preapre the output dictionary
     out_dic = {sub: {} for sub in inv.substances}
-    
+
     # First look for the emissions in the gdf
     for cat, sub in inv._gdf_columns:
         # Calculate the total sum
         out_dic[sub][cat] = inv.gdf[(cat, sub)].sum()
-    
+
     # Second look for the emissions in the gdfs
     for cat, gdf in inv.gdfs.items():
         for sub in inv.substances:
@@ -390,22 +418,25 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
                 out_dic[sub][cat] = 0
             # Add the total emissions
             out_dic[sub][cat] += gdf[sub].sum()
-    # Add the total 
+    # Add the total
     for dic in out_dic.values():
-        dic['__total__'] = sum(dic.values())
+        dic["__total__"] = sum(dic.values())
 
     return out_dic
 
-def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -> Inventory:
+
+def scale_inventory(
+    inv: Inventory, scaling_dict: dict[str, dict[str, float]]
+) -> Inventory:
     """Get the total emissions from the inventory.
 
     :arg inv: The inventory from which to get the total emissions.
-    
+
     :arg scaling_dict: A dictionary mapping substances to another dictionary
         which maps categories to values.
         The values must be scaling factor, which will multiply all the objects
         from the inventory with matching categories and substance.
-        
+
         If a category/substance is not in the dict, it will not be scaled.
         For exemple ::
 
@@ -418,12 +449,12 @@ def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -
                     "cat2": 1.2,
                 },
             }
-            
+
     :return: A new inventory with its emission values rescaled.
     """
     # Deep copy of the inventory
     inv = inv.copy()
-    
+
     # Iterate over the scaling dict to multiply the values
     for sub, sub_dict in scaling_dict.items():
         for cat, scaling_factor in sub_dict.items():
@@ -434,6 +465,7 @@ def scale_inventory(inv: Inventory, scaling_dict: dict[str, dict[str, float]]) -
 
     inv.history.append(f"Rescaled using {scaling_dict=}")
     return inv
+
 
 def combine_inventories(
     inv_inside: Inventory,
