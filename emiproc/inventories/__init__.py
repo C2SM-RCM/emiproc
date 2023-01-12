@@ -216,8 +216,9 @@ class Inventory:
         else:
             inv.gdfs = {}
         
-        if hasattr(self, "emission_infos"):
-            inv.emission_infos = deepcopy(self.emission_infos)
+        # Copy the internal property
+        if hasattr(self, "_emission_infos"):
+            inv._emission_infos = deepcopy(self._emission_infos)
 
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
