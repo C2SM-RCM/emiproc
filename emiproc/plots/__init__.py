@@ -127,10 +127,10 @@ def plot_inventory(
 
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
-    x_min = grid.lon_range()[0]
-    x_max = grid.lon_range()[-1]
-    y_min = grid.lat_range()[0]
-    y_max = grid.lat_range()[-1]
+    x_min = grid.lon_range[0]
+    x_max = grid.lon_range[-1]
+    y_min = grid.lat_range[0]
+    y_max = grid.lat_range[-1]
 
     def add_ax_info(ax: mpl.axes.Axes):
         if axis_formatter is not None:

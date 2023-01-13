@@ -1,17 +1,18 @@
 from datetime import datetime
 
+NetcdfAttributes = dict[str, str]
 
 def nc_cf_attributes(
     author: str,
     contact: str,
     title: str,
     source: str,
-    comment: str,
+    comment: str = "",
     institution: str = "Empa, Swiss Federal Laboratories for Materials Science and Technology",
     history: str = "",
     references: str = "Produced by emiproc.",
-    additional_attributes: dict[str, str] = {},
-):
+    additional_attributes: NetcdfAttributes = {},
+) ->  NetcdfAttributes :
     """Create attributes for a nc file based on cf conventions.
 
 

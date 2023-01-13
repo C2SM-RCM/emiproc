@@ -1,44 +1,96 @@
-
-
+from __future__ import annotations
 from os import PathLike
 from pathlib import Path
 import xarray as xr
 import numpy as np
 from emiproc.inventories import Inventory
+from emiproc.grids import RegularGrid
+from emiproc.regrid import remap_inventory
+from emiproc.exports.netcdf import NetcdfAttributes
+from emiproc.utilities import Units, SEC_PER_YR
 
 
-
-
-
-def export_netcdf(inv: Inventory, path: PathLike, ):
+def export_raster_netcdf(
+    inv: Inventory,
+    path: PathLike,
+    grid: RegularGrid,
+    netcdf_attributes: NetcdfAttributes,
+    weights_path: PathLike | None = None,
+    lon_name: str ="lon",
+    lat_name: str ="lat",
+    var_name_format: str ="{substance}_{category}",
+    unit: Units = Units.KG_PER_YEAR,
+    
+):
     """Export to a netcdf file.
 
     # TODO: add the grid
     """
-    n_cells = len(inv.gdf)
+
+    remapped_inv = remap_inventory(inv, grid, weights_path)
+
+    # add the history
+    netcdf_attributes["emiproc_history"] = str(remapped_inv.history)
+
+    crs = grid.crs
+
+    if unit == Units.KG_PER_YEAR:
+        conversion_factor = 1.
+    elif unit == Units.KG_PER_M2_PER_S:
+        conversion_factor = 1 / SEC_PER_YR / np.array(grid.cell_areas).reshape(grid.shape)
+    else:
+        raise NotImplementedError(f"Unknown {unit=}")
+
+
     ds = xr.Dataset(
         data_vars={
-            "emissions": (
-                ("substance", "category", "ncells"),
-                [
-                    [
-                        inv.gdf[(cat, sub)]
-                        if (cat, sub) in inv.gdf
-                        else np.full(n_cells, np.nan)
-                        for cat in inv.categories
-                    ]
-                    for sub in inv.substances
-                ],
+            var_name_format.format(substance=sub, category=cat): (
+                [lon_name, lat_name],
+                remapped_inv.gdf[(cat, sub)].to_numpy().reshape(grid.shape) * conversion_factor,
                 {
-                    "name": "emissions",
-                    "unit": "kg/y",
-                    "history": str(inv.history),
-                },
+                    "standard_name": f"{sub}_{cat}",
+                    "long_name": f"{sub}_{cat}",
+                    "units": str(unit),
+                    "comment": f"emissions of {sub} in {cat}",
+                    "projection": f"{crs}",
+                }
             )
+            for sub in inv.substances
+            for cat in inv.categories
+            if (cat, sub) in remapped_inv.gdf
         },
         coords={
             "substance": inv.substances,
             "category": inv.categories,
+            # Grid coordinates
+            lon_name: (
+                lon_name,
+                grid.lon_range,
+                {
+                    "standard_name": "longitude",
+                    "long_name": "longitude",
+                    "units": "degrees_east",
+                    "comment": "center_of_cell",
+                    "bounds": "lon_bnds",
+                    "projection": f"{crs}",
+                    "axis": "X",
+                },
+            ),
+            lat_name: (
+                lat_name,
+                grid.lat_range,
+                {
+                    "standard_name": "latitude",
+                    "long_name": "latitude",
+                    "units": "degrees_north",
+                    "comment": "center_of_cell",
+                    "bounds": "lat_bnds",
+                    "projection": f"{crs}",
+                    "axis": "Y",
+                },
+            ),
         },
+        attrs=netcdf_attributes,
     )
-    ds.to_netcdf(Path(path).with_suffix(".nc"))
+    out_filepath = Path(path).with_suffix(".nc")
+    ds.to_netcdf(out_filepath)

@@ -48,7 +48,7 @@ class EDGAR_Inventory(Inventory):
 
         self.grid = EDGARGrid(list_filepaths[0])
 
-        polys = self.grid.cells_as_polylist()
+        polys = self.grid.cells_as_polylist
 
         # Index in the polygon list (from the gdf) (index start at 1)
         poly_ind = np.arange(self.grid.nx * self.grid.ny)

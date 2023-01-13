@@ -5,6 +5,7 @@ grids used in different emissions inventories.
 """
 from __future__ import annotations
 from functools import cache, cached_property
+from typing import Iterable
 import numpy as np
 import xarray as xr
 import geopandas as gpd
@@ -23,6 +24,7 @@ WGS84_NSIDC = 6933
 # Radius of the earth
 R_EARTH = 6371000  # m
 
+
 class Grid:
     """Abstract base class for a grid.
     Derive your own grid implementation from this and make sure to provide
@@ -37,7 +39,7 @@ class Grid:
     crs: int | str
     gdf: gpd.GeoDataFrame | None = None
 
-    def __init__(self, name: str, crs = WGS84):
+    def __init__(self, name: str, crs: int | str = WGS84):
         """
         Parameters
         ----------
@@ -88,26 +90,8 @@ class Grid:
         """
         raise NotImplementedError("Method not implemented")
 
-    def lon_range(self):
-        """Return an array containing all the longitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(nx,), dtype=float)
-        """
-        raise NotImplementedError("Method not implemented")
-
-    def lat_range(self):
-        """Return an array containing all the latitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(ny,), dtype=float)
-        """
-        raise NotImplementedError("Method not implemented")
-
-    @cache
-    def cells_as_polylist(self):
+    @cached_property
+    def cells_as_polylist(self) -> list[Polygon]:
         """Return all the cells as a list of polygons."""
         return [
             Polygon(zip(*self.cell_corners(i, j)))
@@ -115,17 +99,71 @@ class Grid:
             for j in range(self.ny)
         ]
 
+    @cached_property
+    def cell_areas(self) -> Iterable[float]:
+        """Return an array containing the area of each cell."""
+        return gpd.GeoSeries(self.cells_as_polylist).area
 
 
 class RegularGrid(Grid):
     """Regular grid a grids with squared cells.
-    
-    This simplifies many of the operations.
-    """
-    
-    # TODO implement 
-    ... 
 
+    This allows for some capabilities that are not available for
+    irregular grids (rasterization, image like plotting).
+    """
+
+    # The centers of the cells (lon =x, lat = y)
+    lon_range: np.ndarray
+    lat_range: np.ndarray
+
+    xmin: float
+    xmax: float
+    ymin: float
+    ymax: float
+
+    dx: float
+    dy: float
+
+    def __init__(
+        self,
+        xmin: float,
+        xmax: float,
+        ymin: float,
+        ymax: float,
+        nx: int,
+        ny: int,
+        name: str = "",
+        crs: int | str = WGS84,
+    ):
+        self.xmin, self.xmax = xmin, xmax
+        self.ymin, self.ymax = ymin, ymax
+
+        self.nx, self.ny = nx, ny
+        self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
+
+        self.lon_range = np.linspace(xmin, xmax, nx) + self.dx / 2
+        self.lat_range = np.linspace(ymin, ymax, ny) + self.dy / 2
+
+        super().__init__(name, crs)
+
+    def cell_corners(self, i, j):
+        """Return the corners of the cell with indices (i,j).
+
+        The points are ordered clockwise, starting in the top
+        right:
+
+        """
+        x = self.xmin + i * self.dx
+        y = self.ymin + j * self.dy
+
+        return (
+            np.array([x, x + self.dx, x + self.dx, x]),
+            np.array([y, y, y + self.dy, y + self.dy]),
+        )
+    
+    @cached_property
+    def shape(self) -> tuple[int, int]:
+        return (self.nx, self.ny)
 
 
 class LatLonNcGrid(RegularGrid):
@@ -134,7 +172,9 @@ class LatLonNcGrid(RegularGrid):
     This is a copy of the tno grid basically, but reading a nc file.
     """
 
-    def __init__(self, dataset_path, lat_name="clat", lon_name="clon", name="LatLon", crs=WGS84):
+    def __init__(
+        self, dataset_path, lat_name="clat", lon_name="clon", name="LatLon", crs=WGS84
+    ):
 
         self.dataset_path = dataset_path
 
@@ -159,7 +199,7 @@ class LatLonNcGrid(RegularGrid):
         self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
         self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
-        super().__init__(name, crs=crs )
+        super().__init__(name, crs=crs)
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -179,6 +219,7 @@ class LatLonNcGrid(RegularGrid):
         """
         return self.cell_x[:, i], self.cell_y[:, j]
 
+    @cached_property
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -188,6 +229,7 @@ class LatLonNcGrid(RegularGrid):
         """
         return self.lon_var
 
+    @cached_property
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
@@ -234,7 +276,9 @@ class TNOGrid(RegularGrid):
         self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
         self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
-        super().__init__(name, crs=WGS84)
+        # by pass the regular grid __inti__ method, as variable  have been
+        # initialized here
+        Grid.__init__(self, name=name, crs=WGS84)
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -254,6 +298,7 @@ class TNOGrid(RegularGrid):
         """
         return self.cell_x[:, i], self.cell_y[:, j]
 
+    @property
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -263,6 +308,7 @@ class TNOGrid(RegularGrid):
         """
         return self.lon_var
 
+    @property
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
@@ -329,6 +375,7 @@ class EDGARGrid(Grid):
         """
         return self.cell_x[:, i], self.cell_y[:, j]
 
+    @cached_property
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -338,6 +385,7 @@ class EDGARGrid(Grid):
         """
         return self.lon_var
 
+    @cached_property
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
@@ -347,7 +395,7 @@ class EDGARGrid(Grid):
         """
         return self.lat_var
 
-    
+    @cached_property
     def cell_areas(self):
         """Return an array containing the grid cell areas.
 
@@ -360,7 +408,9 @@ class EDGARGrid(Grid):
         lats_c = np.deg2rad(lats_c)
 
         dlon = 2 * np.pi / self.nx
-        areas = R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
+        areas = (
+            R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
+        )
         areas = np.broadcast_to(areas[:, np.newaxis], (self.ny, self.nx))
 
         return areas.flatten()
@@ -377,6 +427,7 @@ class GeoPandasGrid(Grid):
         self.nx = len(gdf)
         self.ny = 1
 
+
 class VPRMGrid(Grid):
     """Contains the grid from the VPRM emission inventory.
 
@@ -389,8 +440,8 @@ class VPRMGrid(Grid):
     in the grid-projection (and likely have to be transformed to be usable).
 
     .. warning::
-    
-        This is not usable in emiproc v2. 
+
+        This is not usable in emiproc v2.
         Please fix it before using it again.
 
     """
@@ -444,7 +495,9 @@ class VPRMGrid(Grid):
         self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
         self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
 
-        super().__init__(name, )
+        super().__init__(
+            name,
+        )
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -464,6 +517,7 @@ class VPRMGrid(Grid):
         """
         return self.cell_x[:, i], self.cell_y[:, j]
 
+    @property
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -473,6 +527,7 @@ class VPRMGrid(Grid):
         """
         return self.lon_vals
 
+    @property
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
@@ -543,9 +598,9 @@ class SwissGrid(RegularGrid):
         # (in fact it is not using any projection implemented by cartopy),
         # however the points returned by the cell_corners() method are in
         # WGS84, which PlateCarree defaults to.
-        super().__init__(name, crs = crs)
+        super().__init__(name, crs=crs)
 
-    @cache
+    @cached_property
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -554,7 +609,8 @@ class SwissGrid(RegularGrid):
         np.array(shape=(nx,), dtype=float)
         """
         return np.array([self.xmin + i * self.dx for i in range(self.nx + 1)])
-    @cache
+
+    @cached_property
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
@@ -565,17 +621,16 @@ class SwissGrid(RegularGrid):
         return np.array([self.ymin + j * self.dy for j in range(self.ny + 1)])
 
 
-
 class COSMOGrid(Grid):
     """Class to manage a COSMO-domain
     This grid is defined as a rotated pole coordinate system.
     The gridpoints are at the center of the cell.
 
     .. warning::
-    
-        This is not usable in emiproc v2. 
+
+        This is not usable in emiproc v2.
         Please fix it before using it again.
-        
+
     """
 
     nx: int
@@ -655,6 +710,7 @@ class COSMOGrid(Grid):
 
         return np.broadcast_to(areas, (self.nx, self.ny))
 
+    @property
     def lon_range(self):
         """Return an array containing all the longitudinal points on the grid.
 
@@ -677,6 +733,7 @@ class COSMOGrid(Grid):
             lon_vals = self.lon_vals
         return lon_vals
 
+    @property
     def lat_range(self):
         """Return an array containing all the latitudinal points on the grid.
 
@@ -713,10 +770,9 @@ class COSMOGrid(Grid):
         return self.cell_x[:, i], self.cell_y[:, j]
 
 
-
 class ICONGrid(Grid):
     """Class to manage an ICON-domain
-    
+
     This grid is defined as an unstuctured triangular grid (1D).
     The cells are ordered in a deliberate way and indexed with ascending integer numbers.
     The grid file contains variables like midpoint coordinates etc as a fct of the index.
@@ -788,8 +844,6 @@ class ICONGrid(Grid):
 
         return self.gdf.geometry.iloc[n].exterior.coords.xy
 
-
-
     def gridcell_areas(self):
         """Calculate 2D array of the areas (m^2) of a regular rectangular grid
         on earth.
@@ -803,29 +857,28 @@ class ICONGrid(Grid):
 
         return self.cell_areas
 
-
     def process_overlap_antimeridian(self):
-        """Find polygons intersecting the antimeridian line 
-        and split them into two polygons represented by a 
+        """Find polygons intersecting the antimeridian line
+        and split them into two polygons represented by a
         MultiPolygon.
         """
 
         def shift_lon_poly(poly):
-            coords = poly.exterior.coords 
+            coords = poly.exterior.coords
             lons = np.array([coord[0] for coord in coords])
             lats = [coord[1] for coord in coords]
             if np.any(lons > 180):
                 lons -= 360
             elif np.any(lons < -180):
                 lons += 360
-            return Polygon([*zip(lons, lats)]) 
+            return Polygon([*zip(lons, lats)])
 
         def detect_antimeridian_poly(poly):
             coords = poly.exterior.coords
             lon1, lon2, lon3 = coords[0][0], coords[1][0], coords[2][0]
             coords_cond1 = [list(c) for c in coords[:-1]]
 
-            cond1 = np.count_nonzero(np.array([lon1, lon2, lon3]) > 180. - 1e-5) == 2
+            cond1 = np.count_nonzero(np.array([lon1, lon2, lon3]) > 180.0 - 1e-5) == 2
             if cond1:
                 if lon1 < 0:
                     coords_cond1[1][0] = lon2 - 360
@@ -839,8 +892,16 @@ class ICONGrid(Grid):
 
             vmin = -140
             vmax = 140
-            lon1, lon2, lon3 = coords_cond1[0][0], coords_cond1[1][0], coords_cond1[2][0]
-            cond2 = (lon1 > vmax or lon1 < vmin) or (lon2 > vmax or lon2 < vmin) or (lon3 > vmax or lon3 < vmin)
+            lon1, lon2, lon3 = (
+                coords_cond1[0][0],
+                coords_cond1[1][0],
+                coords_cond1[2][0],
+            )
+            cond2 = (
+                (lon1 > vmax or lon1 < vmin)
+                or (lon2 > vmax or lon2 < vmin)
+                or (lon3 > vmax or lon3 < vmin)
+            )
             coords_cond2 = [list(c) for c in coords_cond1]
 
             if cond2:
@@ -852,9 +913,9 @@ class ICONGrid(Grid):
                     coords_cond2[1][0] = lon2 - math.copysign(1, lon2) * 360
 
                 elif lon3 * lon1 < 0 and lon3 * lon2 < 0:
-                    coords_cond2[2][0] = lon3 - math.copysign(1, lon3) * 360 
+                    coords_cond2[2][0] = lon3 - math.copysign(1, lon3) * 360
 
-            return Polygon(coords_cond2) 
+            return Polygon(coords_cond2)
 
         crs = pyproj.CRS.from_epsg(WGS84)
         bounds = crs.area_of_use.bounds
@@ -863,8 +924,20 @@ class ICONGrid(Grid):
         coords_bounds = [(x, y) for x, y in zip(xx_bounds, yy_bounds)]
         bounds_line = LineString(coords_bounds)
 
-        self.gdf = self.gdf.set_geometry(self.gdf.geometry.apply(lambda poly: detect_antimeridian_poly(poly)))
+        self.gdf = self.gdf.set_geometry(
+            self.gdf.geometry.apply(lambda poly: detect_antimeridian_poly(poly))
+        )
         gdf_inter = self.gdf.loc[self.gdf.intersects(bounds_line)]
-        gdf_inter = gdf_inter.set_geometry(gdf_inter.geometry.apply(lambda poly: MultiPolygon(split(poly, bounds_line))))
-        gdf_inter = gdf_inter.set_geometry(gdf_inter.geometry.apply(lambda mpoly: MultiPolygon([shift_lon_poly(poly) for poly in mpoly.geoms])))
-        self.gdf.loc[gdf_inter.index, 'geometry'] = gdf_inter.geometry
+        gdf_inter = gdf_inter.set_geometry(
+            gdf_inter.geometry.apply(
+                lambda poly: MultiPolygon(split(poly, bounds_line))
+            )
+        )
+        gdf_inter = gdf_inter.set_geometry(
+            gdf_inter.geometry.apply(
+                lambda mpoly: MultiPolygon(
+                    [shift_lon_poly(poly) for poly in mpoly.geoms]
+                )
+            )
+        )
+        self.gdf.loc[gdf_inter.index, "geometry"] = gdf_inter.geometry
