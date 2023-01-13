@@ -73,12 +73,14 @@ def get_weights_mapping(
             loop_over_inv_objects,
             method
         )
-        # Make sure dir is created
-        weights_filepath.parent.mkdir(exist_ok=True, parents=True)
-        np.savez(weights_filepath, **w_mapping)
+        if weights_filepath is not None:
+            # Make sure dir is created
+            weights_filepath.parent.mkdir(exist_ok=True, parents=True)
+            np.savez(weights_filepath, **w_mapping)
 
     else:
         w_mapping = {**np.load(weights_filepath)}
+        
     return w_mapping
 
 
@@ -428,7 +430,10 @@ def remap_inventory(
     # Add the other mappings
     for category, gdf in inv.gdfs.items():
         # Get the weights of that gdf
-        w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+        if weigths_file is None:
+            w_file = None   
+        else:
+            w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
         w_mapping = get_weights_mapping(
             w_file,
             gdf.geometry,
