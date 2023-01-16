@@ -37,7 +37,7 @@ def export_raster_netcdf(
     if unit == Units.KG_PER_YEAR:
         conversion_factor = 1.
     elif unit == Units.KG_PER_M2_PER_S:
-        conversion_factor = 1 / SEC_PER_YR / np.array(grid.cell_areas).reshape(grid.shape)
+        conversion_factor = 1 / SEC_PER_YR / np.array(grid.cell_areas).reshape(grid.shape).T
     else:
         raise NotImplementedError(f"Unknown {unit=}")
 
@@ -45,12 +45,12 @@ def export_raster_netcdf(
     ds = xr.Dataset(
         data_vars={
             var_name_format.format(substance=sub, category=cat): (
-                [lon_name, lat_name],
-                remapped_inv.gdf[(cat, sub)].to_numpy().reshape(grid.shape) * conversion_factor,
+                [lat_name, lon_name],
+                remapped_inv.gdf[(cat, sub)].to_numpy().reshape(grid.shape).T * conversion_factor,
                 {
                     "standard_name": f"{sub}_{cat}",
                     "long_name": f"{sub}_{cat}",
-                    "units": str(unit),
+                    "units": str(unit.value),
                     "comment": f"emissions of {sub} in {cat}",
                     "projection": f"{crs}",
                 }
