@@ -42,10 +42,10 @@ plt.ioff()
 # %%
 grid = inv_ch.grid
 
-x_min = grid.lon_range()[0]
-x_max = grid.lon_range()[-1]
-y_min = grid.lat_range()[0]
-y_max = grid.lat_range()[-1]
+x_min = grid.lon_range[0]
+x_max = grid.lon_range[-1]
+y_min = grid.lat_range[0]
+y_max = grid.lat_range[-1]
 
 # %% plot all susbstances and categories
 for substance in inv_ch.substances:

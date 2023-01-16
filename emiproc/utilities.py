@@ -3,19 +3,27 @@ from __future__ import annotations
 import sys
 import time
 from warnings import warn
+from enum import Enum
+
 import numpy as np
 import geopandas as gpd
 
 from shapely.geometry import Polygon, MultiPolygon
 
-from .grids import Grid, WGS84, WGS84_PROJECTED
-from .country_code import country_codes
+from emiproc.grids import Grid, WGS84, WGS84_PROJECTED
+from emiproc.country_code import country_codes
 
 
 # constants to convert from yr -> sec
 DAY_PER_YR = 365.25
 SEC_PER_DAY = 86400
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
+HOUR_PER_YR = DAY_PER_YR * 24
+
+class Units(Enum):
+    """Units for emissions."""
+    KG_PER_YEAR = "kg/y"
+    KG_PER_M2_PER_S = "kg/m2/s"
 
 
 def grid_polygon_intersects(
@@ -98,7 +106,7 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
         grid_gdf = output_grid.gdf
     else:
         grid_gdf = gpd.GeoDataFrame(
-            geometry=output_grid.cells_as_polylist(), crs=output_grid.crs
+            geometry=output_grid.cells_as_polylist, crs=output_grid.crs
         )
 
     if output_grid.crs != WGS84:

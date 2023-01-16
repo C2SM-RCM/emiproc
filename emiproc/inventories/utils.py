@@ -38,6 +38,7 @@ def load_category(file: PathLike, category: str) -> gpd.GeoDataFrame:
 def process_emission_category(
     file: PathLike,
     category: str,
+    convert_lines_to_polygons: bool = True,
     line_width: float = 10,
 ) -> gpd.GeoDataFrame:
     """Process an emission category.
@@ -57,7 +58,7 @@ def process_emission_category(
     gdf = load_category(file, category)
 
     # Sometimes it is written in big and sometimes in small 🤷
-    if "Shape_Length" in gdf or "SHAPE_Length" in gdf:
+    if convert_lines_to_polygons and ("Shape_Length" in gdf or "SHAPE_Length" in gdf):
         # Convert lines into Polygon
 
         vector_geometry = gdf.geometry.buffer(line_width, cap_style=3)
