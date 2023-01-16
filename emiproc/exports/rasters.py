@@ -21,10 +21,28 @@ def export_raster_netcdf(
     var_name_format: str ="{substance}_{category}",
     unit: Units = Units.KG_PER_YEAR,
     
-):
-    """Export to a netcdf file.
+) -> Path:
+    """Export the inventory to a netcdf file as a raster.
 
-    # TODO: add the grid
+    This will first remap the invenotry to a raster file using 
+    :py:func:`emiproc.regrid.remap_inventory` and
+    then export the result to a netcdf file.
+    
+    :param inv: the inventory to export
+    :param path: the path to the output file
+    :param grid: the raster grid to export to
+    :param netcdf_attributes: NetCDF attributes to add to the file.
+        These can be generated using
+        :py:func:`emiproc.exports.netcdf.nc_cf_attributes` .
+    :param weights_path: Optionally, 
+        The path to the weights file to use for regridding.
+        If not given, the weights will be calculated on the fly.
+    :param lon_name: The name of the longitude dimension in the nc file.
+    :param lat_name: The name of the latitude dimension in the nc file.
+    :param var_name_format: The format string to use for the variable names.
+        The format string should contain two named fields: ``substance`` and ``category``.
+    :param unit: The unit of the emissions.
+    
     """
 
     remapped_inv = remap_inventory(inv, grid, weights_path)
@@ -108,3 +126,5 @@ def export_raster_netcdf(
         )
     out_filepath = Path(path).with_suffix(".nc")
     ds.to_netcdf(out_filepath)
+
+    return out_filepath

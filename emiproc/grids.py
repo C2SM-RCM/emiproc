@@ -115,6 +115,9 @@ class RegularGrid(Grid):
 
     This allows for some capabilities that are not available for
     irregular grids (rasterization, image like plotting).
+
+    The grid is defined using a bounding box (xmin, xmax, ymin, ymax)
+    and the number of cells in each direction (nx, ny).
     """
 
     # The centers of the cells (lon =x, lat = y)
