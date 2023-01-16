@@ -302,6 +302,16 @@ class Inventory:
         for gdf in self.gdfs.values():
             gdf.to_crs(*args, **kwargs, inplace=True)
     
+    def set_crs(self, *args, **kwargs):
+        """Same as geopandas.set_crs() but for inventories.
+
+        Perform the conversion in place.
+        """
+        if self.gdf is not None:
+            self.gdf.set_crs(*args, **kwargs, inplace=True)
+        for gdf in self.gdfs.values():
+            gdf.set_crs(*args, **kwargs, inplace=True)
+            
     def add_gdf(self, category: Category, gdf: gpd.GeoDataFrame):
         """Add a gdf contaning emission sources to the inventory.
 

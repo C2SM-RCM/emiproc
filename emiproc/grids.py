@@ -18,8 +18,8 @@ from shapely.ops import split
 
 WGS84 = 4326
 WGS84_PROJECTED = 3857
-LV95 = 2056  # EPSG:2056, swiss CRS
-WGS84_NSIDC = 6933
+LV95 = 2056  # EPSG:2056, swiss CRS, unit: meters
+WGS84_NSIDC = 6933  # Unit: meters
 
 # Radius of the earth
 R_EARTH = 6371000  # m
@@ -101,8 +101,13 @@ class Grid:
 
     @cached_property
     def cell_areas(self) -> Iterable[float]:
-        """Return an array containing the area of each cell."""
-        return gpd.GeoSeries(self.cells_as_polylist).area
+        """Return an array containing the area of each cell in m2."""
+        return (
+            gpd.GeoSeries(self.cells_as_polylist, crs=self.crs)
+            # Convert to WGS84 to get the area in m^2
+            .to_crs(epsg=WGS84_NSIDC)
+            .area
+        )
 
 
 class RegularGrid(Grid):
@@ -160,7 +165,7 @@ class RegularGrid(Grid):
             np.array([x, x + self.dx, x + self.dx, x]),
             np.array([y, y, y + self.dy, y + self.dy]),
         )
-    
+
     @cached_property
     def shape(self) -> tuple[int, int]:
         return (self.nx, self.ny)
