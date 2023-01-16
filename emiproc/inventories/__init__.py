@@ -26,18 +26,18 @@ class EmissionInfo:
     """Information about an emission category.
 
     This additional information is used for some models.
-    It concerns only the :attr:`Inventory.gdfs` features.
+    It concerns only the :py:attr:`Inventory.gdfs` features.
 
-    :attr height: The height of the emission source (over the ground).
-    :attr height_over_buildings: If True, the height is taken over buildings.
-    :attr width: The width of the emission source. [m]
-    :attr vertical_extension:
+    :param height: The height of the emission source (over the ground). [m]
+    :param height_over_buildings: If True, the height is taken over buildings.
+    :param width: The width of the emission source. [m]
+    :param vertical_extension:
         The vertical extension (thickness) of the emission source. [m]
         This implies that the emission starts at height
         and ends at height + vertical_extension.
-    :attr temperature: The temperature of the emission source. [K]
-    :attr speed: The speed of the emission of the substances. [m/s]
-    :attr comment: A comment about the emission source.
+    :param temperature: The temperature of the emission source. [K]
+    :param speed: The speed of the emission of the substances. [m/s]
+    :param comment: A comment about the emission source.
 
     """
 
@@ -56,35 +56,28 @@ class EmissionInfo:
 class Inventory:
     """Base class for inventories.
 
-    :attr name: The name of the inventory. This is going to be used
+    :param name: The name of the inventory. This is going to be used
         for adding metadata to the output files, and also for the reggridding
         weights files.
-    :attr grid: The grid on which the inventory is.
-    :attr substances: The :py:class:`Substance` present in this inventory.
-    :attr categories: List of the categories present in the inventory.
+    :param grid: The grid on which the inventory is.
+    :param substances: The :py:class:`Substance` present in this inventory.
+    :param categories: List of the categories present in the inventory.
 
-    :attr emission_infos: Information about the emissions.
+    :param emission_infos: Information about the emissions.
         Concerns only the :attr:`Inventory.gdfs` features.
         This is optional, but mandoatory for some models (ex. Gramm-Gral).
 
-    :attr gdf: The GeoPandas DataFrame that represent the whole inventory.
+    :param gdf: The GeoPandas DataFrame that represent the whole inventory.
         The geometry column contains all the grid cells.
-        Optional columns:
-
-            * For Vertical profiles, use either absolute or range:
-
-                * _heigth: (float) The height of the emission source.
-                * _heigth_min: (float) The min height of the emission source.
-                * _heigth_max: (float) The min height of the emission source.
-
         The other columns should contain the emission value for the substances
         and the categories.
-    :attr gdfs: Some inventories are given on more than one grid.
+
+    :param gdfs: Some inventories are given on more than one grid.
         For example, :py:class:`MapLuftZurich` is given on a grid
         where every category has different shape file.
         In this case gdf must be set to None and gdfs will be
         a dictionnary mapping only the categories desired.
-    :attr history: Stores all the operations that happened to this inventory.
+    :param history: Stores all the operations that happened to this inventory.
 
     .. note::
         If your data contains point sources, the data on them must be stored in

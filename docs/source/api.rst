@@ -7,6 +7,11 @@ Inventory Class
 
 .. autoclass:: emiproc.inventories.Inventory
 
+Emissions Informations
+----------------------
+
+.. autoclass:: emiproc.inventories.EmissionInfo
+
 Grid Class
 ----------
 
