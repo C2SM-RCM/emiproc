@@ -92,5 +92,19 @@ def export_raster_netcdf(
         },
         attrs=netcdf_attributes,
     )
+
+    if unit in [Units.KG_PER_M2_PER_S]:
+        # add the cell area
+        ds["cell_area"] = (
+            [lat_name, lon_name],
+            np.array(grid.cell_areas).reshape(grid.shape).T,
+            {
+                "standard_name": "cell_area",
+                "long_name": "cell_area",
+                "units": "m2",
+                "comment": "area of the cell",
+                "projection": f"{crs}",
+            },
+        )
     out_filepath = Path(path).with_suffix(".nc")
     ds.to_netcdf(out_filepath)
