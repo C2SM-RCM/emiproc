@@ -128,7 +128,14 @@ class EmissionWriter:
             # 1 line ignored
             header = "x,y,z,dx,dy,dz,emission_rate[kg/h],-,-,-,source_group\n"
             f.write(header)
-        # TODO add portals
+        with open(self.file_portals, "w") as f:
+            # 2 lines ignored
+            header = (
+                datetime.datetime.now().strftime("Generated: %d/%m/%Y %H:%M\n")
+                + "x1,y1,x2,y2,z0,z1,emission_rate[kg/h],-,-,-,source_group\n"
+            )
+            f.write(header)
+
 
         # File to save the source groups values
         self.file_source_groups = self.path / "source_groups.json"
