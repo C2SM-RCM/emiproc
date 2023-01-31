@@ -314,8 +314,12 @@ def group_categories(
 def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     """Add inventories together.
 
-    The followwing conditions must be required.
+    The following conditions must be required:
+
     * if the two invs have a gdf, they must be on the same grid
+
+    :arg inv: The first inventory.
+    :arg other_inv: The second inventory.
     """
 
     if inv.gdf is None and other_inv.gdf is not None:
