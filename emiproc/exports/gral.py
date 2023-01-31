@@ -188,6 +188,8 @@ class EmissionWriter:
                         f"Shapes of type: '{gdf.loc[mask_missing].geom_type.unique()}'"
                         " are not implemented."
                     )
+
+        # Write all the points as a singl batch
         pd.concat(self.points_dfs).to_csv(
             self.file_points, mode="a", index=False,
         )
@@ -209,9 +211,10 @@ class EmissionWriter:
                     "y": shapes.y,
                     "z": z,
                     "emission[kg/h]": emissions,
-                    "unused_0": "",
-                    "unused_1": "",
-                    "unused_2": "",
+                    # Fill the unused columsn with zeros as GRAL cannot handle empty columns
+                    "unused_0": 0,
+                    "unused_1": 0,
+                    "unused_2": 0,
                     "exit_velocity[m/s]": info.speed,
                     "diameter[m]": info.width,
                     "temperature[K]": info.temperature,
@@ -220,18 +223,6 @@ class EmissionWriter:
             )
         )
 
-    def _write_point(
-        self, shape: Point, emission: float, info: EmissionInfo, source_group: int
-    ):
-        """Write a point source to the file."""
-
-        with open(self.file_points, "a") as f:
-            # Write the point
-
-            f.write(
-                f"{shape.x},{shape.y},{z},{emission},,,,{info.speed},"
-                f"{info.width},{info.temperature},{source_group}\n"
-            )
 
     def _write_lines(
         self,
@@ -291,8 +282,8 @@ class EmissionWriter:
             # Write the line
             f.write(
                 f"unnamed,{section},{source_group},{start.x},{start.y},{z_start},"
-                f"{end.x},{end.y},{z_end},{info.width},-{info.vertical_extension},,,"
-                f"{emission},,,,\n"
+                f"{end.x},{end.y},{z_end},{info.width},-{info.vertical_extension},0,0,"
+                f"{emission},0,0,0,0\n"
             )
 
     def _write_polygons(
@@ -336,7 +327,7 @@ class EmissionWriter:
                 f.write(
                     f"{x[i_x]},{y[i_y]},{info.height},"
                     f"{self.polygon_raster_size},{self.polygon_raster_size},{info.vertical_extension},"
-                    f"{rasterized_emissions[i_x, i_y]},,,,{source_group},\n"
+                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{source_group},\n"
                 )
 
 
@@ -407,7 +398,7 @@ if __name__ == "__main__":
     inv = gral_test_inv
 
     grid = GralGrid(
-        dz=1.5,
+        dz0=1.5,
         stretch=0.5,
         nx=20,
         ny=20,
