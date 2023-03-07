@@ -411,15 +411,12 @@ class EDGARGrid(Grid):
         -------
         np.array(shape=(nx,ny), dtype=float)
         """
-        lons_c = np.append(self.cell_x[-1], self.cell_x[0, 0])
-        lats_c = np.append(self.cell_y[-1], self.cell_y[0, 0])
+        lats_c = np.append(self.cell_y[1], self.cell_y[0, -1])
         lats_c = np.deg2rad(lats_c)
 
         dlon = 2 * np.pi / self.nx
-        areas = (
-            R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
-        )
-        areas = np.broadcast_to(areas[:, np.newaxis], (self.ny, self.nx))
+        areas = (R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:])))
+        areas = np.broadcast_to(areas[np.newaxis, :], (self.nx, self.ny))
 
         return areas.flatten()
 
