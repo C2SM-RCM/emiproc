@@ -1,6 +1,17 @@
 *.pyc
 *.npy
-*.png
+__pycache__
+*.gdb/
+
 *~
 *output*
 testdata/
+emiproc.egg-info
+docs/build/
+*.npz
+*.nc
+files/TNO_6x6_GHGco_v4_0/
+
+# Drawio temp files
+docs/source/diagrams/.$pipeline.drawio.svg.bkp
+docs/source/diagrams/.$pipeline.drawio.bkp

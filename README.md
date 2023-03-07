@@ -1,62 +1,15 @@
-# Online emission processing
+# Emiproc
 
-Preprocessing of the emissions for the online emission module for COSMO-ART, COSMO-GHG
-and ICON-ART (Jähn et al., Geosci. Model Dev., 13, 2379–2392, 2020, 
-https://doi.org/10.5194/gmd-13-2379-2020).
+Python package for processing emission datasets and converting them
+into netcdf rasters or inputs for transport models (ICON-ART, COSMO-ART, ...).
 
-Produces gridded annual emissions per sector as well as temporal and vertical profiles.
+If interested in previous versions, please check the branches
+dedicated to the previous releases.
 
-## Installation
-To use the code, just download or clone the repository. The package can be installed with
-```
-    $ python setup.py install
-```
+## Documentation
 
-The following requirements on third-party packages:
+The full documentation is hosted at https://emiproc.readthedocs.io .
 
-* Python (>= 3.6)
-* cartopy
-* netCDF4
-* numpy
-* shapely
-* xarray
-
-Please note emission inventories are not included in the repository, but have to
-be obtained separately.
-
-## Quickstart
-
-1. Take one of the configuration files in the cases folder and adjust it to your case.
-
-2. Generate the emission files:
-```
-    $ python -m emiproc grid --case config_{tno|ch}
-```
-
-3. Generate the profiles:
-```
-    $ python -m emiproc tp --case-file <filename>  # for temporal profiles
-    $ python -m emiproc vp                         # for vertical profiles
-```
-
-Further examples, including the generation of offline files and inventory merging, can be found in [cases/README.md](cases/README.md)
-
-## Gridded annual emissions
-
-Emissions are read from the inventory and projected onto the COSMO or ICON grid.
-
-The necessary information, such as grid characterstics and species, are supplied via
-a config file. Since emission inventories can be structured quite differently, it may
-also be necessary to adapt the main script. The provided examples are a good starting
-point.
-
-### Grids
-
-In the file `grids.py` you can find definitions for classes handling common gridtypes
-(COSMO, TNO, swiss). Use them in your configuration file to specify your grid.
-
-If your grid can not be represented by an existing one, implement your own grid class
-by inheriting from the `Grid` baseclass and implementing the required methods.
 
 ## License
 

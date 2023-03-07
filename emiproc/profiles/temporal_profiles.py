@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
+"""Legacy file from v1"""
+
 """
 Script to create netCDF-files containing temporal emission factors.
 The structure of the generated files is as follows:
@@ -70,7 +72,7 @@ import time
 import numpy as np
 import netCDF4
 
-from .country_code import country_codes as cc
+from ..country_code import country_codes as cc
 from . import io
 
 
