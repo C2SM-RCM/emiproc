@@ -83,16 +83,28 @@ def speciate_nox(
     :arg inv: The inventory to speciate.
     :arg drop: Whether to drop the speciated category/substance.
     :arg NOX_TO_NO2: The fraction of NOx that is speciated to NO2.
-        Depending on the sector, this can vary.
         It is possible to use a dict with a different fraction for each category.
-        For most emission sources, the fraction of NO is closer to 95%,
-        only for traffic a fraction of 82% may be applied.
-        The reason is that oxidation catalysts in diesel engines partly
-        oxidize NO to NO2 before it is emitted through the tailpipe.
-        In the first decade of 2000,
-        the fraction of NO gradually decreased from 95% to about 80%.
+
+        .. note:: 
+
+            Depending on the sector, this value can vary.
+           
+            For most emission sources, the fraction of NO is closer to 95%,
+            only for traffic a fraction of 82% may be applied.
+            The reason is that oxidation catalysts in diesel engines partly
+            oxidize NO to NO2 before it is emitted through the tailpipe.
+            In the first decade of 2000,
+            the fraction of NO gradually decreased from 95% to about 80%.
+
+            See more: 
+
+            * https://www.empa.ch/documents/56101/246436/Trend+NO2+Immissionen+Stadt+2022/ddba8b88-c599-4ed4-8b94-cc24670be683
+            * https://www.zh.ch/de/umwelt-tiere/luft-strahlung/luftschadstoffquellen/emissionen-verkehr/abgasmessungen-rsd.html
+
+
 
     :returns: The speciated inventory.
+
     """
     MOLAR_MASS_NO2 = 46.0
     MOLAR_MASS_NO = 30.0
