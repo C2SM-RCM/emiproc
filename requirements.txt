@@ -6,3 +6,4 @@ shapely
 xarray
 geopandas
 rasterio
+pyyaml
