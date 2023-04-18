@@ -1,6 +1,30 @@
+Emission Profiles
+=================
 
-.. warning::
-    This is not yet implemented
+Most of the inventories provide annual values for the emissions of a specific region.
+For simulations we need to know how they vary with time and elevation.
+
+For that we downscale the annual values using profiles.
+
+
+Scaling factors vs Ratios 
+-------------------------
+
+Here we clarify the terminology as profiles can be defined in 2 ways.
+
+1. Scaling factors
+2. Ratios
+
+Ratios signify the proportion of the total emission that is emitted
+at a specific time or height.
+
+Scaling factor give a value for which we can multiply the average emmission
+to get the emission at a specific time or height.
+
+Ratios must sum up to one.
+Scaling factors must have an average of one.
+
+Emiproc uses internally ratios for the profiles.
 
 
 Vertical Profiles 
