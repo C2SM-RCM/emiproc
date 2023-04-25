@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum, auto
 import logging
 from os import PathLike
 from pathlib import Path
@@ -16,8 +17,57 @@ N_DAY_WEEK = 7
 N_MONTH_YEAR = 12
 N_DAY_YEAR = 365
 N_DAY_LEAPYEAR = 366
+N_HOUR_WEEK = N_HOUR_DAY * N_DAY_WEEK
 N_HOUR_YEAR = N_DAY_YEAR * N_HOUR_DAY
 N_HOUR_LEAPYEAR = N_DAY_LEAPYEAR * N_HOUR_DAY
+
+
+# An enum to define specific days
+class SpecificDay(Enum):
+    # Make it automatically assign the value to the name
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    MONDAY = auto()
+    TUESDAY = auto()
+    WEDNESDAY = auto()
+    THURSDAY = auto()
+    FRIDAY = auto()
+    SATURDAY = auto()
+    SUNDAY = auto()
+
+    WEEKDAY = auto()  # One of the 5 first days
+    WEEKEND = auto()  # One of the 2 last days
+
+
+def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
+    """Return the days corresponding for a specific day."""
+
+    if not isinstance(specific_day, SpecificDay):
+        raise TypeError(f"{specific_day=} must be a {SpecificDay}.")
+
+    if specific_day == SpecificDay.MONDAY:
+        return [0]
+    elif specific_day == SpecificDay.TUESDAY:
+        return [1]
+    elif specific_day == SpecificDay.WEDNESDAY:
+        return [2]
+    elif specific_day == SpecificDay.THURSDAY:
+        return [3]
+    elif specific_day == SpecificDay.FRIDAY:
+        return [4]
+    elif specific_day == SpecificDay.SATURDAY:
+        return [5]
+    elif specific_day == SpecificDay.SUNDAY:
+        return [6]
+    elif specific_day == SpecificDay.WEEKDAY:
+        return [0, 1, 2, 3, 4]
+    elif specific_day == SpecificDay.WEEKEND:
+        return [5, 6]
+    else:
+        raise NotImplementedError(
+            f"{specific_day=} is implemented in  {get_days_allowed}"
+        )
 
 
 @dataclass
@@ -52,6 +102,7 @@ class DailyProfile(TemporalProfile):
     """Daily profile.
 
     Daily profile defines how the emission is distributed over the day.
+    The profile starts at 00:00.
     """
 
     size: int = field(default=N_HOUR_DAY, init=False)
@@ -59,10 +110,18 @@ class DailyProfile(TemporalProfile):
 
 
 @dataclass
+class SpecificDayProfile(DailyProfile):
+    """Same as DailyProfile but with a specific day of the week."""
+
+    specific_day: SpecificDay | None = None
+
+
+@dataclass
 class WeeklyProfile(TemporalProfile):
     """Weekly profile.
 
     Weekly profile defines how the emission is distributed over the week.
+    The profile starts on Monday.
     """
 
     size: int = N_DAY_WEEK
@@ -79,6 +138,23 @@ class MounthsProfile(TemporalProfile):
     size: int = N_MONTH_YEAR
     ratios: np.ndarray = field(
         default_factory=lambda: np.ones(N_MONTH_YEAR) / N_MONTH_YEAR
+    )
+
+
+@dataclass
+class HourOfWeekProfile(TemporalProfile):
+    """Hour of week profile.
+
+    Hour of week profile defines how the emission is distributed over the week using hours.
+    This is useful if you want to account for different daily patterns over the
+    days of the week (usually for the weekend)
+
+    The profile starts on Monday at 00:00.
+    """
+
+    size: int = N_HOUR_WEEK
+    ratios: np.ndarray = field(
+        default_factory=lambda: np.ones(N_HOUR_WEEK) / N_HOUR_WEEK
     )
 
 
@@ -155,6 +231,13 @@ def profile_to_scaling_factors(
             # Months start with 1
             month += 1
             scaling_factors[time_serie.month == month] *= factor
+    elif isinstance(profile, SpecificDayProfile):
+        # Find the days corresponding to this factor
+        days_allowed = get_days_as_ints(profile.specific_day)
+        mask_matching_day = np.isin(time_serie.day_of_week, days_allowed)
+        for hour, factor in enumerate(factors):
+            # Other days will not have a scaling factor
+            scaling_factors[(time_serie.hour == hour) & mask_matching_day] *= factor
     else:
         raise NotImplementedError(
             f"Cannot apply {profile=}, {type(profile)=} is not implemented."
@@ -297,10 +380,9 @@ def from_csv(
     return profiles
 
 
-
 def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
     """Read a yml file containing a temporal profile.
-    
+
     Only one temporal profile is currently accepted in the yaml definition.
     """
     logger = logging.getLogger("emiproc.profiles.from_yaml")
@@ -308,38 +390,68 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
 
     with open(yaml_file, "r") as f:
         data = yaml.safe_load(f)
-    
+
     if data is None:
         logger.warning(f"Empty yaml file {yaml_file=}")
         return []
+    elif not isinstance(data, dict):
+        raise ValueError(f"Invalid yaml file {yaml_file=}, expected to load a dict.")
 
     profiles = []
 
-    # Create possible aliases for the names 
+    # Create possible aliases for the names
     profiles_mapping: dict[AnyTimeProfile, list[str]] = {
         DailyProfile: ["diurn", "daily", "day"],
+        SpecificDayProfile: [
+            "diurn_weekday",
+            "diurn_weekend",
+            "diurn_saturday",
+            "diurn_sunday",
+        ],
         WeeklyProfile: ["weekly", "week"],
         MounthsProfile: ["season", "year", "monthly", "month"],
     }
-    profile_of_key = {key: profile for profile, keys in profiles_mapping.items() for key in keys}
+    profile_of_key = {
+        key: profile for profile, keys in profiles_mapping.items() for key in keys
+    }
 
     _types_added = []
-    # Check that the yaml does not contain any unkown key 
+    # Check that the yaml does not contain any unkown key
     for key in data.keys():
         if not any(key in profile_names for profile_names in profiles_mapping.values()):
             logger.warning(f"Unknown key {key=} in {yaml_file=}")
-            continue 
+            continue
         profile_class = profile_of_key[key]
         # Check that a profile of that type was not already added
         if profile_class in _types_added:
-            raise ValueError(f"Cannot add {key=} to {yaml_file=} as a {profile_class=} was already added.")
-        # add the profile 
+            raise ValueError(
+                f"Cannot add {key=} to {yaml_file=} as a {profile_class=} was already added."
+            )
+        # add the profile
         ratios = data[key]
-        # Check the ratio 
+        # Check the ratio
         if not np.isclose(np.sum(ratios), 1.0):
-            raise ValueError(f"{ratios=} in {yaml_file=} do not sum to 1 but {np.sum(ratios)}.")
-        profiles.append(profile_class(ratios=ratios))
-        
+            raise ValueError(
+                f"{ratios=} in {yaml_file=} do not sum to 1 but {np.sum(ratios)}."
+            )
+
+        # Add additional information on the profiles if requried
+        kwargs = {}
+        if profile_class is SpecificDayProfile:
+            # get the type of the profile
+            profile_type = key.split("_")[-1]
+            # Add the selected day
+            kwargs["specific_day"] = SpecificDay(profile_type)
+
+        try:
+            profile = profile_class(ratios=ratios, **kwargs)
+        except Exception as e:
+            raise ValueError(
+                f"Cannot create profile {key=} from {yaml_file=} with {ratios=}"
+            ) from e
+
+        profiles.append(profile)
+
     if len(profiles) == 0:
         logger.warning(f"No profile found in {yaml_file=}")
     return profiles

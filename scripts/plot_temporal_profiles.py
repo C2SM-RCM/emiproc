@@ -85,7 +85,21 @@ ax.legend()
 # %%
 yaml_dir = Path(r"C:\Users\coli\Documents\emiproc\files\profiles\yamls")
 
+yaml_profiles = {}
 for yml_file in yaml_dir.glob("*.yaml"):
-    from_yaml(yml_file)
+    yaml_profiles[yml_file.stem] = from_yaml(yml_file)
 
+# %%
+tss = {}
+for categorie in yaml_profiles.keys():
+    tss[categorie] = create_time_serie(
+        start_time="2020-01-01",
+        end_time="2020-02-28",
+        profiles=yaml_profiles[categorie],
+    )
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+for name, ts in tss.items():
+    ax.plot(ts, label=name)
+ax.legend()
 # %%
