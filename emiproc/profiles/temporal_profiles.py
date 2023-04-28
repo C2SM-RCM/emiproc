@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from emiproc.profiles.utils import read_profile_csv
+
 # Constants
 N_HOUR_DAY = 24
 N_DAY_WEEK = 7
@@ -269,27 +271,9 @@ def from_csv(
     Based on the file, guess the correct profile
     to create
     """
-    logger = logging.getLogger("emiproc.profiles.from_csv")
 
-    file = Path(file)
 
-    df = pd.read_csv(file)
-
-    if "Category" in df.columns:
-        cat_header = "Category"
-    else:
-        raise ValueError(f"Cannot find 'Category' header in {file=}")
-
-    if "Substance" in df.columns:
-        sub_header = "Substance"
-    else:
-        sub_header = None
-        logger.warning(
-            f"Cannot find 'Substance' header in {file=}."
-            "All substances will be treated the same way."
-        )
-
-    logger.error(f"{df.columns=}")
+    df, cat_header, sub_header = read_profile_csv(file)
 
     if "Mon" in df.columns:
         # Weekly profile with 3 letters identification
@@ -460,3 +444,29 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
     if len(profiles) == 0:
         logger.warning(f"No profile found in {yaml_file=}")
     return profiles
+
+
+
+def to_yaml(profiles: list[AnyTimeProfile], yaml_file: PathLike):
+    """Write a list of profiles to a yaml file."""
+    yaml_file = Path(yaml_file)
+    yaml_file.parent.mkdir(parents=True, exist_ok=True)
+
+    data = {}
+    for profile in profiles:
+        if isinstance(profile, DailyProfile):
+            if isinstance(profile, SpecificDayProfile):
+                key = f"diurn_{profile.specific_day.value}"
+            else:
+                key = "daily"
+        elif isinstance(profile, WeeklyProfile):
+            key = "weekly"
+        elif isinstance(profile, MounthsProfile):
+            key = "monthly"
+        else:
+            raise NotImplementedError(f"Cannot write {profile=}")
+
+        data[key] = profile.ratios.tolist()
+
+    with open(yaml_file, "w") as f:
+        yaml.dump(data, f)

@@ -1,3 +1,7 @@
+import logging
+from os import PathLike
+from pathlib import Path
+import pandas as pd
 import xarray as xr
 
 
@@ -64,3 +68,29 @@ def get_desired_profile_index(
 
     # Return the index as int
     return int(desired_index.values)
+
+
+def read_profile_csv(file: PathLike) -> tuple[pd.DataFrame, str, str| None]:
+    """Read a profile csv file and return the dataframe, the category header and the substance header.
+    
+    Checks the name of the category and substances columns.
+    """
+    file = Path(file)
+
+    df = pd.read_csv(file)
+    if "Category" in df.columns:
+        cat_header = "Category"
+    else:
+        raise ValueError(f"Cannot find 'Category' header in {file=}")
+
+    if "Substance" in df.columns:
+        sub_header = "Substance"
+    else:
+        sub_header = None
+        logger = logging.getLogger("emiproc.profiles.read_cat_sub_from_csv")
+        logger.warning(
+            f"Cannot find 'Substance' header in {file=}.\n"
+            "All substances will be treated the same way."
+        )
+    
+    return df, cat_header, sub_header

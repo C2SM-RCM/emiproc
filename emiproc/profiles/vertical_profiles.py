@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
+from os import PathLike
 import numpy as np
+import pandas as pd
+
+from emiproc.profiles.utils import read_profile_csv
 
 
 @dataclass
@@ -30,6 +34,7 @@ class VerticalProfile:
     def n_profiles(self) -> int:
         return 1
 
+
 @dataclass
 class VerticalProfiles:
     """Vertical profiles.
@@ -47,7 +52,7 @@ class VerticalProfiles:
     @property
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
-    
+
     def copy(self):
         """Make a deep copy of the profiles."""
         return VerticalProfiles(
@@ -203,5 +208,48 @@ def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalPro
     assert np.all(r >= 0)
 
 
+def from_csv(file: PathLike) -> tuple[VerticalProfiles, list[str | tuple[str, str]]]:
+    """Read a csv file containing vertical profiles.
 
- 
+    The format is the following::
+
+        Category,Substance,20m,92m,184m,324m,522m,781m,1106m
+        Public_Power,CO2,0,0,0.0025,0.51,0.453,0.0325,0.002
+        Public_Power,CH4,0,0,0.0025,0.51,0.453,0.0325,0.002
+        Industry,CO2,0.06,0.16,0.75,0.03,0,0,0
+        ...
+
+    The first line is the header, the first column is the category,
+    the second column is the substance and the rest of the columns
+    are the ratios for each height level.
+
+    The heights level specify mean from the previous height to this one.
+    (e.g. 20m is the mean from 0 to 20m, 92m is the mean from 20m to 92m, ...)
+
+    The Substance column is optional, if not present, the category will be used
+    only.
+
+    """
+
+    # Read the file
+    df, cat_header, sub_header = read_profile_csv(file)
+
+    # Get the height levels
+    heights_mapping = {
+        float(col_name[:-1]): col_name
+        for col_name in df.columns
+        # Take only the columns that end with m
+        if col_name.endswith("m")
+    }
+    heights = sorted(heights_mapping.keys())
+    heights_cols = [heights_mapping[h] for h in heights]
+
+    # Create the profiles
+    profiles = VerticalProfiles(df[heights_cols].to_numpy(), heights)
+
+    if sub_header is None:
+        cat_sub = df[cat_header].to_list()
+    else:
+        cat_sub = df[[cat_header, sub_header]].apply(tuple, axis=1).to_list()
+
+    return profiles, cat_sub
