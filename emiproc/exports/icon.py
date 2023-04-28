@@ -1,46 +1,86 @@
-
-from datetime import datetime
+from datetime import datetime, timedelta
+from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
 import xarray as xr
 import numpy as np
+from emiproc.exports.netcdf import DEFAULT_NC_ATTRIBUTES
 from emiproc.grids import ICONGrid
 from emiproc.inventories import Inventory
+from emiproc.profiles.temporal_profiles import (
+    DailyProfile,
+    MounthsProfile,
+    TemporalProfile,
+    WeeklyProfile,
+    create_time_serie,
+    get_emep_shift,
+)
+from emiproc.profiles.vertical_profiles import (
+    VerticalProfile,
+    VerticalProfiles,
+    resample_vertical_profiles,
+)
 from emiproc.utilities import SEC_PER_YR, compute_country_mask
+from emiproc.profiles.utils import get_desired_profile_index
 
+
+class TemporalProfilesTypes(Enum):
+    """Possible temporal profiles for OEM."""
+
+    HOUR_OF_YEAR = auto()
+    # Three files (hour of day, day of week, month of year)
+    THREE_CYCLES = auto()
 
 
 def export_icon_oem(
     inv: Inventory,
     icon_grid_file: PathLike,
-    output_file: PathLike,
+    output_dir: PathLike,
     group_dict: dict[str, list[str]] = {},
     country_resolution: str = "10m",
+    temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.HOUR_OF_YEAR,
+    year: int | None = None,
+    nc_attributes: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
 ):
     """Export to a netcdf file for ICON OEM.
 
     The inventory should have already been remapped to the
     :py:class:`emiproc.grids.IconGrid` .
 
-    Values will be convergted from kg/y to kg/m2/s .
+    For ICON-OEM you will need to add in the ICON namelist the path the
+    files produced by this module::
+
+
+        ! oem_nml: online emission module ---------------------------------------------
+        &oemctrl_nml
+        gridded_emissions_nc        =   '${OEMDIR}/tno_combined.nc'
+        vertical_profile_nc         =   '${OEMDIR}/vertical_profiles.nc'
+        hour_of_day_nc              =   '${OEMDIR}/hourofday.nc'
+        day_of_week_nc              =   '${OEMDIR}/dayofweek.nc'
+        month_of_year_nc            =   '${OEMDIR}/monthofyear.nc'
+        ! If you use the hour of year profile, use this instead of the three above
+        ! hour_of_year_nc             =   '${OEMDIR}/hourofyear.nc'
+        /
+
+
+    Values will be converted from kg/y to kg/m2/s .
 
     :arg group_dict: If you groupped some categories, you can optionally
         add the groupping in the metadata.
     :arg country_resolution: The resolution
         can be either '10m', '50m' or '110m'
 
-    .. warning::
-
-        Country codes are not yet implemented
-
     """
     icon_grid_file = Path(icon_grid_file)
-    output_file = Path(output_file)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True, parents=True)
     # Load the output xarray
 
     ds_out: xr.Dataset = xr.load_dataset(icon_grid_file)
+    time_profiles: dict[str, list[TemporalProfile]] = {}
+    vertical_profiles: dict[str, VerticalProfile] = {}
 
-    for (categorie, sub) in inv._gdf_columns:
+    for categorie, sub in inv._gdf_columns:
         name = f"{categorie}-{sub}"
 
         # Convert from kg/year to kg/m2/s
@@ -61,10 +101,37 @@ def export_icon_oem(
 
         ds_out = ds_out.assign({name: emission_with_metadata})
 
-    # Find the proper contry codes
+        if inv.v_profiles is not None:
+            profile_index = get_desired_profile_index(
+                inv.v_profiles_indexes, cat=categorie, sub=sub
+            )
+            vertical_profiles[name] = inv.v_profiles[profile_index]
+
+        if inv.t_profiles_groups is not None:
+            profile_index = get_desired_profile_index(
+                inv.t_profiles_indexes, cat=categorie, sub=sub
+            )
+            time_profiles[name] = inv.t_profiles_groups[profile_index]
+
+    # Save the profiles
+    if time_profiles:
+        make_icon_time_profiles(
+            time_profiles,
+            {code: get_emep_shift(code) for code in np.unique(country_mask)},
+            profiles_type=temporal_profiles_type,
+            year=year,
+            out_dir=output_dir,
+            nc_attrs=nc_attributes,
+        )
+    if vertical_profiles:
+        make_icon_vertical_profiles(
+            vertical_profiles, out_dir=output_dir, nc_attrs=nc_attributes
+        )
+
+
+    # Find the proper country codes
     mask_file = (
-        output_file.parent
-        / f".emiproc_country_mask_{country_resolution}_{icon_grid_file.stem}"
+        output_dir / f".emiproc_country_mask_{country_resolution}_{icon_grid_file.stem}"
     ).with_suffix(".npy")
     if mask_file.is_file():
         country_mask = np.load(mask_file)
@@ -88,262 +155,192 @@ def export_icon_oem(
             )
         }
     )
+    # Save the emissions
+    ds_out.to_netcdf(output_dir / "oem_gridded_emissions.nc")
 
-    ds_out.to_netcdf(output_file)
 
 
-def create_profiles(*args, **kwargs):
-    """Create the profiles for the icon oem.
-    Script to create netCDF-files containing temporal emission factors.
-    The structure of the generated files is as follows:
 
-    4 files :
-    hourofday, dayofweek, monthofyear, hourofyear
+def make_icon_time_profiles(
+    time_profiles: dict[str, list[TemporalProfile]],
+    countries_shifts: dict[str, int],
+    profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
+    year: int | None = None,
+    out_dir: PathLike | None = None,
+    nc_attrs: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
+) -> dict[str, xr.Dataset]:
+    """Make the profiles in the icon format.
 
-    For 'hourofday.nc'
-    dimensions:
-            hourofday = 24 ;
-            country = <Ncountry> ;
-    variables:
-            float varname1(hourofday, country) ;
-                    varname1:units = '1' ;
-                    varname1:long_name = 'diurnal scaling factor for 24 hours' ;
-                    varname1:comment = 'first hour is 00h, last 23h local time' ;
-            float varname2(hourofday, country) ;
-                    varname2:units = '1' ;
-                    varname2:long_name = 'diurnal scaling factor for 24 hours' ;
-                    varname2:comment = 'first hour is 00h, last 23h local time' ;
-    [...]
-            short countryID(country) ;
-                    country:long_name = 'EMEP country code' ;
+    :arg time_profiles: A dictionary with
+        the names of variables in the file as keys and
+        the profiles as values.
+    :arg countries_shifts: A dictionary with
+        the names of the countries as keys and the shifts as values.
+    :arg profiles_type: The type of profiles to use.
+    :arg year: Used for the HOUR_OF_YEAR option.
+    :arg out_dir: The directory where to save the files.
+        If None, the files are not saved.
 
-    For 'dayofweek.nc':
-    dimensions:
-            dayofweek = 7 ;
-            country = <Ncountry> ;
-    variables:
-            float varname1(dayofweek, country) ;
-                    varname1:units = '1' ;
-                    varname1:long_name = 'day-of-week scaling factor for 7 days' ;
-                    varname1:comment = 'first day is Monday, last day is Sunday' ;
-    [...]
-            short country(country) ;
-                    countryID:long_name = 'EMEP country code' ;
+    .. note::
+        OEM can differentiate profiles based on the grid cell.
+        It tries to group grid cells in what it calls "countries".
+        This should not be mixed with the real countries.
+        The countries identifiers should match between the files.
 
-    For 'monthofyear.nc':
-    dimensions:
-            monthofyear = 12 ;
-            country = <Ncountry> ;
-    variables:
-            float varname1(monthofyear, country) ;
-                    varname1:units = '1' ;
-                    varname1:long_name = 'monthly scaling factor for 12 months';
-                    varname1:comment = 'first month is Jan, last month is Dec';
-    [...]
-            short countryID(country) ;
-                    countryID:long_name = 'EMEP country code' ;
-
-    For 'hourofyear.nc':
-    The country dependency includes the shift for each country timezone.
-    dimensions:
-        hourofyear = 8784 ;
-            country = <Ncountry> ;
-    variables:
-            float varname1(hourofyear, category) ;
-                    varname1:units = '1' ;
-                    varname1:long_name = 'hourly scaling factor' ;
-            [...]
-            short countryID(country) ;
-                    countryID:long_name = 'EMEP country code' ;
-        
+    .. warning::
+        Currently the same profiles are used for all the countries.
+        Only the shifts are different.
     """
 
-def create_netcdf(path, countries, metadata):
-    """\
-    Create a netcdf file containing the list of countries and the dimensions.
+    countries = list(countries_shifts.keys())
+    shifts = np.array(list(countries_shifts.values()))
+    max_shift = int(max(np.abs(shifts)))
 
-    Parameters
-    ----------
-    path: String
-        Path to the output netcdf file
-    countries: List(int)
-        List of countries
-    metadata : dict(str : str)
-        Containing global file attributes. Used as argument to
-        netCDF4.Dataset.setncatts.
-    """
-    for (profile, size) in zip(
-        ["hourofday", "dayofweek", "monthofyear", "hourofyear"],
-        [N_HOUR_DAY, N_DAY_WEEK, N_MONTH_YEAR, N_HOUR_YEAR],
-    ):
-        filename = os.path.join(path, profile + ".nc")
+    if profiles_type == TemporalProfilesTypes.THREE_CYCLES:
+        nc_attrs["title"] = "Hour of day profiles"
+        hourofday = xr.Dataset(attrs=nc_attrs.copy())
+        nc_attrs["title"] = "Day of week profiles"
+        dayofweek = xr.Dataset(attrs=nc_attrs.copy())
+        nc_attrs["title"] = "Month of year profiles"
+        monthofyear = xr.Dataset(attrs=nc_attrs.copy())
+    else:
+        nc_attrs["title"] = "Hour of year profiles"
+        hourofyear = xr.Dataset(attrs=nc_attrs)
 
-        with netCDF4.Dataset(filename, "w") as nc:
+    var_metadata = lambda var_name, profile_name: {
+        "units": "1",
+        "long_name": f"{profile_name} scaling factors for {var_name}",
+    }
 
-            # global attributes (add input data)
-            nc.setncatts(metadata)
-
-            # create dimensions
-            nc.createDimension(profile, size=size)
-            nc.createDimension("country", size=len(countries))
-
-            nc_cid = nc.createVariable("country", "i2", ("country"))
-            nc_cid[:] = np.array(countries, "i2")
-            nc_cid.long_name = "EMEP country code"
-
-def write_single_variable(path, profile, values, tracer, category,
-                          varname_format):
-    """Add a profile to the output netcdf
-
-    Parameters
-    ----------
-    path: String
-        Path to the output netcdf file
-    profile: String
-        Type of profile to output
-        (within ["hourofday", "dayofweek", "monthofyear", "hourofyear"])
-    values: list(float)
-        The profile
-    tracer: string
-        Name of tracer
-    category: String
-        Name of the category
-    """
-    filename = os.path.join(path, profile + ".nc")
-    if profile == "hourofday":
-        descr = "diurnal scaling factor"
-        comment = "first hour is 00h, last 23h local time"
-    if profile == "dayofweek":
-        descr = "day-of-week scaling factor"
-        comment = "first day is Monday, last day is Sunday"
-    if profile == "monthofyear":
-        descr = "month-of-year scaling factor"
-        comment = "first month is Jan, last month is Dec"
-    if profile == "hourofyear":
-        descr = "hour-of-year scaling factor"
-        comment = "first hour is on Jan 1. 00h"
-
-    with netCDF4.Dataset(filename, "a") as nc:
-
-        varname = varname_format.format(tracer=tracer, category=category)
-
-        nc_var = nc.createVariable(varname, "f4", (profile, "country"))
-        nc_var.long_name = "%s for GNFR %s" % (descr, category)
-        nc_var.units = "1"
-        nc_var.comment = comment
-        nc_var[:] = values
-
-
-def main_complex(cfg):
-
-    os.makedirs(cfg.output_path, exist_ok=True)
-
-    # read all data
-    countries, snaps, daily, weekly, annual = io.read_tracer_profiles(cfg.tracers,
-                                                            cfg.hod_input_file,
-                                                            cfg.dow_input_file,
-                                                            cfg.moy_input_file)
-    countries = [0] + countries
-    n_countries = len(countries)
-
-    create_netcdf(cfg.output_path, countries, cfg.nc_metadata)
-
-    country_tz = get_country_tz(countries, cfg.country_tz_file, cfg.winter)
-
-    for (tracer, snap) in itertools.product(cfg.tracers, snaps):
-
-        # day of week and month of year
-        dow = np.ones((7, n_countries))
-        moy = np.ones((12, n_countries))
-        hod = np.ones((24, n_countries))
-
-        if not cfg.only_ones:
-            for i, country in enumerate(countries):
-
-                if country in country_tz:
-                    hod[:, i] = permute_cycle_tz(
-                        country_tz[country], daily[snap]
+    for key in time_profiles:
+        if profiles_type == TemporalProfilesTypes.THREE_CYCLES:
+            for profile in time_profiles[key]:
+                if not issubclass(type(profile), TemporalProfile):
+                    raise TypeError(f"{profile} from {key} is not a TemporalProfile")
+                scaling_factors = profile.ratios * profile.size
+                if isinstance(profile, DailyProfile):
+                    ds = hourofday
+                    # Use the shifts in the intervals
+                    data = np.asarray(
+                        [
+                            np.roll(scaling_factors, countries_shifts[country])
+                            for country in countries
+                        ]
                     )
+                    dim = "hourofday"
 
-                try:
-                    dow[:, i] = weekly[tracer][country, snap]
-                    if cfg.mean:
-                        dow[:5, i] = (
-                            np.ones(5)
-                            * weekly[tracer][country, snap][:5].mean()
+                else:
+                    if isinstance(profile, WeeklyProfile):
+                        ds = dayofweek
+                        dim = "dayofweek"
+                    elif isinstance(profile, MounthsProfile):
+                        ds = monthofyear
+                        dim = "monthofyear"
+                    else:
+                        raise TypeError(
+                            f"{profile} from {key} is not on of the three profiles: DailyProfile, WeeklyProfile, MounthsProfile."
+                            " You can use the HOUR of YEAR option to have scaling with this type of profile."
                         )
-                except KeyError:
-                    pass
+                    data = np.asarray([scaling_factors for _ in countries])
 
-                try:
-                    moy[:, i] = annual[tracer][country, snap]
-                except KeyError:
-                    pass
+                ds[key] = xr.DataArray(
+                    data.T,
+                    dims=[dim, "country"],
+                    attrs=var_metadata(key, dim),
+                )
+        elif profiles_type == TemporalProfilesTypes.HOUR_OF_YEAR:
+            if year is None:
+                raise ValueError("You must provide a year for the HOUR_OF_YEAR option.")
 
-        write_single_variable(cfg.output_path, "hourofday", hod, tracer, snap,
-                             cfg.varname_format)
-        write_single_variable(cfg.output_path, "dayofweek", dow, tracer, snap,
-                             cfg.varname_format)
-        write_single_variable(cfg.output_path, "monthofyear", moy, tracer,
-                              snap, cfg.varname_format)
+            # Use the shifts in the intervals
+            dt_start = datetime(year, 1, 1, hour=0) - timedelta(hours=max_shift)
+            dt_end = datetime(year, 12, 31, hour=23) + timedelta(hours=max_shift)
 
+            ts = create_time_serie(dt_start, dt_end, time_profiles[key])
 
+            concatenated_profiles = np.asarray(
+                [
+                    # Start around the shift and end
+                    ts.to_numpy()[max_shift + shift : -max_shift + shift]
+                    for country, shift in zip(countries, shifts)
+                ]
+            )
 
-def main_simple(cfg):
-    """ The main script for producing profiles from the csv files from TNO.
-    Takes an output path as a parameter"""
+            # Convert to scaling factors
+            concatenated_profiles *= concatenated_profiles.shape[1]
 
-    os.makedirs(cfg.output_path, exist_ok=True)
+            # Apply the shift for each contry
+            hourofyear[key] = xr.DataArray(
+                data=concatenated_profiles.T,
+                dims=["hourofyear", "country"],
+                attrs=var_metadata(key, "hourofyear"),
+            )
+        else:
+            raise NotImplementedError(f"{profiles_type} is not implemented.")
 
-    # Arbitrary list of countries including most of Europe.
-    countries = np.arange(74)
-    countries = np.delete(
-        countries, [5, 26, 28, 29, 30, 31, 32, 33, 34, 35, 58, 64, 67, 70, 71]
-    )
-    n_countries = len(countries)
+    if profiles_type == TemporalProfilesTypes.HOUR_OF_YEAR:
+        dict_ds = {"hourofyear": hourofyear}
+    elif profiles_type == TemporalProfilesTypes.THREE_CYCLES:
+        dict_ds = {
+            "hourofday": hourofday,
+            "dayofweek": dayofweek,
+            "monthofyear": monthofyear,
+        }
+    else:
+        raise NotImplementedError(f"{profiles_type} is not implemented.")
 
-    country_tz = get_country_tz(countries, cfg.country_tz_file, cfg.winter)
+    for ds in dict_ds.values():
+        ds["country"] = countries
 
-    create_netcdf(cfg.output_path, countries, cfg.nc_metadata)
+    if out_dir is not None:
+        # Save the files
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for name, ds in dict_ds.items():
+            print(out_dir.absolute())
+            ds.to_netcdf(out_dir / f"{name}.nc")
 
-    cats, daily = read_temporal_profile(cfg.hod_input_file)
-    cats, weekly = read_temporal_profile(cfg.dow_input_file)
-    cats, monthly = read_temporal_profile(cfg.moy_input_file)
-
-
-    for cat_ind, cat in enumerate(cats):
-
-        # day of week and month of year
-        hod = np.ones((N_HOUR_DAY, n_countries))
-        dow = np.ones((N_DAY_WEEK, n_countries))
-        moy = np.ones((N_MONTH_YEAR, n_countries))
-
-        if not cfg.only_ones:
-            for i, country in enumerate(countries):
-                try:
-                    hod[:, i] = permute_cycle_tz(
-                        country_tz[country], daily[cat_ind, :]
-                    )
-                except KeyError:
-                    pass
-
-                try:
-                    dow[:, i] = weekly[cat_ind, :]
-                    if cfg.mean:
-                        dow[:5, i] = np.ones(5) * weekly[cat_ind, :5].mean()
-                except KeyError:
-                    pass
-
-                try:
-                    moy[:, i] = monthly[cat_ind]
-                except KeyError:
-                    pass
-
-        write_single_variable(cfg.output_path, "hourofday", hod, None, cat,
-                              cfg.varname_format)
-        write_single_variable(cfg.output_path, "dayofweek", dow, None, cat,
-                              cfg.varname_format)
-        write_single_variable(cfg.output_path, "monthofyear", moy, None, cat,
-                              cfg.varname_format)
+    return dict_ds
 
 
+def make_icon_vertical_profiles(
+    vertical_profiles: dict[str, VerticalProfile],
+    out_dir: PathLike | None = None,
+    nc_attrs: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
+) -> xr.Dataset:
+    """Create the vertical profiles in the icon format."""
+
+    # Make sure all teh vertical profiles have the same heights
+    # oem does not process different heigths
+    resampled_profiles = resample_vertical_profiles(*vertical_profiles.values())
+
+    data_vars = {
+        key: (
+            "level",
+            resampled_profiles[i].ratios,
+            {
+                "long_name": f"vertical scaling factor for sources of {key} category ",
+                "units": "1",
+            },
+        )
+        for i, key in enumerate(vertical_profiles.keys())
+    }
+
+    # Add the layers
+    data_vars["layer_top"] = ("level", resampled_profiles.height)
+    layer_bot = np.roll(resampled_profiles.height, 1)
+    layer_bot[0] = 0
+    data_vars["layer_bot"] = ("level", layer_bot)
+    data_vars["layer_mid"] = ("level", (resampled_profiles.height + layer_bot) / 2.0)
+
+    # Create the dataset
+    nc_attrs["title"] = "Vertical profiles"
+    ds = xr.Dataset(data_vars=data_vars, attrs=nc_attrs)
+
+    if out_dir is not None:
+        # Save the files
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ds.to_netcdf(out_dir / "vertical_profiles.nc")
+
+    return ds
