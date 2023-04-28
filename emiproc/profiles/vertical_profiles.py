@@ -64,6 +64,12 @@ class VerticalProfiles:
             ratios=np.concatenate([self.ratios, other.ratios], axis=0),
         )
 
+    def __getitem__(self, index: int) -> VerticalProfile:
+        return VerticalProfile(
+            ratios=self.ratios[index],
+            height=self.height,
+        )
+
 
 class GroupingMethod(Enum):
     KEEP_ALL_LEVELS = auto()
@@ -141,7 +147,8 @@ def resample_vertical_profiles(
     Uses a conservative interpolation method, that ensure that
     even on higher resolution the profile will be exactly the same.
     Note that this sometimes has no physical sense and a linear
-    interpolation when using profiles at higher resolutions
+    interpolation when using profiles would be better
+    at higher resolutions, but this has to be a choice from the user.
 
     :arg specified_levels: If this is specified, you can select an arbitray
         scale on which to reproject. If not specified, all the levels found

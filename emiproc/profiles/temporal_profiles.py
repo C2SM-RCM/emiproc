@@ -66,9 +66,14 @@ def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
         return [5, 6]
     else:
         raise NotImplementedError(
-            f"{specific_day=} is implemented in  {get_days_allowed}"
+            f"{specific_day=} is implemented in  {get_days_as_ints}"
         )
 
+
+def get_emep_shift(country_code: int) -> int:
+    """Retunr the time shift form the country code of emep."""
+    logging.error("'get_emep_shift' is not implemented yet. Time shifts are all 0.")
+    return 0
 
 @dataclass
 class TemporalProfile:

@@ -1,11 +1,16 @@
 """Test some basic features of the inventory profiles."""
+
 # %%
+# %%
+from datetime import datetime, timedelta
+from os import PathLike
 import xarray as xr
 from pathlib import Path
 import numpy as np
 import pytest
 import geopandas as gpd
 from shapely.geometry import Polygon
+from emiproc.exports.icon import TemporalProfilesTypes, make_icon_time_profiles
 
 from emiproc.inventories import Inventory
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
@@ -16,7 +21,7 @@ from emiproc.profiles.temporal_profiles import (
     MounthsProfile,
     create_time_serie,
     from_csv,
-    from_yaml
+    from_yaml,
 )
 from emiproc.profiles.operators import (
     weighted_combination,
@@ -67,16 +72,20 @@ for name, profile in profiles_month_in_year.items():
 ax.legend()
 # %%
 tss = {}
+csv_profiles = {}
 for categorie in profiles_month_in_year.keys():
+    csv_profiles[categorie] = [
+        profiles_month_in_year[categorie],
+        profiles_day_in_week[categorie],
+        profiles_hour_in_day[categorie],
+    ]
+
     tss[categorie] = create_time_serie(
         start_time="2020-01-01",
         end_time="2020-02-28",
-        profiles=[
-            profiles_month_in_year[categorie],
-            profiles_day_in_week[categorie],
-            profiles_hour_in_day[categorie],
-        ],
+        profiles=csv_profiles[categorie],
     )
+
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 for name, ts in tss.items():
@@ -102,4 +111,29 @@ fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 for name, ts in tss.items():
     ax.plot(ts, label=name)
 ax.legend()
+# %%
+from enum import Enum, auto
+from emiproc.profiles.temporal_profiles import create_time_serie
+
+
+dss = make_icon_time_profiles(
+    csv_profiles,
+    {"DE": 0, "FR": 1, "USA": -5},
+    TemporalProfilesTypes.THREE_CYCLES,
+    2020,
+    out_dir="./test_icon_oem_profiles",
+)
+dss["hourofday"]
+# %%
+
+# plot each of the countries
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+for country in dss["monthofyear"]["country"].values:
+    ax.plot(
+        dss["monthofyear"]["Road_Transport"].sel(country=country),
+        label=country,
+        alpha=0.5,
+    )
+ax.legend()
+
 # %%

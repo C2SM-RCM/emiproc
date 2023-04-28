@@ -12,6 +12,8 @@ import numpy as np
 import xarray as xr
 
 from emiproc.grids import LV95, Grid, SwissGrid
+from emiproc.profiles.temporal_profiles import TemporalProfile
+from emiproc.profiles.utils import get_desired_profile_index
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.profiles.vertical_profiles import VerticalProfile, VerticalProfiles
 
@@ -53,6 +55,14 @@ class Inventory:
         profile.
         See :ref:`vertical_profiles` for more information.
 
+    :attr t_profiles_groups: A list  of temporal profiles groups.
+        One temporal pattern can be defined by more than one temporal profile.
+        (ex you can combine hour of day and day of week).
+        The main list contains the different groups of temporal profiles.
+        Each group is a list of :py:class:`TemporalProfile`.
+    :attr t_profiles_indexes: Same as :py:attr:`v_profiles_indexes`.
+        For the temporal profiles, the indexes point to one of the groups.
+
 
     :attr history: Stores all the operations that happened to this inventory.
 
@@ -73,6 +83,9 @@ class Inventory:
 
     v_profiles: VerticalProfiles | None = None
     v_profiles_indexes: xr.DataArray | None = None
+
+    t_profiles_groups: list[list[TemporalProfile]] | None = None
+    t_profiles_indexes: xr.DataArray | None = None
 
     history: list[str]
 
