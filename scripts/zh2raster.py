@@ -333,6 +333,7 @@ ds_out = xr.Dataset(
             "swiss_coordinate_system_lv95": "https://www.swisstopo.admin.ch/en/knowledge-facts/surveying-geodesy/coordinates/swiss-coordinates.html",
             "comment_lv95": "In original LV95 system, x denote northings and y eastings. They have been exchanged here for better compatibility with lon/lat.",
             "copyright_notice": "",
+            "emiproc_history": str(rasters_inv.history),
         },
     ),
 )
@@ -356,18 +357,8 @@ for category, sub in rasters_inv._gdf_columns:
 # %%
 ds_out.to_netcdf(
     outdir
-    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.2.nc"
+    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.3.nc"
 )
 
 
-# %%
-from emiproc.plots import explore_inventory, plot_inventory
 
-#%%
-explore_inventory(rasters_inv, "c1101_Linienschiffe_Emissionen_Kanton", "CO2")
-# %%
-plot_inventory(
-    rasters_inv, figsize=(20, 9), out_dir=r"C:\Users\coli\Pictures\zh_rasters_in_ch"
-)
-
-# %%

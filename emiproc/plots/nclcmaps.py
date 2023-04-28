@@ -1,4 +1,19 @@
-"""I removed most of the colormap from the original file as I dont need them"""
+"""Ncl colormaps for emission plots.
+
+Comes from https://github.com/samwisehawkins/nclcmaps
+Most of the colormaps from the original file were removed 
+as not needed.
+
+Can be used as follows::
+
+    from emiproc.plots import nclcmaps
+
+    cmap = nclcmaps.cmap("WhViBlGrYeOrRe")
+
+    plt.imshow(*args, cmap=cmap)
+
+
+"""
 import numpy as np
 import matplotlib.colors as mcolors
 from matplotlib.colors import ListedColormap
@@ -109,7 +124,6 @@ colors = {
         [255.0, 10.0, 0.0],
         [255.0, 0.0, 0.0],
     ],
-   
 }
 
 

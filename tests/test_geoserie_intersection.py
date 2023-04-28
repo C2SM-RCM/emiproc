@@ -1,9 +1,9 @@
 
 import geopandas as gpd
 from emiproc.regrid import geoserie_intersection
-from shapely.geometry import Point, MultiPolygon, Polygon
+from shapely.geometry import  Polygon
 import numpy as np
-import pytest
+
 
 # prepare test data for the tests
 serie = gpd.GeoSeries(

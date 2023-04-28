@@ -1,4 +1,4 @@
-"""Differnt tools for doing the weights remapping."""
+"""Different functions for doing the weights remapping."""
 from __future__ import annotations
 import logging
 from pathlib import Path
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 def get_weights_mapping(
-    weights_filepath: Path,
+    weights_filepath: Path | None,
     shapes_inv: Iterable[Polygon | Point],
     shapes_out: Iterable[Polygon],
     loop_over_inv_objects: bool = False,
@@ -58,27 +58,29 @@ def get_weights_mapping(
         f"{method=},"
         ")"
     )
+    if weights_filepath is not None:
+        weights_filepath = Path(weights_filepath).with_suffix(f".npz")
+        if loop_over_inv_objects:
+            # Add a small marker
+            weights_filepath = weights_filepath.with_stem(
+                weights_filepath.stem + "_loopinv"
+            )
 
-    weights_filepath = Path(weights_filepath).with_suffix(f".npz")
-    if loop_over_inv_objects:
-        # Add a small marker
-        weights_filepath = weights_filepath.with_stem(
-            weights_filepath.stem + "_loopinv"
-        )
-
-    if not weights_filepath.exists():
+    if (weights_filepath is None) or (not weights_filepath.exists()):
         w_mapping = calculate_weights_mapping(
             shapes_inv,
             shapes_out,
             loop_over_inv_objects,
             method
         )
-        # Make sure dir is created
-        weights_filepath.parent.mkdir(exist_ok=True, parents=True)
-        np.savez(weights_filepath, **w_mapping)
+        if weights_filepath is not None:
+            # Make sure dir is created
+            weights_filepath.parent.mkdir(exist_ok=True, parents=True)
+            np.savez(weights_filepath, **w_mapping)
 
     else:
         w_mapping = {**np.load(weights_filepath)}
+        
     return w_mapping
 
 
@@ -139,7 +141,7 @@ def calculate_weights_mapping(
 
     # Check that only area sources are vectorized
     if not np.all(
-        shapes_vect.map(lambda shape: isinstance(shape, Polygon | MultiPolygon))
+        shapes_vect.map(lambda shape: isinstance(shape, (Polygon, MultiPolygon)))
     ):
         raise TypeError(
             "Non Polygon geometries were found on the grid but cannot be used for remapping."
@@ -295,6 +297,8 @@ def geoserie_intersection(
 
     This can be an expensive operation you might want to cache.
 
+    .. note:: This is used for cropping polygons only.
+
     :arg geometry: The serie of shapes from you inventory or grid.
     :arg shape: A polygon which will be used for cropping.
     :arg keep_outside: Whether to keep only the outer region of the geometry
@@ -358,7 +362,7 @@ def geoserie_intersection(
 def remap_inventory(
     inv: Inventory,
     grid: Grid | gpd.GeoSeries,
-    weigths_file: PathLike,
+    weigths_file: PathLike | None = None,
     method: str = "new",
 ) -> Inventory:
     """Remap any inventory on the desired grid.
@@ -378,10 +382,11 @@ def remap_inventory(
 
 
     """
-    weigths_file = Path(weigths_file)
+    if weigths_file is not None:
+        weigths_file = Path(weigths_file)
 
-    if isinstance(grid, Grid):
-        grid_cells = grid.gdf.geometry
+    if isinstance(grid, Grid) or issubclass(type(grid), Grid):
+        grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
     elif isinstance(grid, gpd.GeoSeries):
         grid_cells = grid
     else:
@@ -425,7 +430,10 @@ def remap_inventory(
     # Add the other mappings
     for category, gdf in inv.gdfs.items():
         # Get the weights of that gdf
-        w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+        if weigths_file is None:
+            w_file = None   
+        else:
+            w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
         w_mapping = get_weights_mapping(
             w_file,
             gdf.geometry,

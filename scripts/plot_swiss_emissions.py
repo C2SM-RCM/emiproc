@@ -5,8 +5,10 @@ from emiproc.inventories.swiss import SwissRasters
 from emiproc.regrid import get_weights_mapping, remap_inventory, weights_remap
 
 # Whether to plot only the place over zurich
-OVER_ZH = True
+OVER_ZH = False
 year = 2020
+# quantile value for the colormap (percentage of values too large/small to be on the colormap)
+q = 0.005
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
 plots_path = Path(r"C:\Users\coli\Pictures") / ( "ch_inv_over_zh" if OVER_ZH else "ch_rasters") / str(year)
 weights_path = Path(".emiproc_weights_swiss_2_icon")
@@ -40,10 +42,10 @@ plt.ioff()
 # %%
 grid = inv_ch.grid
 
-x_min = grid.lon_range()[0]
-x_max = grid.lon_range()[-1]
-y_min = grid.lat_range()[0]
-y_max = grid.lat_range()[-1]
+x_min = grid.lon_range[0]
+x_max = grid.lon_range[-1]
+y_min = grid.lat_range[0]
+y_max = grid.lat_range[-1]
 
 # %% plot all susbstances and categories
 for substance in inv_ch.substances:
@@ -66,8 +68,7 @@ for substance in inv_ch.substances:
         # cax = fig.add_axes([0.87, 0.15, 0.02, 0.7])
 
         emission_non_zero_values = emissions[emissions > 0]
-        #q = 0.005
-        q = 0.001
+        
         norm = LogNorm(
             vmin=np.quantile(emission_non_zero_values, q),
             vmax=np.quantile(emission_non_zero_values, 1 - q),
@@ -136,7 +137,7 @@ for substance in inv_ch.substances:
     # cax = fig.add_axes([0.87, 0.15, 0.02, 0.7])
 
     emission_non_zero_values = emissions[emissions > 0]
-    q = 0.001
+
     norm = LogNorm(
         vmin=np.quantile(emission_non_zero_values, q),
         vmax=np.quantile(emission_non_zero_values, 1 - q),

@@ -1,3 +1,4 @@
+# TODO: check if we need to use another source of data
 # constants
 country_codes = {
     "ALB": 1,

@@ -9,7 +9,7 @@ Bugs & Issues
 -------------
 
 If you find a bug or an issue, you can visit our 
-`issue tracker <https://github.com/C2SM-RCM/cosmo-emission-processing/issues>`_ .
+`issue tracker <https://github.com/C2SM-RCM/emiproc/issues>`_ .
 
 
 .. _contact:
@@ -17,7 +17,7 @@ If you find a bug or an issue, you can visit our
 Contact
 -------
 
-`emiproc official repository <https://github.com/C2SM-RCM/cosmo-emission-processing>`_
+`emiproc official repository <https://github.com/C2SM-RCM/emiproc>`_
 is managed by 
 the
 `Group Atmospheric Modelling and Remote Sensing <https://www.empa.ch/web/s503/team-modelling>`_

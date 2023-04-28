@@ -22,7 +22,7 @@ from emiproc.profiles.operators import combine_profiles, get_weights_of_gdf_prof
 from emiproc.profiles.vertical_profiles import VerticalProfiles
 
 if TYPE_CHECKING:
-    from emiproc.inventories import Inventory
+    from emiproc.inventories import Inventory, Category
 
 
 def list_categories(file: PathLike) -> list[str]:
@@ -41,6 +41,7 @@ def load_category(file: PathLike, category: str) -> gpd.GeoDataFrame:
 def process_emission_category(
     file: PathLike,
     category: str,
+    convert_lines_to_polygons: bool = True,
     line_width: float = 10,
 ) -> gpd.GeoDataFrame:
     """Process an emission category.
@@ -60,7 +61,7 @@ def process_emission_category(
     gdf = load_category(file, category)
 
     # Sometimes it is written in big and sometimes in small 🤷
-    if "Shape_Length" in gdf or "SHAPE_Length" in gdf:
+    if convert_lines_to_polygons and ("Shape_Length" in gdf or "SHAPE_Length" in gdf):
         # Convert lines into Polygon
 
         vector_geometry = gdf.geometry.buffer(line_width, cap_style=3)
@@ -116,9 +117,12 @@ def crop_with_shape(
     Point sources at the boundary will have their emissions value divided
     by 2.
 
+    This might removes categories and substances from the inventory, if they
+    are not present anymore !
+
     :arg inv: The inventory to crop.
     :arg shape: The shape around which to crop the inv.
-    :arg keep_outside: Whether to keep only the outside shape.
+    :arg keep_outside: Whether to keep only the emissions outside of the shape.
     :arg weight_file: A file in which to store the weights.
         If modify_grid is True, this will also save the shapes of the output.
         However saving/reading those shape can be slower than computing
@@ -194,33 +198,45 @@ def crop_with_shape(
     inv_out.gdfs = {}
     for cat, gdf in inv.gdfs.items():
         cols = [col for col in inv.substances if col in gdf]
-        if isinstance(gdf.geometry.iloc[0], Point):
-            # Simply remove the point sources outside
-            mask_intersects = gdf.geometry.intersects(shape)
-            mask_boundary = gdf.geometry.intersects(shape.boundary)
+        if not cols:
+            # No substance of the inventory is in this category
+            # No need to crop anything (cropping this will create accessing error bug later in the loop)
+            continue
 
-            # Takes shapes of interest and the ones at the bounday
+        mask_points = gdf.geometry.apply(lambda x: isinstance(x, Point))
+        if any(mask_points):
+            point_geometries = gdf.geometry.loc[mask_points]
+            points_gdf = gdf.loc[mask_points].copy()
+            # Simply remove the point sources outside
+            mask_intersects = point_geometries.intersects(shape)
+            mask_boundary = point_geometries.intersects(shape.boundary)
+
+            # Takes shapes of interest (inside/outside and the boundary)
             mask_shapes = (
                 ~mask_intersects if keep_outside else mask_intersects
             ) | mask_boundary
-            new_gdf = gdf.copy()
+
             # Points at the boundary are divided by 2
-            new_gdf.loc[mask_boundary, cols] /= 2
-            inv_out.gdfs[cat] = new_gdf.loc[mask_shapes].reset_index(drop=True)
-        else:
+            points_gdf.loc[mask_boundary, cols] /= 2
+            inv_out.add_gdf(cat, points_gdf.loc[mask_shapes].reset_index(drop=True))
+        if not all(mask_points):
             # We keep crop the geometry
+            polys_gdf = gdf.loc[~mask_points]
             new_geometry, weights = geoserie_intersection(
-                gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
+                polys_gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
             )
             mask_non_zero = weights > 0
-            inv_out.gdfs[cat] = gpd.GeoDataFrame(
-                {
-                    col: gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
-                    for col in cols
-                },
-                geometry=new_geometry[mask_non_zero],
-                crs=gdf.crs,
-            ).reset_index(drop=True)
+            inv_out.add_gdf(
+                cat,
+                gpd.GeoDataFrame(
+                    {
+                        col: polys_gdf.loc[mask_non_zero, col] * weights[mask_non_zero]
+                        for col in cols
+                    },
+                    geometry=new_geometry[mask_non_zero],
+                    crs=gdf.crs,
+                ).reset_index(drop=True),
+            )
 
     inv_out.history.append(f"Cropped using {shape=}, {keep_outside=}")
     return inv_out
@@ -229,6 +245,7 @@ def crop_with_shape(
 def group_categories(
     inv: Inventory,
     categories_group: dict[str, list[str]],
+    ignore_missing: bool = False,
 ) -> Inventory:
     """Group the categories of an inventory in new categories.
 
@@ -241,8 +258,21 @@ def group_categories(
     :arg categories_group: A mapping of which groups should be greated
         out of which categries. This will be checked using
         :py:func:`validate_group` .
+    :arg ignore_missing: If True, function will work even if some categories
+        from the mapping are not in the inventory.
+        Ex. ``{"group1": ["cat1", "cat2"], "group2": ["cat3", "cat4"]}``
+        If ``cat3`` is not in the inventory, the function will work as if
+        ``{"group1": ["cat1", "cat2"], "group2": ["cat4"]}`` was passed.
     """
+    if ignore_missing:
+        # Remove the missing categories
+        categories_group = {
+            group: [cat for cat in categories if cat in inv.categories]
+            for group, categories in categories_group.items()
+        }
+    
     validate_group(categories_group, inv.categories)
+
     out_inv = inv.copy(no_gdfs=True)
 
     if inv.gdf is not None:
@@ -335,8 +365,12 @@ def group_categories(
 def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     """Add inventories together.
 
-    The followwing conditions must be required.
+    The following conditions must be required:
+
     * if the two invs have a gdf, they must be on the same grid
+
+    :arg inv: The first inventory.
+    :arg other_inv: The second inventory.
     """
 
     if inv.gdf is None and other_inv.gdf is not None:

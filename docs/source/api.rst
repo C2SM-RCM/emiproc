@@ -7,10 +7,17 @@ Inventory Class
 
 .. autoclass:: emiproc.inventories.Inventory
 
+Emissions Informations
+----------------------
+
+.. autoclass:: emiproc.inventories.EmissionInfo
+
 Grid Class
 ----------
 
 .. autoclass:: emiproc.grids.Grid
+
+.. autoclass:: emiproc.grids.RegularGrid
 
 Inventory Operators
 -------------------
@@ -42,10 +49,19 @@ Categories Manipulations
 .. autofunction:: emiproc.inventories.utils.group_categories
 
 
+Speciation
+----------
+
+.. autofunction:: emiproc.speciation.speciate_inventory
+
+.. autofunction:: emiproc.speciation.speciate_nox
+
 Exporting 
 ---------
 
-.. autofunction:: emiproc.exports.icon.export_icon_oem
+.. autofunction:: emiproc.exports.netcdf.nc_cf_attributes
 
-.. autofunction:: emiproc.exports.rasters.export_netcdf
+.. autofunction:: emiproc.exports.icon.export_icon_oem
+    
+.. autofunction:: emiproc.exports.rasters.export_raster_netcdf
     

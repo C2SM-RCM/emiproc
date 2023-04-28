@@ -114,7 +114,7 @@ On the opposite of substances, the categories can be the same as the ones
 from the raw data of the inventory.
 
 emiproc provides tools for groupping the categories.
-:ref:`~emiproc.inventories.utils.group_categories`
+:py:func:`~emiproc.inventories.utils.group_categories`
 
 
 Take care of correct units

@@ -1,13 +1,7 @@
-#%%
-import pandas as pd
 from pathlib import Path
-import numpy as np
 import geopandas as gpd
-from typing import Any, Iterable
-from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.inventories.utils import add_inventories, crop_with_shape
-from emiproc.plots import explore_inventory, explore_multilevel
-from emiproc.utilities import ProgressIndicator
+from shapely.geometry import Point,  Polygon
+from emiproc.inventories.utils import crop_with_shape
 from emiproc.regrid import (
     calculate_weights_mapping,
     geoserie_intersection,
@@ -15,8 +9,7 @@ from emiproc.regrid import (
     remap_inventory,
 )
 from emiproc.inventories import Inventory
-from emiproc.grids import GeoPandasGrid
-from emiproc.inventories.utils import group_categories
+from emiproc.tests_utils import WEIGHTS_DIR
 
 
 serie = gpd.GeoSeries(
@@ -64,9 +57,9 @@ inv_with_pnt_sources.gdfs["liku"] = gpd.GeoDataFrame(
 )
 inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
     {
-        "AITS": [i+1 for i in range(5)],
+        "AITS": [i + 1 for i in range(5)],
     },
-    geometry=    [
+    geometry=[
         Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
         Polygon(((0, 1), (0, 2), (1, 2), (1, 1))),
         Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
@@ -77,9 +70,11 @@ inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
 cropped = crop_with_shape(inv_with_pnt_sources, triangle, modify_grid=True)
 #%%
 
+
 def test_basic_crop():
 
     cropped = crop_with_shape(inv, triangle)
+
 
 def test_with_modify_grid():
 
@@ -104,18 +99,72 @@ def test_with_gdfs():
     # Make sure the index was reset
     assert 1 not in cropped.gdfs["liku"].index
     assert 0 in cropped.gdfs["liku"].index
-    
-    assert len(cropped.gdfs['other']) == 3
-    assert cropped.gdfs["other"]['AITS'].iloc[0] == 1 / 8
-    assert cropped.gdfs["other"]['AITS'].iloc[1] == 3 / 4
-    assert cropped.gdfs["other"]['AITS'].iloc[2] == 4 / 8
+
+    assert len(cropped.gdfs["other"]) == 3
+    assert cropped.gdfs["other"]["AITS"].iloc[0] == 1 / 8
+    assert cropped.gdfs["other"]["AITS"].iloc[1] == 3 / 4
+    assert cropped.gdfs["other"]["AITS"].iloc[2] == 4 / 8
+
 
 def test_with_modify_grid_and_cached():
-    w_file = Path('.emiproc_test_with_modify_grid_and_cached')
+    w_file = WEIGHTS_DIR / '.emiproc_test_with_modify_grid_and_cached'
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
     assert 4 not in cropped.gdf.index
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
     assert 4 not in cropped.gdf.index
+
+
+# %%
+
+
+def test_different_points_and_polygons_in_gdfs():
+    inv = Inventory.from_gdf(
+        gdfs={
+            "adf": gpd.GeoDataFrame(
+                {
+                    "CO2": [1, 1, 1, 1, 1, 1, 1],
+                },
+                geometry=[
+                    # corner point
+                    Point(0.75, 0.75),
+                    # Outside point
+                    Point(0.5, 0.4),
+                    # Inside point
+                    Point(1.2, 1),
+                    # 1/8 inside polygon
+                    Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
+                    # 1/4 inside polygon
+                    Polygon(((1, 0), (1,1), (2, 1), (2, 0))),
+                    # outside polygon
+                    Polygon(((3, 3), (3, 4), (4, 4), (4, 3))),
+                    # fully inside polygon
+                    Polygon(((1, 0.5), (1.5, 0.5), (1.5, 1), (1, 1))),
+                ],
+            )
+        }
+    )
+
+    cropped = crop_with_shape(inv, triangle)
+    # outside shapes are removed
+
+    assert len(cropped.gdfs["adf"]) == 5, "Did not crop expected number of shapes"
+    expected_values = [1 / 2, 1,  1 / 8, 1 / 4,  1]  # At the boundary divided by 2
+    # Check  expected values
+    for i, val in enumerate(expected_values):
+        assert cropped.gdfs["adf"]["CO2"].iloc[i] == val, f"Failed at {i}"
+
+def test_no_emission():
+    inv = inv_with_pnt_sources.copy()
+    # Remove the only emission  column from the inv
+    inv.gdfs['blek'].drop(columns=['CO2'], inplace=True)
+    cropped = crop_with_shape(inv, triangle)
+
+    assert 'blek' not in cropped.gdfs 
+    assert 'liku' in cropped.gdfs
+
+test_no_emission()
+
+
 # %%

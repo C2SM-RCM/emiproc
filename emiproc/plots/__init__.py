@@ -1,3 +1,5 @@
+"""Few plot functions for the emiproc package."""
+from __future__ import annotations
 from os import PathLike
 from pathlib import Path
 import geopandas as gpd
@@ -13,8 +15,6 @@ from matplotlib.colors import LogNorm
 from emiproc.plots import nclcmaps
 from emiproc.inventories import Inventory
 from emiproc.regrid import get_weights_mapping, weights_remap
-
-mpl.style.use("default")
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
@@ -127,10 +127,10 @@ def plot_inventory(
 
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
-    x_min = grid.lon_range()[0]
-    x_max = grid.lon_range()[-1]
-    y_min = grid.lat_range()[0]
-    y_max = grid.lat_range()[-1]
+    x_min = grid.lon_range[0]
+    x_max = grid.lon_range[-1]
+    y_min = grid.lat_range[0]
+    y_max = grid.lat_range[-1]
 
     def add_ax_info(ax: mpl.axes.Axes):
         if axis_formatter is not None:

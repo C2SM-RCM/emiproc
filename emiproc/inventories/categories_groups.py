@@ -1,7 +1,7 @@
 """Mappings to regroup categories together."""
 ZH_2_GNFR = {
-    # PublicPower+Fugitive
-    "GNFR_A+D": [
+    # PublicPower
+    "GNFR_A": [
         "c2201_BHKW_Emissionen_Kanton",
         "c2301_KHKWKehricht_Emissionen_Kanton",
         "c2302_KHKWErdgas_Emissionen_Kanton",
@@ -24,8 +24,6 @@ ZH_2_GNFR = {
         "c3411_Brotproduktion_Emissionen_Kanton",
         "c3412_MedizinischePraxen_Emissionen_Kanton",
         "c3413_Gesundheitswesen_Emissionen_Kanton",
-        "c3416_Tankstellen_Emissionen_Kanton",
-        "c3417_LoesemittelIG_Emissionen_Kanton",
     ],
     # Other stationary combustion (services, residential, agriculture)
     "GNFR_C": [
@@ -34,6 +32,15 @@ ZH_2_GNFR = {
         "c2103_HolzheizungenLokalisiert_Emissionen_Kanton",
         "c2104_HolzheizungenDispers_Emissionen_Kanton",
         "c2105_Warmwassererzeuger_Emissionen_Kanton",
+    ],
+    # Fugitives
+    "GNFR_D": [
+        "c3416_Tankstellen_Emissionen_Kanton",
+    ],
+    # Solvents and product use
+    "GNFR_E": [
+        "c3417_LoesemittelIG_Emissionen_Kanton",
+        "c5101_LoesemittelHH_Emissionen_Kanton",
     ],
     # Road transport
     "GNFR_F": [
@@ -57,6 +64,7 @@ ZH_2_GNFR = {
         "c1202_BahnGueterverkehr_Emissionen_Kanton",
         "c1203_Tramverkehr_Emissionen_Kanton",
         "c1204_Kleinbahnen_Emissionen_Kanton",
+        # c31xx are construction stuff
         "c3101_MaschinenHochbau_Emissionen_Kanton",
         "c3102_Bitumen_Emissionen_Kanton",
         "c3103_FarbenBaustelle_Emissionen_Kanton",
@@ -75,14 +83,16 @@ ZH_2_GNFR = {
         "c5301_HolzoefenKleingarten_Emissionen_Kanton",
         "c5401_AbfallverbrennungHaus_Emissionen_Kanton",
     ],
-    # AgriLivestock + AgriOther
-    "GNFR_K+L": [
-        "c4301_Nutzflaechen_Emissionen_Kanton",
+    # AgriLivestock
+    "GNFR_K": [
         "c4401_Nutztierhaltung_Emissionen_Kanton",
+    ],
+    # AgriOther
+    "GNFR_L": [
+        "c4301_Nutzflaechen_Emissionen_Kanton",
     ],
     # Others
     "GNFR_R": [
-        "c5101_LoesemittelHH_Emissionen_Kanton",
         "c5501_HausZooZirkustiere_Emissionen_Kanton",
         "c5601_Feuerwerke_Emissionen_Kanton",
         "c5701_Tabakwaren_Emissionen_Kanton",
@@ -95,21 +105,15 @@ ZH_2_GNFR = {
 }
 
 CH_2_GNFR = {
-    # PublicPower+Fugitive
-    "GNFR_A+D": [
-        "eivgn",
-        "eilgk",
-        "evklm",
-        "evtrk",
+    # PublicPower
+    "GNFR_A": [
         # Waste incinerator we agreed on nov. 22 to put them in the public power category
-        "eipkv", # Punktquellen KVA (Kehrichtverbrennungsanlagen ) == Waste incinerators
-
+        "eipkv",  # Punktquellen KVA (Kehrichtverbrennungsanlagen ) == Waste incinerators
     ],
     # Industry
     "GNFR_B": [
-        "eilmi",
         "eipro",
-        "eipwp", # this is the weitere punktquelle (additional point sources)
+        "eipwp",  # this is the weitere punktquelle (additional point sources)
         "eipzm",
     ],
     # Other stationary combustion (services, residential, agriculture)
@@ -122,16 +126,28 @@ CH_2_GNFR = {
         "eiprd",
         "elfeu",
     ],
+    # Fugitives
+    "GNRF_D": [
+        "eilgk",
+        "eivgn",
+        "evklm",
+        "evtrk",
+    ],
+    # Solvents and product use
+    "GNFR_E": [
+        "eilmi",  # Lösungsmittel Industrie
+        "ehlmk", # Lösungsmittel Konsumprodukte
+    ],
     # Road transport
     "GNFR_F": [
-        #"evstr_ch4",
-        #"evstr_co",
-        #"evstr_co2",
-        #"evstr_n2o",
-        #"evstr_nh3",
-        #"evstr_nmvoc",
-        #"evstr_nox",
-        #"evstr_so2",
+        # "evstr_ch4",
+        # "evstr_co",
+        # "evstr_co2",
+        # "evstr_n2o",
+        # "evstr_nh3",
+        # "evstr_nmvoc",
+        # "evstr_nox",
+        # "evstr_so2",
         "evstr",
         "evzon",
     ],
@@ -166,29 +182,29 @@ CH_2_GNFR = {
         "elabf",
         "elver",
     ],
-    # AgriLivestock + AgriOther
-    "GNFR_K+L": [
-        "elfer",
+    # AgriLivestock
+    "GNFR_K": [
         "elapp",
         "elsto",
+    ],
+    #  AgriOther
+    "GNFR_L": [
+        "elfer",
     ],
     # Others
     "GNFR_R": [
         "ehhab",
         "ehhaf",
         "ehhan",
-        "ehlmk",
         "enwal",
     ],
 }
 
 
 TNO_2_GNFR = {
-    # PublicPower+Fugitive
-    "GNFR_A+D": [
+    # PublicPower
+    "GNFR_A": [
         "A",
-        "D",
-
     ],
     # Industry
     "GNFR_B": [
@@ -197,6 +213,10 @@ TNO_2_GNFR = {
     # Other stationary combustion (services, residential, agriculture)
     "GNFR_C": [
         "C",
+    ],
+    # Fugitives
+    "GNFR_D": [
+        "D",
     ],
     # Road transport
     "GNFR_F": [
@@ -216,18 +236,21 @@ TNO_2_GNFR = {
     # Offroad mobility
     "GNFR_I": [
         "I",
-        ],
+    ],
     # Waste
     "GNFR_J": [
         "J",
-        ],
-    # AgriLivestock + AgriOther
-    "GNFR_K+L": [
+    ],
+    # AgriLivestock
+    "GNFR_K": [
         "K",
+    ],
+    # AgriOther
+    "GNFR_L": [
         "L",
     ],
     # Others
     "GNFR_R": [
-        "E", # E is not in the zh or swiss to we set e to that
+        "E",  # E is not in the zh or swiss to we set e to that
     ],
 }

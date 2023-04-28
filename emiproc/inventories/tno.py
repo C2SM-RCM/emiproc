@@ -6,7 +6,8 @@ import pandas as pd
 import geopandas as gpd
 
 from emiproc.grids import WGS84, TNOGrid
-from emiproc.inventories import Inventory
+from emiproc.inventories import Inventory, Substance
+
 
 from emiproc.profiles.vertical_profiles import (
     VerticalProfiles,
@@ -64,7 +65,11 @@ class TNO_Inventory(Inventory):
 
     grid: TNOGrid
 
-    def __init__(self, nc_file: PathLike) -> None:
+    def __init__(
+        self,
+        nc_file: PathLike,
+        substances: list[Substance] = ["CO2", "CO", "NOx", "CH4", "VOC"],
+    ) -> None:
         """Create a TNO_Inventory.
 
         :arg nc_file: The TNO NetCDF dataset.
@@ -86,6 +91,7 @@ class TNO_Inventory(Inventory):
         mask_area_sources = ds["source_type_index"] == 1
         mask_point_sources = ds["source_type_index"] == 2
 
+        # Maps substances inside the nc file to the emiproc names
         substances_mapping = {
             "co2_ff": "CO2",
             "co2_bf": "CO2",
@@ -96,7 +102,12 @@ class TNO_Inventory(Inventory):
             "nmvoc": "VOC",
         }
 
-        polys = self.grid.cells_as_polylist()
+        # Select only the requested substances
+        substances_mapping = {
+            k: v for k, v in substances_mapping.items() if v in substances
+        }
+
+        polys = self.grid.cells_as_polylist
 
         # I assume it is (no info in nc file)
         crs = WGS84

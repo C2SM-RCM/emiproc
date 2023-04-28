@@ -1,22 +1,9 @@
 """Some inventories that can be used for test purposes."""
-import pandas as pd
-from pathlib import Path
-import numpy as np
+
 import geopandas as gpd
-from typing import Any, Iterable
-from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.inventories.utils import add_inventories, crop_with_shape
-from emiproc.plots import explore_inventory, explore_multilevel
-from emiproc.utilities import ProgressIndicator
-from emiproc.regrid import (
-    calculate_weights_mapping,
-    geoserie_intersection,
-    get_weights_mapping,
-    remap_inventory,
-)
+from shapely.geometry import Point, Polygon
 from emiproc.inventories import Inventory
-from emiproc.grids import GeoPandasGrid
-from emiproc.inventories.utils import group_categories
+
 
 serie = gpd.GeoSeries(
     [
