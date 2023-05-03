@@ -28,6 +28,7 @@ dependencies = [
     "xarray",
     "rasterio",
     "pyogrio",
+    "pygeos",
 ]
 license = {file = "LICENSE.txt"}
 readme = "README.md"
