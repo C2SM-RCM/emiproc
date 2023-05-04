@@ -25,13 +25,23 @@ from emiproc.inventories.utils import get_total_emissions
 
 zh_cropped = crop_with_shape(zh_inv, grid.get_bounding_polygon())
 
+
+#%%
+from emiproc.inventories.utils import group_categories, validate_group
+from emiproc.inventories.zurich.gral_groups import ZH_CO2_Groups
+
+validate_group(ZH_CO2_Groups, zh_inv.categories)
+
+# TODO: group should also group emission infos
+zh_groupped = group_categories(zh_cropped, ZH_CO2_Groups, ignore_missing=False)
+
 #%%
 out_dir = TEST_OUTPUTS_DIR / 'test_gral_emissions'
 out_dir.mkdir(exist_ok=True)
 export_to_gral(
-    zh_cropped,
+    zh_groupped,
     grid,
     out_dir,
-    polygon_raster_size = 2
+    polygon_raster_size = 5
 )
 # %%

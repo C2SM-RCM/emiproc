@@ -172,6 +172,10 @@ class RegularGrid(Grid):
     @cached_property
     def shape(self) -> tuple[int, int]:
         return (self.nx, self.ny)
+    
+    @cached_property
+    def bounds(self) -> tuple[int, int, int, int]:
+        return self.xmin, self.ymin, self.xmax, self.ymax
 
 
 class LatLonNcGrid(RegularGrid):
