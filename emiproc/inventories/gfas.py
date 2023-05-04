@@ -13,7 +13,7 @@ from emiproc.utilities import SEC_PER_YR
 class GFAS_Inventory(Inventory):
     """The GFAS inventory.
     
-    `Emissions Database for Global Atmospheric Research <https://edgar.jrc.ec.europa.eu/>`_
+    `CAMS global biomass burning emissions based on fire radiative power  <https://ads.atmosphere.copernicus.eu/cdsapp#!/dataset/cams-global-fire-emissions-gfas>`_
     
     GFAS has only grid cell sources.
     """
