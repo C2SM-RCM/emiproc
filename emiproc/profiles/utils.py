@@ -1,8 +1,31 @@
 import logging
 from os import PathLike
 from pathlib import Path
+from typing import Any, Type
+
 import pandas as pd
 import xarray as xr
+import numpy as np
+
+
+def ratios_to_factors(ratios: np.ndarray) -> np.ndarray:
+    """Convert ratios to factors."""
+
+    return ratios * len(ratios)
+
+def factors_to_ratios(factors: np.ndarray) -> np.ndarray:
+    """Convert factors to ratios."""
+
+    return factors / len(factors)
+
+
+def type_in_list(object: Any, objects_list: list[Any]) -> bool:
+    """Check if an object of the same type is in the list."""
+    return any([isinstance(object, type(o)) for o in objects_list])
+
+def remove_objects_of_type_from_list(object: Any, objects_list: list[Any]) -> list[Any]:
+    """Remove objects of the same type from the list."""
+    return [o for o in objects_list if not isinstance(object, type(o))]
 
 
 def get_desired_profile_index(
@@ -29,11 +52,11 @@ def get_desired_profile_index(
         raise ValueError(
             "substance must be specified, as each substance has a specific profile."
         )
-    
+
     access_dict = {}
 
-    # Add to the access the dimension specified, 
-    # If a dimension is specified but not in the dims, it means 
+    # Add to the access the dimension specified,
+    # If a dimension is specified but not in the dims, it means
     # we don't care becausse it is the same for all the dimension cooridnates
     if cell is not None and "cell" in dims:
         if cell not in profiles_indexes.coords["cell"]:
@@ -56,8 +79,8 @@ def get_desired_profile_index(
                 f"got {profiles_indexes.coords['substance']}"
             )
         access_dict["substance"] = sub
-    
-    # Access the xarray 
+
+    # Access the xarray
     desired_index = profiles_indexes.sel(**access_dict)
 
     # Check the the seleciton is just a single value
@@ -70,20 +93,23 @@ def get_desired_profile_index(
     return int(desired_index.values)
 
 
-def read_profile_csv(file: PathLike) -> tuple[pd.DataFrame, str, str| None]:
-    """Read a profile csv file and return the dataframe, the category header and the substance header.
-    
+def read_profile_csv(
+    file: PathLike,
+    cat_colname: str = "Category",
+    sub_colname: str = "Substance",
+    read_csv_kwargs: dict[str, Any] = {},
+) -> tuple[pd.DataFrame, str, str | None]:
+    """Read a profile csv file and return the dataframe, the category column name and the substance column name.
+
     Checks the name of the category and substances columns.
     """
     file = Path(file)
 
-    df = pd.read_csv(file)
-    if "Category" in df.columns:
-        cat_header = "Category"
-    else:
-        raise ValueError(f"Cannot find 'Category' header in {file=}")
+    df = pd.read_csv(file, **read_csv_kwargs)
+    if cat_colname not in df.columns:
+        raise ValueError(f"Cannot find '{cat_colname}' header in {file=}")
 
-    if "Substance" in df.columns:
+    if sub_colname in df.columns:
         sub_header = "Substance"
     else:
         sub_header = None
@@ -92,5 +118,5 @@ def read_profile_csv(file: PathLike) -> tuple[pd.DataFrame, str, str| None]:
             f"Cannot find 'Substance' header in {file=}.\n"
             "All substances will be treated the same way."
         )
-    
-    return df, cat_header, sub_header
+
+    return df, cat_colname, sub_header

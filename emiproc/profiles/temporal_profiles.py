@@ -1,17 +1,24 @@
 """Temporal profiles."""
 from __future__ import annotations
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum, auto
+import yaml
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
-import yaml
+import xarray as xr
 
-from emiproc.profiles.utils import read_profile_csv
+from emiproc.profiles.utils import (
+    read_profile_csv,
+    remove_objects_of_type_from_list,
+    type_in_list,
+    ratios_to_factors
+)
 
 # Constants
 N_HOUR_DAY = 24
@@ -24,10 +31,13 @@ N_HOUR_YEAR = N_DAY_YEAR * N_HOUR_DAY
 N_HOUR_LEAPYEAR = N_DAY_LEAPYEAR * N_HOUR_DAY
 
 
-# An enum to define specific days
+
+
 class SpecificDay(Enum):
+    """An enum to define specific day applied of a profile."""
+
     # Make it automatically assign the value to the name
-    def _generate_next_value_(name, start, count, last_values):
+    def _generate_next_value_(name: str, start, count, last_values):
         return name.lower()
 
     MONDAY = auto()
@@ -38,8 +48,11 @@ class SpecificDay(Enum):
     SATURDAY = auto()
     SUNDAY = auto()
 
-    WEEKDAY = auto()  # One of the 5 first days
-    WEEKEND = auto()  # One of the 2 last days
+    # One of the 5 first days
+    WEEKDAY = auto()
+
+    # One of the 2 last days
+    WEEKEND = auto()
 
 
 def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
@@ -77,13 +90,12 @@ def get_emep_shift(country_code: int) -> int:
     logging.error("'get_emep_shift' is not implemented yet. Time shifts are all 0.")
     return 0
 
+
 @dataclass
 class TemporalProfile:
     """Temporal profile.
 
     Temporal profile defines how the emission is distributed over time.
-
-    The ratios must sum up to 1.
     """
 
     size: int = 0
@@ -191,36 +203,67 @@ class HourOfLeapYearProfile(TemporalProfile):
     )
 
 
-def create_time_serie(
-    start_time: datetime, end_time: datetime, profiles: list[TemporalProfile]
+AnyTimeProfile = (
+    DailyProfile
+    | SpecificDayProfile
+    | WeeklyProfile
+    | MounthsProfile
+    | HourOfYearProfile
+    | HourOfLeapYearProfile
+)
+
+
+def create_scaling_factors_time_serie(
+    start_time: datetime,
+    end_time: datetime,
+    profiles: list[AnyTimeProfile],
+    apply_month_interpolation: bool = True,
+    freq: str = "H",
 ) -> pd.Series:
-    """Create a time serie of ratios for the requested time range."""
+    """Create a time serie of ratios for the requested time range.
+
+    :arg start_time: The start time of the time serie.
+    :arg end_time: The end time of the time serie.
+    :arg profiles: The profiles to use to create .
+    :arg apply_month_interpolation: If True, apply the month interpolation.
+    """
 
     # Create the time serie
-    time_serie = pd.date_range(start_time, end_time, freq="H")
+    time_serie = pd.date_range(start_time, end_time, freq=freq)
 
     # Create the scaling factors
-    ratios = np.ones(len(time_serie)) / len(time_serie)
+    scaling_factors = np.ones(len(time_serie))
 
     # Apply the profiles
     for profile in profiles:
-        ratios *= profile_to_scaling_factors(time_serie, profile)
+        scaling_factors *= profile_to_scaling_factors(
+            time_serie, profile, apply_month_interpolation=apply_month_interpolation
+        )
 
-    return pd.Series(ratios, index=time_serie)
+    return pd.Series(scaling_factors, index=time_serie)
 
 
 def profile_to_scaling_factors(
-    time_serie: pd.DatetimeIndex, profile: TemporalProfile
+    time_serie: pd.DatetimeIndex,
+    profile: AnyTimeProfile,
+    apply_month_interpolation: bool = True,
 ) -> np.ndarray:
-    """Apply a temporal profile to a time serie.
+    """Convert a temporal profile to a time serie.
+
+    :arg apply_month_interpolation: If True, apply the month interpolation.
+        Only applies when the profile is a :py:class: MounthsProfile
+        Each mounthly values is assinged to the 15th of the month and then
+        interpolation is used to get the values for the other days.
 
     :return: Scaling factors
         An array by which you can multiply the emission factor using the time serie.
+
     """
 
     # Get scaling factors, convert the ratios to scaling factors
-    factors = profile.ratios * profile.size
+    factors = ratios_to_factors(profile.ratios)
 
+    # This will be the output
     scaling_factors = np.ones(len(time_serie))
 
     # Get the profile
@@ -233,11 +276,32 @@ def profile_to_scaling_factors(
         for day, factor in enumerate(factors):
             scaling_factors[time_serie.dayofweek == day] *= factor
     elif isinstance(profile, MounthsProfile):
-        # Get the mask for each month of year and apply the scaling factor
-        for month, factor in enumerate(factors):
-            # Months start with 1
-            month += 1
-            scaling_factors[time_serie.month == month] *= factor
+        if apply_month_interpolation:
+            # Apply the factor to the 15 th of each month by getting the exact datetime
+            # of the 15th of each month
+            mid_months = pd.date_range(
+                start=time_serie[0],
+                end=time_serie[-1],
+                freq="MS",
+            ) + timedelta(days=14)
+            mid_months_factors = np.ones(len(mid_months))
+            # Set the value to each month
+            for month, factor in enumerate(factors):
+                # Months start with 1
+                month += 1
+                mid_months_factors[mid_months.month == month] *= factor
+            # Interpolate the values to the other days
+            scaling_factors = np.interp(
+                time_serie,
+                mid_months,
+                mid_months_factors,
+            )
+        else:
+            # Simply apply to each month the scaling factor
+            for month, factor in enumerate(factors):
+                # Months start with 1
+                month += 1
+                scaling_factors[time_serie.month == month] *= factor
     elif isinstance(profile, SpecificDayProfile):
         # Find the days corresponding to this factor
         days_allowed = get_days_as_ints(profile.specific_day)
@@ -254,17 +318,133 @@ def profile_to_scaling_factors(
     return scaling_factors
 
 
-AnyTimeProfile = (
-    DailyProfile
-    | WeeklyProfile
-    | MounthsProfile
-    | HourOfYearProfile
-    | HourOfLeapYearProfile
-)
+
+
+
+def read_temporal_profiles(
+    profiles_dir: PathLike,
+    time_profiles_files_format: str = "timeprofiles-*.csv",
+    profile_csv_kwargs: dict[str, Any] = {},
+) -> tuple[list[list[AnyTimeProfile]], xr.DataArray]:
+    """Read the temporal profiles csv files to the emiproc inventory format.
+
+    The files for the time profiles are csv and must be all in the same directory
+    named according to the argument `time_profiles_files_format`.
+
+    Extra arguments depending on the file format can be passed to
+    the function :py:func:`temporal_profiles.from_csv`
+    that reads the csv files using: `profile_csv_kwargs`
+
+    This returns the time profiles read, and and index xarray matching
+    each substance and category to the desired profiles.
+
+
+    """
+
+    # Note: The logic of this is a bit tricky because it has to handle
+    #       the case where the profiles are speciated or not.
+
+    profiles_dir = Path(profiles_dir)
+
+    # List files with the expected format
+    files = list(profiles_dir.glob(time_profiles_files_format))
+    if not files:
+        raise FileNotFoundError(
+            f"Cannot find any file matching {time_profiles_files_format=} in {profiles_dir=}"
+        )
+
+    categories = []
+    substances = []
+
+    speciated_categories = []
+
+    profiles: dict[str | tuple[str, str], list[TemporalProfile]] = {}
+    for file in files:
+        file_profiles = from_csv(
+            file,
+            profile_csv_kwargs=profile_csv_kwargs,
+        )
+        # Add the read profiles
+        for key, profile in file_profiles.items():
+            # Find if it is a speciated profile
+            if isinstance(key, tuple):
+                cat, sub = key
+                if sub not in substances:
+                    substances.append(sub)
+                if cat not in speciated_categories:
+                    speciated_categories.append(cat)
+            elif isinstance(key, str):
+                cat = key
+                sub = None
+            else:
+                raise TypeError(f"Unexpected key type {type(key)} from {file=}")
+
+            if cat not in categories:
+                categories.append(cat)
+
+            if key not in profiles:
+                # Cat sub found
+                profiles[key] = []
+                if sub is not None and cat in profiles:
+                    # If fisrt time we see this speciated, add the general profiles as well
+                    profiles[(cat, sub)] = profiles[cat].copy()
+
+            # simply add the speciated profile
+            profiles[key].append(profile)
+
+            # We need to add the general to all the speciated profiles
+            if sub is None and cat in speciated_categories:
+                for sub_ in substances:
+                    if (cat, sub_) in profiles:
+                        catsub_profiles = profiles[(cat, sub_)]
+                        if type_in_list(profile, catsub_profiles):
+                            # Replace the previous nonspeciated profile
+                            catsub_profiles = remove_objects_of_type_from_list(
+                                profile, catsub_profiles
+                            )
+                        catsub_profiles.append(profile)
+                        profiles[(cat, sub_)] = catsub_profiles
+
+    # Now that we have extracted the profiles for each substance and category, we can fill the array
+    array = []
+    out_profiles = []
+    counter = 0
+    for cat in categories:
+        cat_counter = counter
+        out_profiles.append(profiles[cat])
+        counter += 1
+        if substances:
+            # Speciated cases
+            vector = []
+            array.append(vector)
+        else:
+            array.append(cat_counter)
+        for sub in substances:
+            if (cat, sub) in profiles:
+                out_profiles.append(profiles[(cat, sub)])
+                vector.append(counter)
+                counter += 1
+            else:
+                vector.append(cat_counter)
+
+    dims = ["category"]
+    coords = {"category": categories}
+    if substances:
+        dims.append("substance")
+        coords["substance"] = substances
+
+    indexes = xr.DataArray(
+        np.asarray(array, dtype=int),
+        dims=dims,
+        coords=coords,
+    )
+
+    return out_profiles, indexes
 
 
 def from_csv(
     file: PathLike,
+    profile_csv_kwargs: dict[str, Any] = {},
 ) -> dict[str | tuple[str, str] : AnyTimeProfile]:
     """Create the profile from a csv file.
 
@@ -272,12 +452,18 @@ def from_csv(
     to create
     """
 
-
-    df, cat_header, sub_header = read_profile_csv(file)
+    df, cat_header, sub_header = read_profile_csv(file, **profile_csv_kwargs)
 
     if "Mon" in df.columns:
         # Weekly profile with 3 letters identification
         data_columns = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        profile = WeeklyProfile
+    elif "mon" in df.columns:
+        # Weekly profile with 3 letters identification
+        data_columns = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        profile = WeeklyProfile
+    elif " mon " in df.columns:
+        data_columns = [" mon ", " tue ", " wed ", " thu ", " fri ", " sat ", " sun "]
         profile = WeeklyProfile
     elif "Monday" in df.columns:
         # Weekly profile with full name identification
@@ -306,6 +492,22 @@ def from_csv(
             "Oct",
             "Nov",
             "Dec",
+        ]
+        profile = MounthsProfile
+    elif " jan " in df.columns:
+        data_columns = [
+            " jan ",
+            " feb ",
+            " mar ",
+            " apr ",
+            " may ",
+            " jun ",
+            " jul ",
+            " aug ",
+            " sep ",
+            " oct ",
+            " nov ",
+            " dec ",
         ]
         profile = MounthsProfile
     elif "January" in df.columns:
@@ -444,7 +646,6 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
     if len(profiles) == 0:
         logger.warning(f"No profile found in {yaml_file=}")
     return profiles
-
 
 
 def to_yaml(profiles: list[AnyTimeProfile], yaml_file: PathLike):

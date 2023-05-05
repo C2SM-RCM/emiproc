@@ -43,6 +43,7 @@ Contents
    installation
    inventories
    grids
+   profiles
    api
    tutos/tutorials
    support

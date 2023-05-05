@@ -3,16 +3,50 @@ import xarray as xr
 import geopandas as gpd
 
 from emiproc.profiles.vertical_profiles import VerticalProfiles, VerticalProfile
+from emiproc.profiles.temporal_profiles import SpecificDayProfile, TemporalProfile
 
 
 def weighted_combination(
-    profiles: VerticalProfiles, weights: np.ndarray
-) -> VerticalProfile:
-    """Combine the different profiles according to the specified weights."""
+    profiles: VerticalProfiles | list[TemporalProfile], weights: np.ndarray
+) -> VerticalProfile | TemporalProfile:
+    """Combine the different profiles according to the specified weights.
+    
+    :arg profiles: The profiles to combine.
+        If temporal, they must be all of the same type.
+    :arg weights: The weights to use for the combination.
+        See numpy.average() for more details on the weights.
+    
+    :return: The combined profile.
+    """
 
-    return VerticalProfile(
-        np.average(profiles.ratios, axis=0, weights=weights), profiles.height.copy()
-    )
+    if len(profiles) != len(weights):
+        raise ValueError(
+            f"The number of profiles and weights must be the same: {len(profiles)=} != {len(weights)=}"
+        )
+
+    if len(profiles) == 0:
+        raise ValueError("No profiles given.")
+
+    if isinstance(profiles, VerticalProfiles):
+        return VerticalProfile(
+            np.average(profiles.ratios, axis=0, weights=weights), profiles.height.copy()
+        )
+    elif isinstance(profiles, list):
+        # Time profile, make sure they are all of the same type
+        type_profile = type(profiles[0])
+        if not all([isinstance(p, type_profile) for p in profiles]):
+            raise TypeError(
+                f"All profiles must be of the same type, got {[type(p) for p in profiles]}"
+            )
+        kwargs = {}
+        if isinstance(profiles[0], SpecificDayProfile):
+            kwargs["specific_day"] = profiles[0].specific_day
+        return type_profile(
+            ratios=np.average(
+                np.array([p.ratios for p in profiles]), axis=0, weights=weights
+            ),
+            **kwargs
+        )
 
 
 def combine_profiles(

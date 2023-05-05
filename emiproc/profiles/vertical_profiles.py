@@ -74,6 +74,9 @@ class VerticalProfiles:
             ratios=self.ratios[index],
             height=self.height,
         )
+    
+    def __len__(self) -> int:
+        return self.n_profiles
 
 
 class GroupingMethod(Enum):

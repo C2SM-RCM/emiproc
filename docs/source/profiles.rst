@@ -7,28 +7,73 @@ For simulations we need to know how they vary with time and elevation.
 For that we downscale the annual values using profiles.
 
 
+The total emission :math:`E` is the sum of the emission for an emission source.
+It is given in :math:`kg/year/source`.
+Sources can be assigned profiles to describe how the emission varies with time and height.
+
+We then can split the profiles in :math:`N` intervals of time or height. 
+
+.. math::
+
+    E = \sum_{i}^{N} E_i
+
 Scaling factors vs Ratios 
 -------------------------
 
-Here we clarify the terminology as profiles can be defined in 2 ways.
+There are two ways of describing the profiles:
 
 1. Scaling factors
 2. Ratios
 
-Ratios signify the proportion of the total emission that is emitted
-at a specific time or height.
 
+Ratios signify the proportion of the total emission :math:`E`
+that is emitted at a specific interval of time or height.
+
+:math:`r_i` the ratio at index :math:`i`
+we have 
+
+.. math::
+    
+        \sum_{i}^{N} r_i = 1
+
+        E_i = E * r_i
+
+    
 Scaling factor give a value for which we can multiply the average emmission
 to get the emission at a specific time or height.
 
-Ratios must sum up to one.
-Scaling factors must have an average of one.
+:math:`f_i` is the scaling factor at index :math:`i` 
 
-Emiproc uses internally ratios for the profiles.
+.. math::
+
+        \frac{\sum_{i}^{N} f_i}{N} = 1
+
+        E_i = \frac{E * f_i}{N}
+
+
+Based on these formulas, we can easily convert from one to the other.
+
+.. math::
+
+        f_i = N * r_i
+
+        r_i = \frac{f_i}{N}
+
+
+
+
+Ratios sum up to one.
+Scaling factors have an average of one.
+
+Emiproc stores internally ratios for the profiles, but uses and exports sometimes
+scaling factors.
+
+scaling factors have the advantage that you can easily use them to combine profiles 
+together.
 
 
 Vertical Profiles 
-=================
+-----------------
 
 Vertical profiles in emiproc are handled by the class
 :py:class:`~emiproc.profiles.vertical_profiles.VerticalProfile`
@@ -95,7 +140,7 @@ for a fancy merging.
 Add inventories (should scale each grid cell total values to do a weighted sum of the profiles)
 
 Temporal Profiles
-=================
+-----------------
 
 Fundamentally there are 2 ways of defining the time profile.
 
