@@ -27,6 +27,9 @@ def remove_objects_of_type_from_list(object: Any, objects_list: list[Any]) -> li
     """Remove objects of the same type from the list."""
     return [o for o in objects_list if not isinstance(object, type(o))]
 
+def get_objects_of_same_type_from_list(object: Any, objects_list: list[Any]) -> list[Any]:
+    """Return the object of the same type from the list."""
+    return [o for o in objects_list if isinstance(object, type(o))]
 
 def get_desired_profile_index(
     profiles_indexes: xr.DataArray,

@@ -101,26 +101,33 @@ for each of your vertical grid.
 
 The two kind of profiles can be combined in the inventory.
 
-In the inventory, the profiles will be stored in a list where every 
-profile has an index in the list.
-Vertical profiles cover a range of indices.
-TODO: add example.
+Assigning Profiles to inventories
+---------------------------------
+
+In the inventory, the profiles will be stored as a 
+:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles` for vertical profiles.
+
+The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal_profiles.TemporalProfile`.
+
+The following paragraph will explain how to assign the profiles to emissions.
 
 Assigning profiles to emissions
 -------------------------------
 
 We can add vertical profiles the following way:
 
-1. Adding profiles to category / substance / cell / time .
+1. Adding profiles to gridded emissions.
 2. Specify a profile to a shape in the gdfs.
 
 The second method is the simplest. One column of each gdfs can be 
-called `__v_profile__` containing for each shape the index of the matching
-vertical profile.
+called `__v_profile__` and `__t_profile__` for the vertical and time profiles.
+Each shape of the gdfs can then be assigned to a desired profile.
+These columns contain the index of the profile assigned to that shape.
+If no profile is assigned, a value of -1 can be used as the index.
 
 
 The first option requires to create a data array containing the profile index
-to use for any combination of the 4 coordinates.
+to use for any combination of the 4 coordinates ( category / substance / cell / time ).
 The coordinates don't need to all be present in the file, one could simply
 put one of them, and emiproc assumes the vertical profiles are the same 
 no matter the other coordinates.

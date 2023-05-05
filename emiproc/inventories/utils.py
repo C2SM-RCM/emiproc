@@ -304,11 +304,12 @@ def group_categories(
     for group, categories in categories_group.items():
         group_gdfs = [inv.gdfs[cat] for cat in categories if cat in inv.gdfs]
 
-        # Add missing profile -1 to the gdfs having no _v_profile column
-        if any(("_v_profile" in gdf.columns for gdf in group_gdfs)):
-            for gdf in group_gdfs:
-                if "_v_profile" not in gdf.columns:
-                    gdf["_v_profile"] = -1
+        # Add missing profile -1 to the gdfs having no profiles column
+        for profile_col in ["__v_profile__", "__t_profile__"]:
+            if any((profile_col in gdf.columns for gdf in group_gdfs)):
+                for gdf in group_gdfs:
+                    if profile_col not in gdf.columns:
+                        gdf[profile_col] = -1
 
         if group_gdfs:
             if len(group_gdfs) == 1:

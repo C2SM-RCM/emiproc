@@ -1,5 +1,4 @@
 """Test some basic features of the inventory profiles."""
-#%%
 import xarray as xr
 from pathlib import Path
 import numpy as np
@@ -8,9 +7,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon
 
 from emiproc.inventories import Inventory
-from emiproc.inventories.tno import TNO_Inventory
 from emiproc.inventories.utils import group_categories
-from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
@@ -21,35 +18,19 @@ from emiproc.profiles.vertical_profiles import (
     get_delta_h,
 )
 from emiproc.profiles.operators import (
+    group_profiles_indexes,
     weighted_combination,
     combine_profiles,
     get_weights_of_gdf_profiles,
 )
 
+from emiproc.tests_utils import vertical_profiles
 
-#%% Create test profiles
-test_profiles = [
-    VerticalProfile(np.array([0, 0.3, 0.7, 0.0]), np.array([15, 30, 60, 100])),
-    VerticalProfile(
-        np.array([0.1, 0.3, 0.5, 0.0, 0.1]), np.array([10, 30, 40, 65, 150])
-    ),
-    VerticalProfile(np.array([1]), np.array([20])),
-]
-test_profiles2 = VerticalProfiles(
-    np.array(
-        [
-            [0.0, 0.3, 0.7, 0.0],
-            [0.1, 0.2, 0.7, 0.0],
-            [0.0, 0.3, 0.2, 0.5],
-        ]
-    ),
-    np.array([15, 30, 60, 100]),
-)
 
-for p in test_profiles:
-    check_valid_vertical_profile(p)
-check_valid_vertical_profile(test_profiles2)
-#%%
+def test_test_profiles():
+    for p in vertical_profiles.list_of_three:
+        check_valid_vertical_profile(p)
+    check_valid_vertical_profile(vertical_profiles.VerticalProfiles_instance)
 
 
 def test_weights_interpolation():
@@ -62,19 +43,18 @@ def test_weights_interpolation():
     assert w[1, 0] == 3 / 5
 
 
-#%%
-
-
 def test_rescale():
     # We just test it runs
     new_profiles = resample_vertical_profiles(
-        *test_profiles, test_profiles2, specified_levels=[0, 10, 20, 40, 50, 60]
+        *vertical_profiles.list_of_three,
+        vertical_profiles.VerticalProfiles_instance,
+        specified_levels=[0, 10, 20, 40, 50, 60],
     )
 
     # Visual check
     # start_from_0 = lambda arr: np.hstack([0, arr])
     # start_from_1 = lambda arr: np.hstack([1, arr])
-    # for i, profile in enumerate(test_profiles):
+    # for i, profile in enumerate(list_of_three):
     #     plt.figure()
     #     plot_profile = lambda h, r, **kwargs: plt.step(
     #         start_from_0(h),
@@ -88,37 +68,49 @@ def test_rescale():
     #     plt.show()
 
 
-#%%
 def test_mid_heights():
     assert np.allclose(
         get_mid_heights(np.array([10, 20, 40, 50])), np.array([5, 15, 30, 45])
     )
 
 
-#%% test addition
+# test addition
 def test_addition_vertical_profiles():
-    new_profiles = test_profiles2 + test_profiles2
-    assert new_profiles.n_profiles == 2 * test_profiles2.n_profiles
+    new_profiles = (
+        vertical_profiles.VerticalProfiles_instance
+        + vertical_profiles.VerticalProfiles_instance
+    )
+    assert (
+        new_profiles.n_profiles
+        == 2 * vertical_profiles.VerticalProfiles_instance.n_profiles
+    )
 
     # Check we can also do +=
-    new_profiles += test_profiles2
-    assert new_profiles.n_profiles == 3 * test_profiles2.n_profiles
+    new_profiles += vertical_profiles.VerticalProfiles_instance
+    assert (
+        new_profiles.n_profiles
+        == 3 * vertical_profiles.VerticalProfiles_instance.n_profiles
+    )
 
 
-#%%
+#
 def test_weighted_combination():
     weights = np.array([1, 2, 3])
-    new_profile = weighted_combination(test_profiles2, weights=weights)
+    new_profile = weighted_combination(
+        vertical_profiles.VerticalProfiles_instance, weights=weights
+    )
     check_valid_vertical_profile(new_profile)
     new_total_emissions = np.sum(weights) * new_profile.ratios
-    previous_total_emissions = weights.dot(test_profiles2.ratios)
+    previous_total_emissions = weights.dot(
+        vertical_profiles.VerticalProfiles_instance.ratios
+    )
     # The combination should give the same as summing the emissions one by one
     assert np.allclose(
         new_total_emissions, previous_total_emissions
     ), f"{new_total_emissions},{previous_total_emissions}"
 
 
-#%%
+#
 def test_invalid_vertical_profiles():
     # invalid profiles should raise some errors, let's check the main ones
     with pytest.raises(AssertionError):
@@ -149,62 +141,24 @@ def test_invalid_vertical_profiles():
         )
 
 
-test_invalid_vertical_profiles()
-
-#%% Create a test geodataframe
-gdf = gpd.GeoDataFrame(
-    {
-        ("test_cat", "CO2"): [i for i in range(4)],
-        ("test_cat", "CH4"): [i + 3 for i in range(4)],
-        # ("test_cat", "NH3"): [2 * i for i in range(4)],
-        ("test_cat2", "CO2"): [i + 1 for i in range(4)],
-        ("test_cat2", "CH4"): [i + 1 for i in range(4)],
-        # ("test_cat2", "NH3"): [i + 1 for i in range(4)],
-    },
-    geometry=gpd.GeoSeries(
-        [
-            Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
-            Polygon(((0, 1), (0, 2), (1, 2), (1, 1))),
-            Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
-            Polygon(((1, 1), (1, 2), (2, 2), (2, 1))),
-        ]
-    ),
-)
-gdf
-#%% Corresponding profiles integer array
-# -1 is when the profile is not defined
-corresponding_vertical_profiles = xr.DataArray(
-    [
-        [[0, -1, 0, 2], [0, 2, 0, 0], [0, 0, 0, 0]],
-        [[0, -1, -1, 1], [0, 0, -1, 0], [0, 1, 0, 0]],
-    ],
-    dims=("category", "substance", "cell"),
-    coords={
-        "category": ["test_cat", "test_cat2"],
-        "substance": (substances := ["CH4", "CO2", "NH3"]),
-        "cell": (cells := [0, 1, 2, 3]),
-    },
-)
-corresponding_vertical_profiles
-
-
-#%% select a subset
+# select a subset
 
 categories = ["test_cat", "test_cat2"]
-selected_profile_indexes = corresponding_vertical_profiles.sel({"category": categories})
-selected_profile_indexes
-#%% get the weights associatied to each profile
+selected_profile_indexes = vertical_profiles.corresponding_vertical_profiles.sel(
+    {"category": categories}
+)
+
+# get the weights associatied to each profile
 
 
-weights = get_weights_of_gdf_profiles(gdf, selected_profile_indexes)
-weights
-#%% Make an average over the category taking care of putting the weights on the profiles where they should go
+weights = get_weights_of_gdf_profiles(vertical_profiles.gdf, selected_profile_indexes)
+
+# Make an average over the category taking care of putting the weights on the profiles where they should go
 
 
 def test_combination_over_dimensions():
-
     new_profiles, new_indexes = combine_profiles(
-        test_profiles2,
+        vertical_profiles.VerticalProfiles_instance,
         selected_profile_indexes,
         "cell",
         weights,
@@ -230,7 +184,7 @@ def test_combination_over_dimensions():
 
     check_valid_vertical_profile(new_profiles)
     new_profiles, new_indexes = combine_profiles(
-        test_profiles2,
+        vertical_profiles.VerticalProfiles_instance,
         selected_profile_indexes,
         "category",
         weights,
@@ -240,72 +194,68 @@ def test_combination_over_dimensions():
     assert new_indexes.sel(dict(cell=1, substance="CH4")) == -1
     # Access the profiles we want to compare (orginal of cells 0, 2, 3 for CH4 )
     indexes_of_CH4 = new_indexes.sel(dict(substance="CH4"))
-    assert np.all(new_profiles.ratios[indexes_of_CH4[0]] == test_profiles2.ratios[0])
-    assert np.all(new_profiles.ratios[indexes_of_CH4[2]] == test_profiles2.ratios[0])
+    assert np.all(
+        new_profiles.ratios[indexes_of_CH4[0]]
+        == vertical_profiles.VerticalProfiles_instance.ratios[0]
+    )
+    assert np.all(
+        new_profiles.ratios[indexes_of_CH4[2]]
+        == vertical_profiles.VerticalProfiles_instance.ratios[0]
+    )
     assert np.allclose(
         new_profiles.ratios[indexes_of_CH4[3]], np.array([0.04, 0.26, 0.4, 0.3])
     )
 
     check_valid_vertical_profile(new_profiles)
     new_profiles, new_indexes = combine_profiles(
-        test_profiles2,
+        vertical_profiles.VerticalProfiles_instance,
         selected_profile_indexes,
         "substance",
         weights,
     )
     check_valid_vertical_profile(new_profiles)
 
+def test_group_profiles_categories():
 
-#%% test with an inventory
-from shapely.geometry import Point
+    weights = get_weights_of_gdf_profiles(vertical_profiles.inv.gdf, vertical_profiles.inv.v_profiles_indexes)
+    new_profiles,new_indices = group_profiles_indexes(
+        profiles = vertical_profiles.inv.v_profiles,
+        profiles_indexes = vertical_profiles.inv.v_profiles_indexes,
+        indexes_weights=weights,
+        categories_group=vertical_profiles.inv_groups_dict,
+    )
+    
+def test_group_profiles_substances():
 
-inv = Inventory.from_gdf(
-    gdf,
-    # Add some point sources
-    gdfs={
-        "test_cat": gpd.GeoDataFrame(
-            {
-                "CO2": [1, 2, 3],
-                "_v_profile": [-1, 2, 1],
-            },
-            geometry=[Point(0.75, 0.75), Point(0.25, 0.25), Point(1.2, 1)],
-        ),
-        "test_cat2": gpd.GeoDataFrame(
-            {
-                "CO2": [1.2, 2.7, 8],
-                "CH4": [4, 2, 8],
-                "_v_profile": [1, 2, -1],
-            },
-            geometry=[Point(0.65, 0.75), Point(1.1, 0.8), Point(1.2, 1)],
-        ),
-        "test_cat3": gpd.GeoDataFrame(
-            {"CO2": [1, 2]},
-            geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
-        ),
-    },
-)
+    weights = get_weights_of_gdf_profiles(vertical_profiles.inv.gdf, vertical_profiles.inv.v_profiles_indexes)
+    new_profiles,new_indices = group_profiles_indexes(
+        profiles = vertical_profiles.inv.v_profiles,
+        profiles_indexes = vertical_profiles.inv.v_profiles_indexes,
+        indexes_weights=weights,
+        categories_group=vertical_profiles.inv_groups_subs_dict,
+        groupping_dimension="substance"
+    )
+    
+    
 
+def test_can_group_profiles_in_inv():
+    group_categories(
+        vertical_profiles.inv, vertical_profiles.inv_groups_dict
+    )
 
-inv.v_profiles = test_profiles2
-inv.v_profiles_indexes = corresponding_vertical_profiles
-
-g_inv = group_categories(
-    inv, {"new_cat": ["test_cat"], "new_cat2": ["test_cat2", "test_cat3"]}
-)
-g_inv = group_categories(inv, {"new_cat": ["test_cat", "test_cat2", "test_cat3"]})
-g_inv.gdfs
 
 
 def test_point_sources_are_just_appened():
+    g_inv = group_categories(vertical_profiles.inv, {"new_cat": ["test_cat", "test_cat2", "test_cat3"]})
+
     assert len(g_inv.gdfs["new_cat"]) == 8
     # Check that the data was correctly appended
     assert np.all(g_inv.gdfs["new_cat"]["CO2"] == [1, 2, 3, 1.2, 2.7, 8, 1, 2])
     assert np.all(g_inv.gdfs["new_cat"]["CH4"] == [0, 0, 0, 4, 2, 8, 0, 0])
-    assert np.all(g_inv.gdfs["new_cat"]["_v_profile"] == [-1, 2, 1, 1, 2, -1, -1, -1])
+    assert np.all(g_inv.gdfs["new_cat"]["__v_profile__"] == [-1, 2, 1, 1, 2, -1, -1, -1])
 
 
-
-# %% Create hourly profiles
+#  Create hourly profiles
 def check_valid_profiles_indexes_array(inv: Inventory, index_array: xr.DataArray):
     for cat, sub in inv._gdf_columns:
         print(cat)
@@ -329,4 +279,6 @@ def check_valid_profiles_indexes_array(inv: Inventory, index_array: xr.DataArray
         gridded_data = total_emission_da * profiles_this_catsub
 
 
-# %%
+if __name__ == "__main__":
+    #pytest.main([__file__])
+    test_group_profiles_substances()

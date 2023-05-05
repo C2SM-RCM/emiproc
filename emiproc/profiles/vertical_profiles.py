@@ -61,6 +61,10 @@ class VerticalProfiles:
         )
 
     def __add__(self, other: VerticalProfiles):
+        if isinstance(other, int) and other == 0:
+            # Useful for call in sum()
+            return self.copy()
+
         assert isinstance(other, VerticalProfiles)
         assert np.allclose(other.height, self.height)
 
@@ -68,6 +72,10 @@ class VerticalProfiles:
             height=self.height,
             ratios=np.concatenate([self.ratios, other.ratios], axis=0),
         )
+
+    def __radd__(self, other: VerticalProfiles):
+        # Useful for call in sum()
+        return self.__add__(other)
 
     def __getitem__(self, index: int) -> VerticalProfile:
         return VerticalProfile(

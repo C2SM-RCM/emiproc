@@ -60,13 +60,18 @@ Speciation
 Profiles
 --------
 
+.. autofunction:: emiproc.profiles.operators.get_weights_of_gdf_profiles
 
+.. autofunction:: emiproc.profiles.operators.weighted_combination
 
-.. autoclass:: emiproc.profiles.utils.ratios_to_factors
+.. autofunction:: emiproc.profiles.operators.combine_profiles
 
-.. autoclass:: emiproc.profiles.utils.factors_to_ratios
+.. autofunction:: emiproc.profiles.operators.group_profiles_indexes
 
-.. autoclass:: emiproc.profiles.operators.weighted_combination
+.. autofunction:: emiproc.profiles.utils.ratios_to_factors
+
+.. autofunction:: emiproc.profiles.utils.factors_to_ratios
+
 
 
 
