@@ -33,3 +33,6 @@ Available Inventory Objects
 
 .. autoclass:: emiproc.inventories.EmiprocNetCDF
     :special-members: __init__
+
+.. autoclass:: emiproc.inventories.gfas.GFAS_Inventory
+    :special-members: __init__
