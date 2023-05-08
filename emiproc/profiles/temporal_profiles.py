@@ -388,6 +388,9 @@ def read_temporal_profiles(
                 if sub is not None and cat in profiles:
                     # If fisrt time we see this speciated, add the general profiles as well
                     profiles[(cat, sub)] = profiles[cat].copy()
+                    profiles[(cat, sub)] = remove_objects_of_type_from_list(
+                        profile, profiles[(cat, sub)]
+                    )
 
             # simply add the speciated profile
             profiles[key].append(profile)
