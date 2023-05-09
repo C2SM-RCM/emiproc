@@ -17,7 +17,8 @@ from emiproc.profiles.utils import (
     read_profile_csv,
     remove_objects_of_type_from_list,
     type_in_list,
-    ratios_to_factors
+    ratios_to_factors,
+    load_country_tz
 )
 
 # Constants
@@ -84,11 +85,14 @@ def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
             f"{specific_day=} is implemented in  {get_days_as_ints}"
         )
 
-
-def get_emep_shift(country_code: int) -> int:
+COUNTRY_TZ_DF = None
+def get_emep_shift(country_code_iso3: str) -> int:
     """Retunr the time shift form the country code of emep."""
-    logging.error("'get_emep_shift' is not implemented yet. Time shifts are all 0.")
-    return 0
+    global COUNTRY_TZ_DF
+    #if COUNTRY_TZ_DF is None:
+    COUNTRY_TZ_DF = load_country_tz()
+    
+    return COUNTRY_TZ_DF.loc[country_code_iso3, "timezone"]
 
 
 @dataclass

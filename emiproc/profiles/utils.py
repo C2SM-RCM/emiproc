@@ -1,3 +1,5 @@
+"""Utitlity functions for profiles."""
+
 import logging
 from os import PathLike
 from pathlib import Path
@@ -7,11 +9,15 @@ import pandas as pd
 import xarray as xr
 import numpy as np
 
+import emiproc
+
+
 
 def ratios_to_factors(ratios: np.ndarray) -> np.ndarray:
     """Convert ratios to factors."""
 
     return ratios * len(ratios)
+
 
 def factors_to_ratios(factors: np.ndarray) -> np.ndarray:
     """Convert factors to ratios."""
@@ -23,13 +29,18 @@ def type_in_list(object: Any, objects_list: list[Any]) -> bool:
     """Check if an object of the same type is in the list."""
     return any([isinstance(object, type(o)) for o in objects_list])
 
+
 def remove_objects_of_type_from_list(object: Any, objects_list: list[Any]) -> list[Any]:
     """Remove objects of the same type from the list."""
     return [o for o in objects_list if not isinstance(object, type(o))]
 
-def get_objects_of_same_type_from_list(object: Any, objects_list: list[Any]) -> list[Any]:
+
+def get_objects_of_same_type_from_list(
+    object: Any, objects_list: list[Any]
+) -> list[Any]:
     """Return the object of the same type from the list."""
     return [o for o in objects_list if isinstance(object, type(o))]
+
 
 def get_desired_profile_index(
     profiles_indexes: xr.DataArray,
@@ -123,3 +134,26 @@ def read_profile_csv(
         )
 
     return df, cat_colname, sub_header
+
+
+def load_country_tz(file: Path | None = None) -> pd.DataFrame:
+    """Load the dataframe with the country timezones."""
+
+    if file is None:
+        file = Path(*emiproc.__path__).parent / "files" / "country_tz.csv"
+
+    if not file.is_file():
+        raise FileNotFoundError(f"Cannot find country_tz {file=}")
+
+    return pd.read_csv(
+        file,
+        # File start with comment lines starting with '#'
+        comment="#",
+        # Index column must be 'iso3', the first one
+        index_col=0,
+        sep=";",
+    )
+
+
+if __name__ == "__main__":
+    print(load_country_tz())

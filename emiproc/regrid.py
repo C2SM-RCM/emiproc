@@ -454,7 +454,11 @@ def remap_inventory(
                 mapping_dict[(category, sub)] += remapped
 
     # Create the output inv
-    out_inv = inv.copy(no_gdfs=True)
+    out_inv = inv.copy(
+        no_gdfs=True,
+        # Copy the profiles to the new inventory
+        profiles=True,
+    )
     out_inv.gdf = gpd.GeoDataFrame(
         mapping_dict,
         geometry=grid_cells,

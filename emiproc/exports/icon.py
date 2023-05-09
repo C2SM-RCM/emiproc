@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from enum import Enum, auto
+import logging
 from os import PathLike
 from pathlib import Path
 import xarray as xr
@@ -12,7 +13,7 @@ from emiproc.profiles.temporal_profiles import (
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
-    create_time_serie,
+    create_scaling_factors_time_serie,
     get_emep_shift,
 )
 from emiproc.profiles.vertical_profiles import (
@@ -22,6 +23,7 @@ from emiproc.profiles.vertical_profiles import (
 )
 from emiproc.utilities import SEC_PER_YR, compute_country_mask
 from emiproc.profiles.utils import get_desired_profile_index
+from emiproc.country_code import code_2_iso3
 
 
 class TemporalProfilesTypes(Enum):
@@ -71,6 +73,8 @@ def export_icon_oem(
         can be either '10m', '50m' or '110m'
 
     """
+    logger = logging.getLogger("emiproc.export_icon_oem")
+
     icon_grid_file = Path(icon_grid_file)
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -113,22 +117,6 @@ def export_icon_oem(
             )
             time_profiles[name] = inv.t_profiles_groups[profile_index]
 
-    # Save the profiles
-    if time_profiles:
-        make_icon_time_profiles(
-            time_profiles,
-            {code: get_emep_shift(code) for code in np.unique(country_mask)},
-            profiles_type=temporal_profiles_type,
-            year=year,
-            out_dir=output_dir,
-            nc_attrs=nc_attributes,
-        )
-    if vertical_profiles:
-        make_icon_vertical_profiles(
-            vertical_profiles, out_dir=output_dir, nc_attrs=nc_attributes
-        )
-
-
     # Find the proper country codes
     mask_file = (
         output_dir / f".emiproc_country_mask_{country_resolution}_{icon_grid_file.stem}"
@@ -139,6 +127,33 @@ def export_icon_oem(
         icon_grid = ICONGrid(icon_grid_file)
         country_mask = compute_country_mask(icon_grid, country_resolution, 1)
         np.save(mask_file, country_mask)
+
+    # Save the profiles
+    if time_profiles:
+
+        # Calculate the country shifts for the grid cells
+        countries_shifts = {}
+        for code in np.unique(country_mask):
+            if code in code_2_iso3:
+                shift = get_emep_shift(code_2_iso3[code])
+            else:
+                logger.warning(f"{code} not in the country code list, shift of 0 will be used.")
+                shift = 0
+            
+            countries_shifts[code] = shift
+
+        make_icon_time_profiles(
+            time_profiles=time_profiles,
+            countries_shifts=countries_shifts,
+            profiles_type=temporal_profiles_type,
+            year=year,
+            out_dir=output_dir,
+            nc_attrs=nc_attributes,
+        )
+    if vertical_profiles:
+        make_icon_vertical_profiles(
+            vertical_profiles, out_dir=output_dir, nc_attrs=nc_attributes
+        )
 
     # Add the country ids variable for oem
     ds_out = ds_out.assign(
@@ -158,7 +173,7 @@ def export_icon_oem(
     # Save the emissions
     ds_out.to_netcdf(output_dir / "oem_gridded_emissions.nc")
 
-
+    logger.info(f"Exported inventory to {output_dir}.")
 
 
 def make_icon_time_profiles(
@@ -256,7 +271,7 @@ def make_icon_time_profiles(
             dt_start = datetime(year, 1, 1, hour=0) - timedelta(hours=max_shift)
             dt_end = datetime(year, 12, 31, hour=23) + timedelta(hours=max_shift)
 
-            ts = create_time_serie(dt_start, dt_end, time_profiles[key])
+            ts = create_scaling_factors_time_serie(dt_start, dt_end, time_profiles[key])
 
             concatenated_profiles = np.asarray(
                 [
@@ -297,7 +312,6 @@ def make_icon_time_profiles(
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         for name, ds in dict_ds.items():
-            print(out_dir.absolute())
             ds.to_netcdf(out_dir / f"{name}.nc")
 
     return dict_ds

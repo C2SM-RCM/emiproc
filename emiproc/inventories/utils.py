@@ -3,10 +3,10 @@ from __future__ import annotations
 import collections
 import itertools
 import json
+import logging
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING
-from warnings import warn
 
 import fiona
 import geopandas as gpd
@@ -18,8 +18,10 @@ from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.grids import Grid
 
 from emiproc.regrid import geoserie_intersection
-from emiproc.profiles.operators import combine_profiles, get_weights_of_gdf_profiles
-from emiproc.profiles.vertical_profiles import VerticalProfiles
+from emiproc.profiles.operators import (
+    get_weights_of_gdf_profiles,
+    group_profiles_indexes,
+)
 
 if TYPE_CHECKING:
     from emiproc.inventories import Inventory, Category
@@ -270,7 +272,7 @@ def group_categories(
             group: [cat for cat in categories if cat in inv.categories]
             for group, categories in categories_group.items()
         }
-    
+
     validate_group(categories_group, inv.categories)
 
     out_inv = inv.copy(no_gdfs=True)
@@ -323,40 +325,41 @@ def group_categories(
 
     # Group the vertical profiles
     # we group only on the gdf, as the gdfs will keep their own profiles
-    if (
-        inv.v_profiles is not None
-        # if they don't depend on category, we don't need to do anything
-        and "category" in inv.v_profiles_indexes.dims
-    ):
-        groups_indexes_list = []
-        for group, categories in categories_group.items():
-            # Get the profiles we are interested in present in the gdf
-            cats_in_gdf = [
-                c for c in categories if c in [col[0] for col in inv._gdf_columns]
-            ]
-            cats_profiles = inv.v_profiles_indexes.sel(category=cats_in_gdf)
-            new_profiles, group_indexes = combine_profiles(
-                inv.v_profiles,
-                cats_profiles,
-                dimension="category",
-                weights=get_weights_of_gdf_profiles(inv.gdf, cats_profiles),
+    for profiles_name, profiles_indexes_name in [
+        ("v_profiles", "v_profiles_indexes"),
+        ("t_profiles_groups", "t_profiles_indexes"),
+    ]:
+        profiles = getattr(inv, profiles_name)
+        profiles_indexes: xr.DataArray = getattr(inv, profiles_indexes_name)
+
+        out_profiles = getattr(out_inv, profiles_name)
+
+        if (
+            profiles is not None
+            # if they don't depend on category, we don't need to create new profiles
+            and "category" in profiles_indexes.dims
+        ):
+            new_profiles, new_indices = group_profiles_indexes(
+                profiles,
+                profiles_indexes,
+                indexes_weights=get_weights_of_gdf_profiles(inv.gdf, profiles_indexes),
+                categories_group=categories_group,
+                groupping_dimension="category",
             )
-            group_indexes.expand_dims({"category": [group]})
 
             # Offset the indexes for merging with the profiles
-            groups_indexes_list.append(
-                xr.where(
-                    group_indexes != -1,
-                    group_indexes + out_inv.v_profiles.n_profiles,
-                    -1,
-                )
+            new_indices = xr.where(
+                new_indices != -1,
+                new_indices + len(profiles),
+                -1,
             )
-            out_inv.v_profiles += new_profiles
-
-        # Replace the old indexes by the new
-        new_v_indices = xr.concat(groups_indexes_list, dim="category")
-        inv.history.append(f"Generated new vertical profiles for groupping.")
-        out_inv.v_profiles_indexes = new_v_indices
+            out_profiles += new_profiles
+            # Replace the old indexes by the new
+            setattr(out_inv, profiles_name, out_profiles)
+            setattr(out_inv, profiles_indexes_name, new_indices)
+            out_inv.history.append(
+                f"Generated new {profiles_indexes_name} from groupping."
+            )
 
     out_inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
 
@@ -373,6 +376,7 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     :arg inv: The first inventory.
     :arg other_inv: The second inventory.
     """
+    logger = logging.getLogger("emiproc.add_inventories")
 
     if inv.gdf is None and other_inv.gdf is not None:
         # as we want to put everything on inv.gdf later for simplicity
@@ -380,6 +384,28 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
 
     if inv.crs != other_inv.crs:
         raise ValueError("CRS of both inventories differ.")
+
+    if other_inv.v_profiles is not None:
+        if inv.v_profiles is not None:
+            raise NotImplementedError(
+                "We can currently not add inventories with vertical profiles."
+            )
+        else:
+            logger.warn(
+                f"Vertical profiles of {other_inv} are going to be lost."
+                "Please place it in the first position of the arguments of function `add_inventories()`."
+            )
+
+    if other_inv.t_profiles_groups is not None:
+        if inv.t_profiles_groups is not None:
+            raise NotImplementedError(
+                "We can currently not add inventories with time profiles."
+            )
+        else:
+            logger.warn(
+                f"Time profiles of {other_inv} are going to be lost."
+                "Please place it in the first position of the arguments of function `add_inventories()`."
+            )
 
     out_inv = inv.copy(no_gdfs=True)
 

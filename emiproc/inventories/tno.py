@@ -233,7 +233,7 @@ class TNO_Inventory(Inventory):
                 groupp_mapping[sub_to] = []
             groupp_mapping[sub_to].append(sub_from)
 
-        self.t_profiles, self.t_profiles_indexes = group_profiles_indexes(
+        self.t_profiles_groups, self.t_profiles_indexes = group_profiles_indexes(
             t_profiles,
             t_profiles_indexes,
             weights,

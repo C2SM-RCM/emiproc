@@ -222,8 +222,12 @@ class Inventory:
             subs.remove("geometry")
         return subs
 
-    def copy(self, no_gdfs: bool = False, no_v_profiles: bool = False) -> Inventory:
-        """Copy the inventory."""
+    def copy(self, no_gdfs: bool = False, profiles: bool = True) -> Inventory:
+        """Copy the inventory.
+        
+        :arg no_gdfs: Whether the gdfs should not be copied (main gdf and the gdfs).
+        :arg profiles: Whether the profiles should be copied.
+        """
         inv = Inventory()
         inv.__class__ = self.__class__
         inv.history = deepcopy(self.history)
@@ -231,9 +235,12 @@ class Inventory:
             inv.grid = self.grid
 
         
-        if not no_v_profiles and self.v_profiles is not None:
+        if profiles and self.v_profiles is not None:
             inv.v_profiles = self.v_profiles.copy()
             inv.v_profiles_indexes = self.v_profiles_indexes.copy()
+        if profiles and self.t_profiles_groups is not None:
+            inv.t_profiles_groups = self.t_profiles_groups.copy()
+            inv.t_profiles_indexes = self.t_profiles_indexes.copy()
 
         if no_gdfs or self.gdf is None:
             inv.gdf = None 

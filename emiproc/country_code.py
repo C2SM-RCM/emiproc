@@ -211,3 +211,8 @@ country_codes = {
     "BL9": 349,  # Black Sea ROW Ferry i12m
     "GL": 601,  # Greenland
 }
+
+# Mapping from code to iso3
+code_2_iso3 = {
+    code: iso3 for iso3, code in country_codes.items() if len(iso3) == 3
+}
