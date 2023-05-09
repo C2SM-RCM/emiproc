@@ -27,7 +27,7 @@ inv.to_crs(WGS84_PROJECTED)
 
 # %% Remap the inventory to the icon grid
 remaped_tno = remap_inventory(
-    inv, icon_grid, grid_file.parent / f"remap_tno2{grid_file.stem}"
+    inv, icon_grid, grid_file.parent / f".emiproc_remap_tno2{grid_file.stem}"
 )
 
 # %% Group the categories to the GNFR (Mainly renaming them)
