@@ -6,9 +6,17 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 from typing import NewType
+import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 import numpy as np
+import xarray as xr
+
+from emiproc.grids import LV95, Grid, SwissGrid
+from emiproc.profiles.temporal_profiles import TemporalProfile
+from emiproc.profiles.utils import get_desired_profile_index
+from emiproc.regrid import get_weights_mapping, weights_remap
+from emiproc.profiles.vertical_profiles import VerticalProfile, VerticalProfiles
 
 from emiproc.grids import Grid
 from emiproc.regrid import get_weights_mapping, weights_remap
@@ -56,28 +64,45 @@ class EmissionInfo:
 class Inventory:
     """Base class for inventories.
 
-    :param name: The name of the inventory. This is going to be used
+    :attr name: The name of the inventory. This is going to be used
         for adding metadata to the output files, and also for the reggridding
         weights files.
-    :param grid: The grid on which the inventory is.
-    :param substances: The :py:class:`Substance` present in this inventory.
-    :param categories: List of the categories present in the inventory.
+    :attr grid: The grid on which the inventory is.
+    :attr substances: The :py:class:`Substance` present in this inventory.
+    :attr categories: List of the categories present in the inventory.
 
-    :param emission_infos: Information about the emissions.
+    :attr emission_infos: Information about the emissions.
         Concerns only the :attr:`Inventory.gdfs` features.
         This is optional, but mandoatory for some models (ex. Gramm-Gral).
 
-    :param gdf: The GeoPandas DataFrame that represent the whole inventory.
+    :attr gdf: The GeoPandas DataFrame that represent the whole inventory.
         The geometry column contains all the grid cells.
         The other columns should contain the emission value for the substances
         and the categories.
 
-    :param gdfs: Some inventories are given on more than one grid.
+    :attr gdfs: Some inventories are given on more than one grid.
         For example, :py:class:`MapLuftZurich` is given on a grid
         where every category has different shape file.
         In this case gdf must be set to None and gdfs will be
         a dictionnary mapping only the categories desired.
-    :param history: Stores all the operations that happened to this inventory.
+
+    :attr v_profiles: A vertical profiles object.
+    :attr v_profiles_indexes: A :py:class:`xarray.DataArray` storing the information
+        of which vertical profile belongs to which cell/category/substance.
+        This allow to map each single emission value from the gdf to a specific
+        profile.
+        See :ref:`vertical_profiles` for more information.
+
+    :attr t_profiles_groups: A list  of temporal profiles groups.
+        One temporal pattern can be defined by more than one temporal profile.
+        (ex you can combine hour of day and day of week).
+        The main list contains the different groups of temporal profiles.
+        Each group is a list of :py:class:`TemporalProfile`.
+    :attr t_profiles_indexes: Same as :py:attr:`v_profiles_indexes`.
+        For the temporal profiles, the indexes point to one of the groups.
+
+
+    :attr history: Stores all the operations that happened to this inventory.
 
     .. note::
         If your data contains point sources, the data on them must be stored in
@@ -96,6 +121,12 @@ class Inventory:
     gdf: gpd.GeoDataFrame | None
     gdfs: dict[str, gpd.GeoDataFrame]
     geometry: gpd.GeoSeries
+
+    v_profiles: VerticalProfiles | None = None
+    v_profiles_indexes: xr.DataArray | None = None
+
+    t_profiles_groups: list[list[TemporalProfile]] | None = None
+    t_profiles_indexes: xr.DataArray | None = None
 
     logger: logging.Logger
     history: list[str]
@@ -191,13 +222,25 @@ class Inventory:
             subs.remove("geometry")
         return subs
 
-    def copy(self, no_gdfs: bool = False) -> Inventory:
-        """Copy the inventory."""
+    def copy(self, no_gdfs: bool = False, profiles: bool = True) -> Inventory:
+        """Copy the inventory.
+        
+        :arg no_gdfs: Whether the gdfs should not be copied (main gdf and the gdfs).
+        :arg profiles: Whether the profiles should be copied.
+        """
         inv = Inventory()
         inv.__class__ = self.__class__
         inv.history = deepcopy(self.history)
         if hasattr(self, "grid"):
             inv.grid = self.grid
+
+        
+        if profiles and self.v_profiles is not None:
+            inv.v_profiles = self.v_profiles.copy()
+            inv.v_profiles_indexes = self.v_profiles_indexes.copy()
+        if profiles and self.t_profiles_groups is not None:
+            inv.t_profiles_groups = self.t_profiles_groups.copy()
+            inv.t_profiles_indexes = self.t_profiles_indexes.copy()
 
         if no_gdfs or self.gdf is None:
             inv.gdf = None 

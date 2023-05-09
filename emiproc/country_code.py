@@ -168,6 +168,12 @@ country_codes = {
     "TM": 95,  # Turkmenistan
     "AST": 96,  # Asian areas in the extended EMEP domain (ASM+ASE+ARO+ARE+CAS)
     "FYU": 99,  # Former Yugoslavia
+    # Added for emiproc 
+    "ISR": 200, # Israel
+    "LBN": 201, # Lebanon
+    "LBY": 202, # Libya
+    "VAT": 203, # Vatican City
+    # End of added for emiproc
     "BEF": 301,  # Belgium (Flanders)
     "BA2": 302,  # Baltic Sea EU Cargo o12m
     "BA3": 303,  # Baltic Sea ROW Cargo o12m
@@ -210,4 +216,9 @@ country_codes = {
     "BL8": 348,  # Black Sea EU Ferry i12m
     "BL9": 349,  # Black Sea ROW Ferry i12m
     "GL": 601,  # Greenland
+}
+
+# Mapping from code to iso3
+code_2_iso3 = {
+    code: iso3 for iso3, code in country_codes.items() if len(iso3) == 3
 }
