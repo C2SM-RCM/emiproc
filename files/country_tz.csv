@@ -1,0 +1,123 @@
+#  
+# Country info. 
+# 
+# DESCRIPTION 
+# 
+#  Country codes taken from ""www.addressdoctor.com/en/countries_data/isocodes.asp"" ." 
+#  Not available on the ISO website, search for the question 
+#  ""Where can I find the ISO 3166-1 alpha-3 country code"" on" 
+#  ""http://www.iso.org/iso/country_codes/iso_3166-faqs/iso_3166_faqs_general.htm"" ." 
+# 
+#  Time zone information (Carlijn Hendriks):  
+#   - tz = time zone of country as deviation from GMT ;" see ""www.worldtimezone.com""";;;;
+#   - st = summer time usage (0 for no, 1 for yes) 
+#   - fl = status of timezone data (1 for official, 2 for estimate) 
+# 
+#  Sea regions flag: 1 = sea, 0 = land 
+# 
+# HISTORY 
+# 
+#   2013-01-01, Arjo Segers (TNO) 
+#     Extracted from original file: 
+#       ${LE_DATA}/MACC-2003-2007/time-distribution/convert/country_code_v2.txt 
+# 
+#   2018, Arjo Segers (TNO) 
+#     Added countries outside EU and/or Europe. 
+#
+#    2023-05-09, Constantin Lionel (Empa)
+#       Adapted to be read in emiproc 
+# 
+iso3; country          ;timezone; summertime; timezone_flag; sea
+ALB; Albania                                     ;1;1;1;0
+ASI; Remaining Asian Areas                       ;4;1;2;0
+ATL; Atlantic Ocean                              ;0;0;2;1
+ATX; External-North-east-atl-0cean               ;0;0;2;1
+ARM; Armenia                                     ;4;1;1;0
+AUT; Austria                                     ;1;1;1;0
+AZE; Azerbeidjan                                 ;4;1;1;0
+BAS; Baltic Sea                                  ;1;1;2;1
+BEL; Belgium                                     ;1;1;1;0
+BGR; Bulgaria                                    ;2;1;1;0
+BIH; Bosnia and Herzegowina                      ;1;1;1;0
+BLR; Belarus                                     ;3;0;1;0
+BLS; Black Sea                                   ;2;1;2;1
+CAS; Caspian Sea                                 ;5;1;2;1
+CHE; Switzerland                                 ;1;1;1;0
+CYP; Cyprus                                      ;2;1;1;0
+ESB; Dhekelia Cantonment (assigned to Cyprus)    ;2;1;1;0
+CZE; Czech Republic                              ;1;1;1;0
+DEU; Germany                                     ;1;1;1;0
+DNK; Denmark                                     ;1;1;1;0
+ESP; Spain                                       ;1;1;1;0
+EST; Estonia                                     ;2;1;1;0
+FIN; Finland                                     ;2;1;1;0
+ALD; Aland (part of Finland)                     ;2;1;1;0
+FRA; France                                      ;1;1;1;0
+MCO; Monaco                                      ;1;1;1;0
+GBR; United Kingdom                              ;0;1;1;0
+GEO; Georgia                                     ;4;0;1;0
+GIB; Gibraltar                                   ;1;1;1;0
+GRC; Greece                                      ;2;1;1;0
+WSB; Akrotiri/Santorini (Greece)                 ;2;1;1;0
+HRV; Croatia                                     ;1;1;1;0
+HUN; Hungary                                     ;1;1;1;0
+INT; International                               ;0;0;2;0
+IRL; Ireland                                     ;0;1;1;0
+ISL; Iceland                                     ;0;0;1;0
+ITA; Italy                                       ;1;1;1;0
+KAZ; Kazakhstan                                  ;5;0;2;0
+KGZ; Kyrgyzstan                                  ;6;0;1;0
+KOS; Kosovo                                      ;1;1;1;0
+LIE; Liechtenstein                               ;1;1;1;0
+LTU; Lithuania                                   ;2;1;1;0
+LUX; Luxembourg                                  ;1;1;1;0
+LVA; Latvia                                      ;2;1;1;0
+MDA; Republic of Moldova                         ;2;1;1;0
+MED; Mediterranean Sea                           ;1;1;2;1
+MKD; The Former Yugoslav Republic of Macedonia   ;1;1;1;0
+MLT; Malta                                       ;1;1;1;0
+MNE; Montenegro                                  ;1;1;1;0
+NLD; The Netherlands                             ;1;1;1;0
+NOA; North Africa                                ;1;1;2;0
+NOR; Norway                                      ;1;1;1;0
+NOS; North Sea                                   ;1;1;2;1
+POL; Poland                                      ;1;1;1;0
+PRT; Portugal                                    ;0;1;1;0
+ROU; Romania                                     ;2;1;1;0
+RUR; Rest-Rusian-Repl                            ;3;1;2;0
+RUS; Russian Federation                          ;3;1;2;0
+RUX; External-part-rusian-repl                   ;3;1;2;0
+SRB; Serbia                                      ;1;1;1;0
+SUN; San Marino                                  ;1;1;1;0
+SVK; Slovakia                                    ;1;1;1;0
+SVN; Slovenia                                    ;1;1;1;0
+SWE; Sweden                                      ;1;1;1;0
+TJK; Tajikistan                                  ;5;0;1;0
+TKM; Turkmenistan                                ;5;0;1;0
+TUR; Turkey                                      ;2;1;1;0
+UKR; Ukraine                                     ;2;1;1;0
+UZB; Uzbekistan                                  ;5;0;1;0
+YUG; Yugoslavia                                  ;1;1;2;0
+DZA; Algeria                                     ;1;0;1;0
+EGY; Egypt                                       ;2;0;1;0
+GRL; Greenland                                   ;-3;1;1;0
+IRN; Iran (Islamic Republic of)                  ;4;1;2;0
+IRQ; Iraq                                        ;3;0;1;0
+ISR; Israel                                      ;2;1;1;0
+JOR; Jordan                                      ;2;0;2;0
+KWT; Kuwait                                      ;3;1;1;0
+LBN; Lebanon                                     ;2;1;1;0
+LBY; Libya                                       ;2;0;1;0
+MAR; Morocco                                     ;0;1;1;0
+PSE; Palestine, State of                         ;2;1;1;0
+SAU; Saudi Arabia                                ;3;0;1;0
+SYR; Syrian Arab Republic                        ;2;1;1;0
+TUN; Tunisia                                     ;1;0;1;0
+GRS; Greenland Sea                               ;-3;0;2;1
+BAR; Barentsz Sea                                ;1;0;2;1
+ENC; English Channel                             ;0;0;2;1
+FRO; Faroe  Islands                              ;0;1;1;0
+NWS; Norwegian Sea                               ;0;0;2;1
+IRC; Irish Sea                                   ;0;0;2;1
+PSG; Persian Gulf                                ;3;0;2;1
+KAR; Kara Sea                                    ;3;0;2;1
