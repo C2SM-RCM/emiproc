@@ -280,5 +280,5 @@ def check_valid_profiles_indexes_array(inv: Inventory, index_array: xr.DataArray
 
 
 if __name__ == "__main__":
-    #pytest.main([__file__])
-    test_group_profiles_substances()
+    pytest.main([__file__])
+    #test_group_profiles_substances()

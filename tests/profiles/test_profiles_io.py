@@ -5,7 +5,6 @@ from emiproc.profiles.temporal_profiles import (
     DailyProfile,
     WeeklyProfile,
     MounthsProfile,
-    create_time_serie,
     from_csv,
     from_yaml,
     to_yaml
@@ -31,4 +30,4 @@ def test_load_csv_profiles():
     copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
 
     profiles = ['hour_in_day', 'day_in_week', 'month_in_year']
-    profiles = {p: from_csv(copernicus_profiles_dir / f"{p}.csv") for p in profiles}
+    profiles = {p: from_csv(copernicus_profiles_dir / f"timeprofiles-{p}.csv") for p in profiles}
