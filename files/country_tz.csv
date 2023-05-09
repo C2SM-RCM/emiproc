@@ -44,18 +44,21 @@ BLS; Black Sea                                   ;2;1;2;1
 CAS; Caspian Sea                                 ;5;1;2;1
 CHE; Switzerland                                 ;1;1;1;0
 CYP; Cyprus                                      ;2;1;1;0
+ESB; Dhekelia Cantonment (assigned to Cyprus)    ;2;1;1;0
 CZE; Czech Republic                              ;1;1;1;0
 DEU; Germany                                     ;1;1;1;0
 DNK; Denmark                                     ;1;1;1;0
 ESP; Spain                                       ;1;1;1;0
 EST; Estonia                                     ;2;1;1;0
 FIN; Finland                                     ;2;1;1;0
+ALD; Aland (part of Finland)                     ;2;1;1;0
 FRA; France                                      ;1;1;1;0
 MCO; Monaco                                      ;1;1;1;0
 GBR; United Kingdom                              ;0;1;1;0
 GEO; Georgia                                     ;4;0;1;0
 GIB; Gibraltar                                   ;1;1;1;0
 GRC; Greece                                      ;2;1;1;0
+WSB; Akrotiri/Santorini (Greece)                 ;2;1;1;0
 HRV; Croatia                                     ;1;1;1;0
 HUN; Hungary                                     ;1;1;1;0
 INT; International                               ;0;0;2;0
