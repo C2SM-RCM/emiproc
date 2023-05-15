@@ -39,10 +39,8 @@ def speciate_inventory(
     for cat_sub, new_species in speciation_dict.items():
         cat, sub = cat_sub
         # Check the there is a substance to speciate
-        if (
-            cat_sub not in inv._gdf_columns
-            and cat not in inv.gdfs
-            and sub not in inv.gdfs[cat]
+        if cat_sub not in inv._gdf_columns and (
+            cat not in inv.gdfs or sub not in inv.gdfs[cat]
         ):
             raise KeyError(f"Cannot speciate: {cat_sub} not in {inv}")
 
@@ -85,10 +83,10 @@ def speciate_nox(
     :arg NOX_TO_NO2: The fraction of NOx that is speciated to NO2.
         It is possible to use a dict with a different fraction for each category.
 
-        .. note:: 
+        .. note::
 
             Depending on the sector, this value can vary.
-           
+
             For most emission sources, the fraction of NO is closer to 95%,
             only for traffic a fraction of 82% may be applied.
             The reason is that oxidation catalysts in diesel engines partly
@@ -96,7 +94,7 @@ def speciate_nox(
             In the first decade of 2000,
             the fraction of NO gradually decreased from 95% to about 80%.
 
-            See more: 
+            See more:
 
             * https://www.empa.ch/documents/56101/246436/Trend+NO2+Immissionen+Stadt+2022/ddba8b88-c599-4ed4-8b94-cc24670be683
             * https://www.zh.ch/de/umwelt-tiere/luft-strahlung/luftschadstoffquellen/emissionen-verkehr/abgasmessungen-rsd.html
