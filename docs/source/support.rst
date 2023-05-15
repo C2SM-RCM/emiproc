@@ -26,3 +26,11 @@ which is a group from the
 
 
 The prefered way of contacting us is through the github page.
+
+
+History 
+-------
+
+Emiproc was originally published for the OEM of ICON in [Jähn_et_al_2020]_.
+In 2022 it was refactored with a more modular and object-oriented design,
+in order to account for more inventories and models.

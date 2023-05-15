@@ -117,6 +117,22 @@ emiproc provides tools for groupping the categories.
 :py:func:`~emiproc.inventories.utils.group_categories`
 
 
+Profiles 
+--------
+
+If your inventory contains profiles, you can add them in the Inventory.
+
+
+One has to provide the profiles as 
+:py:class:`~emiproc.profiles.vertical_profiles.TemporalProfile` and
+:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles` objects.
+
+To specify which profile belongs to which categories and substances,
+there is a xarray mapping. 
+
+More information can be obtained in :ref:`profiles`.
+
+
 Take care of correct units
 ---------------------------
 

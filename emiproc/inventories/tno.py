@@ -1,3 +1,4 @@
+"""File containing the TNO inventory functions."""
 from os import PathLike
 from pathlib import Path
 from typing import Any
