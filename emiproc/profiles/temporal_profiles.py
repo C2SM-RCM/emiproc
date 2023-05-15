@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ from emiproc.profiles.utils import (
     remove_objects_of_type_from_list,
     type_in_list,
     ratios_to_factors,
-    load_country_tz
+    load_country_tz,
 )
 
 # Constants
@@ -30,8 +30,6 @@ N_DAY_LEAPYEAR = 366
 N_HOUR_WEEK = N_HOUR_DAY * N_DAY_WEEK
 N_HOUR_YEAR = N_DAY_YEAR * N_HOUR_DAY
 N_HOUR_LEAPYEAR = N_DAY_LEAPYEAR * N_HOUR_DAY
-
-
 
 
 class SpecificDay(Enum):
@@ -85,13 +83,16 @@ def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
             f"{specific_day=} is implemented in  {get_days_as_ints}"
         )
 
+
 COUNTRY_TZ_DF = None
+
+
 def get_emep_shift(country_code_iso3: str) -> int:
     """Retunr the time shift form the country code of emep."""
     global COUNTRY_TZ_DF
-    #if COUNTRY_TZ_DF is None:
+    # if COUNTRY_TZ_DF is None:
     COUNTRY_TZ_DF = load_country_tz()
-    
+
     return COUNTRY_TZ_DF.loc[country_code_iso3, "timezone"]
 
 
@@ -207,14 +208,14 @@ class HourOfLeapYearProfile(TemporalProfile):
     )
 
 
-AnyTimeProfile = (
-    DailyProfile
-    | SpecificDayProfile
-    | WeeklyProfile
-    | MounthsProfile
-    | HourOfYearProfile
-    | HourOfLeapYearProfile
-)
+AnyTimeProfile = Union[
+    DailyProfile,
+    SpecificDayProfile,
+    WeeklyProfile,
+    MounthsProfile,
+    HourOfYearProfile,
+    HourOfLeapYearProfile,
+]
 
 
 def create_scaling_factors_time_serie(
@@ -320,9 +321,6 @@ def profile_to_scaling_factors(
 
     # Return the scaling factors
     return scaling_factors
-
-
-
 
 
 def read_temporal_profiles(
