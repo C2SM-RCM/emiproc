@@ -269,14 +269,14 @@ def make_icon_time_profiles(
 
             # Use the shifts in the intervals
             dt_start = datetime(year, 1, 1, hour=0) - timedelta(hours=max_shift)
-            dt_end = datetime(year, 12, 31, hour=23) + timedelta(hours=max_shift)
+            dt_end = datetime(year, 12, 31, hour=23) + timedelta(hours=max_shift + 1)
 
             ts = create_scaling_factors_time_serie(dt_start, dt_end, time_profiles[key])
 
             concatenated_profiles = np.asarray(
                 [
                     # Start around the shift and end
-                    ts.to_numpy()[max_shift + shift : -max_shift + shift]
+                    ts.to_numpy()[max_shift + shift : -max_shift + shift - 1]
                     for country, shift in zip(countries, shifts)
                 ]
             )
