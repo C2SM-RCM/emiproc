@@ -18,7 +18,7 @@ e.g. projections.
 Available Grids 
 ---------------
 
-.. autoclass:: emiproc.grids.LatLonNcGrid
+.. autoclass:: emiproc.grids.RegularGrid
 
 .. autoclass:: emiproc.grids.TNOGrid
 
