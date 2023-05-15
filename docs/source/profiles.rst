@@ -1,3 +1,5 @@
+.. _profiles:
+
 Emission Profiles
 =================
 
@@ -71,6 +73,7 @@ scaling factors.
 scaling factors have the advantage that you can easily use them to combine profiles 
 together.
 
+.. _vertical_profiles:
 
 Vertical Profiles 
 -----------------
@@ -90,61 +93,7 @@ the profiles might need to be changed as well.
 Vertical data in emiproc is always the height over the ground.
 
 
-Creating profiles
------------------
-
-Create the profiles is simple, if you have many profiles on the same
-vertical grid use :py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles`
-If you have different vertical grids create a 
-:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfile`
-for each of your vertical grid.
-
-The two kind of profiles can be combined in the inventory.
-
-Assigning Profiles to inventories
----------------------------------
-
-In the inventory, the profiles will be stored as a 
-:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles` for vertical profiles.
-
-The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal_profiles.TemporalProfile`.
-
-The following paragraph will explain how to assign the profiles to emissions.
-
-Assigning profiles to emissions
--------------------------------
-
-We can add vertical profiles the following way:
-
-1. Adding profiles to gridded emissions.
-2. Specify a profile to a shape in the gdfs.
-
-The second method is the simplest. One column of each gdfs can be 
-called `__v_profile__` and `__t_profile__` for the vertical and time profiles.
-Each shape of the gdfs can then be assigned to a desired profile.
-These columns contain the index of the profile assigned to that shape.
-If no profile is assigned, a value of -1 can be used as the index.
-
-
-The first option requires to create a data array containing the profile index
-to use for any combination of the 4 coordinates ( category / substance / cell / time ).
-The coordinates don't need to all be present in the file, one could simply
-put one of them, and emiproc assumes the vertical profiles are the same 
-no matter the other coordinates.
-
-TODO: put an example
-
-Behaviour on Operations
------------------------
-
-Operations on inventories can be tricky.
-The principle is to always weight correctly the different ratios.
-Sometimes arbitrary decisions have to be done.
-For example when adding two inventories, we need to decide if we 
-use the vertical scales of on of the two, or if we want to go 
-for a fancy merging. 
-
-Add inventories (should scale each grid cell total values to do a weighted sum of the profiles)
+.. _temporal_profiles:
 
 Temporal Profiles
 -----------------
@@ -154,33 +103,132 @@ Fundamentally there are 2 ways of defining the time profile.
 1. Deterministic
 2. Periodic 
 
-Either you have a specific value at a certain time . (similarly to vertical 
-where you have a value at a specific height)
+Either you have an emission factor at a each time, creating a time serie for 
+the emission.
 
-Or you have periodic patterns that define the behaviour
+Or you have periodic patterns that define patterns of behaviour
 (hour of day, day of week, mounth of year)
 
-Profiles from data 
-------------------
+Creating profiles
+-----------------
 
-Some power plant give deterministic profiles .
+To create the profiles, emiproc gives you some helper functions available 
+:ref:`in the API <api_profiles>` .
 
-Traffic is usually modelled as a periodic pattern.
+A notebook is also available :
+`profiles.ipynb <https://github.com/C2SM-RCM/emiproc/blob/master/examples/profiles.ipynb>`_
 
-Merging Deterministic and Periodic
-----------------------------------
+Profiles in inventories
+-----------------------
 
-The output of that should be choosable by the user.
-
-Merging Different Periodic profiles
------------------------------------
-
-Sometimes the frequency at which profiles are given will be different 
-for categories.
+This chapter explains the format of the profiles in the inventories.
+The next chapter will explain how to assign the profiles to emissions.
 
 
-This seems that we have to either assume the lower frequency behaves as 
-the higher. Or resample the lowest on the highest.
+In the inventory, the profiles will be stored as a 
+:py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles` for vertical profiles.
+This class is assigned to the `v_profiles` attribute of the inventory.
+
+The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal_profiles.TemporalProfile`.
+They are assinged to the `t_profiles_groups` attribute of the inventory.
+
+Each element of the main list is a list containing different types of 
+temporal profiles object. We call this a group of temporal profiles.
+
+
+.. code-block:: python
+
+    # example of temporal profiles
+    t_profiles_groups = [    
+        # profile 0
+        [
+            WeeklyProfile(size=7, ratios=array([0.15, 0.15, 0.15, 0.15, 0.15, 0.12, 0.12])),
+            DailyProfile(size=24, ratios=array([0.03, 0.03, 0.03, 0.03, 0.03, 0.03, 0.04, 0.04, 0.05, 0.05,
+                                            0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.04, 0.04, 0.04,
+                                            0.04, 0.04, 0.04, 0.04])),
+            MounthsProfile(size=12, ratios=array([0.1 , 0.1 , 0.09, 0.08, 0.08, 0.07, 0.07, 0.07, 0.08, 0.08,
+                                            0.09, 0.1 ]))
+        ],
+        # profile 1
+        [
+            WeeklyProfile(size=7, ratios=array([0.15, 0.15, 0.15, 0.15, 0.15, 0.11, 0.11])),
+            DailyProfile(size=24, ratios=array([0.03, 0.03, 0.03, 0.03, 0.04, 0.04, 0.04, 0.04, 0.05, 0.05,
+                                            0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.04, 0.04, 0.04, 0.04,
+                                            0.04, 0.03, 0.03, 0.03])),
+            MounthsProfile(size=12, ratios=array([0.09, 0.09, 0.09, 0.08, 0.08, 0.07, 0.08, 0.08, 0.08, 0.08,
+                                            0.09, 0.09]))
+        ],
+        # ...
+    ]
+
+
+
+
+Assigning profiles to emissions
+-------------------------------
+
+We can add vertical profiles the following way:
+
+1. Adding profiles to gridded emissions.
+2. Specify a profile to a shape in the gdfs.
+
+In both cases, the profiles are assigned using indexes.
+If no profile exists is assigned, a value of -1 can be used as the index.
+
+Gridded Emissions 
+^^^^^^^^^^^^^^^^^
+
+The first option requires to create a data array containing the profile index
+to use for any combination of the 4 coordinates ( category / substance / cell / time ).
+The coordinates don't need to all be present in the file, one could simply
+put one of them, and emiproc assumes the vertical profiles are the same 
+no matter the other coordinates.
+The profiles are then assinged to the inventory using the attributes:
+`v_profiles_indexes` and `t_profiles_indexes`.
+
+
+The following image shows an example of how the indexes xarray.DataArray looks like:
+
+.. image:: ../images/profiles_indexes.png
+    :width: 300
+    :alt: Indexes of the profiles
+
+
+Shapes Emissions 
+^^^^^^^^^^^^^^^^
+
+The second method applies to the shapes from the `inv.gdfs` .
+One column of each gdfs can be 
+called `__v_profile__` and `__t_profile__` for the vertical and time profiles.
+Each shape of the gdfs can then be assigned to a desired profile.
+These columns contain the index of the profile assigned to that shape.
+
+If these profiles columns are not set, emiproc assumes 
+the profiles are the same as in the gridded emissions.
+
+
+
+
+Behaviour during Operations
+---------------------------
+
+When calling an operator on the inventories emiproc
+handles operations on the profiles as well.
+As this is done in the background, we recommend you to keep track of what 
+happpens to the profiles during operations. 
+
+If you see any suspicious behaviour, please report it as an
+`issue on github <https://github.com/C2SM-RCM/emiproc/issues>`_ .
+
+.. note::
+    For developpers:
+
+    Operations on inventories can be tricky.
+    The principle is to always weight correctly the different ratios.
+    Sometimes arbitrary decisions have to be done.
+    For example when adding two inventories, we need to decide if we 
+    use the vertical scales of on of the two, or if we want to go 
+    for a fancy merging. 
 
 
 Uncertainty on time profiles 
@@ -194,10 +242,24 @@ One would have to make sure the uncertainty propagate correctly while merging.
 
 
 Examples
-========
+--------
 
-Vertical profile based on roof heights.
----------------------------------------
+More examples can be found direclty in the inventories.
 
-Adding an elevation to each source.
------------------------------------
+For example in `tno.py <https://github.com/C2SM-RCM/emiproc/blob/master/emiproc/inventories/tno.py>`_ 
+the profiles are added to the inventory object using different emiproc functions.
+
+Vertical profile based on roof heights
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. warning:: This example is not yet implemented, but we plann to show a test case using data for zurich.
+
+Adding an elevation to each source
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Instead of a vertical profile, one can also add an elevation to each source
+as a point.
+This can be done using the :py:class:`~emiproc.inventories.EmissionInfo` class.
+
+You can check an example for that the zurich inventory:
+`categories_info.py <https://github.com/C2SM-RCM/emiproc/blob/master/emiproc/inventories/zurich/categories_info.py>`_

@@ -97,6 +97,7 @@ def combine_profiles(
     """Combine profiles from multidimensional array by reducing over a specified dimension.
 
     The indexes and the weights but be of the same dimensions.
+    
     :arg profiles: The profiles to use for merging.
     :arg profiles_indexes: The profiles indexes of the data.
     :arg dimension: The dimension along which the combination should be done.

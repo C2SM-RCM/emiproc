@@ -57,6 +57,8 @@ Speciation
 .. autofunction:: emiproc.speciation.speciate_nox
 
 
+.. _profiles_api:
+
 Profiles
 --------
 
