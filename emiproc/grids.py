@@ -116,8 +116,15 @@ class RegularGrid(Grid):
     This allows for some capabilities that are not available for
     irregular grids (rasterization, image like plotting).
 
-    The grid is defined using a bounding box (xmin, xmax, ymin, ymax)
-    and the number of cells in each direction (nx, ny).
+    The grid can be defined in multiple ways.
+    All the way need the reference (xmin, ymin).
+    Then you need 2 of the three following:
+
+    * xmax, ymax to define the bounding box
+    * nx, ny to define the number of cells in each direction
+    * dx, dy to define the size of the cells in each direction
+    
+    Leave the unused parameters as None.
     """
 
     # The centers of the cells (lon =x, lat = y)
@@ -135,17 +142,53 @@ class RegularGrid(Grid):
     def __init__(
         self,
         xmin: float,
-        xmax: float,
         ymin: float,
-        ymax: float,
-        nx: int,
-        ny: int,
+        xmax: float | None = None,
+        ymax: float | None = None,
+        nx: int | None = None,
+        ny: int | None = None,
+        dx: float | None = None,
+        dy: float | None = None,
         name: str = "",
         crs: int | str = WGS84,
     ):
-        self.xmin, self.xmax = xmin, xmax
-        self.ymin, self.ymax = ymin, ymax
+        self.xmin, self.ymin = xmin, ymin
 
+        # Check if they did not specify all the optional parameters
+        if all((p is not None for p in [xmax, ymax, nx, ny, dx, dy])):
+            raise ValueError(
+                "Specified too many parameters. "
+                "Specify only 2 of the following: "
+                "(xmax, ymax), (nx, ny), (dx, dy)"
+            )
+        
+        if dx is None and dy is None and xmax is None and ymax is None:
+            raise ValueError(
+                "Cannot create grid with only nx and ny. "
+                "Specify at least dx, dy or xmax, ymax."
+            )
+
+        # Calclate the number of cells if not specified
+        if nx is None and ny is None:
+            if dx is None or dy is None:
+                raise ValueError(
+                    "Either nx and ny or dx and dy must be specified. "
+                    f"Received: {nx=}, {ny=}, {dx=}, {dy=}"
+                )
+            if xmax is None or ymax is None:
+                raise ValueError(
+                    "When using only dx dy, xmax and ymax must be specified. "
+                    f"Received: {xmax=}, {ymax=}"
+                )
+            # Guess the nx and ny values, override the max
+            nx = math.ceil((xmax - xmin) / dx)
+            ny = math.ceil((ymax - ymin) / dy)
+        
+        if xmax is None and ymax is None:
+            xmax = xmin + nx * dx
+            ymax = ymin + ny * dy
+
+        # Calculate all grid parameters
         self.nx, self.ny = nx, ny
         self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
 
@@ -176,80 +219,6 @@ class RegularGrid(Grid):
     @cached_property
     def bounds(self) -> tuple[int, int, int, int]:
         return self.xmin, self.ymin, self.xmax, self.ymax
-
-
-class LatLonNcGrid(RegularGrid):
-    """A regular grid with lat/lon values from a nc file.
-
-    This is a copy of the tno grid basically, but reading a nc file.
-    """
-
-    def __init__(
-        self, dataset_path, lat_name="clat", lon_name="clon", name="LatLon", crs=WGS84
-    ):
-
-        self.dataset_path = dataset_path
-
-        ds = xr.load_dataset(dataset_path)
-
-        self.lon_var = np.unique(ds[lon_name])
-        self.lat_var = np.unique(ds[lat_name])
-
-        self.nx = len(self.lon_var)
-        self.ny = len(self.lat_var)
-
-        # The lat/lon values are the cell-centers
-        self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
-        self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
-
-        # Compute the cell corners
-        x = self.lon_var
-        y = self.lat_var
-        dx2 = self.dx / 2
-        dy2 = self.dy / 2
-
-        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
-        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
-
-        super().__init__(name, crs=crs)
-
-    def cell_corners(self, i, j):
-        """Return the corners of the cell with indices (i,j).
-
-        See also the docstring of Grid.cell_corners.
-
-        Parameters
-        ----------
-        i : int
-        j : int
-
-        Returns
-        -------
-        tuple(np.array(shape=(4,), dtype=float),
-              np.array(shape=(4,), dtype=float))
-            Arrays containing the x and y coordinates of the corners
-        """
-        return self.cell_x[:, i], self.cell_y[:, j]
-
-    @cached_property
-    def lon_range(self):
-        """Return an array containing all the longitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(nx,), dtype=float)
-        """
-        return self.lon_var
-
-    @cached_property
-    def lat_range(self):
-        """Return an array containing all the latitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(ny,), dtype=float)
-        """
-        return self.lat_var
 
 
 class TNOGrid(RegularGrid):
@@ -596,18 +565,21 @@ class SwissGrid(RegularGrid):
             only
             work with WGS84 or  SWISS .
         """
-        self.nx = nx
-        self.ny = ny
-        self.dx = dx
-        self.dy = dy
-        self.xmin = xmin
-        self.ymin = ymin
 
         # The swiss grid is not technically using a PlateCarree projection
         # (in fact it is not using any projection implemented by cartopy),
         # however the points returned by the cell_corners() method are in
         # WGS84, which PlateCarree defaults to.
-        super().__init__(name, crs=crs)
+        super().__init__(
+            name=name,
+            nx=nx,
+            ny=ny,
+            dx=dx,
+            dy=dy,
+            xmin=xmin,
+            ymin=ymin,
+            crs=crs
+        )
 
     @cached_property
     def lon_range(self):

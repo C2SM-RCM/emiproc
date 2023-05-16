@@ -1,7 +1,6 @@
 """File containing the TNO inventory functions."""
 from os import PathLike
 from pathlib import Path
-from typing import Any
 
 
 import xarray as xr
@@ -12,17 +11,6 @@ import geopandas as gpd
 from emiproc.grids import WGS84, TNOGrid
 from emiproc.inventories import Inventory, Substance
 from emiproc.profiles.operators import group_profiles_indexes
-from emiproc.profiles.temporal_profiles import (
-    AnyTimeProfile,
-    DailyProfile,
-    MounthsProfile,
-    TemporalProfile,
-    WeeklyProfile,
-    from_csv,
-)
-from emiproc.profiles.utils import remove_objects_of_type_from_list, type_in_list
-
-
 from emiproc.profiles.temporal_profiles import read_temporal_profiles
 from emiproc.profiles.vertical_profiles import (
     VerticalProfiles,

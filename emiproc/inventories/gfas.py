@@ -38,12 +38,12 @@ class GFAS_Inventory(Inventory):
             ds = ds.mean("time", keep_attrs=True)
 
         self.grid = RegularGrid(
-            ds.longitude[0].values,
-            ds.longitude[-1].values,
-            ds.latitude[0].values,  # Sorted from high to low
-            ds.latitude[-1].values,
-            len(ds.longitude),
-            len(ds.latitude),
+            xmin=ds.longitude[0].values,
+            xmax=ds.longitude[-1].values,
+            ymin=ds.latitude[0].values,  # Sorted from high to low
+            ymax=ds.latitude[-1].values,
+            nx=len(ds.longitude),
+            ny=len(ds.latitude),
         )
 
         polys = self.grid.cells_as_polylist

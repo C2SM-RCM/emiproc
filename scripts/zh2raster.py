@@ -4,12 +4,13 @@ The idea of this scripts is to produce raster files for zurich.
 
 It is possible put the rasters inside the swiss inventory as well.
 """
-#%%
+# %%
 from math import floor
 from pathlib import Path
 
 
 from emiproc.grids import SwissGrid, LV95, WGS84
+from emiproc.inventories.swiss import SwissRasters
 from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.regrid import remap_inventory, weights_remap, get_weights_mapping
 from emiproc.utilities import SEC_PER_YR
@@ -18,11 +19,14 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Polygon, Point
 from emiproc.inventories.utils import add_inventories
-
+from emiproc.inventories.utils import get_total_emissions
+from emiproc.speciation import speciate_inventory
+from emiproc.regrid import remap_inventory
+from emiproc.inventories.utils import crop_with_shape
 import matplotlib.pyplot as plt
 import xarray as xr
 
-#%% define some parameters for the output
+# %% define some parameters for the output
 
 INCLUDE_SWISS_OUTSIDE = True
 swiss_data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
@@ -35,12 +39,18 @@ USE_GNRF = True
 # TODO: remove it also from the swiss inventory ?
 REMOVE_JOSEFSTRASSE_KHKW = True
 
+# Whether to split the F category of the GNRF into 4 subcategories for accounting
+# for the different vehicle types (cars, light duty, heavy duty, two wheels)
+SPLIT_GNRF_ROAD_TRANSPORT = True
+if SPLIT_GNRF_ROAD_TRANSPORT and not USE_GNRF:
+    raise ValueError("Cannot split GNRF if not using GNRF")
+
 if INCLUDE_SWISS_OUTSIDE:
     # Swiss inventory code works only if the raster is the same as the swiss raster (100 m )
     assert RASTER_EDGE == 100
     # Need to have the same categories between swiss and zurich
     assert USE_GNRF
-#%%
+# %%
 
 outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
 weights_dir = outdir / "weights_files"
@@ -55,7 +65,7 @@ import xarray as xr
 from datetime import datetime
 
 
-#%%
+# %%
 def load_zurich_shape(
     zh_raw_file=r"C:\Users\coli\Documents\ZH-CH-emission\Data\Zurich_borders.txt",
     crs_file: int = WGS84,
@@ -73,7 +83,7 @@ zh_shape = load_zurich_shape()
 
 x_min, y_min, x_max, y_max = zh_shape.bounds
 
-#%% create the zurich swiss grid
+# %% create the zurich swiss grid
 
 d = RASTER_EDGE
 xmin, ymin = floor(x_min) // d * d, floor(y_min) // d * d
@@ -91,28 +101,15 @@ polys = [
 centers = [Point((x + d / 2, y + d / 2)) for y in reversed(ys) for x in xs]
 zh_gdf = gpd.GeoDataFrame(geometry=polys, crs=LV95)
 gdf_centers = gpd.GeoDataFrame(geometry=centers, crs=LV95)
-#%% prepare the output on WGS84
+# %% prepare the output on WGS84
 WGS84_gdf = zh_gdf.to_crs(WGS84)
 for i in range(4):
     WGS84_gdf[f"coord_{i}"] = WGS84_gdf.geometry.apply(
         lambda poly: poly.exterior.coords[i]
     )
 
-WGS84_gdf
-# %% to see if it is clockwise or not
-# for i in range(4):
-#     plt.scatter(*WGS84_gdf.loc[0][f'coord_{i}'], label=f"{i}")
-# plt.legend()
 
-#%% do the actual remapping of zurich
-import importlib
-import emiproc.inventories.utils
-
-importlib.reload(emiproc.inventories.utils)
-import emiproc.inventories.utils
-from emiproc.regrid import remap_inventory
-from emiproc.inventories.utils import crop_with_shape
-
+# %% do the actual remapping of zurich to rasters
 
 rasters_inv = remap_inventory(
     crop_with_shape(inv, zh_shape),
@@ -121,61 +118,106 @@ rasters_inv = remap_inventory(
         outdir / "weights_files" / f"{mapluf_file.stem}_2_{RASTER_EDGE}x{RASTER_EDGE}"
     ),
 )
-#%% change the categories
+# %% change the categories
 if USE_GNRF:
     from emiproc.inventories.utils import group_categories
-    from emiproc.inventories.categories_groups import ZH_2_GNFR
+    from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR
+
+    if SPLIT_GNRF_ROAD_TRANSPORT:
+        ZH_2_GNFR = ZH_2_GNFR.copy()
+        # Remove the road transport from the GNRF
+        ZH_2_GNFR.pop("GNFR_F")
+        splitted_cats = {
+            "GNFR_F-cars": [
+                "c1301_Personenwagen_Emissionen_Kanton",
+                "c1306_StartStopTankatmung_Emissionen_Kanton",
+            ],
+            "GNFR_F-light_duty": [
+                "c1307_Lieferwagen_Emissionen_Kanton",
+            ],
+            "GNFR_F-heavy_duty": [
+                "c1302_Lastwagen_Emissionen_Kanton",
+                "c1304_Linienbusse_Emissionen_Kanton",
+                "c1305_Trolleybusse_Emissionen_Kanton",
+                "c1308_Reisebusse_Emissionen_Kanton",
+            ],
+            "GNFR_F-two_wheels": [
+                "c1303_Motorraeder_Emissionen_Kanton",
+            ],
+        }
+        # add this to the mapping
+        ZH_2_GNFR |= splitted_cats
 
     rasters_inv = group_categories(rasters_inv, ZH_2_GNFR)
 
-#%% add the swiss inventory when needed
+# %% add the swiss inventory when needed
 if INCLUDE_SWISS_OUTSIDE:
-    from emiproc.inventories.swiss import SwissRasters
 
     inv_ch = SwissRasters(
         data_path=swiss_data_path,
         rasters_dir=swiss_data_path / "ekat_gridascii",
         rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
-        requires_grid=False,
+        requires_grid=True,
+        #requires_grid=False,
         year=2020,
     )
-    cropped_ch = crop_with_shape(
-        inv_ch,
+
+    from emiproc.inventories.categories_groups import CH_2_GNFR
+
+    groupped_ch = group_categories(inv_ch, CH_2_GNFR)
+
+    if SPLIT_GNRF_ROAD_TRANSPORT:
+        # Calculate splitting ratios in zurich
+        total_emisson = get_total_emissions(rasters_inv)
+        speciation_dict = {}
+        for sub, cat_dic in total_emisson.items():
+            # Get the categories of the GNRF-F
+            f_cat_dict = {
+                cat: val for cat, val in cat_dic.items() if cat.startswith("GNFR_F")
+            }
+            # Get the total of the GNRF-F
+            f_total = sum(f_cat_dict.values())
+            # Calculate the ratios
+            catsub = ("GNFR_F", sub)
+            if catsub in groupped_ch._gdf_columns:
+                speciation_dict[catsub] = {
+                    (cat, sub): val / f_total for cat, val in f_cat_dict.items()
+                }
+
+        groupped_ch = speciate_inventory(groupped_ch, speciation_dict, drop=True)
+
+    ch_outside_zh = crop_with_shape(
+        groupped_ch,
         zh_shape,
         keep_outside=True,
         modify_grid=False,
         weight_file=weights_dir / "ch_out_zh",
     )
     ch_inside_zh = crop_with_shape(
-        inv_ch,
+        groupped_ch,
         zh_shape,
         keep_outside=False,
         modify_grid=False,
         weight_file=weights_dir / "ch_in_zh",
     )
-    from emiproc.inventories.categories_groups import CH_2_GNFR
 
-    groupped_ch_out = group_categories(cropped_ch, CH_2_GNFR)
-    groupped_ch_in = group_categories(ch_inside_zh, CH_2_GNFR)
-    groupped_ch_full = group_categories(inv_ch, CH_2_GNFR)
-#%%
+
+# %%
 if INCLUDE_SWISS_OUTSIDE:
     remapped_ch_out = remap_inventory(
-        groupped_ch_out,
+        ch_outside_zh,
         zh_gdf.geometry,
-        weigths_file=(weights_dir / f"swiss_around_zh_2_{RASTER_EDGE}x{RASTER_EDGE}"),
+        #weigths_file=(weights_dir / f"swiss_around_zh_2_{RASTER_EDGE}x{RASTER_EDGE}"),
     )
 # %% Rescale the swiss and add it, the scaling is made such that the
 # mapluft inventory is not changed and the total swiss inventory is also not changed
 # so we only scale the region outside of zurich to compensate
 if INCLUDE_SWISS_OUTSIDE:
-    from emiproc.inventories.utils import get_total_emissions
-
     # get the total inside zurich from mapluft
     mapluft_total = get_total_emissions(rasters_inv)
     # get the total inside zurich from swiss inv
-    swiss_out_total = get_total_emissions(groupped_ch_out)
-    swiss_total = get_total_emissions(groupped_ch_full)
+    swiss_out_total = get_total_emissions(ch_outside_zh)
+    swiss_total = get_total_emissions(groupped_ch)
     # calculates scalings
     scaling_factors = {}
     for sub, cat_dic in swiss_total.items():
@@ -196,7 +238,7 @@ if INCLUDE_SWISS_OUTSIDE:
     rescaled_ch = scale_inventory(remapped_ch_out, scaling_factors)
     # add the inventories
     rasters_inv = add_inventories(rasters_inv, rescaled_ch)
-#%% Populate the dataframe of the output
+# %% Populate the dataframe of the output
 from emiproc.exports.netcdf import nc_cf_attributes
 
 ds_out = xr.Dataset(
@@ -340,7 +382,7 @@ ds_out = xr.Dataset(
 
 
 ds_out
-#%%
+# %%
 for category, sub in rasters_inv._gdf_columns:
     if (category, sub) not in rasters_inv._gdf_columns:
         continue
@@ -357,8 +399,7 @@ for category, sub in rasters_inv._gdf_columns:
 # %%
 ds_out.to_netcdf(
     outdir
-    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.3.nc"
+    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{'Fsplit' if SPLIT_GNRF_ROAD_TRANSPORT else ''}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.4.nc"
 )
 
-
-
+# %%

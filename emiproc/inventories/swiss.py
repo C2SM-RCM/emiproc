@@ -202,8 +202,8 @@ class SwissRasters(Inventory):
         # Grid on which the inventory is created
         self.grid = SwissGrid(
             "ch_emissions",
-            3600,
-            2400,
+            nx=3600,
+            ny=2400,
             xmin=2480000,
             ymin=1060000,
             dx=self.edge_size,

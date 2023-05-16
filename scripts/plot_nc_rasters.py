@@ -2,23 +2,21 @@
 #%% Plot the total emissions
 from pathlib import Path
 import matplotlib as mpl
-import matplotlib.style
-import numpy as np
 from emiproc.plots import nclcmaps
-import contextily as cx
 import xarray as xr
+import numpy as np
 import matplotlib.pyplot as plt
-from emiproc.utilities import SEC_PER_YR
 
 #%%
-images_dir = Path(r"C:\Users\coli\Pictures\zh_rasters_in_ch_v1.3")
+images_dir = Path(r"C:\Users\coli\Pictures\zh_rasters_in_ch_F_split")
 images_dir.mkdir(exist_ok=True)
 cmap = nclcmaps.cmap("WhViBlGrYeOrRe")
 mpl.style.use("default")
 from matplotlib.colors import LogNorm, SymLogNorm
 
+
 #%%
-file = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters\zurich_inside_swiss_100x100_mapLuft_2020_v1.3.nc")
+file = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters\zurich_inside_swiss_Fsplit_100x100_mapLuft_2020_v1.4.nc")
 #file = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters\zurich_cropped_100x100_mapLuft_2020_v1.3.nc")
 ds = xr.load_dataset(file)
 x_min, x_max, y_min, y_max = min(ds["x"]), max(ds["x"]), min(ds["y"]), max(ds["y"])
@@ -108,10 +106,10 @@ for substance in [
     q_max = 0.001
     q_min = 0.2
     norm = LogNorm(
-        vmin=1e-1,
-        #vmin=np.quantile(emission_non_zero_values, q_min),
-        vmax=1e4,
-        #vmax=np.quantile(emission_non_zero_values, 1 - q_max),
+        #vmin=1e-1,
+        vmin=np.quantile(emission_non_zero_values, q_min),
+        #vmax=1e4,
+        vmax=np.quantile(emission_non_zero_values, 1 - q_max),
     )
 
     im = ax.imshow(
