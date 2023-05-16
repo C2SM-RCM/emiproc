@@ -281,9 +281,6 @@ def make_icon_time_profiles(
                 ]
             )
 
-            # Convert to scaling factors
-            concatenated_profiles *= concatenated_profiles.shape[1]
-
             # Apply the shift for each contry
             hourofyear[key] = xr.DataArray(
                 data=concatenated_profiles.T,
