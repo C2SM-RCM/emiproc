@@ -44,7 +44,10 @@ export_icon_oem(
     inv=groupped,
     icon_grid_file=grid_file,
     output_dir=output_dir,
-    temporal_profiles_type=TemporalProfilesTypes.THREE_CYCLES
+    temporal_profiles_type=TemporalProfilesTypes.THREE_CYCLES,
+    # Following parameters are for HOUR_OF_YEAR profiles
+    #temporal_profiles_type=TemporalProfilesTypes.HOUR_OF_YEAR,
+    #year=2020,
 )
 
 print(f"Exported to {output_dir}")
