@@ -27,7 +27,7 @@ inv=Inventory.from_gdf(gdfs={'point_sources': gpd.GeoDataFrame(
 
 #%% Load the icon grid
 grid_file = Path(
-    r"/scratch/snx3000/dbrunner/grid4OEM/BASE_KA_DOM01.nc"
+    r"/store/empa/em05/dbrunner/icon-art/werchner/grid4OEM/BASE_KA_DOM01.nc"
 )
 icon_grid = ICONGrid(grid_file)
 
