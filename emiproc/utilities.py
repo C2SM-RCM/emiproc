@@ -135,8 +135,6 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
         # make sure the grid is in WGS84 as is the country data
         grid_gdf = grid_gdf.to_crs(WGS84)
 
-    progress = ProgressIndicator(len(countries_gdf) + 10)
-
     grid_boundary = Polygon.from_bounds(*grid_gdf.geometry.total_bounds)
 
     country_shapes: dict[str, Polygon] = {}
@@ -146,6 +144,8 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
     # Reduce to the bounds of the grid
     mask_countries_in_grid = countries_gdf.intersects(grid_boundary)
     countries_gdf = countries_gdf.loc[mask_countries_in_grid]
+
+    progress = ProgressIndicator(len(countries_gdf) + 10)
 
     for geometry, iso3 in zip(countries_gdf.geometry, countries_gdf["ADM0_A3"]):
         progress.step()
