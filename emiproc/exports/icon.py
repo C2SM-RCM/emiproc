@@ -239,7 +239,7 @@ def make_icon_time_profiles(
                     # Use the shifts in the intervals
                     data = np.asarray(
                         [
-                            np.roll(scaling_factors, countries_shifts[country])
+                            np.roll(scaling_factors, -countries_shifts[country])
                             for country in countries
                         ]
                     )
