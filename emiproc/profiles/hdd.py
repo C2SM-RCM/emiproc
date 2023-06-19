@@ -13,6 +13,37 @@ def create_HDD_scaling_factor(
 ) -> pd.Series:
     """Generate the scaling factor for the heating degree days formula.
 
+    The HDD formula procceds this way: 
+    first Calculate the mean temprature of the day, and the heating demeand for the day 
+
+    .. math::
+        HDD = (T_{inside} - T_{mean}) 
+    
+    Where :math:`T_{inside}` is the inside temperature
+    and :math:`T_{mean}` is the mean temperature of the day.
+
+    If :math:`T_{mean} < T_{min}` then the heating is not activated and
+    :math:`HDD = 0`.
+
+    A day of year profile can then be calculated using 
+
+    .. math::
+        a_{HDD} = \\frac{HDD}{\\overline{HDD}}
+    
+    Where :math:`\\overline{HDD}` is the yearly average of the HDD.
+
+    A profile for domestic hot water is then added to this profile. 
+
+    .. math::
+        a_{H} = HDD_{H} * a_{HDD} + a_{DHW} * f_{DHW}
+
+    Where :math:`HDD_{H}` is the hourly heating profile and :math:`a_{DHW}` is the
+    hourly domestic hot water profile and :math:`f_{DHW}` is the scaling factor for
+    the domestic hot water profile.
+
+    Thus the return profile correspond to both heating and domestic hot water,
+    with a hourly resolution.
+
     :arg serie_T: the timeserie of the temperature (in Celsius)
     :arg heating_profile: the heating profile
     :arg dhw_profile: the domestic hot water profile
