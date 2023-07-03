@@ -224,6 +224,7 @@ def create_scaling_factors_time_serie(
     profiles: list[AnyTimeProfile],
     apply_month_interpolation: bool = True,
     freq: str = "H",
+    inclusive: str = "both",
 ) -> pd.Series:
     """Create a time serie of ratios for the requested time range.
 
@@ -231,10 +232,13 @@ def create_scaling_factors_time_serie(
     :arg end_time: The end time of the time serie.
     :arg profiles: The profiles to use to create .
     :arg apply_month_interpolation: If True, apply the month interpolation.
+    :arg inclusive: {“both”, “neither”, “left”, “right”}, default “both”
+        same as `pd.date_range <https://pandas.pydata.org/docs/reference/api/pandas.date_range.html#pandas-date-range>`_
+        Include boundaries; Whether to set each bound as closed or open.
     """
 
     # Create the time serie
-    time_serie = pd.date_range(start_time, end_time, freq=freq)
+    time_serie = pd.date_range(start_time, end_time, freq=freq, inclusive=inclusive)
 
     # Create the scaling factors
     scaling_factors = np.ones(len(time_serie))
