@@ -173,7 +173,11 @@ def resample_vertical_profiles(
     """
 
     # Find the levels we want to use
-    levels = specified_levels or np.unique(np.concatenate([p.height for p in profiles]))
+    if specified_levels is None:
+        levels = np.unique(np.concatenate([p.height for p in profiles]))
+    else:
+        levels = specified_levels
+
 
     out_ratios = []
     for p in profiles:
