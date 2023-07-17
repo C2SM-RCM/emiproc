@@ -35,15 +35,28 @@ class TemporalProfilesTypes(Enum):
     THREE_CYCLES = auto()
 
 
+def get_constant_time_profile() -> list[TemporalProfile]:
+    """Get a constant time profile for ICON-OEM.
+    
+    Emits the same at every time. 
+    
+    """
+    return [
+        DailyProfile(), # Hour of day
+        WeeklyProfile(), # Day of week
+        MounthsProfile(), # Month of year
+    ]
+
 def export_icon_oem(
     inv: Inventory,
     icon_grid_file: PathLike,
     output_dir: PathLike,
     group_dict: dict[str, list[str]] = {},
     country_resolution: str = "10m",
-    temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.HOUR_OF_YEAR,
+    temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
     year: int | None = None,
     nc_attributes: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
+    substances: list[str] | None = None,
 ):
     """Export to a netcdf file for ICON OEM.
 
@@ -72,6 +85,7 @@ def export_icon_oem(
         add the groupping in the metadata.
     :arg country_resolution: The resolution
         can be either '10m', '50m' or '110m'
+    :arg substances: The substances to export. If None, all substances of the inv.
 
     """
     logger = logging.getLogger("emiproc.export_icon_oem")
@@ -86,6 +100,8 @@ def export_icon_oem(
     vertical_profiles: dict[str, VerticalProfile] = {}
 
     for categorie, sub in inv._gdf_columns:
+        if substances is not None and sub not in substances:
+            continue
         name = f"{categorie}-{sub}"
 
         # Convert from kg/year to kg/m2/s
@@ -113,6 +129,7 @@ def export_icon_oem(
             vertical_profiles[name] = inv.v_profiles[profile_index]
 
         if inv.t_profiles_groups is not None:
+
             profile_index = get_desired_profile_index(
                 inv.t_profiles_indexes, cat=categorie, sub=sub
             )

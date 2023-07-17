@@ -157,8 +157,10 @@ def calculate_weights_mapping(
     else:
         raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
     minx, miny, maxx, maxy = shapes_looped.total_bounds
-    # Mask with only what is in the bounds
-    shapes_vect = shapes_vect.cx[minx:maxx, miny:maxy]
+    if minx != maxx and miny != maxy:
+        # Seems to remove all the data if boundaries are equal
+        # Mask with only what is in the bounds
+        shapes_vect = shapes_vect.cx[minx:maxx, miny:maxy]
 
     progress = ProgressIndicator(len(shapes_looped))
 
