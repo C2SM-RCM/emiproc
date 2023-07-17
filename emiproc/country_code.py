@@ -173,6 +173,16 @@ country_codes = {
     "LBN": 201, # Lebanon
     "LBY": 202, # Libya
     "VAT": 203, # Vatican City
+    "ETH": 204, # Ethiopia
+    "SOM": 205, # Somalia
+    "SOL": 206, # ???
+    "UZB": 207, # Uzbekistan
+    "KAZ": 208, # Kazakhstan
+    "TKM": 209, # Turkmenistan
+    "KGZ": 210, # Kyrgyzstan
+    "TJK": 211, # Tajikistan
+    "IRN": 212, # Iran
+    "IRQ": 213, # Iraq
     # End of added for emiproc
     "BEF": 301,  # Belgium (Flanders)
     "BA2": 302,  # Baltic Sea EU Cargo o12m

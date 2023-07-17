@@ -29,7 +29,7 @@ dependencies = [
     "rasterio",
     "pyogrio",
     "pygeos",
-    "cartopy",
+    "pyyaml",
 ]
 license = {file = "LICENSE.txt"}
 readme = "README.md"

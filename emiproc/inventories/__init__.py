@@ -16,7 +16,11 @@ from emiproc.grids import LV95, Grid, SwissGrid
 from emiproc.profiles.temporal_profiles import TemporalProfile
 from emiproc.profiles.utils import get_desired_profile_index
 from emiproc.regrid import get_weights_mapping, weights_remap
-from emiproc.profiles.vertical_profiles import VerticalProfile, VerticalProfiles
+from emiproc.profiles.vertical_profiles import (
+    VerticalProfile,
+    VerticalProfiles,
+    resample_vertical_profiles,
+)
 
 from emiproc.grids import Grid
 from emiproc.regrid import get_weights_mapping, weights_remap
@@ -149,7 +153,7 @@ class Inventory:
             return self._emission_infos
         else:
             raise ValueError(f"'emission_infos' were not set for {self}")
-    
+
     @emission_infos.setter
     def emission_infos(self, emission_infos: dict[Category, EmissionInfo]):
         # Check that the cat is in the emission_infos
@@ -160,7 +164,6 @@ class Inventory:
                 "Please add it to the emission_infos dict."
             )
         self._emission_infos = emission_infos
-    
 
     @property
     def geometry(self) -> gpd.GeoSeries:
@@ -224,7 +227,7 @@ class Inventory:
 
     def copy(self, no_gdfs: bool = False, profiles: bool = True) -> Inventory:
         """Copy the inventory.
-        
+
         :arg no_gdfs: Whether the gdfs should not be copied (main gdf and the gdfs).
         :arg profiles: Whether the profiles should be copied.
         """
@@ -234,7 +237,6 @@ class Inventory:
         if hasattr(self, "grid"):
             inv.grid = self.grid
 
-        
         if profiles and self.v_profiles is not None:
             inv.v_profiles = self.v_profiles.copy()
             inv.v_profiles_indexes = self.v_profiles_indexes.copy()
@@ -243,7 +245,7 @@ class Inventory:
             inv.t_profiles_indexes = self.t_profiles_indexes.copy()
 
         if no_gdfs or self.gdf is None:
-            inv.gdf = None 
+            inv.gdf = None
         else:
             inv.gdf = self.gdf.copy(deep=True)
 
@@ -251,7 +253,7 @@ class Inventory:
             inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in self.gdfs.items()}
         else:
             inv.gdfs = {}
-        
+
         # Copy the internal property
         if hasattr(self, "_emission_infos"):
             inv._emission_infos = deepcopy(self._emission_infos)
@@ -337,7 +339,7 @@ class Inventory:
             self.gdf.to_crs(*args, **kwargs, inplace=True)
         for gdf in self.gdfs.values():
             gdf.to_crs(*args, **kwargs, inplace=True)
-    
+
     def set_crs(self, *args, **kwargs):
         """Same as geopandas.set_crs() but for inventories.
 
@@ -347,7 +349,7 @@ class Inventory:
             self.gdf.set_crs(*args, **kwargs, inplace=True)
         for gdf in self.gdfs.values():
             gdf.set_crs(*args, **kwargs, inplace=True)
-            
+
     def add_gdf(self, category: Category, gdf: gpd.GeoDataFrame):
         """Add a gdf contaning emission sources to the inventory.
 
@@ -357,11 +359,11 @@ class Inventory:
         :arg category: The category to add.
         :arg gdf: The geodataframe containing the data for the category.
         """
-        
+
         if category not in self.gdfs:
             self.gdfs[category] = gdf
             return
-        
+
         # if the category is already present, we need to merge the data
         # this is a bit tricky, because we need to make sure that the
         # columns are the same
@@ -374,9 +376,98 @@ class Inventory:
         missing_columns = set(gdf.columns) - set(self.gdfs[category].columns)
         for col in missing_columns:
             self.gdfs[category][col] = 0
-            
+
         # Now we can append
         self.gdfs[category] = self.gdfs[category].append(gdf, ignore_index=True)
+
+    def set_profile(
+        self,
+        profile: VerticalProfile | list[TemporalProfile],
+        category: str | None = None,
+        substance: str | None = None,
+    ) -> None:
+        """Set a vertical or temporal profile to a specific category and/or substance.
+
+        This happens in place.
+        The profile is appened to the existing profiles.
+
+        If only one of 'category' or 'substance' is specified, the profile is assigned
+        to all the categories or substances on the non specified dimension.
+
+
+        :arg profile: The profile to set.
+            If Vertical profile, a vertical profile.
+            If Temporal profile, a list of temporal profiles.
+        :arg category: The category to set the profile to.
+        :arg substance: The substance to set the profile to.
+        """
+
+        if isinstance(profile, VerticalProfile):
+            indexes_array = self.v_profiles_indexes
+            if self.v_profiles is None:
+                # Set the profile for the first time
+                self.v_profiles = VerticalProfiles(
+                    ratios=[profile.ratios], height=profile.height
+                )
+            else:
+                self.v_profiles = resample_vertical_profiles(
+                    self.v_profiles, profile, specified_levels=self.v_profiles.height
+                )
+            profiles = self.v_profiles
+        elif isinstance(profile, list):
+            # Temporal profiles
+            indexes_array = self.t_profiles_indexes
+            self.t_profiles_groups.append(profile)
+
+            profiles = self.t_profiles_groups
+        else:
+            raise ValueError(f"Unknown profile type {type(profile)}")
+
+        if indexes_array is None:
+            # Create it if it does not exist, axis is substance and category
+            indexes_array = xr.DataArray(
+                np.full(
+                    (len(self.categories), len(self.substances)),
+                    fill_value=-1,
+                    dtype=int,
+                ),
+                dims=("category", "substance"),
+                coords={"category": self.categories, "substance": self.substances},
+            )
+
+        # Add to the index the profile
+        sel_dict = {}
+        if category is not None:
+            if "category" not in indexes_array.dims:
+                # Exapnd the array over the categories of the inventory
+                indexes_array = indexes_array.expand_dims({"category": self.categories})
+
+            sel_dict["category"] = category
+        if substance is not None:
+            if "substance" not in indexes_array.dims:
+                # Exapnd the array over the substnaces of the inventory
+                indexes_array = indexes_array.expand_dims(
+                    {"substance": self.substances}
+                )
+            sel_dict["substance"] = substance
+
+        if sel_dict:
+            # Set the index for the new profile
+            profile_idx = len(profiles) - 1
+            indexes_array.loc[sel_dict] = profile_idx
+        else:
+            self.logger.warning(
+                "No category or substance specified for the profile."
+                "The profile was not set."
+            )
+            return
+
+        if isinstance(profile, VerticalProfile):
+            self.v_profiles_indexes = indexes_array
+        elif isinstance(profile, list):
+            self.t_profiles_indexes = indexes_array
+
+        self.history.append(f"Set profile {profile_idx} to {category}, {substance}.")
 
 
 class EmiprocNetCDF(Inventory):
