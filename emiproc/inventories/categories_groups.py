@@ -23,7 +23,7 @@ CH_2_GNFR = {
         "elfeu",
     ],
     # Fugitives
-    "GNRF_D": [
+    "GNFR_D": [
         "eilgk",
         "eivgn",
         "evklm",
@@ -114,6 +114,10 @@ TNO_2_GNFR = {
     "GNFR_D": [
         "D",
     ],
+    # Solvents and product use
+    "GNFR_E": [
+        "E",
+    ],
     # Road transport
     "GNFR_F": [
         "F1",
@@ -146,7 +150,5 @@ TNO_2_GNFR = {
         "L",
     ],
     # Others
-    "GNFR_R": [
-        "E",  # E is not in the zh or swiss to we set e to that
-    ],
+    "GNFR_R": [],
 }

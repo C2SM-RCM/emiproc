@@ -407,7 +407,8 @@ class Inventory:
             if self.v_profiles is None:
                 # Set the profile for the first time
                 self.v_profiles = VerticalProfiles(
-                    ratios=[profile.ratios], height=profile.height
+                    ratios=np.array([profile.ratios]),
+                    height=profile.height,
                 )
             else:
                 self.v_profiles = resample_vertical_profiles(
@@ -417,6 +418,8 @@ class Inventory:
         elif isinstance(profile, list):
             # Temporal profiles
             indexes_array = self.t_profiles_indexes
+            if self.t_profiles_groups is None:
+                self.t_profiles_groups = []
             self.t_profiles_groups.append(profile)
 
             profiles = self.t_profiles_groups
