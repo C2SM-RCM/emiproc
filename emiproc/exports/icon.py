@@ -104,6 +104,8 @@ def export_icon_oem(
             continue
         name = f"{categorie}-{sub}"
 
+        logger.info('Processing emissions...')
+
         # Convert from kg/year to kg/m2/s
         emissions = (
             inv.gdf[(categorie, sub)].to_numpy() / ds_out["cell_area"] / SEC_PER_YR
@@ -134,6 +136,8 @@ def export_icon_oem(
                 inv.t_profiles_indexes, cat=categorie, sub=sub
             )
             time_profiles[name] = inv.t_profiles_groups[profile_index]
+
+    logger.info('Processing time profiles, vertical profiles and country mask...')
 
     # Find the proper country codes
     mask_file = (

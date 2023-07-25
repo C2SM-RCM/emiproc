@@ -5,6 +5,7 @@ import numpy as np
 import re
 import geopandas as gpd
 import pyogrio
+import os
 
 from emiproc.grids import WGS84, EDGARGrid
 from emiproc.inventories import Inventory
@@ -19,7 +20,7 @@ class EDGAR_Inventory(Inventory):
     """
     grid: EDGARGrid
 
-    def __init__(self, nc_file_pattern: PathLike, grid_shapefile: PathLike | None = None) -> None:
+    def __init__(self, nc_file_pattern: PathLike, grid_shapefile=None) -> None:
         """Create a EDGAR_Inventory.
 
         The EDGAR directory that contains the original datasets must be structured as ./substance/categories/dataset,
@@ -37,25 +38,32 @@ class EDGAR_Inventory(Inventory):
         list_filepaths = list(nc_file_pattern.parent.glob(nc_file_pattern.name))
         list_ds = [xr.open_dataset(f) for f in list_filepaths]
 
+        # Switch longitude from 0/360 to -180/180
+        list_filepaths_adjust = []
+        list_ds_adjust = []
+        for filepath, ds in zip(list_filepaths, list_ds):
+            lon_attrs = ds.lon.attrs
+            new_ds = ds.assign(lon=(ds.lon + 180) % 360 - 180).sortby('lon')
+            new_ds.lon.attrs = lon_attrs
+            new_filepath = Path(filepath).stem + '_lon_adjust.nc'
+            list_ds_adjust.append(new_ds)
+            list_filepaths_adjust.append(new_filepath)
+            new_ds.to_netcdf(new_filepath)
+
         substance = list_filepaths[0].parent.parent.stem
 
         substances_mapping = {}
         categories = [re.search(r'{}_(.+?)_(.+?)\.'.format(substance), filepath.name)[2] for filepath in list_filepaths] 
 
-        for i, ds in enumerate(list_ds):
+        for i, ds in enumerate(list_ds_adjust):
             old_varname = list(ds.data_vars.keys())[0]
             new_varname = substance.upper()
-            list_ds[i] = ds.rename_vars({old_varname: new_varname})
+            list_ds_adjust[i] = ds.rename_vars({old_varname: new_varname})
             substances_mapping[new_varname] = new_varname.upper()
 
-        ds = xr.merge(list_ds)
+        ds = xr.merge(list_ds_adjust)
 
-        # Swtich longitude from 0/360 to -180/180
-        attributes = ds.lon.attrs
-        ds = ds.assign(lon=(ds.lon + 180) % 360 - 180).sortby('lon')
-        ds.lon.attrs = attributes
-
-        self.grid = EDGARGrid(list_filepaths[0])
+        self.grid = EDGARGrid(list_filepaths_adjust[0])
 
         if grid_shapefile is None:
             polys = self.grid.cells_as_polylist
@@ -89,3 +97,7 @@ class EDGAR_Inventory(Inventory):
 
         # -- Convert to kg/yr
         self.gdf[list(mapping)] *= SEC_PER_YR * self.cell_areas[:, np.newaxis]  
+
+        # -- Remove longitude-shifted files
+        for f in list_filepaths_adjust:
+            os.remove(f)

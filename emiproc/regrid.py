@@ -388,7 +388,10 @@ def remap_inventory(
         weigths_file = Path(weigths_file)
 
     if isinstance(grid, Grid) or issubclass(type(grid), Grid):
-        grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
+        if hasattr(grid, "gdf"):
+            grid_cells = grid.gdf.geometry
+        else:
+            grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
     elif isinstance(grid, gpd.GeoSeries):
         grid_cells = grid
     else:
