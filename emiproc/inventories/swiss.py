@@ -50,154 +50,152 @@ class SwissRasters(Inventory):
         """
         super().__init__()
 
-        valid_years = [2015, 2020]
-        if year not in valid_years:
-            raise ValueError(f"year must be one of {valid_years}.")
-
+        # Emission data file
         total_emission_file = (
-            data_path / "Emissionen-2015-2020-je-Emittentengruppe_2022-11-02.xlsx"
+            data_path / "Emissions_CH_test.xlsx"
         )
 
-        # Load the file with the point sources
-        header_of_year = {
-            2015: 5,
-            2020: 33,
-        }
-        df_eipwp = pd.read_excel(
-            total_emission_file,
-            sheet_name='Punktquellen',
-            nrows=20,
-            header=header_of_year[year],
-        )
-        # The following way of loading, using the gdb
-        # was replaced by reading from the spreadsheet
-        # also the units now cahnged in the excel spreadsheet
-        ##df_eipwp = load_category(
-        ##    data_path / "ekat_ch_basisraster.gdb" / "ekat_ch_basisraster.gdb",
-        ##    "eipwp" + "_2015",
-        ##)
-        ##cols_eipwp = {
-        ##    "CO2_15": "CO2",
-        ##    "CH4_15": "CH4",
-        ##    "N2O_15": "N2O",
-        ##    "NOx_15": "NOx",
-        ##    "CO_15": "CO",
-        ##    "NMVOC_15": "VOC",
-        ##    "SO2_15": "SO2",
-        ##    "NH3_15": "NH3",
-        ##}
-        cols_eipwp = {
-            "CO2": "CO2",
-            "CH4": "CH4",
-            "N2O": "N2O",
-            "NOx": "NOx",
-            "CO": "CO",
+        # Load excel sheet with the total emissions (excluding point sources)
+        df_emissions = pd.read_excel(total_emission_file)
+
+        # Dictionary to rename chemical species according to emiproc conventions
+        dict_spec = {
+            "NOX": "NOx",
             "NMVOC": "VOC",
-            "SO2": "SO2",
-            "NH3": "NH3",
+            "PM2.5": "PM25",
+            "F-Gase": "F-gases"
         }
+
+        # Rename chemical specis according to emiproc conventions
+        df_emissions['Chemical Species'] = df_emissions['Chemical Species'].replace(dict_spec) 
+
+        # Add indexing column consisting of both grid and species' name
+        df_emissions['Grid_Spec'] = df_emissions['Grids'] + '_' + df_emissions['Chemical Species']
+        df_emissions = df_emissions.set_index('Grid_Spec')
+
+        # Check if selected year is in dataset 
+        if year not in df_emissions.columns:
+            raise ValueError("Selected year not in dataset.")
         
-        df_eipwp = df_eipwp.rename(columns=cols_eipwp)
-        for col in cols_eipwp.values():
-            serie = df_eipwp[col].copy()
-            serie.loc[serie=="k.A."] = 0.0
-            serie.loc[pd.isna(serie)] = 0.0
-            serie = serie.astype(float)
-            # kt/y -> kg/y  # This was changed since the reading from the gdb
-            serie *= 1e6
-            df_eipwp[col] = serie
-        df_eipwp["F-gases"] = 0.0
+        # ---------------------------------------------------------------------
+        # -- Emissions from point sources
+        # ---------------------------------------------------------------------
 
-        # Point location hardcoded as not in the excel sheet
-        # They were taken from the points data given in the gdb
-        points = [
-            Point(2634640.000, 1127354.000),
-            Point(2563500.000, 1122500.000),
-            Point(2712500.000, 1137900.000),
-            Point(2495114.000, 1118010.000),
-            Point(2533117.000, 1172768.000),
-            Point(2563500.000, 1122500.000),
-            Point(2569384.000, 1209968.000),
-            Point(2649655.000, 1212590.000),
-            Point(2497000.000, 1118130.000),
-            Point(2751520.000, 1188050.000),
-            Point(2644825.000, 1215313.000),
-            Point(2608999.000, 1219558.000),
-            Point(2640650.000, 1266464.000),
-            Point(2634150.000, 1127975.000),
-            Point(2729835.000, 1278930.000),
-            Point(2708128.000, 1268256.000),
-            Point(2587754.000, 1209929.000),
-            Point(2609500.000, 1224900.000),
-            Point(2624370.000, 1128968.000),
-            Point(2662982.000, 1213561.000),
-        ]
-        df_eipwp = gpd.GeoDataFrame(df_eipwp, geometry=points, crs=LV95)
+        # Initialize dataframe with columns=chemical species and rows=point sources
+        df_eipwp = pd.DataFrame()
 
-        columns_of_year = {
-            # Hard coded columns that should be read in the excel sheet of total emissions
-            2015: [5, 6, 7, 8, 10, 11, 12, 13, 14, 27],
-            2020: [16, 17, 18, 19, 21, 22, 23, 24, 25, 27],
-        }
-
-        # Load the excel sheet with the total emissions
-        df_emissions = pd.read_excel(
+        # Load data
+        df_eipwp_ori = pd.read_excel(
             total_emission_file,
-            header=7,
-            index_col="Basisraster",
-            usecols=columns_of_year[year],
+            sheet_name='Point Sources',
         )
-        # Handle the duplicate column names of the file, by removing the .1 str that is added by pandas
-        df_emissions.columns = [
-            col[:-2] if col[-2:] == ".1" else col for col in df_emissions.columns
-        ]
-        df_emissions = df_emissions.rename(
-            columns={
-                "CO2 foss/geog": "CO2",
-                "NMVOC": "VOC",
-                "F-Gase": "F-gases",
-            }
+        df_loc_ps = pd.read_excel(
+            total_emission_file,
+            sheet_name='Location Point Sources'
         )
-        # Remove empty lines at the end of the document
-        df_emissions = df_emissions.loc[~pd.isna(df_emissions.index)]
+
+        # Check if selected year is in dataset 
+        if year not in df_eipwp_ori.columns:
+            raise ValueError("Selected year not in dataset.")
+
+        # Set indexing column 
+        df_eipwp_ori = df_eipwp_ori.set_index('Chemical Species')
+
+        # Location of point sources 
+        easting = df_loc_ps['Easting'].tolist()
+        northing = df_loc_ps['Northing'].tolist()
+        points = [Point(x,y) for x,y in zip(easting,northing)]
+
+        # Species with point source emissions 
+        # Rmk: *set() removes duplicates
+        spec_emis_ps =  [*set(df_eipwp_ori.index.tolist())]
+
+        # Set "k.A." and NaN-values to zero
+        #df_eipwp_ori[year] = df_eipwp_ori[year].replace({"k.A.":0})
+        df_eipwp_ori[year] = df_eipwp_ori[year].fillna(0)
+
+        # Extract emisssions for each chemical species
+        for sub in spec_emis_ps:
+            # Transform units [kt/y] -> [kg/y]
+            factors = df_eipwp_ori[year].loc[sub] * 1e6
+            df_eipwp[sub] = factors.tolist()
+        
+        # Rename columns according to emiproc convention
+        df_eipwp = df_eipwp.rename(columns=dict_spec)
+
+        # Store as GeoDataFrame
+        df_eipwp = gpd.GeoDataFrame(df_eipwp, geometry=points, crs=LV95)
+        self.df_eipwp = df_eipwp
+
+        #self.df_eipwp = df_eipwp[
+        #    [
+        #        "CO2",
+        #        "CH4",
+        #        "N2O",
+        #        "NOx",
+        #        "CO",
+        #        "VOC",
+        #        "SO2",
+        #        "NH3",
+        #        "F-gases",
+        #        "geometry",
+        #    ]
+        #]
+
+        # ---------------------------------------------------------------------
+        # -- Grids
+        # ---------------------------------------------------------------------
 
         rasters_dir = Path(rasters_dir)
-        normal_rasters = [r for r in rasters_dir.rglob("*.asc")]
-        # Rasters with emission
+
+        # List with Raster categories for which we have emissions
+        raster_sub = df_emissions.index.tolist()
+        rasters = []
+        for t in raster_sub:
+            cat, sub = t.split("_")
+            subname = sub.lower()
+            if cat == 'evstr':
+                # Grid for non-methane VOCs is named "evstr_nmvoc"
+                if subname == 'voc':
+                    subname = 'nmvoc'
+                rasters.append(cat + '_'+ subname)
+            else:
+                rasters.append(cat)
+        # Remove duplicates
+        rasters = [*set(rasters)]
+
+        # Grids that depend on chemical species (road transport)
         rasters_str_dir = Path(rasters_str_dir)
         str_rasters = [
             r
             for r in rasters_str_dir.rglob("*.asc")
-            # Don't include the tunnel specific rasters as already included in the files
+            # Don't include the tunnel specific grids as they are already included in the grids for road transport
             if "_tun" not in r.stem
         ]
+
+        # Grids that do not depend on chemical species    
+        normal_rasters = [r 
+                          for r in rasters_dir.rglob("*.asc") 
+                          ]
 
         self.all_raster_files = normal_rasters + str_rasters
 
         self.raster_categories = [r.stem for r in normal_rasters] + [
-            r.stem[:-2] for r in str_rasters
+            r.stem for r in str_rasters
         ]
-        # All categories
 
-        self.df_eipwp = df_eipwp[
-            [
-                "CO2",
-                "CH4",
-                "N2O",
-                "NOx",
-                "CO",
-                "VOC",
-                "SO2",
-                "NH3",
-                "F-gases",
-                "geometry",
-            ]
-        ]
+        # ---------------------------------------------------------------------
+        # -- Emissions without point sources
+        # ---------------------------------------------------------------------
+
         self.df_emission = df_emissions
-
-        self._substances = df_emissions.columns.to_list()
-
         self.requires_grid = requires_grid
+
+        # Fill NaN values with zeros
+        self.df_emission[year] = self.df_emission[year].fillna(0)
+
+        # List with chemical species 
+        self._substances =  [*set(self.df_emission['Chemical Species'].tolist())]
 
         # Grid on which the inventory is created
         self.grid = SwissGrid(
@@ -224,20 +222,17 @@ class SwissRasters(Inventory):
 
         mapping = {}
 
-        # Loading all the raster categories
+        # Loading Raster categories and assigning respective emissions
         for raster_file, category in zip(self.all_raster_files, self.raster_categories):
             _raster_array = self.load_raster(raster_file).reshape(-1)
             if "_" in category:
-                # this is for the rasters of the traffic category
-                # each substance has a different raster
                 cat, sub = category.split("_")
                 sub_name = sub.upper()
-                if sub_name == "NOX":
-                    sub_name = "NOx"
-                if sub_name == "NMVOC":
-                    sub_name = "VOC"
-                # t/ y -> kg/y
-                factor = self.df_emission.loc[category, sub_name] * 1000
+                if sub_name in dict_spec.keys():
+                    sub_name = dict_spec[sub_name]
+                idx = cat + '_' + sub_name
+                # Transform units [t/y] -> [kg/y]
+                factor = self.df_emission[year].loc[idx] * 1000
                 # Normalize the array to ensure the factor will be the sum
                 # Note: this is to ensure consistency if the data provider
                 # change the df_emission values in the future but not the rasters
@@ -245,8 +240,9 @@ class SwissRasters(Inventory):
                 mapping[(cat, sub_name)] = _normalized_raster_array * factor
             else:
                 for sub in self._substances:
-                    # emissions are in t/ y in the file -> kg/y
-                    factor = self.df_emission.loc[category, sub] * 1000
+                    idx = category + '_' + sub
+                    # transform units [t/y] -> [kg/y]
+                    factor = self.df_emission[year].loc[idx] * 1000
                     if factor > 0:
                         mapping[(category, sub)] = _raster_array * factor
 
@@ -271,7 +267,8 @@ class SwissRasters(Inventory):
                 else np.full(self.grid.nx * self.grid.ny, np.nan)
             ),
         )
-        # Finally add the point sources
+
+        # Add point sources
         self.gdfs = {}
         self.gdfs["eipwp"] = self.df_eipwp
 
@@ -287,12 +284,12 @@ class SwissRasters(Inventory):
         return inventory_field
 
 if __name__ == "__main__":
-    swiss_data_path =  Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
+    swiss_data_path =  Path(r"/users/ckeller/emission_data/CH_Emissions")
 
     inv_ch = SwissRasters(
         data_path=swiss_data_path,
-        rasters_dir=swiss_data_path / "ekat_gridascii",
-        rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
-        requires_grid=False,
-        year=2020,
+        rasters_dir=swiss_data_path / "ekat_gridascii_test",
+        rasters_str_dir=swiss_data_path / "ekat_str_gridascii_test",
+        requires_grid=True,
+        year=2015,
     )
