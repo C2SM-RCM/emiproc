@@ -540,9 +540,9 @@ def scale_inventory(
     # Iterate over the scaling dict to multiply the values
     for sub, sub_dict in scaling_dict.items():
         for cat, scaling_factor in sub_dict.items():
-            if (cat, sub) in inv.gdf.columns:
+            if inv.gdf is not None and (cat, sub) in inv.gdf.columns:
                 inv.gdf[(cat, sub)] *= scaling_factor
-            if cat in inv.gdfs.keys() and sub in inv.gdfs[cat]:
+            if inv.gdfs is not None and cat in inv.gdfs.keys() and sub in inv.gdfs[cat]:
                 inv.gdfs[cat][sub] *= scaling_factor
 
     inv.history.append(f"Rescaled using {scaling_dict=}")
