@@ -52,7 +52,7 @@ class SwissRasters(Inventory):
 
         # Emission data file
         total_emission_file = (
-            data_path / "Emissions_CH_test.xlsx"
+            data_path / "Emissions_CH.xlsx"
         )
 
         # Load excel sheet with the total emissions (excluding point sources)
@@ -81,9 +81,6 @@ class SwissRasters(Inventory):
         # -- Emissions from point sources
         # ---------------------------------------------------------------------
 
-        # Initialize dataframe with columns=chemical species and rows=point sources
-        df_eipwp = pd.DataFrame()
-
         # Load data
         df_eipwp_ori = pd.read_excel(
             total_emission_file,
@@ -98,28 +95,41 @@ class SwissRasters(Inventory):
         if year not in df_eipwp_ori.columns:
             raise ValueError("Selected year not in dataset.")
 
-        # Set indexing column 
-        df_eipwp_ori = df_eipwp_ori.set_index('Chemical Species')
+        # Add indexing column consisting of the company name and the species' name
+        df_eipwp_ori['Comp_Spec'] = df_eipwp_ori['Company'] + '_' + df_eipwp_ori['Chemical Species']
+        df_eipwp_ori = df_eipwp_ori.set_index('Comp_Spec') 
 
-        # Location of point sources 
-        easting = df_loc_ps['Easting'].tolist()
-        northing = df_loc_ps['Northing'].tolist()
-        points = [Point(x,y) for x,y in zip(easting,northing)]
+        # Set company name as index for location of point sources
+        df_loc_ps = df_loc_ps.set_index("Company")
+
+        # Companies with point source emissions
+        # Rmk: *set() removes duplicates
+        comp_ps = [*set(df_eipwp_ori['Company'].tolist())]
 
         # Species with point source emissions 
-        # Rmk: *set() removes duplicates
-        spec_emis_ps =  [*set(df_eipwp_ori.index.tolist())]
+        spec_ps =  [*set(df_eipwp_ori['Chemical Species'].tolist())]
 
-        # Set "k.A." and NaN-values to zero
-        #df_eipwp_ori[year] = df_eipwp_ori[year].replace({"k.A.":0})
+        # Set NaN-values to zero
         df_eipwp_ori[year] = df_eipwp_ori[year].fillna(0)
 
-        # Extract emisssions for each chemical species
-        for sub in spec_emis_ps:
-            # Transform units [kt/y] -> [kg/y]
-            factors = df_eipwp_ori[year].loc[sub] * 1e6
-            df_eipwp[sub] = factors.tolist()
-        
+        # Initialize dataframe with columns=chemical species 
+        df_eipwp = pd.DataFrame(columns = spec_ps)
+
+        # Extract location of point sources together with its emissions for each chemical species
+        points = []
+        for comp in comp_ps:
+            lst_row = []
+            # Location of point source
+            x = df_loc_ps["Easting"].loc[comp]
+            y = df_loc_ps["Northing"].loc[comp]
+            points.append(Point(x,y))
+            for sub in spec_ps:
+                idx = comp + '_' + sub
+                # Transform units [kt/y] -> [kg/y]
+                factor = df_eipwp_ori[year].loc[idx] * 1e6
+                lst_row.append(factor)
+            df_eipwp.loc[len(df_eipwp)] = lst_row
+
         # Rename columns according to emiproc convention
         df_eipwp = df_eipwp.rename(columns=dict_spec)
 
@@ -127,42 +137,11 @@ class SwissRasters(Inventory):
         df_eipwp = gpd.GeoDataFrame(df_eipwp, geometry=points, crs=LV95)
         self.df_eipwp = df_eipwp
 
-        #self.df_eipwp = df_eipwp[
-        #    [
-        #        "CO2",
-        #        "CH4",
-        #        "N2O",
-        #        "NOx",
-        #        "CO",
-        #        "VOC",
-        #        "SO2",
-        #        "NH3",
-        #        "F-gases",
-        #        "geometry",
-        #    ]
-        #]
-
         # ---------------------------------------------------------------------
         # -- Grids
         # ---------------------------------------------------------------------
 
         rasters_dir = Path(rasters_dir)
-
-        # List with Raster categories for which we have emissions
-        raster_sub = df_emissions.index.tolist()
-        rasters = []
-        for t in raster_sub:
-            cat, sub = t.split("_")
-            subname = sub.lower()
-            if cat == 'evstr':
-                # Grid for non-methane VOCs is named "evstr_nmvoc"
-                if subname == 'voc':
-                    subname = 'nmvoc'
-                rasters.append(cat + '_'+ subname)
-            else:
-                rasters.append(cat)
-        # Remove duplicates
-        rasters = [*set(rasters)]
 
         # Grids that depend on chemical species (road transport)
         rasters_str_dir = Path(rasters_str_dir)
@@ -183,6 +162,27 @@ class SwissRasters(Inventory):
         self.raster_categories = [r.stem for r in normal_rasters] + [
             r.stem for r in str_rasters
         ]
+
+        # List with Raster categories for which we have emissions
+        raster_sub = df_emissions.index.tolist()
+        rasters_w_emis = []
+        for t in raster_sub:
+            cat, sub = t.split("_")
+            subname = sub.lower()
+            if cat == 'evstr':
+                # Grid for non-methane VOCs is named "evstr_nmvoc"
+                if subname == 'voc':
+                    subname = 'nmvoc'
+                rasters_w_emis.append(cat + '_'+ subname)
+            else:
+                rasters_w_emis.append(cat)
+        # Remove duplicates
+        rasters_w_emis = [*set(rasters_w_emis)]
+
+        # Compare Raster categories of input emission file with Raster categories of grids
+        # Raise error if the two don't agree
+        if not sorted(self.raster_categories) == sorted(rasters_w_emis):
+            raise ValueError("Raster categories of emission file don't match Raster grids.")
 
         # ---------------------------------------------------------------------
         # -- Emissions without point sources
@@ -288,8 +288,8 @@ if __name__ == "__main__":
 
     inv_ch = SwissRasters(
         data_path=swiss_data_path,
-        rasters_dir=swiss_data_path / "ekat_gridascii_test",
-        rasters_str_dir=swiss_data_path / "ekat_str_gridascii_test",
+        rasters_dir=swiss_data_path / "ekat_gridascii",
+        rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
         requires_grid=True,
         year=2015,
     )
