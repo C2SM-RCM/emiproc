@@ -1,6 +1,5 @@
-"""Test some basic features of the inventory profiles."""
+"""Show some basic features of the temporal profiles and plot."""
 
-# %%
 # %%
 from datetime import datetime, timedelta
 from os import PathLike
@@ -19,15 +18,11 @@ from emiproc.profiles.temporal_profiles import (
     DailyProfile,
     WeeklyProfile,
     MounthsProfile,
-    create_time_serie,
+    create_scaling_factors_time_serie,
     from_csv,
     from_yaml,
 )
-from emiproc.profiles.operators import (
-    weighted_combination,
-    combine_profiles,
-    get_weights_of_gdf_profiles,
-)
+from emiproc import FILES_DIR
 
 # %% test
 
@@ -44,23 +39,23 @@ test_profiles = [
 ]
 
 # %%
-ratios = create_time_serie(
+ratios = create_scaling_factors_time_serie(
     start_time="2020-01-01",
     end_time="2020-01-31",
     profiles=[DailyProfile(), WeeklyProfile(), MounthsProfile()],
 )
 ratios
 
-# TODO: move the following to examples
 # %%
+profiles_dir = FILES_DIR / "profiles" / "copernicus"
 profiles_month_in_year = from_csv(
-    r"C:\Users\coli\Documents\emiproc\files\profiles\copernicus\month_in_year.csv"
+    profiles_dir / "timeprofiles-month_in_year.csv"
 )
 profiles_day_in_week = from_csv(
-    r"C:\Users\coli\Documents\emiproc\files\profiles\copernicus\day_in_week.csv"
+    profiles_dir / "timeprofiles-day_in_week.csv"
 )
 profiles_hour_in_day = from_csv(
-    r"C:\Users\coli\Documents\emiproc\files\profiles\copernicus\hour_in_day.csv"
+    profiles_dir / "timeprofiles-hour_in_day.csv"
 )
 # %% plot the profiles
 import matplotlib.pyplot as plt
@@ -80,7 +75,7 @@ for categorie in profiles_month_in_year.keys():
         profiles_hour_in_day[categorie],
     ]
 
-    tss[categorie] = create_time_serie(
+    tss[categorie] = create_scaling_factors_time_serie(
         start_time="2020-01-01",
         end_time="2020-02-28",
         profiles=csv_profiles[categorie],
@@ -92,7 +87,7 @@ for name, ts in tss.items():
     ax.plot(ts, label=name)
 ax.legend()
 # %%
-yaml_dir = Path(r"C:\Users\coli\Documents\emiproc\files\profiles\yamls")
+yaml_dir = Path(FILES_DIR / "profiles" / "yamls")
 
 yaml_profiles = {}
 for yml_file in yaml_dir.glob("*.yaml"):
@@ -101,7 +96,7 @@ for yml_file in yaml_dir.glob("*.yaml"):
 # %%
 tss = {}
 for categorie in yaml_profiles.keys():
-    tss[categorie] = create_time_serie(
+    tss[categorie] = create_scaling_factors_time_serie(
         start_time="2020-01-01",
         end_time="2020-02-28",
         profiles=yaml_profiles[categorie],
@@ -112,25 +107,24 @@ for name, ts in tss.items():
     ax.plot(ts, label=name)
 ax.legend()
 # %%
-from enum import Enum, auto
-from emiproc.profiles.temporal_profiles import create_time_serie
 
 
 dss = make_icon_time_profiles(
     csv_profiles,
     {"DE": 0, "FR": 1, "USA": -5},
-    TemporalProfilesTypes.THREE_CYCLES,
+    #{"DE": 0, "FR": 1},
+    TemporalProfilesTypes.HOUR_OF_YEAR,
     2020,
     out_dir="./test_icon_oem_profiles",
 )
-dss["hourofday"]
+dss['hourofyear']
 # %%
 
 # plot each of the countries
 fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-for country in dss["monthofyear"]["country"].values:
+for country in dss["hourofyear"]["country"].values:
     ax.plot(
-        dss["monthofyear"]["Road_Transport"].sel(country=country),
+        dss["hourofyear"]["Road_Transport"].sel(country=country),
         label=country,
         alpha=0.5,
     )
