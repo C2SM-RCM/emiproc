@@ -51,32 +51,29 @@ class SwissRasters(Inventory):
         super().__init__()
 
         # Emission data file
-        total_emission_file = (
-            data_path / "Emissions_CH.xlsx"
-        )
+        total_emission_file = data_path / "Emissions_CH.xlsx"
 
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)
 
         # Dictionary to rename chemical species according to emiproc conventions
-        dict_spec = {
-            "NOX": "NOx",
-            "NMVOC": "VOC",
-            "PM2.5": "PM25",
-            "F-Gase": "F-gases"
-        }
+        dict_spec = {"NOX": "NOx", "NMVOC": "VOC", "PM2.5": "PM25", "F-Gase": "F-gases"}
 
         # Rename chemical specis according to emiproc conventions
-        df_emissions['Chemical Species'] = df_emissions['Chemical Species'].replace(dict_spec) 
+        df_emissions["Chemical Species"] = df_emissions["Chemical Species"].replace(
+            dict_spec
+        )
 
         # Add indexing column consisting of both grid and species' name
-        df_emissions['Grid_Spec'] = df_emissions['Grids'] + '_' + df_emissions['Chemical Species']
-        df_emissions = df_emissions.set_index('Grid_Spec')
+        df_emissions["Grid_Spec"] = (
+            df_emissions["Grids"] + "_" + df_emissions["Chemical Species"]
+        )
+        df_emissions = df_emissions.set_index("Grid_Spec")
 
-        # Check if selected year is in dataset 
+        # Check if selected year is in dataset
         if year not in df_emissions.columns:
             raise ValueError("Selected year not in dataset.")
-        
+
         # ---------------------------------------------------------------------
         # -- Emissions from point sources
         # ---------------------------------------------------------------------
@@ -84,36 +81,37 @@ class SwissRasters(Inventory):
         # Load data
         df_eipwp_ori = pd.read_excel(
             total_emission_file,
-            sheet_name='Point Sources',
+            sheet_name="Point Sources",
         )
         df_loc_ps = pd.read_excel(
-            total_emission_file,
-            sheet_name='Location Point Sources'
+            total_emission_file, sheet_name="Location Point Sources"
         )
 
-        # Check if selected year is in dataset 
+        # Check if selected year is in dataset
         if year not in df_eipwp_ori.columns:
             raise ValueError("Selected year not in dataset.")
 
         # Add indexing column consisting of the company name and the species' name
-        df_eipwp_ori['Comp_Spec'] = df_eipwp_ori['Company'] + '_' + df_eipwp_ori['Chemical Species']
-        df_eipwp_ori = df_eipwp_ori.set_index('Comp_Spec') 
+        df_eipwp_ori["Comp_Spec"] = (
+            df_eipwp_ori["Company"] + "_" + df_eipwp_ori["Chemical Species"]
+        )
+        df_eipwp_ori = df_eipwp_ori.set_index("Comp_Spec")
 
         # Set company name as index for location of point sources
         df_loc_ps = df_loc_ps.set_index("Company")
 
         # Companies with point source emissions
         # Rmk: *set() removes duplicates
-        comp_ps = [*set(df_eipwp_ori['Company'].tolist())]
+        comp_ps = [*set(df_eipwp_ori["Company"].tolist())]
 
-        # Species with point source emissions 
-        spec_ps =  [*set(df_eipwp_ori['Chemical Species'].tolist())]
+        # Species with point source emissions
+        spec_ps = [*set(df_eipwp_ori["Chemical Species"].tolist())]
 
         # Set NaN-values to zero
         df_eipwp_ori[year] = df_eipwp_ori[year].fillna(0)
 
-        # Initialize dataframe with columns=chemical species 
-        df_eipwp = pd.DataFrame(columns = spec_ps)
+        # Initialize dataframe with columns=chemical species
+        df_eipwp = pd.DataFrame(columns=spec_ps)
 
         # Extract location of point sources together with its emissions for each chemical species
         points = []
@@ -122,9 +120,9 @@ class SwissRasters(Inventory):
             # Location of point source
             x = df_loc_ps["Easting"].loc[comp]
             y = df_loc_ps["Northing"].loc[comp]
-            points.append(Point(x,y))
+            points.append(Point(x, y))
             for sub in spec_ps:
-                idx = comp + '_' + sub
+                idx = comp + "_" + sub
                 # Transform units [kt/y] -> [kg/y]
                 factor = df_eipwp_ori[year].loc[idx] * 1e6
                 lst_row.append(factor)
@@ -152,10 +150,8 @@ class SwissRasters(Inventory):
             if "_tun" not in r.stem
         ]
 
-        # Grids that do not depend on chemical species    
-        normal_rasters = [r 
-                          for r in rasters_dir.rglob("*.asc") 
-                          ]
+        # Grids that do not depend on chemical species
+        normal_rasters = [r for r in rasters_dir.rglob("*.asc")]
 
         self.all_raster_files = normal_rasters + str_rasters
 
@@ -169,11 +165,11 @@ class SwissRasters(Inventory):
         for t in raster_sub:
             cat, sub = t.split("_")
             subname = sub.lower()
-            if cat == 'evstr':
+            if cat == "evstr":
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
-                if subname == 'voc':
-                    subname = 'nmvoc'
-                rasters_w_emis.append(cat + '_'+ subname)
+                if subname == "voc":
+                    subname = "nmvoc"
+                rasters_w_emis.append(cat + "_" + subname)
             else:
                 rasters_w_emis.append(cat)
         # Remove duplicates
@@ -182,7 +178,17 @@ class SwissRasters(Inventory):
         # Compare Raster categories of input emission file with Raster categories of grids
         # Raise error if the two don't agree
         if not sorted(self.raster_categories) == sorted(rasters_w_emis):
-            raise ValueError("Raster categories of emission file don't match Raster grids.")
+            missing_raster_files = [
+                r for r in rasters_w_emis if r not in self.raster_categories
+            ]
+            missing_emissions_values = [
+                r for r in self.raster_categories if r not in rasters_w_emis
+            ]
+            raise ValueError(
+                "Raster categories of emission file don't match:"
+                f"\nMissing raster files: {missing_raster_files}"
+                f"\nMissing emissions values: {missing_emissions_values}"
+            )
 
         # ---------------------------------------------------------------------
         # -- Emissions without point sources
@@ -194,8 +200,8 @@ class SwissRasters(Inventory):
         # Fill NaN values with zeros
         self.df_emission[year] = self.df_emission[year].fillna(0)
 
-        # List with chemical species 
-        self._substances =  [*set(self.df_emission['Chemical Species'].tolist())]
+        # List with chemical species
+        self._substances = [*set(self.df_emission["Chemical Species"].tolist())]
 
         # Grid on which the inventory is created
         self.grid = SwissGrid(
@@ -230,7 +236,7 @@ class SwissRasters(Inventory):
                 sub_name = sub.upper()
                 if sub_name in dict_spec.keys():
                     sub_name = dict_spec[sub_name]
-                idx = cat + '_' + sub_name
+                idx = cat + "_" + sub_name
                 # Transform units [t/y] -> [kg/y]
                 factor = self.df_emission[year].loc[idx] * 1000
                 # Normalize the array to ensure the factor will be the sum
@@ -240,7 +246,7 @@ class SwissRasters(Inventory):
                 mapping[(cat, sub_name)] = _normalized_raster_array * factor
             else:
                 for sub in self._substances:
-                    idx = category + '_' + sub
+                    idx = category + "_" + sub
                     # transform units [t/y] -> [kg/y]
                     factor = self.df_emission[year].loc[idx] * 1000
                     if factor > 0:
@@ -277,14 +283,15 @@ class SwissRasters(Inventory):
         if raster_file.with_suffix(".npy").exists():
             inventory_field = np.load(raster_file.with_suffix(".npy"))
         else:
-            print(f"Parsing {raster_file}")
+            self.logger.info(f"Parsing {raster_file}")
             src = rasterio.open(raster_file).read(1)
             np.save(raster_file.with_suffix(".npy"), src)
             inventory_field = src
         return inventory_field
 
+
 if __name__ == "__main__":
-    swiss_data_path =  Path(r"/users/ckeller/emission_data/CH_Emissions")
+    swiss_data_path = Path(r"/users/ckeller/emission_data/CH_Emissions")
 
     inv_ch = SwissRasters(
         data_path=swiss_data_path,
