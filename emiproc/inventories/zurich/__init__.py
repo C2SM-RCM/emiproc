@@ -48,7 +48,11 @@ class MapLuftZurich(Inventory):
             If not specified, all categories are loaded.
         :arg remove_josefstrasse_khkw: Whether the incineration plant
             at josefstrasse should be removed from the inventory.
+            Emission for category 'c2301_KHKWKehricht_Emissionen_Kanton' at 
+            the Josefstrasse location will be removed from the inventory.
             It should be planned to be removed in March 2021.
+            The other Josefstrasse category will still be present, as they
+            account for some kinds of energy production.
             In case  remove_josefstrasse_khkw, the emissions are not set to any
             other location in the inventory.
         :arg convert_lines_to_polygons: Whether this should convert line emissions 
@@ -90,7 +94,7 @@ class MapLuftZurich(Inventory):
             gdf = gdf.loc[:, list(names_in_gdf) + ["geometry"]]
 
             
-            if remove_josefstrasse_khkw:
+            if remove_josefstrasse_khkw and category == "c2301_KHKWKehricht_Emissionen_Kanton":
                 # Check point sources at the josefstrasse location
                 mask_josefstrasse = gdf.geometry == Point(2681839.000, 1248988.000)
                 if any(mask_josefstrasse):
