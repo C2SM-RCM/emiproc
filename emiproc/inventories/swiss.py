@@ -1,12 +1,11 @@
 from __future__ import annotations
 from os import PathLike
 from pathlib import Path
-from emiproc.grids import LV95, Grid, SwissGrid
+from emiproc.grids import LV95, SwissGrid
 from emiproc.inventories import Inventory
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
-from emiproc.inventories.utils import load_category
 import numpy as np
 import rasterio
 
@@ -29,24 +28,20 @@ class SwissRasters(Inventory):
     ) -> None:
         """Create a swiss raster inventory.
 
+        :arg data_path: Folder containing the data.
+            A file called `Emissions_CH.xlsx` must be present in this folder.
+            It contains total emissionsfor each category/substance
+            for different years.
         :arg rasters_dir: The folder where the rasters are found.
         :arg rasters_str_dir: The folder where the rasters pro substance are found.
-        :arg df_eipwp: The geodataframe contaning the point sources.
-            Must have a column for each substance  in [kg/y]
-            and have the geometry column
-            containing the point sources.
-        :arg df_emission: A dataframe, where columns are the substances
-            and rows are the rasters name.
-            The data is the total emission for the category in [kg/y].
         :arg requires_grid: Whether the grid should be created as well.
             Creating the shapes for the swiss grid is quite expensive process.
             Most of the weights for remapping can be cached so if you
             have them generated already, set that to false.
         :arg year: The year of the inventory that should be used.
-            Currently accepted 2015 or 2020.
-            The raster files are the same for both years. Only the scaling
+            This should be present in the `Emissions_CH.xlsx` file.
+            The raster files are the same for all years. Only the scaling
             of the full raster pro substance changes.
-            The original rasters were made for year 2015.
         """
         super().__init__()
 
