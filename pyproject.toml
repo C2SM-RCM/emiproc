@@ -55,5 +55,6 @@ include = ["emiproc"]  # package names should match these glob patterns (["*"] b
 doc = [
     "sphinx",
     "furo",
+    "enum-tools",
 ]
 dev = ["black"]

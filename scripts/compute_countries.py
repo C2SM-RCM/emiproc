@@ -31,7 +31,7 @@ country_bounds = [country.bounds for country in countries]
 grid = ICONGrid(r"C:\Users\coli\Documents\ZH-CH-emission\icon_europe_DOM01.nc")
 
 #%%
-mask = compute_country_mask(grid, '10m', 1)
+mask = compute_country_mask(grid, '10m')
 
 #%%
 gdf = grid.gdf.assign(**{'country_mask': mask.reshape(-1)})

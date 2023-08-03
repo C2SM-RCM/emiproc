@@ -6,6 +6,7 @@ Inventory Class
 ---------------
 
 .. autoclass:: emiproc.inventories.Inventory
+    :members:
 
 Emissions Informations
 ----------------------
@@ -55,6 +56,12 @@ Speciation
 .. autofunction:: emiproc.speciation.speciate_inventory
 
 .. autofunction:: emiproc.speciation.speciate_nox
+
+
+Utilities
+---------
+
+.. autofunction:: emiproc.utilities.compute_country_mask
 
 
 .. _profiles_api:
@@ -131,6 +138,8 @@ Utilities
 
 .. autoclass:: emiproc.profiles.temporal_profiles.SpecificDay
 
+.. autofunction:: emiproc.exports.icon.get_constant_time_profile
+
 input/output
 ^^^^^^^^^^^^
 
@@ -149,6 +158,8 @@ Exporting
 .. autofunction:: emiproc.exports.netcdf.nc_cf_attributes
 
 .. autofunction:: emiproc.exports.icon.export_icon_oem
+
+.. autoenum:: emiproc.exports.icon.TemporalProfilesTypes
     
 .. autofunction:: emiproc.exports.rasters.export_raster_netcdf
     

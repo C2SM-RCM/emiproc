@@ -15,13 +15,19 @@ release = 'v2'
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    "sphinx.ext.autodoc"
+    "sphinx.ext.autodoc",
+    'enum_tools.autoenum',
 ]
 
 templates_path = ['_templates']
 exclude_patterns = []
 
 #autodoc_typehints = 'description'  # show type hints in doc body instead of signature
+
+# Don't show class signature with the class' name.
+autodoc_class_signature = "separated"
+
+python_maximum_signature_line_length = 88
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

@@ -36,9 +36,11 @@ class TemporalProfilesTypes(Enum):
 
 
 def get_constant_time_profile() -> list[TemporalProfile]:
-    """Get a constant time profile for ICON-OEM.
+    """Get a constant time profile compatible with ICON-OEM.
     
     Emits the same at every time. 
+
+    Contains three profiles: hour of day, day of week, month of year.
     
     """
     return [
@@ -61,7 +63,7 @@ def export_icon_oem(
     """Export to a netcdf file for ICON OEM.
 
     The inventory should have already been remapped to the
-    :py:class:`emiproc.grids.IconGrid` .
+    :py:class:`emiproc.grids.ICONGrid` .
 
     For ICON-OEM you will need to add in the ICON namelist the path the
     files produced by this module::
@@ -79,12 +81,31 @@ def export_icon_oem(
         /
 
 
-    Values will be converted from kg/y to kg/m2/s .
+    Values will be converted from emiproc units: `kg/y` to 
+    OEM units  `kg/m2/s` .
+    The grid cell area given in the icon grid file is used for this conversion,
+    and 365.25 days per year. 
 
+    Temporal profiles are adapted to the different countries present in the data.
+    Shifts for local time are applied to the countries individually.
+    Grid cells are assigned to a country using the country mask from
+    :py:func:`emiproc.utilities.compute_country_mask` and country ids are 
+    set as the `country_id` attribute of the output NetCDF file.
+
+    :arg inv: The inventory to export.
+    :arg icon_grid_file: The icon grid file.
+    :arg output_dir: The output directory.
     :arg group_dict: If you groupped some categories, you can optionally
         add the groupping in the metadata.
     :arg country_resolution: The resolution
         can be either '10m', '50m' or '110m'
+    :arg temporal_profiles_type: The type of temporal profiles to use.
+        Can be either :py:class:`~emiproc.exports.icon.TemporalProfilesTypes.HOUR_OF_YEAR`
+        or :py:class:`~emiproc.exports.icon.TemporalProfilesTypes.THREE_CYCLES`
+    :arg year: The year to use for the temporal profiles. This is mandatory
+        only with `temporal_profiles_type` set to
+        :py:class:`~emiproc.exports.icon.TemporalProfilesTypes.HOUR_OF_YEAR`
+    :arg nc_attributes: The attributes to add to the netcdf file.
     :arg substances: The substances to export. If None, all substances of the inv.
 
     """
@@ -143,7 +164,7 @@ def export_icon_oem(
         country_mask = np.load(mask_file)
     else:
         icon_grid = ICONGrid(icon_grid_file)
-        country_mask = compute_country_mask(icon_grid, country_resolution, 1)
+        country_mask = compute_country_mask(icon_grid, country_resolution)
         np.save(mask_file, country_mask)
 
     # Save the profiles
