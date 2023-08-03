@@ -15,7 +15,6 @@ def test_create_simple_mask():
             ny=10,
         ),
         resolution="110m",
-        nprocs=1,
     )
     # check that there are some countries in there 
     # Not just -1 values

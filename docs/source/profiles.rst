@@ -113,7 +113,7 @@ Creating profiles
 -----------------
 
 To create the profiles, emiproc gives you some helper functions available 
-:ref:`in the API <api_profiles>` .
+:ref:`in the API <profiles_api>` .
 
 A notebook is also available :
 `profiles.ipynb <https://github.com/C2SM-RCM/emiproc/blob/master/examples/profiles.ipynb>`_
