@@ -184,7 +184,7 @@ CH_2_GNFR = {
     #     "elfeu",
     # ],
     # # Fugitives
-    # "GNRF_D": [
+    # "GNFR_D": [
     #     "eilgk",
     #     "evklm",
     #     "evtrk",

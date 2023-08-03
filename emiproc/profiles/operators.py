@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 import xarray as xr
 import geopandas as gpd
@@ -306,11 +307,21 @@ def group_profiles_indexes(
         cats_with_profiles = [
             c for c in categories if c in profiles_indexes.coords[groupping_dimension]
         ]
+        group_coord = {groupping_dimension: [group]}
+        sel_dict = {groupping_dimension: cats_with_profiles}
         if not cats_with_profiles:
             # No categories to group
+            # Add unknown profiles
+            group_indexes = profiles_indexes.sum(dim=groupping_dimension).expand_dims(group_coord)
+            # set all the values to -1, no matter what the value is
+            groups_indexes_list.append( xr.where(
+                group_indexes != -1,
+                -1,
+                group_indexes,
+            ))
+            
             continue
 
-        sel_dict = {groupping_dimension: cats_with_profiles}
         # Combine the profiles that have to be grouped
         new_profiles, group_indexes = combine_profiles(
             profiles,
@@ -319,7 +330,7 @@ def group_profiles_indexes(
             weights=indexes_weights.sel(**sel_dict),
         )
         # Set that new coord to the dimension
-        group_indexes = group_indexes.expand_dims({groupping_dimension: [group]})
+        group_indexes = group_indexes.expand_dims(group_coord)
 
         # Offset the indexes for merging with the profiles
         groups_indexes_list.append(

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import Enum, auto
 import logging
@@ -34,20 +35,35 @@ class TemporalProfilesTypes(Enum):
     THREE_CYCLES = auto()
 
 
+def get_constant_time_profile() -> list[TemporalProfile]:
+    """Get a constant time profile compatible with ICON-OEM.
+    
+    Emits the same at every time. 
+
+    Contains three profiles: hour of day, day of week, month of year.
+    
+    """
+    return [
+        DailyProfile(), # Hour of day
+        WeeklyProfile(), # Day of week
+        MounthsProfile(), # Month of year
+    ]
+
 def export_icon_oem(
     inv: Inventory,
     icon_grid_file: PathLike,
     output_dir: PathLike,
     group_dict: dict[str, list[str]] = {},
     country_resolution: str = "10m",
-    temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.HOUR_OF_YEAR,
+    temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
     year: int | None = None,
     nc_attributes: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
+    substances: list[str] | None = None,
 ):
     """Export to a netcdf file for ICON OEM.
 
     The inventory should have already been remapped to the
-    :py:class:`emiproc.grids.IconGrid` .
+    :py:class:`emiproc.grids.ICONGrid` .
 
     For ICON-OEM you will need to add in the ICON namelist the path the
     files produced by this module::
@@ -65,12 +81,32 @@ def export_icon_oem(
         /
 
 
-    Values will be converted from kg/y to kg/m2/s .
+    Values will be converted from emiproc units: `kg/y` to 
+    OEM units  `kg/m2/s` .
+    The grid cell area given in the icon grid file is used for this conversion,
+    and 365.25 days per year. 
 
+    Temporal profiles are adapted to the different countries present in the data.
+    Shifts for local time are applied to the countries individually.
+    Grid cells are assigned to a country using the country mask from
+    :py:func:`emiproc.utilities.compute_country_mask` and country ids are 
+    set as the `country_id` attribute of the output NetCDF file.
+
+    :arg inv: The inventory to export.
+    :arg icon_grid_file: The icon grid file.
+    :arg output_dir: The output directory.
     :arg group_dict: If you groupped some categories, you can optionally
         add the groupping in the metadata.
     :arg country_resolution: The resolution
         can be either '10m', '50m' or '110m'
+    :arg temporal_profiles_type: The type of temporal profiles to use.
+        Can be either :py:class:`~emiproc.exports.icon.TemporalProfilesTypes.HOUR_OF_YEAR`
+        or :py:class:`~emiproc.exports.icon.TemporalProfilesTypes.THREE_CYCLES`
+    :arg year: The year to use for the temporal profiles. This is mandatory
+        only with `temporal_profiles_type` set to
+        :py:class:`~emiproc.exports.icon.TemporalProfilesTypes.HOUR_OF_YEAR`
+    :arg nc_attributes: The attributes to add to the netcdf file.
+    :arg substances: The substances to export. If None, all substances of the inv.
 
     """
     logger = logging.getLogger("emiproc.export_icon_oem")
@@ -85,6 +121,8 @@ def export_icon_oem(
     vertical_profiles: dict[str, VerticalProfile] = {}
 
     for categorie, sub in inv._gdf_columns:
+        if substances is not None and sub not in substances:
+            continue
         name = f"{categorie}-{sub}"
 
         # Convert from kg/year to kg/m2/s
@@ -112,6 +150,7 @@ def export_icon_oem(
             vertical_profiles[name] = inv.v_profiles[profile_index]
 
         if inv.t_profiles_groups is not None:
+
             profile_index = get_desired_profile_index(
                 inv.t_profiles_indexes, cat=categorie, sub=sub
             )
@@ -125,7 +164,7 @@ def export_icon_oem(
         country_mask = np.load(mask_file)
     else:
         icon_grid = ICONGrid(icon_grid_file)
-        country_mask = compute_country_mask(icon_grid, country_resolution, 1)
+        country_mask = compute_country_mask(icon_grid, country_resolution)
         np.save(mask_file, country_mask)
 
     # Save the profiles
@@ -238,7 +277,7 @@ def make_icon_time_profiles(
                     # Use the shifts in the intervals
                     data = np.asarray(
                         [
-                            np.roll(scaling_factors, countries_shifts[country])
+                            np.roll(scaling_factors, -countries_shifts[country])
                             for country in countries
                         ]
                     )

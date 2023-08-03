@@ -66,7 +66,7 @@ def grid_polygon_intersects(
 def get_natural_earth(
     resolution: str = "10m", category: str = "physical", name: str = "coastline"
 ) -> gpd.GeoDataFrame:
-    """Download the natureal earth file and returns it if needed."""
+    """Download the natural earth file and returns it if needed."""
 
     path_to_save = FILES_DIR / "natural_earth" / f"ne_{resolution}_{category}_{name}"
     if not path_to_save.exists():
@@ -85,7 +85,7 @@ def get_natural_earth(
     return gpd.read_file(shpfile)
 
 
-def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
+def compute_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
     """Determine the country-code for each gridcell and return the grid.
 
     Each gridcell gets assigned to code of the country with the most
@@ -97,19 +97,14 @@ def compute_country_mask(output_grid: Grid, resolution: str, nprocs: int):
     If a country-code for a country is not found, country-code -1 is
     assigned.
 
-    Parameters
-    ----------
-    output_grid :
-        Contains all necessary information about the output grid
-    resolution :
-        The resolution for the used shapefile, used as argument for
-        cartopy.io.shapereader.natural_earth()
-    nprocs :
-        Number of processes used to compute the codes in parallel
 
-    Returns
-    -------
-    np.array(shape(output_grid.nx, output_grid.ny), dtype=int)
+    :arg output_grid:
+        Contains all necessary information about the output grid
+    :arg resolution:
+        The resolution for the used shapefile, used as argument for
+        :py:func:`get_natural_earth`
+
+    :returns country_ids: np.array(shape(output_grid.nx, output_grid.ny), dtype=int)
     """
 
     if resolution in ["10m", "50m"]:

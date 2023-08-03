@@ -1,4 +1,7 @@
-"""Inventories of emissions."""
+"""Inventories of emissions.
+
+Contains the classes and functions to work with inventories of emissions.
+"""
 from __future__ import annotations
 import logging
 from copy import deepcopy
@@ -66,52 +69,48 @@ class EmissionInfo:
 
 
 class Inventory:
-    """Base class for inventories.
+    """Parent class for inventories.
 
-    :attr name: The name of the inventory. This is going to be used
+    :param name: The name of the inventory. This is going to be used
         for adding metadata to the output files, and also for the reggridding
         weights files.
-    :attr grid: The grid on which the inventory is.
-    :attr substances: The :py:class:`Substance` present in this inventory.
-    :attr categories: List of the categories present in the inventory.
+    :param grid: The grid on which the inventory is.
+    :param substances: The :py:class:`Substance` present in this inventory.
+    :param categories: List of the categories present in the inventory.
 
-    :attr emission_infos: Information about the emissions.
-        Concerns only the :attr:`Inventory.gdfs` features.
-        This is optional, but mandoatory for some models (ex. Gramm-Gral).
+    :param emission_infos: Information about the emissions.
+        Concerns only the :py:attr:`gdfs` features.
+        This is optional, but mandatory for some models (ex. Gramm-Gral).
 
-    :attr gdf: The GeoPandas DataFrame that represent the whole inventory.
-        The geometry column contains all the grid cells.
+    :param gdf: The GeoPandas DataFrame that represent the whole inventory.
+        The geometry column contains geometric objects for all the grid cells.
         The other columns should contain the emission value for the substances
         and the categories.
 
-    :attr gdfs: Some inventories are given on more than one grid.
+    :param gdfs: Some inventories are given on more than one grid.
         For example, :py:class:`MapLuftZurich` is given on a grid
         where every category has different shape file.
         In this case gdf must be set to None and gdfs will be
         a dictionnary mapping only the categories desired.
 
-    :attr v_profiles: A vertical profiles object.
-    :attr v_profiles_indexes: A :py:class:`xarray.DataArray` storing the information
+    :param v_profiles: A vertical profiles object.
+    :param v_profiles_indexes: A :py:class:`xarray.DataArray` storing the information
         of which vertical profile belongs to which cell/category/substance.
         This allow to map each single emission value from the gdf to a specific
         profile.
         See :ref:`vertical_profiles` for more information.
 
-    :attr t_profiles_groups: A list  of temporal profiles groups.
+    :param t_profiles_groups: A list  of temporal profiles groups.
         One temporal pattern can be defined by more than one temporal profile.
         (ex you can combine hour of day and day of week).
         The main list contains the different groups of temporal profiles.
         Each group is a list of :py:class:`TemporalProfile`.
-    :attr t_profiles_indexes: Same as :py:attr:`v_profiles_indexes`.
+    :param t_profiles_indexes: Same as :py:attr:`v_profiles_indexes`.
         For the temporal profiles, the indexes point to one of the groups.
 
 
-    :attr history: Stores all the operations that happened to this inventory.
+    :param history: Stores all the operations that happened to this inventory.
 
-    .. note::
-        If your data contains point sources, the data on them must be stored in
-        the gdfs, as :attr:`gdf` is only valid for the inventory grid.
-        A gdf should contain only point sources.
 
     """
 
@@ -135,7 +134,6 @@ class Inventory:
     logger: logging.Logger
     history: list[str]
 
-    _groupping: dict[str, list[str]] | None = None
 
     def __init__(self) -> None:
         class_name = type(self).__name__
@@ -261,48 +259,6 @@ class Inventory:
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
 
-    def get_emissions(
-        self, category: str, substance: str, ignore_point_sources: bool = False
-    ):
-        """Get the emissions of the requested category and substance.
-
-        In case you have point sources the will be assigned their correct grid cells.
-
-        :arg ignore_point_sources: Whether points sources should not be counted.
-        .. note::
-            Internally emiproc stores categories and substances as a tuple
-            in the header of the gdf: (category, substance),
-            or uses the gdfs dictonary for {category: df} where the
-            df has substances in the header.
-            If you combined the two, a category not in the df should
-            be present in the gdfs.
-            If you have an optimized way of doing this, you can reimplement
-            this function in your :py:class:`Inventory` .
-        """
-        tuple_name = (category, substance)
-        if tuple_name in self.gdf:
-            return self.gdf[tuple_name]
-        if category in self.gdfs.keys():
-            gdf = self.gdfs[category]
-            # check if it is point sources
-            if len(gdf) == 0 or isinstance(gdf.geometry.iloc[0], Point):
-                if ignore_point_sources:
-                    return np.zeros(len(gdf))
-                else:
-                    return weights_remap(
-                        get_weights_mapping(
-                            Path(".emiproc")
-                            / f"Point_source_{type(self).__name__}_{category}",
-                            gdf.geometry,
-                            self.gdf.geometry,
-                            loop_over_inv_objects=True,
-                        ),
-                        gdf[substance],
-                        len(self.gdf),
-                    )
-            else:
-                return gdf[substance]
-        raise IndexError(f"Nothing found for {category}, {substance}")
 
     @classmethod
     def from_gdf(
@@ -407,7 +363,8 @@ class Inventory:
             if self.v_profiles is None:
                 # Set the profile for the first time
                 self.v_profiles = VerticalProfiles(
-                    ratios=[profile.ratios], height=profile.height
+                    ratios=np.array([profile.ratios]),
+                    height=profile.height,
                 )
             else:
                 self.v_profiles = resample_vertical_profiles(
@@ -417,6 +374,8 @@ class Inventory:
         elif isinstance(profile, list):
             # Temporal profiles
             indexes_array = self.t_profiles_indexes
+            if self.t_profiles_groups is None:
+                self.t_profiles_groups = []
             self.t_profiles_groups.append(profile)
 
             profiles = self.t_profiles_groups
