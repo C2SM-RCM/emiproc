@@ -225,6 +225,7 @@ def create_scaling_factors_time_serie(
     apply_month_interpolation: bool = True,
     freq: str = "H",
     inclusive: str = "both",
+    local_tz: str | None = None,
 ) -> pd.Series:
     """Create a time serie of ratios for the requested time range.
 
@@ -237,8 +238,15 @@ def create_scaling_factors_time_serie(
         Include boundaries; Whether to set each bound as closed or open.
     """
 
+    kwargs = {}
+    if local_tz is not None:
+        kwargs["tz"] = "UTC"
     # Create the time serie
-    time_serie = pd.date_range(start_time, end_time, freq=freq, inclusive=inclusive)
+    time_serie = pd.date_range(
+        start_time, end_time, freq=freq, inclusive=inclusive, **kwargs
+    )
+    if local_tz is not None:
+        time_serie = time_serie.tz_convert(local_tz)
 
     # Create the scaling factors
     scaling_factors = np.ones(len(time_serie))
@@ -356,7 +364,8 @@ def read_temporal_profiles(
     files = list(profiles_dir.glob(time_profiles_files_format))
     if not files:
         raise FileNotFoundError(
-            f"Cannot find any file matching {time_profiles_files_format=} in {profiles_dir=}"
+            f"Cannot find any file matching {time_profiles_files_format=} in"
+            f" {profiles_dir=}"
         )
 
     categories = []
@@ -573,7 +582,8 @@ def from_csv(
             pass  # Already ratios
         else:
             raise ValueError(
-                f"Cannot guess if {ratios=} are ratios or scaling factors for {row=} in {file=}."
+                f"Cannot guess if {ratios=} are ratios or scaling factors for {row=} in"
+                f" {file=}."
             )
         profiles[key] = profile(ratios=ratios)
 
@@ -625,7 +635,8 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
         # Check that a profile of that type was not already added
         if profile_class in _types_added:
             raise ValueError(
-                f"Cannot add {key=} to {yaml_file=} as a {profile_class=} was already added."
+                f"Cannot add {key=} to {yaml_file=} as a {profile_class=} was already"
+                " added."
             )
         # add the profile
         ratios = data[key]
