@@ -1,4 +1,5 @@
 """Convert the TNO inventory to a netcdf file on a regular raster grid."""
+
 #%%
 from pathlib import Path
 
@@ -10,20 +11,20 @@ from emiproc.inventories.utils import group_categories
 
 from emiproc.exports.netcdf import nc_cf_attributes
 from emiproc.exports.rasters import export_raster_netcdf
-
+from emiproc.exports.profiles import export_inventory_profiles
 
 #%%
 # path to input inventory
 input_path = Path("/scratch/snx3000/lconstan/TNO_GHGco_v4_1_highres_year2018.nc")
 # output path and filename
 output_dir = input_path.parent
-output_path = output_dir / f"{input_path.stem}_CH4.nc"
+output_path = output_dir / f"{input_path.stem}_with_emissions.nc"
 
 #%%
 inv = TNO_Inventory(
     input_path,
     # Take only CH4
-    substances=["CH4"],
+    substances=["CH4", 'CO2'],
 )
 
 
@@ -48,7 +49,6 @@ groupped_tno = group_categories(inv, mapping)
 output_grid = RegularGrid(
     xmin=4.97, ymin=45.4875, xmax=11.21, ymax=48.5, nx=312, ny=208
 )
-output_grid = inv.grid
 
 #%%
 
@@ -67,4 +67,11 @@ export_raster_netcdf(
 )
 
 
+# %% Export the temporal profiles of TNO
+export_inventory_profiles(
+    inv=groupped_tno,
+    output_dir=output_dir,
+    grid=output_grid,
+    netcdf_attributes=nc_metadata,
+)
 # %%

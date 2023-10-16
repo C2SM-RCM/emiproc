@@ -2,12 +2,13 @@
 from __future__ import annotations
 import sys
 import time
+import json
 from warnings import warn
 from enum import Enum
 from io import BytesIO
+import urllib
 from urllib.request import urlopen
 from zipfile import ZipFile
-
 import fiona
 import numpy as np
 import geopandas as gpd
@@ -15,15 +16,17 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 
 from emiproc.grids import Grid, WGS84, WGS84_PROJECTED
-from emiproc.country_code import country_codes
 from emiproc import FILES_DIR
+
 
 
 # constants to convert from yr -> sec
 DAY_PER_YR = 365.25
-SEC_PER_DAY = 86400
+SEC_PER_HOUR = 3600
+HOUR_PER_DAY = 24
+SEC_PER_DAY = SEC_PER_HOUR * HOUR_PER_DAY
 SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
-HOUR_PER_YR = DAY_PER_YR * 24
+HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
 
 
 class Units(Enum):
@@ -62,6 +65,105 @@ def grid_polygon_intersects(
 
     return out
 
+def get_timezones(update: bool = False, version: str | None = None) -> gpd.GeoDataFrame:
+    """Load the timezones shapefile.
+    
+    If the file is not found, it will be downloaded from the github repository
+    `https://github.com/evansiroky/timezone-boundary-builder`_
+    and saved in the files/timezones directory of emiproc.
+    """
+
+
+    latest_dir = FILES_DIR / "timezones" / "latest"
+    if version: 
+        path_to_save = FILES_DIR / "timezones" / version
+    else:
+        path_to_save = latest_dir
+    path_to_save.mkdir(parents=True, exist_ok=True)
+
+    file_path = path_to_save / "combined-shapefile-with-oceans.shp"
+
+    # First get the correct version we need 
+    if not file_path.is_file() or update:
+
+        repo_url_api = "https://api.github.com/repos/evansiroky/timezone-boundary-builder"
+        repo_url = "https://github.com/evansiroky/timezone-boundary-builder"
+
+        # Get the latest version
+
+        if version is None: 
+            # Get the version to download
+            with urllib.request.urlopen(repo_url_api + "/releases/latest") as response:
+                if response.status == 200:
+                    release_info = json.loads(response.read().decode('utf-8'))
+                else:
+                    raise ValueError(f"Failed to retrieve latest release info. Status code: {response.status}")
+
+            latest_version = release_info["tag_name"]
+            version_to_download = latest_version
+        else:
+            # Download the specific version
+            version_to_download = version
+        
+        # Download the file
+        url = f"{repo_url}/releases/download/{version_to_download}/timezones-with-oceans.shapefile.zip"
+        print(f"Downloading timezones from {url}")
+        with urllib.request.urlopen(url) as response:
+            if response.status == 200:
+                resp = response.read()
+            else:
+                raise ValueError(f"Failed to retrieve latest release info. Status code: {response.status}")
+        zipfile = ZipFile(BytesIO(resp))
+        zipfile.extractall(path_to_save)
+
+    # Load the country file
+    shpfile = str(file_path)
+    return gpd.read_file(shpfile)
+        
+
+
+def get_timezone_mask(output_grid: Grid, simplify_tolerance: float = 100, **kwargs) -> np.ndarray:
+    """Determine the timezone for each gridcell and return the grid."""
+
+    # Put timezones on a projected crs
+    gdf = get_timezones(**kwargs).to_crs(WGS84_PROJECTED)
+
+
+    grid_gdf = output_grid.gdf.to_crs(gdf.crs)
+
+    # Subselect only the timezones we are interested in
+    grid_bounds = grid_gdf.total_bounds
+    gdf = gdf.cx[grid_bounds[0]:grid_bounds[2], grid_bounds[1]:grid_bounds[3]]
+    gdf= gpd.GeoDataFrame(
+        gdf['tzid'], 
+        geometry=gdf.simplify(simplify_tolerance)
+    )
+
+    # Get the longest timzone names 
+    longest_name_len = gdf['tzid'].str.len().max()
+    timezones = np.full(len(grid_gdf), fill_value='UTC', dtype=f"U{longest_name_len}")
+
+    from emiproc.regrid import calculate_weights_mapping
+
+    weights_mapping = calculate_weights_mapping(grid_gdf, gdf)
+
+    print('finished calculated weights mapping')
+
+    mask_completely_in = weights_mapping['weights'] == 1.0
+
+    timezones[weights_mapping['inv_indexes'][mask_completely_in]] = gdf['tzid'].loc[weights_mapping['output_indexes'][mask_completely_in]]
+
+    for inv_index in np.unique(weights_mapping['inv_indexes'][~mask_completely_in]):
+        # Get the country index wehre it is the largest
+        mask_this_index = weights_mapping['inv_indexes'] == inv_index
+        this_output_indexes = weights_mapping['output_indexes'][mask_this_index]
+        this_weights = weights_mapping['weights'][mask_this_index]
+        idx = np.argmax(this_weights)
+        timezones[inv_index] = gdf['tzid'].loc[this_output_indexes[idx]]  
+
+    return timezones.reshape((output_grid.nx, output_grid.ny))
+
+
 
 def get_natural_earth(
     resolution: str = "10m", category: str = "physical", name: str = "coastline"
@@ -85,6 +187,7 @@ def get_natural_earth(
     return gpd.read_file(shpfile)
 
 
+
 def compute_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
     """Determine the country-code for each gridcell and return the grid.
 
@@ -92,10 +195,7 @@ def compute_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndar
     area in the cell.
 
     If for a given grid cell, no country is found (Ocean for example),
-    the country-code 0 is assigned.
-
-    If a country-code for a country is not found, country-code -1 is
-    assigned.
+    the country-code -99 is assigned.
 
 
     :arg output_grid:
@@ -119,12 +219,8 @@ def compute_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndar
         resolution=resolution, category="cultural", name="admin_0_countries"
     )
 
-    if hasattr(output_grid, "gdf") and output_grid.gdf is not None:
-        grid_gdf = output_grid.gdf
-    else:
-        grid_gdf = gpd.GeoDataFrame(
-            geometry=output_grid.cells_as_polylist, crs=output_grid.crs
-        )
+    grid_gdf = output_grid.gdf
+
 
     if output_grid.crs != WGS84:
         # make sure the grid is in WGS84 as is the country data
@@ -134,7 +230,8 @@ def compute_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndar
 
     country_shapes: dict[str, Polygon] = {}
     country_corresponding_codes: list[int] = []
-    country_mask = np.zeros(len(grid_gdf), dtype=int)
+    # 3 char str from ISO 
+    country_mask = np.full(len(grid_gdf), fill_value="-99", dtype="U3")
 
     # Reduce to the bounds of the grid
     mask_countries_in_grid = countries_gdf.intersects(grid_boundary)
@@ -142,23 +239,21 @@ def compute_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndar
 
     progress = ProgressIndicator(len(countries_gdf) + 10)
 
-    for geometry, iso3 in zip(countries_gdf.geometry, countries_gdf["ADM0_A3"]):
+    for geometry, iso3 in zip(countries_gdf.geometry, countries_gdf["ISO_A3_EH"]):
         progress.step()
 
         mask_intersect = grid_polygon_intersects(grid_gdf.geometry, geometry)
         if np.any(mask_intersect):
             grid_gdf.loc[grid_gdf.index, iso3] = mask_intersect
             country_shapes[iso3] = geometry
-            if iso3 not in country_codes.keys():
-                warn(
-                    f"{iso3} not in emiproc country list (emiproc.country_codes.py). "
-                    "Mask value of -1 will be assigned."
-                )
             country_corresponding_codes.append(
-                # Set to -1 if not known
-                country_codes.get(iso3, -1)
+                iso3
             )
-    country_corresponding_codes = np.array(country_corresponding_codes)
+    country_corresponding_codes = np.array(
+        country_corresponding_codes,
+        # 3 char str
+        dtype="U3"
+    )
 
     # Find how many countries each cell intersected
     progress.step()

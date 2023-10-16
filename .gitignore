@@ -12,6 +12,7 @@ docs/build/
 *.nc
 files/TNO_6x6_GHGco_v4_0/
 files/natural_earth/
+files/timezones/
 
 # Drawio temp files
 docs/source/diagrams/.$pipeline.drawio.svg.bkp
