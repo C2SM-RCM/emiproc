@@ -1,12 +1,8 @@
-from pathlib import Path
 import geopandas as gpd
-from shapely.geometry import Point,  Polygon
+from shapely.geometry import Point, Polygon
 from emiproc.inventories.utils import crop_with_shape
 from emiproc.regrid import (
-    calculate_weights_mapping,
     geoserie_intersection,
-    get_weights_mapping,
-    remap_inventory,
 )
 from emiproc.inventories import Inventory
 from emiproc.tests_utils import WEIGHTS_DIR
@@ -68,16 +64,13 @@ inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
     ],
 )
 cropped = crop_with_shape(inv_with_pnt_sources, triangle, modify_grid=True)
-#%%
 
 
 def test_basic_crop():
-
     cropped = crop_with_shape(inv, triangle)
 
 
 def test_with_modify_grid():
-
     cropped = crop_with_shape(inv, triangle, modify_grid=True)
 
     assert 4 not in cropped.gdf.index
@@ -86,7 +79,6 @@ def test_with_modify_grid():
 
 
 def test_with_gdfs():
-
     cropped = crop_with_shape(inv_with_pnt_sources, triangle, modify_grid=True)
 
     assert len(cropped.gdfs["blek"]) == 2
@@ -107,16 +99,13 @@ def test_with_gdfs():
 
 
 def test_with_modify_grid_and_cached():
-    w_file = WEIGHTS_DIR / '.emiproc_test_with_modify_grid_and_cached'
+    w_file = WEIGHTS_DIR / ".emiproc_test_with_modify_grid_and_cached"
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
     assert 4 not in cropped.gdf.index
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
     assert 4 not in cropped.gdf.index
-
-
-# %%
 
 
 def test_different_points_and_polygons_in_gdfs():
@@ -136,7 +125,7 @@ def test_different_points_and_polygons_in_gdfs():
                     # 1/8 inside polygon
                     Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
                     # 1/4 inside polygon
-                    Polygon(((1, 0), (1,1), (2, 1), (2, 0))),
+                    Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
                     # outside polygon
                     Polygon(((3, 3), (3, 4), (4, 4), (4, 3))),
                     # fully inside polygon
@@ -150,21 +139,17 @@ def test_different_points_and_polygons_in_gdfs():
     # outside shapes are removed
 
     assert len(cropped.gdfs["adf"]) == 5, "Did not crop expected number of shapes"
-    expected_values = [1 / 2, 1,  1 / 8, 1 / 4,  1]  # At the boundary divided by 2
+    expected_values = [1 / 2, 1, 1 / 8, 1 / 4, 1]  # At the boundary divided by 2
     # Check  expected values
     for i, val in enumerate(expected_values):
         assert cropped.gdfs["adf"]["CO2"].iloc[i] == val, f"Failed at {i}"
 
+
 def test_no_emission():
     inv = inv_with_pnt_sources.copy()
     # Remove the only emission  column from the inv
-    inv.gdfs['blek'].drop(columns=['CO2'], inplace=True)
+    inv.gdfs["blek"].drop(columns=["CO2"], inplace=True)
     cropped = crop_with_shape(inv, triangle)
 
-    assert 'blek' not in cropped.gdfs 
-    assert 'liku' in cropped.gdfs
-
-test_no_emission()
-
-
-# %%
+    assert "blek" not in cropped.gdfs
+    assert "liku" in cropped.gdfs
