@@ -64,9 +64,13 @@ class TNO_Inventory(Inventory):
     This handles both.
 
     https://topas.tno.nl/emissions/
+
+
+    :attr tno_ds: The xarray dataset with the TNO emission data.
     """
 
     grid: TNOGrid
+    tno_ds: xr.Dataset
 
     def __init__(
         self,
@@ -98,6 +102,7 @@ class TNO_Inventory(Inventory):
         self.name = nc_file.stem
 
         ds = xr.load_dataset(nc_file, engine="netcdf4")
+        self.tno_ds = ds
 
         self.grid = TNOGrid(nc_file)
 
