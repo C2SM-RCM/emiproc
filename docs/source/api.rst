@@ -61,7 +61,13 @@ Speciation
 Utilities
 ---------
 
-.. autofunction:: emiproc.utilities.compute_country_mask
+.. autofunction:: emiproc.utilities.get_country_mask
+
+.. autofunction:: emiproc.utilities.get_natural_earth
+
+.. autofunction:: emiproc.utilities.get_timezone_mask
+
+.. autofunction:: emiproc.utilities.get_timezones
 
 
 .. _profiles_api:
@@ -159,7 +165,13 @@ Exporting
 
 .. autofunction:: emiproc.exports.icon.export_icon_oem
 
+.. autofunction:: emiproc.exports.icon.make_icon_time_profiles
+
+.. autofunction:: emiproc.exports.icon.make_icon_vertical_profiles
+
 .. autoenum:: emiproc.exports.icon.TemporalProfilesTypes
     
 .. autofunction:: emiproc.exports.rasters.export_raster_netcdf
+
+.. autofunction:: emiproc.exports.profiles.export_inventory_profiles
     
