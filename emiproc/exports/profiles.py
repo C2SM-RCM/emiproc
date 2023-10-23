@@ -2,19 +2,13 @@ from __future__ import annotations
 import logging
 from os import PathLike
 from pathlib import Path
-from zoneinfo import ZoneInfo
 import xarray as xr
 import numpy as np
 from emiproc.inventories import Inventory
 from emiproc.grids import RegularGrid
-from emiproc.profiles.temporal_profiles import get_emep_shift
 from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.regrid import remap_inventory
 from emiproc.exports.netcdf import NetcdfAttributes
 from emiproc.utilities import (
-    Units,
-    SEC_PER_HOUR,
-    compute_country_mask,
     get_timezone_mask,
 )
 
@@ -36,14 +30,17 @@ def export_inventory_profiles(
 ) -> Path:
     """Export the vertical and temporal profiles of the inventory to netcdfs.
 
+    This will export the vertical and temporal profiles of the inventory to netcdf files.
+    The vertical profiles will be exported to a single netcdf file.
+    The temporal profiles will be exported according to
+    :py:func:`~emiproc.exports.icon.make_icon_time_profiles`.
+
     :param inv: the inventory to export
     :param output_dir: the path to the output directory
     :param grid: the raster grid to export to.
         This is used to calculate the country shifts for the temporal profiles.
     :param netcdf_attributes: Same as in :py:func:`emiproc.exports.netcdf.export_raster_netcdf`.
     :param var_name_format: Same as in :py:func:`emiproc.exports.netcdf.export_raster_netcdf`.
-    :param country_resolution: The resolution of the country mask to use.
-        This is used to calculate the country shifts for the temporal profiles.
     :param temporal_profiles_type: The type of temporal profiles to export.
         See :py:class:`emiproc.exports.icon.TemporalProfilesTypes` for the available options.
     :param year: The year of the temporal profiles.
@@ -67,7 +64,8 @@ def export_inventory_profiles(
         )
     else:
         logger.warning(
-            f"No vertical profiles found in {inv}, no vertical profiles will be exported."
+            f"No vertical profiles found in {inv}, no vertical profiles will be"
+            " exported."
         )
 
     if inv.t_profiles_groups:
@@ -80,28 +78,37 @@ def export_inventory_profiles(
             for sub in inv.substances
         }
 
+        unique_tz, tz_indexes = np.unique(tz_mask, return_inverse=True)
+
         make_icon_time_profiles(
             time_profiles=profiles,
-            time_zones=np.unique(tz_mask),
+            time_zones=unique_tz,
             profiles_type=temporal_profiles_type,
             year=year,
             out_dir=output_dir,
             nc_attrs=netcdf_attributes,
         )
-
-        ds_tz_mask = xr.DataArray(
-            tz_mask.T,
-            dims=("lat", "lon"),
+        ds_tz_mask = xr.Dataset(
+            {
+                "tz_mask": (
+                    ["lat", "lon"],
+                    tz_indexes.reshape(grid.shape).T,
+                ),
+                "timezones": (
+                    ["country_id"],
+                    unique_tz,
+                ),
+            },
             coords={
                 "lat": grid.lat_range,
                 "lon": grid.lon_range,
             },
-            attrs=netcdf_attributes
+            attrs=netcdf_attributes,
         )
-        ds_tz_mask.name = "tz_mask"
         ds_tz_mask.to_netcdf(output_dir / "tz_mask.nc")
 
     else:
         logger.warning(
-            f"No temporal profiles found in {inv}, no temporal profiles will be exported."
+            f"No temporal profiles found in {inv}, no temporal profiles will be"
+            " exported."
         )

@@ -1,11 +1,11 @@
 import numpy as np
 
-from emiproc.utilities import compute_country_mask
+from emiproc.utilities import get_country_mask
 from emiproc.grids import RegularGrid
 
 
 def test_create_simple_mask():
-    arr = compute_country_mask(
+    arr = get_country_mask(
         RegularGrid(
             xmin=47.5,
             xmax=58.5,
@@ -16,6 +16,6 @@ def test_create_simple_mask():
         ),
         resolution="110m",
     )
-    # check that there are some countries in there 
+    # check that there are some countries in there
     # Not just -1 values
     assert len(np.unique(arr)) > 1
