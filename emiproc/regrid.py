@@ -390,7 +390,7 @@ def remap_inventory(
     if isinstance(grid, Grid) or issubclass(type(grid), Grid):
         grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
     elif isinstance(grid, gpd.GeoSeries):
-        grid_cells = grid
+        grid_cells = grid.reset_index(drop=True)
     else:
         raise TypeError(f"grid must be of type Grid or gpd.Geoseries, not {type(grid)}")
 
@@ -416,6 +416,14 @@ def remap_inventory(
             method=method,
         )
         # Create the weights matrix
+        if max(w_mapping["output_indexes"]) > len(grid_cells):
+            raise ValueError(
+                f"Error in weights mapping: {max(w_mapping['output_indexes'])=} > {len(grid_cells)=}"
+            )
+        if max(w_mapping["inv_indexes"]) > len(inv.gdf):
+            raise ValueError(
+                f"Error in weights mapping: {max(w_mapping['inv_indexes'])=} > {len(inv.gdf)=}"
+            )
         w_matrix = coo_array(
             (w_mapping["weights"], (w_mapping["output_indexes"], w_mapping["inv_indexes"])),
             shape=(len(grid_cells), len(inv.gdf)),
