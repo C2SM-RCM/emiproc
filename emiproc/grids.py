@@ -6,6 +6,7 @@ grids used in different emissions inventories.
 from __future__ import annotations
 from functools import cache, cached_property
 from typing import Iterable
+import warnings
 import numpy as np
 import xarray as xr
 import geopandas as gpd
@@ -37,7 +38,7 @@ class Grid:
 
     # The crs value as an integer
     crs: int | str
-    gdf: gpd.GeoDataFrame | None = None
+    gdf: gpd.GeoDataFrame 
 
     def __init__(self, name: str, crs: int | str = WGS84):
         """
@@ -48,6 +49,21 @@ class Grid:
         """
         self.name = name
         self.crs = crs
+
+    @property
+    def gdf(self) -> gpd.GeoDataFrame:
+        """Return a geopandas dataframe containing the grid."""
+        if not hasattr(self, "_gdf"):
+            self._gdf = gpd.GeoDataFrame(
+                geometry=self.cells_as_polylist,
+                crs=self.crs,
+            )
+        return self._gdf
+    
+    @gdf.setter
+    def gdf(self, value: gpd.GeoDataFrame):
+        warnings.warn("deprectated to set the gdf of a grid. It is now automatically generated.")
+        self._gdf = value
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -400,7 +416,7 @@ class GeoPandasGrid(Grid):
     def __init__(self, gdf: gpd.GeoDataFrame, name: str = "gpd_grid"):
         super().__init__(name, gdf.crs)
 
-        self.gdf = gdf
+        self._gdf = gdf
 
         self.nx = len(gdf)
         self.ny = 1
@@ -791,7 +807,7 @@ class ICONGrid(Grid):
         # Apparently the crs of icon is not what is written in the nc file.
         ICON_FILE_CRS = WGS84
 
-        self.gdf = gpd.GeoDataFrame(geometry=self.polygons, crs=ICON_FILE_CRS)
+        self._gdf = gpd.GeoDataFrame(geometry=self.polygons, crs=ICON_FILE_CRS)
         self.process_overlap_antimeridian()
 
         # Consider the ICON-grid as a 1-dimensional grid where ny=1
@@ -905,10 +921,10 @@ class ICONGrid(Grid):
         coords_bounds = [(x, y) for x, y in zip(xx_bounds, yy_bounds)]
         bounds_line = LineString(coords_bounds)
 
-        self.gdf = self.gdf.set_geometry(
+        self._gdf = self.gdf.set_geometry(
             self.gdf.geometry.apply(lambda poly: detect_antimeridian_poly(poly))
         )
-        gdf_inter = self.gdf.loc[self.gdf.intersects(bounds_line)]
+        gdf_inter = self._gdf.loc[self.gdf.intersects(bounds_line)]
         gdf_inter = gdf_inter.set_geometry(
             gdf_inter.geometry.apply(
                 lambda poly: MultiPolygon(split(poly, bounds_line))
@@ -921,4 +937,4 @@ class ICONGrid(Grid):
                 )
             )
         )
-        self.gdf.loc[gdf_inter.index, "geometry"] = gdf_inter.geometry
+        self._gdf.loc[gdf_inter.index, "geometry"] = gdf_inter.geometry

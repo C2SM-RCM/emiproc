@@ -45,8 +45,15 @@ class SwissRasters(Inventory):
         """
         super().__init__()
 
+        data_path = Path(data_path)
+
         # Emission data file
-        total_emission_file = data_path / "Emissions_CH.xlsx"
+        if data_path.is_dir():
+            total_emission_file = data_path / "Emissions_CH.xlsx"
+        elif data_path.is_file():
+            total_emission_file = data_path
+        else:
+            raise FileNotFoundError(f"Data path {data_path} is not an existing file or a folder.")
 
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)

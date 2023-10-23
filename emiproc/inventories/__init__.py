@@ -334,7 +334,7 @@ class Inventory:
             self.gdfs[category][col] = 0
 
         # Now we can append
-        self.gdfs[category] = self.gdfs[category].append(gdf, ignore_index=True)
+        self.gdfs[category] = pd.concat((self.gdfs[category], gdf), ignore_index=True)
 
     def set_profile(
         self,

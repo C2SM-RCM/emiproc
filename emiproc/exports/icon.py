@@ -4,6 +4,8 @@ from enum import Enum, auto
 import logging
 from os import PathLike
 from pathlib import Path
+from zoneinfo import ZoneInfo
+import pandas as pd
 import xarray as xr
 import numpy as np
 from emiproc.exports.netcdf import DEFAULT_NC_ATTRIBUTES
@@ -14,47 +16,68 @@ from emiproc.profiles.temporal_profiles import (
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
+    HourOfYearProfile,
+    HourOfLeapYearProfile,
     create_scaling_factors_time_serie,
-    get_emep_shift,
 )
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
     resample_vertical_profiles,
 )
-from emiproc.utilities import SEC_PER_YR, compute_country_mask
+from emiproc.utilities import (
+    SEC_PER_HOUR,
+    SEC_PER_YR,
+    get_timezone_mask,
+)
 from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.country_code import code_2_iso3
 
 
 class TemporalProfilesTypes(Enum):
-    """Possible temporal profiles for OEM."""
+    """Possible temporal profiles for OEM.
+
+    :param HOUR_OF_YEAR:  Every hour gets a scaling factor
+    :param THREE_CYCLES:  Three cycles (hour of day, day of week, month of year)
+    """
 
     HOUR_OF_YEAR = auto()
-    # Three files (hour of day, day of week, month of year)
     THREE_CYCLES = auto()
 
 
-def get_constant_time_profile() -> list[TemporalProfile]:
+def get_constant_time_profile(
+    type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
+    year: int | None = None,
+) -> list[TemporalProfile]:
     """Get a constant time profile compatible with ICON-OEM.
-    
-    Emits the same at every time. 
+
+    Emits the same at every time.
 
     Contains three profiles: hour of day, day of week, month of year.
-    
+
     """
-    return [
-        DailyProfile(), # Hour of day
-        WeeklyProfile(), # Day of week
-        MounthsProfile(), # Month of year
-    ]
+    if type == TemporalProfilesTypes.THREE_CYCLES:
+        return [
+            DailyProfile(),  # Hour of day
+            WeeklyProfile(),  # Day of week
+            MounthsProfile(),  # Month of year
+        ]
+    elif type == TemporalProfilesTypes.HOUR_OF_YEAR:
+        if year is None:
+            raise ValueError("You must provide a year for the HOUR_OF_YEAR option.")
+        # Check if it is a leap year
+        if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+            return [HourOfLeapYearProfile()]
+        else:
+            return [HourOfYearProfile()]
+    else:
+        raise NotImplementedError(f"{type} is not implemented.")
+
 
 def export_icon_oem(
     inv: Inventory,
     icon_grid_file: PathLike,
     output_dir: PathLike,
     group_dict: dict[str, list[str]] = {},
-    country_resolution: str = "10m",
     temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
     year: int | None = None,
     nc_attributes: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
@@ -81,15 +104,15 @@ def export_icon_oem(
         /
 
 
-    Values will be converted from emiproc units: `kg/y` to 
+    Values will be converted from emiproc units: `kg/y` to
     OEM units  `kg/m2/s` .
     The grid cell area given in the icon grid file is used for this conversion,
-    and 365.25 days per year. 
+    and 365.25 days per year.
 
     Temporal profiles are adapted to the different countries present in the data.
     Shifts for local time are applied to the countries individually.
-    Grid cells are assigned to a country using the country mask from
-    :py:func:`emiproc.utilities.compute_country_mask` and country ids are 
+    Grid cells are assigned to a country using the timezone mask from
+    :py:func:`emiproc.utilities.get_timezone_mask` and country ids are
     set as the `country_id` attribute of the output NetCDF file.
 
     :arg inv: The inventory to export.
@@ -150,40 +173,33 @@ def export_icon_oem(
             vertical_profiles[name] = inv.v_profiles[profile_index]
 
         if inv.t_profiles_groups is not None:
-
             profile_index = get_desired_profile_index(
                 inv.t_profiles_indexes, cat=categorie, sub=sub
             )
             time_profiles[name] = inv.t_profiles_groups[profile_index]
 
     # Find the proper country codes
-    mask_file = (
-        output_dir / f".emiproc_country_mask_{country_resolution}_{icon_grid_file.stem}"
-    ).with_suffix(".npy")
+    mask_file = (output_dir / f".emiproc_tz_mask_{icon_grid_file.stem}").with_suffix(
+        ".npy"
+    )
+
+    tz_mask = None
+
     if mask_file.is_file():
-        country_mask = np.load(mask_file)
+        tz_mask = np.load(mask_file)
     else:
         icon_grid = ICONGrid(icon_grid_file)
-        country_mask = compute_country_mask(icon_grid, country_resolution)
-        np.save(mask_file, country_mask)
+        tz_mask = get_timezone_mask(icon_grid)
+        np.save(mask_file, tz_mask)
+
+    # Get the countries as integers
+    unique_timezones, tz_mask_int = np.unique(tz_mask.reshape(-1), return_inverse=True)
 
     # Save the profiles
     if time_profiles:
-
-        # Calculate the country shifts for the grid cells
-        countries_shifts = {}
-        for code in np.unique(country_mask):
-            if code in code_2_iso3:
-                shift = get_emep_shift(code_2_iso3[code])
-            else:
-                logger.warning(f"{code} not in the country code list, shift of 0 will be used.")
-                shift = 0
-            
-            countries_shifts[code] = shift
-
         make_icon_time_profiles(
             time_profiles=time_profiles,
-            countries_shifts=countries_shifts,
+            time_zones=unique_timezones,
             profiles_type=temporal_profiles_type,
             year=year,
             out_dir=output_dir,
@@ -198,15 +214,24 @@ def export_icon_oem(
     ds_out = ds_out.assign(
         {
             "country_ids": (
-                ("cell"),
-                country_mask.reshape(-1),
+                "cell",
+                tz_mask_int,
                 {
                     "standard_name": "country_ids",
-                    "long_name": "EMEP_country_code",
+                    "long_name": "Timezone of the cell",
                     "history": f"Added by emiproc",
                     "country_resolution": f"country_resolution",
                 },
-            )
+            ),
+            "timezone_of_country": (
+                "timezones",
+                unique_timezones,
+                {
+                    "standard_name": "timezone_of_country",
+                    "long_name": "Timezone corresponding the country id",
+                    "history": f"Added by emiproc",
+                },
+            ),
         }
     )
     # Save the emissions
@@ -217,38 +242,49 @@ def export_icon_oem(
 
 def make_icon_time_profiles(
     time_profiles: dict[str, list[TemporalProfile]],
-    countries_shifts: dict[str, int],
+    time_zones: list[str],
     profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
     year: int | None = None,
     out_dir: PathLike | None = None,
     nc_attrs: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
 ) -> dict[str, xr.Dataset]:
-    """Make the profiles in the icon format.
+    """Make the profiles in the format for icon oem.
 
     :arg time_profiles: A dictionary with
         the names of variables in the file as keys and
         the profiles as values.
-    :arg countries_shifts: A dictionary with
-        the names of the countries as keys and the shifts as values.
+    :arg time_zones: A list with valid timezones names that have to be
+        included.
     :arg profiles_type: The type of profiles to use.
     :arg year: Used for the HOUR_OF_YEAR option.
-    :arg out_dir: The directory where to save the files.
-        If None, the files are not saved.
+    :arg out_dir: The directory where to export the files.
+        If None, the files are not saved and dataset returned.
+
 
     .. note::
         OEM can differentiate profiles based on the grid cell.
         It tries to group grid cells in what it calls "countries".
         This should not be mixed with the real countries.
-        The countries identifiers should match between the files.
+        The countries identifiers should match between the emission files.
 
     .. warning::
         Currently the same profiles are used for all the countries.
         Only the shifts are different.
     """
 
-    countries = list(countries_shifts.keys())
-    shifts = np.array(list(countries_shifts.values()))
+    date_of_shift = datetime(
+        year=year if year is not None else datetime.now().year, month=1, day=1
+    )
+    shifts = np.array(
+        [
+            # Calculate the country shifts for the grid cells
+            int(ZoneInfo(code).utcoffset(date_of_shift).seconds / SEC_PER_HOUR)
+            for code in time_zones
+        ]
+    )
     max_shift = int(max(np.abs(shifts)))
+
+    profiles_type = TemporalProfilesTypes(profiles_type)
 
     if profiles_type == TemporalProfilesTypes.THREE_CYCLES:
         nc_attrs["title"] = "Hour of day profiles"
@@ -276,10 +312,7 @@ def make_icon_time_profiles(
                     ds = hourofday
                     # Use the shifts in the intervals
                     data = np.asarray(
-                        [
-                            np.roll(scaling_factors, -countries_shifts[country])
-                            for country in countries
-                        ]
+                        [np.roll(scaling_factors, -shift) for shift in shifts]
                     )
                     dim = "hourofday"
 
@@ -292,10 +325,12 @@ def make_icon_time_profiles(
                         dim = "monthofyear"
                     else:
                         raise TypeError(
-                            f"{profile} from {key} is not on of the three profiles: DailyProfile, WeeklyProfile, MounthsProfile."
-                            " You can use the HOUR of YEAR option to have scaling with this type of profile."
+                            f"{profile} from {key} is not on of the three profiles:"
+                            " DailyProfile, WeeklyProfile, MounthsProfile. You can use"
+                            " the HOUR of YEAR option to have scaling with this type"
+                            " of profile."
                         )
-                    data = np.asarray([scaling_factors for _ in countries])
+                    data = np.asarray([scaling_factors for _ in time_zones])
 
                 ds[key] = xr.DataArray(
                     data.T,
@@ -307,22 +342,33 @@ def make_icon_time_profiles(
                 raise ValueError("You must provide a year for the HOUR_OF_YEAR option.")
 
             # Use the shifts in the intervals
-            dt_start = datetime(year, 1, 1, hour=0) - timedelta(hours=max_shift)
-            dt_end = datetime(year, 12, 31, hour=23) + timedelta(hours=max_shift + 1)
-
-            ts = create_scaling_factors_time_serie(dt_start, dt_end, time_profiles[key])
+            dt_start = datetime(year, 1, 1, hour=0)  # - timedelta(hours=max_shift)
+            dt_end = datetime(year, 12, 31, hour=23)  # + timedelta(hours=max_shift + 1)
 
             concatenated_profiles = np.asarray(
                 [
                     # Start around the shift and end
-                    ts.to_numpy()[max_shift + shift : -max_shift + shift - 1]
-                    for country, shift in zip(countries, shifts)
+                    create_scaling_factors_time_serie(
+                        dt_start,
+                        dt_end,
+                        time_profiles[key],
+                        local_tz=tz,
+                        freq="H",
+                    ).to_numpy()  # [max_shift + shift : -max_shift + shift - 1]
+                    for shift, tz in zip(shifts, time_zones)
                 ]
             )
 
             # Apply the shift for each contry
             hourofyear[key] = xr.DataArray(
                 data=concatenated_profiles.T,
+                coords={
+                    "datetime": (
+                        ("hourofyear",),
+                        pd.date_range(dt_start, dt_end, freq="H"),
+                    ),
+                    "timezone_of_country": (("country",), time_zones),
+                },
                 dims=["hourofyear", "country"],
                 attrs=var_metadata(key, "hourofyear"),
             )
@@ -341,7 +387,8 @@ def make_icon_time_profiles(
         raise NotImplementedError(f"{profiles_type} is not implemented.")
 
     for ds in dict_ds.values():
-        ds["country"] = countries
+        # ds["country"] = [i for i in range(len(time_zones))]
+        ds.assign_coords({"timezone_of_country": (("country",), time_zones)})
 
     if out_dir is not None:
         # Save the files
