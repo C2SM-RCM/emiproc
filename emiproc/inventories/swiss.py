@@ -165,7 +165,12 @@ class SwissRasters(Inventory):
         raster_sub = df_emissions.index.tolist()
         rasters_w_emis = []
         for t in raster_sub:
-            cat, sub = t.split("_")
+            split = t.split("_")
+            if len(split) > 2:
+                # Custom substance or cat which cannot be in the raster categories
+                # (ex: CO2_biog )
+                continue
+            cat, sub = split
             subname = sub.lower()
             if cat == "evstr":
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
