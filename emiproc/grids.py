@@ -421,6 +421,10 @@ class GeoPandasGrid(Grid):
         self.nx = len(gdf)
         self.ny = 1
 
+    @property
+    def cells_as_polylist(self) -> list[Polygon]:
+        """Return all the cells as a list of polygons."""
+        return self.gdf.geometry.tolist()
 
 class VPRMGrid(Grid):
     """Contains the grid from the VPRM emission inventory.

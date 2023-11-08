@@ -366,6 +366,7 @@ def remap_inventory(
     grid: Grid | gpd.GeoSeries,
     weigths_file: PathLike | None = None,
     method: str = "new",
+    keep_gdfs: bool = False,
 ) -> Inventory:
     """Remap any inventory on the desired grid.
 
@@ -375,6 +376,8 @@ def remap_inventory(
     :arg inv: The inventory from which to remap.
     :arg grid: The grid to remap to.
     :arg weigths_file: The file storing the weights.
+    :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
+    :arg keep_gdfs: Whether to keep the additional gdfs (shaped emissions) of the inventory.
 
     .. warning::
 
@@ -438,30 +441,31 @@ def remap_inventory(
         mapping_dict = {}
 
     # Add the other mappings
-    for category, gdf in inv.gdfs.items():
-        # Get the weights of that gdf
-        if weigths_file is None:
-            w_file = None   
-        else:
-            w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
-        w_mapping = get_weights_mapping(
-            w_file,
-            gdf.geometry,
-            grid_cells,
-            loop_over_inv_objects=True,
-            method=method,
-        )
-        # Remap each substance
-        for sub in gdf.columns:
-            if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
-                continue  # Geometric column
-            remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
-            if (category, sub) not in mapping_dict:
-                # Create new entry
-                mapping_dict[(category, sub)] = remapped
+    if not keep_gdfs:
+        for category, gdf in inv.gdfs.items():
+            # Get the weights of that gdf
+            if weigths_file is None:
+                w_file = None   
             else:
-                # Add it to the category
-                mapping_dict[(category, sub)] += remapped
+                w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+            w_mapping = get_weights_mapping(
+                w_file,
+                gdf.geometry,
+                grid_cells,
+                loop_over_inv_objects=True,
+                method=method,
+            )
+            # Remap each substance
+            for sub in gdf.columns:
+                if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
+                    continue  # Geometric column
+                remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
+                if (category, sub) not in mapping_dict:
+                    # Create new entry
+                    mapping_dict[(category, sub)] = remapped
+                else:
+                    # Add it to the category
+                    mapping_dict[(category, sub)] += remapped
 
     # Create the output inv
     out_inv = inv.copy(
@@ -474,7 +478,12 @@ def remap_inventory(
         geometry=grid_cells,
         crs=inv.crs,
     )
-    out_inv.gdfs = {}
-    out_inv.history.append(f"Remapped to grid {grid}")
+
+    if keep_gdfs:
+        out_inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in inv.gdfs.items()}
+    else:
+        out_inv.gdfs = {}
+
+    out_inv.history.append(f"Remapped to grid {grid}, {keep_gdfs=}")
 
     return out_inv
