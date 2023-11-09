@@ -40,8 +40,8 @@ class TemporalProfilesTypes(Enum):
     :param THREE_CYCLES:  Three cycles (hour of day, day of week, month of year)
     """
 
-    HOUR_OF_YEAR = auto()
-    THREE_CYCLES = auto()
+    HOUR_OF_YEAR = 0
+    THREE_CYCLES = 3
 
 
 def get_constant_time_profile(
