@@ -109,6 +109,49 @@ def test_read_simple():
             },
         ),
         (
+            "Merging points and area sources",
+            emiproc.FILES_DIR / "test/profiles/area_vs_point",
+            7,
+            {
+                '{"category":"blek","substance":"CO2", "type":"gridded"}': [
+                    0.3,
+                    0.4,
+                    0.3,
+                ],
+                '{"category":"liku","substance":"CO2", "type":"gridded"}': [
+                    0.5,
+                    0,
+                    0.5,
+                ],
+                '{"category":"liku","substance":"CH4", "type":"gridded"}': [
+                    0.5,
+                    0.1,
+                    0.4,
+                ],
+                '{"category":"blek","substance":"CH4", "type":"gridded"}': [
+                    0.2,
+                    0.5,
+                    0.3,
+                ],
+                '{"category":"blek","substance":"CO2", "type":"shapped"}': [
+                    0.1,
+                    0.4,
+                    0.5,
+                ],
+                '{"category":"liku","substance":"CO2", "type":"shapped"}': [
+                    0.2,
+                    0.7,
+                    0.1,
+                ],
+                '{"category":"liku","substance":"CH4", "type":"shapped"}': [
+                    0.3,
+                    0.6,
+                    0.1,
+                ],
+                '{"category":"blek","substance":"CH4", "type":"shapped"}': -1,
+            },
+        ),
+        (
             "One file speciated, one file not",
             emiproc.FILES_DIR / "test/profiles/multiple_with_specification",
             4,
@@ -124,6 +167,9 @@ def test_read_simple():
 )
 def test_read_v_profiles(name, profiles_dir, n_profiles, expected_dict):
     profiles, indexes = read_vertical_profiles(profiles_dir)
+
+    if profiles is None:
+        raise AssertionError(f"Read vertical profile of test case '{name}' failed")
 
     # Test the values are correct
     assert len(profiles) == n_profiles
@@ -154,4 +200,5 @@ def test_no_files():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    # Test only this file
+    pytest.main([__file__])

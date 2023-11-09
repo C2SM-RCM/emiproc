@@ -338,12 +338,18 @@ def read_vertical_profiles(
 
     for file in v_profiles_files:
         logger.debug(f"Reading vertical profiles from '{file}' .")
-        df_vertical = pd.read_csv(
-            file,
-            comment="#",
-            sep=";|\t|,",
-            engine="python",  # This is needed to use regex in sep
-        )
+        try:
+            df_vertical = pd.read_csv(
+                file,
+                comment="#",
+                sep=";|\t|,",
+                engine="python",  # This is needed to use regex in sep
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Could not read vertical profiles from {file}. Please check the"
+                " format of the file."
+            ) from e
         boundarys = [
             col
             for col in df_vertical.columns
@@ -396,7 +402,7 @@ def read_vertical_profiles(
             if "area" in file.stem:
                 indexes = indexes.expand_dims({"type": ["gridded"]})
             elif "point" in file.stem:
-                indexes = indexes.expand_dims({"type": ["shaped"]})
+                indexes = indexes.expand_dims({"type": ["shapped"]})
             else:
                 logger.debug(
                     f"Could not determine a type of profile in {file.stem}. Assuming"
@@ -416,7 +422,7 @@ def read_vertical_profiles(
         else:
             # Check if some indexes are already defined
             # If so, we should warn that they will be overwritten
-            # get all the coordinates 
+            # get all the coordinates
 
             combined_indexes = combined_indexes.combine_first(indexes)
 

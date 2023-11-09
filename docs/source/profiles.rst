@@ -187,7 +187,7 @@ to use for any combination of the following coordinates :
 * `cell` : an integer matching the index of a cell 
 * `time` : a datetime object matching the time of the emission (not implemented yet)
 * `country` : the 3 letter code of a country
-* `type` : ['gridded', 'shaped'] depending if applies to gridded or shaped emissions
+* `type` : ['gridded', 'shapped'] depending if applies to gridded or shapped emissions
 
 The coordinates don't need to all be present in the file, one could simply
 put one of them, and emiproc assumes the vertical profiles are the same 
