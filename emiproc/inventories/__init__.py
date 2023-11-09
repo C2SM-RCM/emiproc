@@ -35,6 +35,8 @@ Category = NewType("Category", str)
 # A colum from the gdf
 CatSub = tuple[Category, Substance]
 
+TemporalProfiles = list[list[TemporalProfile]]
+
 
 @dataclass
 class EmissionInfo:
@@ -128,12 +130,11 @@ class Inventory:
     v_profiles: VerticalProfiles | None = None
     v_profiles_indexes: xr.DataArray | None = None
 
-    t_profiles_groups: list[list[TemporalProfile]] | None = None
+    t_profiles_groups: TemporalProfiles | None = None
     t_profiles_indexes: xr.DataArray | None = None
 
     logger: logging.Logger
     history: list[str]
-
 
     def __init__(self) -> None:
         class_name = type(self).__name__
@@ -258,7 +259,6 @@ class Inventory:
 
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
-
 
     @classmethod
     def from_gdf(
