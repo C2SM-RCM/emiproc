@@ -9,6 +9,7 @@ from emiproc.profiles.temporal_profiles import (
     MounthsProfile,
     from_csv,
     from_yaml,
+    read_temporal_profiles,
     to_yaml,
 )
 
@@ -190,6 +191,78 @@ def test_read_v_profiles(name, profiles_dir, n_profiles, expected_dict):
                 f"Read vertical profile of test case '{name}' failed\nExpected"
                 f" {expected} for {accessor=}, got {received}"
             )
+
+
+@pytest.mark.parametrize(
+    "name,profiles_dir,n_profiles,expected_dict",
+    [
+        (
+            "Simple file",
+            emiproc.FILES_DIR / "test/profiles/simple_temporal/test_file.csv",
+            4,
+            {
+                '{"category":"blek","substance":"CO2"}': [
+                    WeeklyProfile([0.1, 0.2, 0.3, 0.4, 0.0, 0.0, 0.0])
+                ],
+                '{"category":"liku","substance":"CO2"}': [
+                    WeeklyProfile([0.1, 0.3, 0.2, 0.4, 0.0, 0.0, 0.0])
+                ],
+                '{"category":"liku","substance":"CH4"}': [
+                    WeeklyProfile([0.1, 0.4, 0.2, 0.3, 0.0, 0.0, 0.0])
+                ],
+                '{"category":"blek","substance":"N20"}': [
+                    WeeklyProfile([0.1, 0.5, 0.2, 0.2, 0.0, 0.0, 0.0])
+                ],
+                '{"category":"liku","substance":"N20"}': -1,
+                '{"category":"blek","substance":"CH4"}': -1,
+            },
+        ),
+    ],
+)
+def test_t_profiles(name, profiles_dir, n_profiles, expected_dict):
+    profiles, indexes = read_temporal_profiles(profiles_dir)
+
+    if profiles is None:
+        raise AssertionError(f"Read temporal profile of test case '{name}' failed")
+
+    # Test the values are correct
+    assert len(profiles) == n_profiles
+
+    for accessor, expected in expected_dict.items():
+        index = indexes.loc[json.loads(accessor)]
+        # Missing profile
+        if index == -1:
+            if expected == -1:
+                continue
+            else:
+                raise AssertionError(
+                    f"Read temporal profile of test case '{name}' failed\nExpected"
+                    f" {expected} for {accessor=}, got {index=}"
+                )
+        received = profiles[index]
+        for r in received:
+            assert isinstance(r, TemporalProfile)
+        for e in expected:
+            assert isinstance(e, TemporalProfile)
+
+        if len(received) != len(expected):
+            raise AssertionError(
+                f"Read temporal profile of test case '{name}' failed\nExpected"
+                f" {expected} for {accessor=}, got {received}"
+            )
+
+        for r in received:
+            t = type(r)
+            # Find the expected profile
+            possilbe = [e for e in expected if isinstance(e, t)]
+            if len(possilbe) != 1:
+                raise AssertionError(
+                    f"Read temporal profile of test case '{name}' failed\nExpected"
+                    f" {expected} for {accessor=}, got {received}"
+                )
+            assert (
+                r == possilbe[0]
+            ), f" Temporal profile do not match received {r}, expected {possilbe[0]}"
 
 
 def test_no_files():

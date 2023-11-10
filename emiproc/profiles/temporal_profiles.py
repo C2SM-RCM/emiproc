@@ -12,14 +12,20 @@ from typing import Any, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
+import emiproc
 
 from emiproc.profiles.utils import (
+    get_profiles_indexes,
+    merge_indexes,
     read_profile_csv,
+    read_profile_file,
     remove_objects_of_type_from_list,
     type_in_list,
     ratios_to_factors,
     load_country_tz,
 )
+
+logger = logging.getLogger(__name__)
 
 # Constants
 N_HOUR_DAY = 24
@@ -96,32 +102,91 @@ def get_emep_shift(country_code_iso3: str) -> int:
     return COUNTRY_TZ_DF.loc[country_code_iso3, "timezone"]
 
 
-@dataclass
+def concatenate_profiles(profiles: list[AnyTimeProfile]) -> AnyTimeProfile:
+    """Concatenate the profiles in the list."""
+    if not isinstance(profiles, list):
+        raise TypeError(f"{profiles=} must be a list.")
+
+    if not profiles:
+        raise ValueError(f"{profiles=} must not be empty.")
+
+    if len(profiles) == 1:
+        return profiles[0]
+
+    # Get the type of the profiles
+    profile_type = type(profiles[0])
+
+    # Check that all the profiles are of the same type
+    if not all(isinstance(p, profile_type) for p in profiles):
+        raise ValueError(
+            f"{profiles=} must all be of the same type, got {profile_type=}."
+        )
+
+    # Concatenate the ratios
+    ratios = np.concatenate([p.ratios for p in profiles])
+
+    return profile_type(ratios)
+
+
+@dataclass(eq=False)
 class TemporalProfile:
     """Temporal profile.
 
     Temporal profile defines how the emission is distributed over time.
     """
 
-    size: int = 0
-    ratios: np.ndarray = field(default_factory=lambda: np.ones(0))
+    ratios: np.ndarray | None = None
+    size: int = 1
 
     def __post_init__(self) -> None:
-        # Make sure the size is a int and the array has the correct size
-        if self.size != len(self.ratios):
-            raise ValueError(
-                f"{len(self.ratios)=} does not match profile's {self.size=}."
-            )
+        # Check the size is an int
+        if not isinstance(self.size, int):
+            raise TypeError(f"{self.size=} must be an int.")
+        if self.size < 1:
+            raise ValueError(f"{self.size=} must be positive.")
 
-        if isinstance(self.ratios, list):
-            self.ratios = np.array(self.ratios)
+        if self.ratios is None:
+            self.ratios = np.ones((1, self.size)) / self.size
+        else:
+            if isinstance(self.ratios, list):
+                self.ratios = np.array(self.ratios)
+            if len(self.ratios.shape) == 1:
+                self.ratios = self.ratios.reshape((1, -1))
+            # Make sure the size is a int and the array has the correct size
+            if self.size != self.ratios.shape[1]:
+                raise ValueError(
+                    f"{len(self.ratios)=} does not match profile's {self.size=}."
+                )
 
-        # Make sure the ratios sum up to 1
-        if not np.isclose(self.ratios.sum(), 1.0):
-            raise ValueError(f"{self.ratios.sum()=} does not sum up to 1.")
+            # Make sure the ratios sum up to 1
+            if not np.all(np.isclose(self.ratios.sum(axis=1), 1.0)):
+                raise ValueError(f"{self.ratios.sum(axis=1)=} are not all 1.")
+
+    @property
+    def n_profiles(self) -> int:
+        return self.ratios.shape[0]
+
+    def __getitem__(self, key: int) -> TemporalProfile:
+        """Return the profile at the given index."""
+        return self.__class__(self.ratios[key])
+
+    def __len__(self) -> int:
+        return self.n_profiles
+
+    def __iter__(self):
+        for i in range(self.n_profiles):
+            yield self[i]
+
+    # Defie the equality of the profiles
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, TemporalProfile):
+            raise TypeError(f"{other=} must be a {TemporalProfile}.")
+        if self.n_profiles != other.n_profiles:
+            return False
+        return (self.ratios == other.ratios).all()
 
 
-@dataclass
+@dataclass(eq=False)
 class DailyProfile(TemporalProfile):
     """Daily profile.
 
@@ -130,17 +195,16 @@ class DailyProfile(TemporalProfile):
     """
 
     size: int = field(default=N_HOUR_DAY, init=False)
-    ratios: np.ndarray = field(default_factory=lambda: np.ones(N_HOUR_DAY) / N_HOUR_DAY)
 
 
-@dataclass
+@dataclass(eq=False)
 class SpecificDayProfile(DailyProfile):
     """Same as DailyProfile but with a specific day of the week."""
 
     specific_day: SpecificDay | None = None
 
 
-@dataclass
+@dataclass(eq=False)
 class WeeklyProfile(TemporalProfile):
     """Weekly profile.
 
@@ -149,10 +213,9 @@ class WeeklyProfile(TemporalProfile):
     """
 
     size: int = N_DAY_WEEK
-    ratios: np.ndarray = field(default_factory=lambda: np.ones(N_DAY_WEEK) / N_DAY_WEEK)
 
 
-@dataclass
+@dataclass(eq=False)
 class MounthsProfile(TemporalProfile):
     """Yearly profile.
 
@@ -160,12 +223,9 @@ class MounthsProfile(TemporalProfile):
     """
 
     size: int = N_MONTH_YEAR
-    ratios: np.ndarray = field(
-        default_factory=lambda: np.ones(N_MONTH_YEAR) / N_MONTH_YEAR
-    )
 
 
-@dataclass
+@dataclass(eq=False)
 class HourOfWeekProfile(TemporalProfile):
     """Hour of week profile.
 
@@ -177,12 +237,9 @@ class HourOfWeekProfile(TemporalProfile):
     """
 
     size: int = N_HOUR_WEEK
-    ratios: np.ndarray = field(
-        default_factory=lambda: np.ones(N_HOUR_WEEK) / N_HOUR_WEEK
-    )
 
 
-@dataclass
+@dataclass(eq=False)
 class HourOfYearProfile(TemporalProfile):
     """Hour of year profile.
 
@@ -190,12 +247,9 @@ class HourOfYearProfile(TemporalProfile):
     """
 
     size: int = N_HOUR_YEAR
-    ratios: np.ndarray = field(
-        default_factory=lambda: np.ones(N_HOUR_YEAR) / N_HOUR_YEAR
-    )
 
 
-@dataclass
+@dataclass(eq=False)
 class HourOfLeapYearProfile(TemporalProfile):
     """Hour of leap year profile.
 
@@ -203,9 +257,6 @@ class HourOfLeapYearProfile(TemporalProfile):
     """
 
     size: int = N_HOUR_LEAPYEAR
-    ratios: np.ndarray = field(
-        default_factory=lambda: np.ones(N_HOUR_LEAPYEAR) / N_HOUR_LEAPYEAR
-    )
 
 
 AnyTimeProfile = Union[
@@ -216,6 +267,172 @@ AnyTimeProfile = Union[
     HourOfYearProfile,
     HourOfLeapYearProfile,
 ]
+
+
+class AnyProfiles:
+    """SAme a as temporal profiles, but can store any kind of proifles."""
+
+    _profiles: list[AnyTimeProfile]
+
+    def __init__(self, profiles: list[AnyTimeProfile] = None) -> None:
+        if profiles is None:
+            profiles = []
+        self._profiles = profiles
+
+    def __getitem__(self, key: int) -> AnyTimeProfile:
+        for profile in self._profiles:
+            if key < profile.n_profiles:
+                return profile[key]
+            key -= profile.n_profiles
+        raise IndexError(f"{key=} is out of range.")
+
+    def append(self, profile: AnyTimeProfile) -> None:
+        self._profiles.append(profile)
+
+    def __len__(self) -> int:
+        return sum(len(profile) for profile in self._profiles)
+
+    # Iteration must smoothly iterate over the profiles
+    def __iter__(self):
+        for profiles in self._profiles:
+            yield from profiles
+
+    @property
+    def n_profiles(self) -> int:
+        """Return the number of profiles."""
+        return len(self)
+
+
+class CompositeTemporalProfiles:
+    """A helper class to handle mixtures of temporal profiles.
+
+    Acts similar to a TemporalProfile
+
+    Stores a dict for each type of profile,
+    """
+
+    _arrays: dict[type[AnyTimeProfile], AnyTimeProfile]
+    # Store for each type, the indexes of the profiles
+    _indexes: dict[type[AnyTimeProfile], np.ndarray[int]]
+
+    def __init__(self, profiles: list[list[AnyTimeProfile]] = []) -> None:
+        n = len(profiles)
+        self._arrays = {}
+        profiles_lists = {}
+        self._indexes = {}
+        # Get the unique types of profiles
+        types = set(type(p) for profiles_list in profiles for p in profiles_list)
+        # Allocate arrays
+        for profile_type in types:
+            profiles_lists[profile_type] = []
+            self._indexes[profile_type] = np.full(n, fill_value=-1, dtype=int)
+        # Construct the list and indexes based on the input
+        for i, profiles_list in enumerate(profiles):
+            for profile in profiles_list:
+                if profile.n_profiles != 1:
+                    raise ValueError(
+                        "Can only build CompositeTemporalProfiles from profiles with"
+                        f" {profile.n_profiles=}, got {profile=}."
+                    )
+                p_type = type(profile)
+                list_this_type = profiles_lists[p_type]
+                if self._indexes[p_type][i] != -1:
+                    raise ValueError(
+                        f"Cannot add {profile=} to {self=} as it was already added."
+                    )
+                self._indexes[p_type][i] = len(list_this_type)
+                list_this_type.append(profile)
+        # Convert the lists to arrays
+        for profile_type, profiles_list in profiles_lists.items():
+            self._arrays[profile_type] = profile_type(
+                ratios=np.concatenate(([p.ratios for p in profiles_list]))
+            )
+
+    def __len__(self) -> int:
+        indexes_len = [len(indexes) for indexes in self._indexes.values()]
+        if not indexes_len:
+            return 0
+        # Make sure they are all equal
+        if len(set(indexes_len)) != 1:
+            raise ValueError(
+                f"{self=} has different lengths of indexes for each profile type."
+                f" {indexes_len=}"
+            )
+        return indexes_len[0]
+
+    @property
+    def n_profiles(self) -> int:
+        """Return the number of profiles."""
+        return len(self)
+
+    def __getitem__(self, key: int) -> list[AnyTimeProfile]:
+        return [
+            self._arrays[p_type][index]
+            for p_type, indexes in self._indexes.items()
+            if (index := indexes[key]) != -1
+        ]
+
+    def __setitem__(self, key: int, value: list[AnyTimeProfile]) -> None:
+        self._array[key] = np.array(value, dtype=object)
+
+    @property
+    def types(self) -> list[AnyTimeProfile]:
+        """Return the types of the profiles."""
+        return list(self._arrays.keys())
+
+
+def make_composite_profiles(
+    profiles: AnyProfiles,
+    indexes: xr.DataArray,
+) -> tuple[CompositeTemporalProfiles, xr.DataArray]:
+    """Create a composite temporal profiles from a list of profiles and indexes.
+
+    :arg profiles: The profiles to use.
+    :arg indexes: The indexes to use.
+        The indexes must have a dim called "profile" with the name of the profile type.
+
+    """
+
+    if not isinstance(profiles, AnyProfiles):
+        raise TypeError(f"{profiles=} must be an {AnyProfiles}.")
+
+    logger.debug(f"making composite profiles from {profiles=}, {indexes=}")
+
+    if "profile" not in indexes.dims:
+        raise ValueError(f"{indexes=} must have a dim called 'profile'.")
+    # If size of the profiles is 1, then we can simply return the profiles
+    if indexes.profile.size == 1:
+        # It is only one type of profile
+        return CompositeTemporalProfiles([[p] for p in profiles]), indexes.squeeze(
+            "profile"
+        )
+
+    # Stack the arrays to keep only the profiles dimension and the new stacked dim
+    dims = list(indexes.dims)
+    dims.remove("profile")
+    stacked = indexes.stack(z=dims)
+
+    str_array = np.array([str(array.values) for lab, array in stacked.groupby("z")])
+    logger.debug(f"{str_array=}")
+    u, inv = np.unique(str_array, return_inverse=True)
+
+    extracted_profiles = [
+        [
+            profiles[i]
+            # Unpakc the profiles from the str
+            for i in np.fromstring(array_str[1:-1], sep=" ", dtype=int)
+            if i != -1
+        ]
+        # Loop over each unique profile found
+        for array_str in u
+    ]
+    logger.debug(f"{extracted_profiles=}")
+    new_indexes = xr.DataArray(inv, dims=["z"], coords={"z": stacked.z})
+
+    # Remove the z dimension from the profiles
+    out_indexes = new_indexes.unstack("z")
+
+    return CompositeTemporalProfiles(extracted_profiles), out_indexes
 
 
 def create_scaling_factors_time_serie(
@@ -278,7 +495,12 @@ def profile_to_scaling_factors(
     """
 
     # Get scaling factors, convert the ratios to scaling factors
-    factors = ratios_to_factors(profile.ratios)
+    if len(profile) != 1:
+        raise ValueError(
+            f"Cannot apply {profile=} to a time serie, it must have only one profile."
+        )
+
+    factors = ratios_to_factors(profile.ratios.reshape(-1))
 
     # This will be the output
     scaling_factors = np.ones(len(time_serie))
@@ -335,6 +557,66 @@ def profile_to_scaling_factors(
     return scaling_factors
 
 
+_weekdays_short = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+_weekdays_long = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+_months_short = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
+_months_long = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+
+timprofile_colnames = {
+    WeeklyProfile: [
+        _weekdays_short,
+        [i.lower() for i in _weekdays_short],
+        _weekdays_long,
+        [i.lower() for i in _weekdays_long],
+    ],
+    MounthsProfile: [
+        _months_short,
+        [i.lower() for i in _months_short],
+        _months_long,
+        [i.lower() for i in _months_long],
+    ],
+    DailyProfile: [
+        [str(i) for i in range(1, 25)],
+        [str(i) for i in range(24)],
+    ],
+}
+
+
 def read_temporal_profiles(
     profiles_dir: PathLike,
     time_profiles_files_format: str = "timeprofiles-*.csv",
@@ -354,6 +636,10 @@ def read_temporal_profiles(
 
     If no files are found, this returns a warning.
 
+    The format of the file will influence the name of the columns.
+    Use the day of the weeks or the month names or the hour of the day to define the profile.
+
+    :
 
     """
 
@@ -364,111 +650,79 @@ def read_temporal_profiles(
     logger = logging.getLogger("emiproc.profiles.read_temporal_profiles")
 
     # List files with the expected format
-    files = list(profiles_dir.glob(time_profiles_files_format))
-    if not files:
-        logger.warning(
-            f"Cannot find any temporal profiles matching {time_profiles_files_format=} in"
-            f" {profiles_dir=}.\n"
+    if profiles_dir.is_file():
+        files = [profiles_dir]
+        logger.info(f"File {profiles_dir=} found, will be used for timeprofiles.")
+    else:
+        if not profiles_dir.is_dir():
+            raise ValueError(f"{profiles_dir=} is not a file or a directory.")
+        files = list(profiles_dir.glob(time_profiles_files_format))
+        if not files:
+            logger.warning(
+                "Cannot find any temporal profiles matching"
+                f" {time_profiles_files_format=} in {profiles_dir=}.\n"
+            )
+            return None, None
+        logger.info(
+            f"Found {len(files)} files matching {time_profiles_files_format=} in"
+            f" {profiles_dir=}"
         )
-        return None, None
 
-    logger.info(
-        f"Found {len(files)} files matching {time_profiles_files_format=} in"
-        f" {profiles_dir=}"
-    )
-
-    categories = []
-    substances = []
-
-    speciated_categories = []
-
-    profiles: dict[str | tuple[str, str], list[TemporalProfile]] = {}
+    out_profiles = AnyProfiles()
+    indexes_list: list[xr.DataArray] = []
     for file in files:
-        file_profiles = from_csv(
-            file,
-            profile_csv_kwargs=profile_csv_kwargs,
-        )
-        # Add the read profiles
-        for key, profile in file_profiles.items():
-            # Find if it is a speciated profile
-            if isinstance(key, tuple):
-                cat, sub = key
-                if sub not in substances:
-                    substances.append(sub)
-                if cat not in speciated_categories:
-                    speciated_categories.append(cat)
-            elif isinstance(key, str):
-                cat = key
-                sub = None
-            else:
-                raise TypeError(f"Unexpected key type {type(key)} from {file=}")
-
-            if cat not in categories:
-                categories.append(cat)
-
-            if key not in profiles:
-                # Cat sub found
-                profiles[key] = []
-                if sub is not None and cat in profiles:
-                    # If fisrt time we see this speciated, add the general profiles as well
-                    profiles[(cat, sub)] = profiles[cat].copy()
-                    profiles[(cat, sub)] = remove_objects_of_type_from_list(
-                        profile, profiles[(cat, sub)]
+        df = read_profile_file(file, **profile_csv_kwargs)
+        possible_matching = {
+            profile_type: colnames
+            for profile_type, colnames_list in timprofile_colnames.items()
+            for colnames in colnames_list
+            if all(col in df.columns for col in colnames)
+        }
+        if not possible_matching:
+            raise ValueError(
+                f"Cannot find any matching time profile for {file=} with Columns"
+                f" {df.columns}."
+                "Please check the file format."
+                "See more about time profiles file at "
+                "https://emiproc.rtfd.io/en/latest/api.html#emiproc.profiles.temporal_profiles.read_temporal_profiles"
+            )
+        logger.info(f"{possible_matching=}")
+        # Generate the profiles objects
+        indexes = get_profiles_indexes(df)
+        for profile_type, colnames in possible_matching.items():
+            try:
+                ratios = np.array([df[col] for col in colnames])
+                if np.all(np.isclose(ratios.sum(axis=0), 1.0)):
+                    # Ratios found
+                    ratios = ratios
+                elif np.all(np.isclose(np.mean(ratios, axis=0), 1.0)):
+                    # Scaling factors found
+                    ratios = ratios / ratios.sum(axis=0)
+                else:
+                    raise ValueError(
+                        "Could not determine if scaling factors or ratios were given"
+                        f" in {file=}.\n data:{ratios=} and \n"
+                        f" mean:{np.mean(ratios, axis=0)} \n"
+                        f" sum:{np.sum(ratios, axis=0)} \n"
                     )
+                profiles = profile_type(ratios.T)
+            except Exception as e:
+                raise ValueError(
+                    f"Cannot create profile {profile_type=} from {file=} with {ratios=}"
+                ) from e
+            indexes += len(out_profiles)
+            out_profiles.append(profiles)
+            # Add a new dim which is the profile type
+            indexes_list.append(
+                indexes.expand_dims({"profile": [profile_type.__name__]})
+            )
 
-            # simply add the speciated profile
-            profiles[key].append(profile)
+    combined_indexes = merge_indexes(indexes_list)
 
-            # We need to add the general to all the speciated profiles
-            if sub is None and cat in speciated_categories:
-                for sub_ in substances:
-                    if (cat, sub_) in profiles:
-                        catsub_profiles = profiles[(cat, sub_)]
-                        if type_in_list(profile, catsub_profiles):
-                            # Replace the previous nonspeciated profile
-                            catsub_profiles = remove_objects_of_type_from_list(
-                                profile, catsub_profiles
-                            )
-                        catsub_profiles.append(profile)
-                        profiles[(cat, sub_)] = catsub_profiles
-
-    # Now that we have extracted the profiles for each substance and category, we can fill the array
-    array = []
-    out_profiles = []
-    counter = 0
-    for cat in categories:
-        cat_counter = counter
-        out_profiles.append(profiles[cat])
-        counter += 1
-        if substances:
-            # Speciated cases
-            vector = []
-            array.append(vector)
-        else:
-            array.append(cat_counter)
-        for sub in substances:
-            if (cat, sub) in profiles:
-                out_profiles.append(profiles[(cat, sub)])
-                vector.append(counter)
-                counter += 1
-            else:
-                vector.append(cat_counter)
-
-    dims = ["category"]
-    coords = {"category": categories}
-    if substances:
-        dims.append("substance")
-        coords["substance"] = substances
-
-    indexes = xr.DataArray(
-        np.asarray(array, dtype=int),
-        dims=dims,
-        coords=coords,
-    )
-
-    return out_profiles, indexes
+    return make_composite_profiles(out_profiles, combined_indexes)
 
 
+@emiproc.deprecated
 def from_csv(
     file: PathLike,
     profile_csv_kwargs: dict[str, Any] = {},
@@ -476,7 +730,9 @@ def from_csv(
     """Create the profile from a csv file.
 
     Based on the file, guess the correct profile
-    to create
+    to create.
+
+    This is now deprectaed. Use :py:func:`read_temporal_profiles` instead.
     """
 
     df, cat_header, sub_header = read_profile_csv(file, **profile_csv_kwargs)
