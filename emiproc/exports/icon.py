@@ -168,13 +168,13 @@ def export_icon_oem(
 
         if inv.v_profiles is not None:
             profile_index = get_desired_profile_index(
-                inv.v_profiles_indexes, cat=categorie, sub=sub
+                inv.v_profiles_indexes, cat=categorie, sub=sub, type="gridded"
             )
             vertical_profiles[name] = inv.v_profiles[profile_index]
 
         if inv.t_profiles_groups is not None:
             profile_index = get_desired_profile_index(
-                inv.t_profiles_indexes, cat=categorie, sub=sub
+                inv.t_profiles_indexes, cat=categorie, sub=sub, type="gridded"
             )
             time_profiles[name] = inv.t_profiles_groups[profile_index]
 
