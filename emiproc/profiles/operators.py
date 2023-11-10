@@ -4,7 +4,11 @@ import xarray as xr
 import geopandas as gpd
 
 from emiproc.profiles.vertical_profiles import VerticalProfiles, VerticalProfile
-from emiproc.profiles.temporal_profiles import SpecificDayProfile, TemporalProfile
+from emiproc.profiles.temporal_profiles import (
+    CompositeTemporalProfiles,
+    SpecificDayProfile,
+    TemporalProfile,
+)
 from emiproc.profiles.utils import get_objects_of_same_type_from_list
 
 
@@ -92,7 +96,9 @@ def weighted_combination_time(
 
 
 def combine_profiles(
-    profiles: VerticalProfiles | list[list[TemporalProfile]],
+    profiles: VerticalProfiles
+    | list[list[TemporalProfile]]
+    | CompositeTemporalProfiles,
     profiles_indexes: xr.DataArray,
     dimension: str,
     weights: xr.DataArray,
@@ -175,7 +181,7 @@ def combine_profiles(
 
         new_profiles = VerticalProfiles(unique_profiles, profiles.height)
 
-    elif isinstance(profiles, list):
+    elif isinstance(profiles, list | CompositeTemporalProfiles):
         if len(profiles_indexes.dims) > 2:
             raise NotImplementedError(
                 "Currently no implementation for time profiles varying on more than 2"

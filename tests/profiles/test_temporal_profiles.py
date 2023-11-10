@@ -2,6 +2,7 @@ import pytest
 
 import numpy as np
 import xarray as xr
+from emiproc.profiles.operators import weighted_combination
 from emiproc.profiles.temporal_profiles import (
     AnyProfiles,
     TemporalProfile,
@@ -60,6 +61,7 @@ def test_composite_temporal_profiles():
     assert len(p[0]) == 2
     assert len(p[1]) == 1
 
+
 def test_equality():
     p1 = WeeklyProfile()
     p2 = WeeklyProfile()
@@ -68,7 +70,7 @@ def test_equality():
     assert p1 == p2
     assert p1 != p3
     assert p3 == p4
-    
+
 
 def test_merging_profiles():
     profiles = AnyProfiles(
@@ -111,6 +113,24 @@ def test_merging_profiles():
     combined_indexes = merge_indexes(dss)
 
     make_composite_profiles(profiles, combined_indexes)
+
+
+def test_weighted_combination():
+    weights = np.array([1, 2, 3])
+    new_profile = weighted_combination(
+        [
+            WeeklyProfile([0.1, 0.2, 0.3, 0.4, 0.0, 0.0, 0.0]),
+            WeeklyProfile([0.2, 0.1, 0.3, 0.4, 0.0, 0.0, 0.0]),
+            WeeklyProfile([0.3, 0.0, 0.3, 0.4, 0.0, 0.0, 0.0]),
+        ],
+        weights=weights,
+    )
+
+    # The combination should give the same as summing the emissions one by one
+    assert np.allclose(
+        new_profile.ratios.reshape(-1),
+        np.array([7 / 30, 2 / 30, 0.3, 0.4, 0.0, 0.0, 0.0]),
+    )
 
 
 if __name__ == "__main__":

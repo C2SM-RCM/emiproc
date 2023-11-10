@@ -412,7 +412,9 @@ def make_composite_profiles(
     dims.remove("profile")
     stacked = indexes.stack(z=dims)
 
-    str_array = np.array([str(array.values) for lab, array in stacked.groupby("z")])
+    str_array = np.array(
+        [str(array.values.reshape(-1)) for lab, array in stacked.groupby("z")]
+    )
     logger.debug(f"{str_array=}")
     u, inv = np.unique(str_array, return_inverse=True)
 
