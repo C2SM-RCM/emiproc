@@ -366,6 +366,7 @@ def remap_inventory(
     grid: Grid | gpd.GeoSeries,
     weigths_file: PathLike | None = None,
     method: str = "new",
+    keep_gdfs: bool = False,
 ) -> Inventory:
     """Remap any inventory on the desired grid.
 
@@ -375,6 +376,8 @@ def remap_inventory(
     :arg inv: The inventory from which to remap.
     :arg grid: The grid to remap to.
     :arg weigths_file: The file storing the weights.
+    :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
+    :arg keep_gdfs: Whether to keep the additional gdfs (shapped emissions) of the inventory.
 
     .. warning::
 
@@ -390,7 +393,7 @@ def remap_inventory(
     if isinstance(grid, Grid) or issubclass(type(grid), Grid):
         grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
     elif isinstance(grid, gpd.GeoSeries):
-        grid_cells = grid
+        grid_cells = grid.reset_index(drop=True)
     else:
         raise TypeError(f"grid must be of type Grid or gpd.Geoseries, not {type(grid)}")
 
@@ -416,6 +419,14 @@ def remap_inventory(
             method=method,
         )
         # Create the weights matrix
+        if max(w_mapping["output_indexes"]) > len(grid_cells):
+            raise ValueError(
+                f"Error in weights mapping: {max(w_mapping['output_indexes'])=} > {len(grid_cells)=}"
+            )
+        if max(w_mapping["inv_indexes"]) > len(inv.gdf):
+            raise ValueError(
+                f"Error in weights mapping: {max(w_mapping['inv_indexes'])=} > {len(inv.gdf)=}"
+            )
         w_matrix = coo_array(
             (w_mapping["weights"], (w_mapping["output_indexes"], w_mapping["inv_indexes"])),
             shape=(len(grid_cells), len(inv.gdf)),
@@ -430,30 +441,31 @@ def remap_inventory(
         mapping_dict = {}
 
     # Add the other mappings
-    for category, gdf in inv.gdfs.items():
-        # Get the weights of that gdf
-        if weigths_file is None:
-            w_file = None   
-        else:
-            w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
-        w_mapping = get_weights_mapping(
-            w_file,
-            gdf.geometry,
-            grid_cells,
-            loop_over_inv_objects=True,
-            method=method,
-        )
-        # Remap each substance
-        for sub in gdf.columns:
-            if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
-                continue  # Geometric column
-            remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
-            if (category, sub) not in mapping_dict:
-                # Create new entry
-                mapping_dict[(category, sub)] = remapped
+    if not keep_gdfs:
+        for category, gdf in inv.gdfs.items():
+            # Get the weights of that gdf
+            if weigths_file is None:
+                w_file = None   
             else:
-                # Add it to the category
-                mapping_dict[(category, sub)] += remapped
+                w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+            w_mapping = get_weights_mapping(
+                w_file,
+                gdf.geometry,
+                grid_cells,
+                loop_over_inv_objects=True,
+                method=method,
+            )
+            # Remap each substance
+            for sub in gdf.columns:
+                if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
+                    continue  # Geometric column
+                remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
+                if (category, sub) not in mapping_dict:
+                    # Create new entry
+                    mapping_dict[(category, sub)] = remapped
+                else:
+                    # Add it to the category
+                    mapping_dict[(category, sub)] += remapped
 
     # Create the output inv
     out_inv = inv.copy(
@@ -466,7 +478,12 @@ def remap_inventory(
         geometry=grid_cells,
         crs=inv.crs,
     )
-    out_inv.gdfs = {}
-    out_inv.history.append(f"Remapped to grid {grid}")
+
+    if keep_gdfs:
+        out_inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in inv.gdfs.items()}
+    else:
+        out_inv.gdfs = {}
+
+    out_inv.history.append(f"Remapped to grid {grid}, {keep_gdfs=}")
 
     return out_inv

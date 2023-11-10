@@ -339,7 +339,7 @@ def read_temporal_profiles(
     profiles_dir: PathLike,
     time_profiles_files_format: str = "timeprofiles-*.csv",
     profile_csv_kwargs: dict[str, Any] = {},
-) -> tuple[list[list[AnyTimeProfile]], xr.DataArray]:
+) -> tuple[list[list[AnyTimeProfile]] | None, xr.DataArray | None]:
     """Read the temporal profiles csv files to the emiproc inventory format.
 
     The files for the time profiles are csv and must be all in the same directory
@@ -352,6 +352,8 @@ def read_temporal_profiles(
     This returns the time profiles read, and and index xarray matching
     each substance and category to the desired profiles.
 
+    If no files are found, this returns a warning.
+
 
     """
 
@@ -359,14 +361,21 @@ def read_temporal_profiles(
     #       the case where the profiles are speciated or not.
 
     profiles_dir = Path(profiles_dir)
+    logger = logging.getLogger("emiproc.profiles.read_temporal_profiles")
 
     # List files with the expected format
     files = list(profiles_dir.glob(time_profiles_files_format))
     if not files:
-        raise FileNotFoundError(
-            f"Cannot find any file matching {time_profiles_files_format=} in"
-            f" {profiles_dir=}"
+        logger.warning(
+            f"Cannot find any temporal profiles matching {time_profiles_files_format=} in"
+            f" {profiles_dir=}.\n"
         )
+        return None, None
+
+    logger.info(
+        f"Found {len(files)} files matching {time_profiles_files_format=} in"
+        f" {profiles_dir=}"
+    )
 
     categories = []
     substances = []

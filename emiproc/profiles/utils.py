@@ -10,7 +10,9 @@ import xarray as xr
 import numpy as np
 
 import emiproc
+from emiproc.profiles import naming
 
+logger = logging.getLogger(__name__)
 
 
 def ratios_to_factors(ratios: np.ndarray) -> np.ndarray:
@@ -100,13 +102,15 @@ def get_desired_profile_index(
     # Check the the seleciton is just a single value
     if desired_index.size != 1:
         raise ValueError(
-            f"More than one profile matches the selection: {desired_index}, got {desired_index.size =}"
+            f"More than one profile matches the selection: {desired_index}, got"
+            f" {desired_index.size =}"
         )
 
     # Return the index as int
     return int(desired_index.values)
 
 
+@emiproc.deprecated
 def read_profile_csv(
     file: PathLike,
     cat_colname: str = "Category",
@@ -134,6 +138,56 @@ def read_profile_csv(
         )
 
     return df, cat_colname, sub_header
+
+
+def get_profiles_indexes(
+    df: pd.DataFrame,
+    colnames: dict[str, list[str]] = naming.attributes_accepted_colnames,
+) -> xr.DataArray:
+    """Return the profiles indexes from the dataframe.
+
+    The dataframe can contain any of the column matching to
+    one of the dimensions allowed by the indexes.
+    """
+
+    # First get the dimensions present in the columns of the dataframe
+    col_of_dim = {}
+    for dim, colnames in colnames.items():
+        columns = [col for col in colnames if col in df.columns]
+        if len(columns) > 1:
+            raise ValueError(
+                f"Cannot find which column to use for {dim=} in {columns=}.\n"
+                f"All columns refer to {dim=}."
+            )
+        elif len(columns) == 1:
+            col_of_dim[dim] = columns[0]
+        else:
+            logger.debug(f"Cannot find column for {dim=}")
+            pass
+    logger.info(f"Found {col_of_dim=}")
+    # Now get the values of the coords
+    coords = {}
+    for dim, col in col_of_dim.items():
+        coords[dim] = df[col].unique()
+
+    # Create the empty xarray
+    indexes = xr.DataArray(
+        # -1 means no index specified
+        np.full([len(c) for c in coords.values()], -1),
+        coords=coords,
+        dims=list(coords),
+    )
+
+    # Fill the xarray with the indexes
+
+    indexing_dict = dict(zip(coords, df[list(col_of_dim.values())].values.T))
+    indexing_arrays = {}
+    for coord, values in indexing_dict.items():
+        indexing_arrays[coord] = xr.DataArray(values, dims=["index"])
+    logger.debug(f"Indexing dataarray: {indexing_arrays=}")
+    indexes.loc[indexing_arrays] = df.index
+
+    return indexes
 
 
 def load_country_tz(file: Path | None = None) -> pd.DataFrame:

@@ -56,7 +56,7 @@ CH_2_GNFR = {
     # Aviation
     "GNFR_H": [
         "evfgva",
-        "evfzhr",
+        "evfzrh",
     ],
     # Offroad mobility
     "GNFR_I": [
