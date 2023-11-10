@@ -15,6 +15,7 @@ from emiproc.profiles.operators import group_profiles_indexes
 from emiproc.profiles.temporal_profiles import read_temporal_profiles
 from emiproc.profiles.vertical_profiles import read_vertical_profiles
 from emiproc.profiles import naming
+from emiproc.inventories.utils import group_substances
 
 logger = logging.getLogger(__name__)
 
@@ -277,21 +278,40 @@ class TNO_Inventory(Inventory):
                             " profile files."
                         )
 
-        ## We are going to apply the mapping of substances to the profiles
-        #
-        # groupp_mapping = {}
-        # for sub_from, sub_to in substances_mapping.items():
-        #    if sub_to not in groupp_mapping:
-        #        groupp_mapping[sub_to] = []
-        #    groupp_mapping[sub_to].append(sub_from)
-        # if t_profiles is not None:
-        #    self.t_profiles_groups, self.t_profiles_indexes = group_profiles_indexes(
-        #        t_profiles,
-        #        t_profiles_indexes,
-        #        weights,
-        #        groupp_mapping,
-        #        groupping_dimension="substance",
-        #    )
+        # We are going to apply the mapping of substances to the profiles
+
+        groupp_mapping = {}
+        for sub_from, sub_to in substances_mapping.items():
+            if sub_to not in groupp_mapping:
+                groupp_mapping[sub_to] = []
+            groupp_mapping[sub_to].append(sub_from)
+        if t_profiles is not None:
+            if "substance" in t_profiles_indexes.dims:
+                (
+                    self.t_profiles_groups,
+                    self.t_profiles_indexes,
+                ) = group_profiles_indexes(
+                    t_profiles,
+                    t_profiles_indexes,
+                    weights,
+                    groupp_mapping,
+                    groupping_dimension="substance",
+                )
+            else:
+                self.t_profiles_groups = t_profiles
+                self.t_profiles_indexes = t_profiles_indexes
+        if v_profiles is not None:
+            if "substance" in v_profiles_indexes.dims:
+                self.v_profiles, self.v_profiles_indexes = group_profiles_indexes(
+                    v_profiles,
+                    v_profiles_indexes,
+                    weights,
+                    groupp_mapping,
+                    groupping_dimension="substance",
+                )
+            else:
+                self.v_profiles = v_profiles
+                self.v_profiles_indexes = v_profiles_indexes
 
 
 if __name__ == "__main__":
