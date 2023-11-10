@@ -49,6 +49,7 @@ def get_desired_profile_index(
     cell: int | None = None,
     cat: str | None = None,
     sub: str | None = None,
+    type: str | None = None,
 ) -> int:
     """Return the index of the desired profile.
 
@@ -68,6 +69,8 @@ def get_desired_profile_index(
         raise ValueError(
             "substance must be specified, as each substance has a specific profile."
         )
+    if type is None and "type" in dims:
+        raise ValueError("type must be specified, as each type has a specific profile.")
 
     access_dict = {}
 
@@ -95,6 +98,13 @@ def get_desired_profile_index(
                 f"got {profiles_indexes.coords['substance']}"
             )
         access_dict["substance"] = sub
+    if type is not None and "type" in dims:
+        if type not in profiles_indexes.coords["type"]:
+            raise ValueError(
+                f"type {type} is not in the profiles indexes, "
+                f"got {profiles_indexes.coords['type']}"
+            )
+        access_dict["type"] = type
 
     # Access the xarray
     desired_index = profiles_indexes.sel(**access_dict)
