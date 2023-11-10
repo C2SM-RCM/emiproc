@@ -1,6 +1,9 @@
 """Provides default values for how the data columns can be named."""
 
 
+from datetime import datetime
+
+
 accepted_category_colnames = [
     "Category",
     "GNFR_Category",
@@ -36,6 +39,15 @@ attributes_accepted_colnames = {
     "time": time_colnames,
     "country": accepted_country_colnames,
     "type": type_colnames,
+}
+
+type_of_dim = {
+    "category": str,
+    "substance": str,
+    "cell": int,
+    "time": datetime,
+    "country": str,
+    "type": str,
 }
 
 all_reserved_colnames = sum(

@@ -168,8 +168,14 @@ def get_profiles_indexes(
     # Now get the values of the coords
     coords = {}
     for dim, col in col_of_dim.items():
-        coords[dim] = df[col].unique()
-
+        coord_values = df[col].unique()
+        expected_type = naming.type_of_dim.get(dim, str)
+        coord_values = coord_values.astype(expected_type)
+        if expected_type == str:
+            # Clean the strings from tabs and spaces at the sides
+            coord_values = [v.strip() for v in coord_values]
+            df[col] = df[col].str.strip()
+        coords[dim] = coord_values
     # Create the empty xarray
     indexes = xr.DataArray(
         # -1 means no index specified
@@ -207,6 +213,101 @@ def load_country_tz(file: Path | None = None) -> pd.DataFrame:
         index_col=0,
         sep=";",
     )
+
+
+def read_profile_file(file: PathLike, **kwargs: Any) -> pd.DataFrame:
+    """Read any kind of profile file and return the dataframe."""
+    try:
+        logger.log(emiproc.PROCESS, f"Reading {file}")
+        df = pd.read_csv(
+            file,
+            comment="#",
+            sep=";|\t|,",
+            engine="python",  # This is needed to use regex in sep
+            **kwargs,
+        )
+    except Exception as e:
+        raise ValueError(
+            f"Could not read profiles from {file}. Please check the format of the file."
+        ) from e
+
+    df.rename(columns={col: col.strip() for col in df.columns}, inplace=True)
+    # Look a the columns and see if we find columns with names we should clean
+    for col in df.columns:
+        if col in naming.all_reserved_colnames:
+            df[col] = df[col].str.strip()
+    return df
+
+
+def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
+    """Merge together arrays of indexes.
+
+    When merging the indexes, we assume that some arrays have more dimensions
+    and thus are more specific than others.
+    This implies that the a more specific index will overwrite a less specific one.
+    However sometimes conflict can arise. If you have two indexes array and each
+    of them are more specific on a dimension.
+    Currently function will raise an error in this case.
+    """
+
+    # First get the coords of the indexes
+    coords = {}
+    for index in indexes:
+        for coord, values in index.coords.items():
+            if coord not in coords:
+                coords[coord] = values
+            else:
+                coords[coord] = np.unique(np.concatenate([coords[coord], values]))
+    logger.debug(f"Found {coords=}")
+
+    # Create the empty xarray
+    merged_indexes = xr.DataArray(
+        # -1 means no index specified
+        np.full([len(c) for c in coords.values()], -1),
+        coords=coords,
+        dims=list(coords),
+    )
+    logger.debug(f"Created {merged_indexes=}")
+
+    # sort the indexes by the number of dimensions
+    indexes.sort(key=lambda x: len(x.dims))
+
+    # Fill the xarray with the indexes
+    # Here we assume that the more dimensions we have the more specifc we will be
+    # However if the dimensions are others
+    specifed_dims = []
+    for index_da in indexes:
+        # Get the dims that are not specified yet
+        dims_to_specify = [dim for dim in index_da.dims if dim not in specifed_dims]
+        # Get the dims that have already been specifed but not in this index
+        dims_to_overwrite = [dim for dim in specifed_dims if dim not in index_da.dims]
+        # Check that there is no conflict
+        if len(dims_to_overwrite) > 0:
+            raise ValueError(
+                f"Cannot merge indexes {indexes=} because of conflict on"
+                f" {dims_to_overwrite=}.Please only specify profiles which are being"
+                " more specific on the dimensions of others."
+            )
+
+        # Get coords where the indexes are given on a single dimension
+        indexes_to_set = index_da.stack(z=index_da.dims)
+        logger.debug(f"Stacked: {indexes_to_set=}")
+        indexes_to_set = indexes_to_set[indexes_to_set != -1]
+        indexing_arrays = {}
+        for dim in index_da.dims:
+            indexing_arrays[dim] = xr.DataArray(indexes_to_set[dim].values, dims="z")
+        logger.debug(f"Indexing dataarray: {indexing_arrays=}")
+        profile_index = xr.DataArray(indexes_to_set.values, dims="z")
+        logger.debug(f"Profiles to set : {profile_index=}")
+
+        # Now fill the indexes xarray
+        merged_indexes.loc[indexing_arrays] = profile_index
+
+        logger.debug(f"After Filled: {merged_indexes=}")
+        # Add the dims to the specified dims
+        specifed_dims.extend(dims_to_specify)
+
+    return merged_indexes
 
 
 if __name__ == "__main__":

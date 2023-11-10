@@ -32,7 +32,8 @@ def weighted_combination(
 
     if len(profiles) != len(weights):
         raise ValueError(
-            f"The number of profiles and weights must be the same: {len(profiles)=} != {len(weights)=}"
+            f"The number of profiles and weights must be the same: {len(profiles)=} !="
+            f" {len(weights)=}"
         )
 
     if len(profiles) == 0:
@@ -47,7 +48,8 @@ def weighted_combination(
         type_profile = type(profiles[0])
         if not all([isinstance(p, type_profile) for p in profiles]):
             raise TypeError(
-                f"All profiles must be of the same type, got {[type(p) for p in profiles]}"
+                "All profiles must be of the same type, got"
+                f" {[type(p) for p in profiles]}"
             )
         kwargs = {}
         if isinstance(profiles[0], SpecificDayProfile):
@@ -85,7 +87,7 @@ def weighted_combination_time(
                 p_to_merge.append(same_types[0])
 
         out_profiles.append(weighted_combination(p_to_merge, weights))
-    
+
     return out_profiles
 
 
@@ -98,7 +100,7 @@ def combine_profiles(
     """Combine profiles from multidimensional array by reducing over a specified dimension.
 
     The indexes and the weights but be of the same dimensions.
-    
+
     :arg profiles: The profiles to use for merging.
     :arg profiles_indexes: The profiles indexes of the data.
     :arg dimension: The dimension along which the combination should be done.
@@ -113,7 +115,8 @@ def combine_profiles(
     # assert len(indexes.coords[dimension]) > 1, "Cannot combine over 1 dimension"
     if dimension not in profiles_indexes.dims:
         raise ValueError(
-            f"Dimension {dimension} not in {profiles_indexes.dims}, cannot combine over it."
+            f"Dimension {dimension} not in {profiles_indexes.dims}, cannot combine"
+            " over it."
         )
 
     # Make sure that where the index is -1, the weights are 0
@@ -175,11 +178,11 @@ def combine_profiles(
     elif isinstance(profiles, list):
         if len(profiles_indexes.dims) > 2:
             raise NotImplementedError(
-                f"Currently no implementation for time profiles varying on more than 2 dimensions. Got {profiles_indexes.dims=}"
+                "Currently no implementation for time profiles varying on more than 2"
+                f" dimensions. Got {profiles_indexes.dims=}"
             )
         # get the name of the other dimension
         other_dim = [d for d in profiles_indexes.dims if d != dimension][0]
-
 
         # Iterate over the other dimension
         new_profiles = []
@@ -197,15 +200,15 @@ def combine_profiles(
                 # Add the weights and profile we will merge
                 profiles_to_merge.append(profiles[profile_index])
                 weights_to_merge.append(weights.sel(**sel_dict).data)
-            
-            # Perform the combination            
-            new_profiles.append(weighted_combination_time(profiles_to_merge, weights_to_merge))
+
+            # Perform the combination
+            new_profiles.append(
+                weighted_combination_time(profiles_to_merge, weights_to_merge)
+            )
             new_indexes.append(i)
-        
+
         new_indexes = xr.DataArray(
-            new_indexes,
-            coords=[coords_other_dim],
-            dims=[other_dim]
+            new_indexes, coords=[coords_other_dim], dims=[other_dim]
         )
 
     else:
@@ -312,14 +315,18 @@ def group_profiles_indexes(
         if not cats_with_profiles:
             # No categories to group
             # Add unknown profiles
-            group_indexes = profiles_indexes.sum(dim=groupping_dimension).expand_dims(group_coord)
+            group_indexes = profiles_indexes.sum(dim=groupping_dimension).expand_dims(
+                group_coord
+            )
             # set all the values to -1, no matter what the value is
-            groups_indexes_list.append( xr.where(
-                group_indexes != -1,
-                -1,
-                group_indexes,
-            ))
-            
+            groups_indexes_list.append(
+                xr.where(
+                    group_indexes != -1,
+                    -1,
+                    group_indexes,
+                )
+            )
+
             continue
 
         # Combine the profiles that have to be grouped
@@ -346,7 +353,8 @@ def group_profiles_indexes(
     if not merged_profiles:
         coord_values = profiles_indexes.coords[groupping_dimension].to_numpy()
         raise ValueError(
-            f"No profiles to group with {categories_group=}, on dimension {groupping_dimension=} with {coord_values=}"
+            f"No profiles to group with {categories_group=}, on dimension"
+            f" {groupping_dimension=} with {coord_values=}"
         )
 
     if isinstance(merged_profiles[0], VerticalProfiles):

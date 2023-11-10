@@ -307,7 +307,12 @@ def make_icon_time_profiles(
             for profile in time_profiles[key]:
                 if not issubclass(type(profile), TemporalProfile):
                     raise TypeError(f"{profile} from {key} is not a TemporalProfile")
-                scaling_factors = profile.ratios * profile.size
+                if profile.n_profiles != 1:
+                    raise ValueError(
+                        f"{profile} from {key} has {profile.n_profiles} profiles."
+                        " Only one profile is allowed for the THREE_CYCLES option."
+                    )
+                scaling_factors = profile.ratios.reshape(-1) * profile.size
                 if isinstance(profile, DailyProfile):
                     ds = hourofday
                     # Use the shifts in the intervals
