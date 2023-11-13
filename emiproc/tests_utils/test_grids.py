@@ -21,3 +21,18 @@ gpd_grid = GeoPandasGrid(
         ]
     )
 )
+
+# A regular grid over some african countries
+# It makes sure some grid cells are in one country only
+# some countries are too small for country mask (Gambia (GMB))
+# Some cells are ocean
+regular_grid_africa = RegularGrid(
+    # 19°24'03.0"N 20°30'34.3"W
+    # 4°39'55.8"N 9°14'11.6"W
+    xmin=-20.5,
+    xmax=-9.25,
+    ymin=4.65,
+    ymax=20.9,
+    nx=10,
+    ny=10,
+)
