@@ -7,18 +7,14 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from os import PathLike
-from pathlib import Path
 from typing import NewType
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point
 import numpy as np
 import xarray as xr
 
-from emiproc.grids import LV95, Grid, SwissGrid
+from emiproc.grids import Grid
 from emiproc.profiles.temporal_profiles import TemporalProfile
-from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
@@ -26,7 +22,6 @@ from emiproc.profiles.vertical_profiles import (
 )
 
 from emiproc.grids import Grid
-from emiproc.regrid import get_weights_mapping, weights_remap
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)
