@@ -156,6 +156,7 @@ def calculate_weights_mapping(
         shapes_looped = gpd.GeoSeries(shapes_looped)
     else:
         raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
+    shapes_looped: gpd.GeoSeries
     minx, miny, maxx, maxy = shapes_looped.total_bounds
     if minx != maxx and miny != maxy:
         # Seems to remove all the data if boundaries are equal

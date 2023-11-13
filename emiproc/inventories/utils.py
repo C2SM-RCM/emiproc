@@ -219,7 +219,7 @@ def crop_with_shape(
             ) | mask_boundary
 
             # Points at the boundary are divided by 2
-            points_gdf.loc[mask_boundary, cols] /= 2
+            points_gdf.loc[mask_boundary, cols] /= 2.0
             inv_out.add_gdf(cat, points_gdf.loc[mask_shapes].reset_index(drop=True))
         if not all(mask_points):
             # We keep crop the geometry
