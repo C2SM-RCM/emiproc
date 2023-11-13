@@ -621,8 +621,9 @@ timprofile_colnames = {
 
 def read_temporal_profiles(
     profiles_dir: PathLike,
-    time_profiles_files_format: str = "timeprofiles-*.csv",
+    time_profiles_files_format: str = "timeprofiles*.csv",
     profile_csv_kwargs: dict[str, Any] = {},
+    rtol: float = 1e-5,
 ) -> tuple[list[list[AnyTimeProfile]] | None, xr.DataArray | None]:
     """Read the temporal profiles csv files to the emiproc inventory format.
 
@@ -694,10 +695,10 @@ def read_temporal_profiles(
         for profile_type, colnames in possible_matching.items():
             try:
                 ratios = np.array([df[col] for col in colnames])
-                if np.all(np.isclose(ratios.sum(axis=0), 1.0)):
+                if np.all(np.isclose(ratios.sum(axis=0), 1.0, rtol=rtol)):
                     # Ratios found
                     ratios = ratios
-                elif np.all(np.isclose(np.mean(ratios, axis=0), 1.0)):
+                elif np.all(np.isclose(np.mean(ratios, axis=0), 1.0, rtol=rtol)):
                     # Scaling factors found
                     ratios = ratios / ratios.sum(axis=0)
                 else:
@@ -705,7 +706,8 @@ def read_temporal_profiles(
                         "Could not determine if scaling factors or ratios were given"
                         f" in {file=}.\n data:{ratios=} and \n"
                         f" mean:{np.mean(ratios, axis=0)} \n"
-                        f" sum:{np.sum(ratios, axis=0)} \n"
+                        f" sum:{np.sum(ratios, axis=0)} \n Try to set {rtol=} to a"
+                        " higher value if this is due to rounding erros."
                     )
                 profiles = profile_type(ratios.T)
             except Exception as e:

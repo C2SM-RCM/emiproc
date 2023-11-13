@@ -227,13 +227,18 @@ def load_country_tz(file: Path | None = None) -> pd.DataFrame:
 
 def read_profile_file(file: PathLike, **kwargs: Any) -> pd.DataFrame:
     """Read any kind of profile file and return the dataframe."""
+    default_kwargs = {
+        "comment": "#",
+        "sep": r";|\t|,",
+        "engine": "python",  # This is needed to use regex in sep
+    }
+    for key, value in default_kwargs.items():
+        if key not in kwargs:
+            kwargs[key] = value
     try:
         logger.log(emiproc.PROCESS, f"Reading {file}")
         df = pd.read_csv(
             file,
-            comment="#",
-            sep=";|\t|,",
-            engine="python",  # This is needed to use regex in sep
             **kwargs,
         )
     except Exception as e:
