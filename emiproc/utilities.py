@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import time
 import json
+from typing import Literal, overload
 from warnings import warn
 from enum import Enum
 from io import BytesIO
@@ -277,6 +278,16 @@ def get_natural_earth(
     # Load the country file
     shpfile = str(path_to_save / f"ne_{resolution}_{name}.shp")
     return gpd.read_file(shpfile)
+
+
+@overload
+def get_country_mask(return_fractions: Literal[True] = ...) -> xr.DataArray:
+    ...
+
+
+@overload
+def get_country_mask(return_fractions: Literal[False]) -> np.ndarray:
+    ...
 
 
 def get_country_mask(
