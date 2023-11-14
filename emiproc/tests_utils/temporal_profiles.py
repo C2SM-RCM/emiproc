@@ -137,3 +137,13 @@ indexes_african_simple = xr.DataArray(
     dims=["country"],
     coords={"country": african_countries_test_set},
 )
+indexes_african_2d = xr.DataArray(
+    data=np.arange(len(african_countries_test_set) * 3).reshape(
+        (len(african_countries_test_set), 3)
+    ),
+    dims=["country", "category"],
+    coords={
+        "country": african_countries_test_set,
+        "category": ["liku", "blek", "test"],
+    },
+)

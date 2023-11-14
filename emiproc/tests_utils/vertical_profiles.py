@@ -84,6 +84,20 @@ corresponding_2d_profiles = xr.DataArray(
         "substance": (substances := ["CH4", "CO2", "NH3"]),
     },
 )
+single_dim_profile_indexes = xr.DataArray(
+    [0, 1, -1],
+    dims="category",
+    coords={
+        "category": ["test_cat", "test_cat2", "test_cat3"],
+    },
+)
+single_dim_weights = xr.DataArray(
+    [0.5, 0.2, 0.0],
+    dims="category",
+    coords={
+        "category": ["test_cat", "test_cat2", "test_cat3"],
+    },
+)
 
 
 inv = Inventory.from_gdf(

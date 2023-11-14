@@ -102,8 +102,8 @@ def get_emep_shift(country_code_iso3: str) -> int:
     return COUNTRY_TZ_DF.loc[country_code_iso3, "timezone"]
 
 
-def concatenate_profiles(profiles: list[AnyTimeProfile]) -> AnyTimeProfile:
-    """Concatenate the profiles in the list."""
+def concatenate_time_profiles(profiles: list[AnyTimeProfile]) -> AnyTimeProfile:
+    """Concatenate the time profiles in the list."""
     if not isinstance(profiles, list):
         raise TypeError(f"{profiles=} must be a list.")
 
@@ -179,8 +179,8 @@ class TemporalProfile:
 
     # Defie the equality of the profiles
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, TemporalProfile):
-            raise TypeError(f"{other=} must be a {TemporalProfile}.")
+        if not isinstance(other, type(self)):
+            raise TypeError(f"{other=} must be a {type(self)}.")
         if self.n_profiles != other.n_profiles:
             return False
         return (self.ratios == other.ratios).all()
@@ -311,23 +311,32 @@ class CompositeTemporalProfiles:
     Stores a dict for each type of profile,
     """
 
-    _arrays: dict[type[AnyTimeProfile], AnyTimeProfile]
+    _profiles: dict[type[AnyTimeProfile], AnyTimeProfile]
     # Store for each type, the indexes of the profiles
     _indexes: dict[type[AnyTimeProfile], np.ndarray[int]]
 
     def __init__(self, profiles: list[list[AnyTimeProfile]] = []) -> None:
         n = len(profiles)
-        self._arrays = {}
+        self._profiles = {}
         profiles_lists = {}
         self._indexes = {}
         # Get the unique types of profiles
         types = set(type(p) for profiles_list in profiles for p in profiles_list)
         # Allocate arrays
         for profile_type in types:
+            if not issubclass(profile_type, TemporalProfile):
+                raise TypeError(
+                    f"Profiles must be subclass of {TemporalProfile}. Not"
+                    f" {profile_type=}"
+                )
             profiles_lists[profile_type] = []
             self._indexes[profile_type] = np.full(n, fill_value=-1, dtype=int)
         # Construct the list and indexes based on the input
         for i, profiles_list in enumerate(profiles):
+            if not isinstance(profiles_list, list):
+                raise TypeError(
+                    f"{profiles_list=} must be a list of {TemporalProfile}."
+                )
             for profile in profiles_list:
                 if profile.n_profiles != 1:
                     raise ValueError(
@@ -344,7 +353,7 @@ class CompositeTemporalProfiles:
                 list_this_type.append(profile)
         # Convert the lists to arrays
         for profile_type, profiles_list in profiles_lists.items():
-            self._arrays[profile_type] = profile_type(
+            self._profiles[profile_type] = profile_type(
                 ratios=np.concatenate(([p.ratios for p in profiles_list]))
             )
 
@@ -367,7 +376,7 @@ class CompositeTemporalProfiles:
 
     def __getitem__(self, key: int) -> list[AnyTimeProfile]:
         return [
-            self._arrays[p_type][index]
+            self._profiles[p_type][index]
             for p_type, indexes in self._indexes.items()
             if (index := indexes[key]) != -1
         ]
@@ -378,7 +387,98 @@ class CompositeTemporalProfiles:
     @property
     def types(self) -> list[AnyTimeProfile]:
         """Return the types of the profiles."""
-        return list(self._arrays.keys())
+        return list(self._profiles.keys())
+
+    @property
+    def ratios(self) -> np.ndarray:
+        """Return ratios of composite profiles.
+
+        Idea is that we concatenate the ratio of each profile.
+        nan values can be used when a profile is not defined for a given index.
+        """
+        return np.stack(
+            [
+                np.concatenate(
+                    [
+                        self._profiles[pt][index].ratios.reshape(-1)
+                        if (index := self._indexes[pt][i]) != -1
+                        else np.full(pt.size, np.nan).reshape(-1)
+                        for pt in self.types
+                    ]
+                )
+                for i in range(len(self))
+            ],
+            # axis=1,
+        )
+
+    @classmethod
+    def from_ratios(
+        cls, ratios: np.ndarray, types: list[type]
+    ) -> CompositeTemporalProfiles:
+        """Create a composite profile, directly from the ratios."""
+        for t in types:
+            # Check that the type is a subtype of TemporalProfile
+            if not issubclass(t, TemporalProfile):
+                raise TypeError(f"{t=} must be a {TemporalProfile}.")
+        splitters = np.cumsum([0] + [t.size for t in types])
+        logger.debug(f"{splitters=}")
+        # Create the empty profiles
+        profiles = [
+            [
+                t(r)
+                for i, t in enumerate(types)
+                if not np.any(
+                    np.isnan(r := profile_ratios[splitters[i] : splitters[i + 1]])
+                )
+            ]
+            for profile_ratios in ratios
+        ]
+        return cls(profiles)
+
+    def __eq__(self, __value: object) -> bool:
+        if not isinstance(__value, CompositeTemporalProfiles):
+            raise TypeError(f"{__value=} must be a {CompositeTemporalProfiles}.")
+        if len(self) != len(__value):
+            return False
+        return (self.ratios == __value.ratios).all()
+
+    @classmethod
+    def join(cls, *profiles: CompositeTemporalProfiles) -> CompositeTemporalProfiles:
+        """Join multiple composite profiles."""
+        # Get the types of profiles
+        _profiles = {}
+        types = set(sum((p.types for p in profiles), []))
+        profile_lenghts = [len(p) for p in profiles]
+        total_len = sum(profile_lenghts)
+        _indexes = {t: np.full(total_len, fill_value=-1, dtype=int) for t in types}
+        for t in types:
+            _this_type_profiles = [p._profiles[t] for p in profiles if t in p.types]
+            _this_type_n_profiles = [
+                len(p._profiles[t]) if t in p.types else 0 for p in profiles
+            ]
+            _profiles[t] = concatenate_time_profiles(_this_type_profiles)
+
+            # offset in the indexes indexes
+            curr_index = 0
+            # offset in the profile indexes
+            curr_profile = 0
+            for i, n in enumerate(_this_type_n_profiles):
+                if n == 0:
+                    curr_index += profile_lenghts[i]
+                    continue
+                indexes = profiles[i]._indexes[t].copy()
+                mask_invalid = indexes == -1
+                indexes[~mask_invalid] += curr_profile
+                _indexes[t][curr_index : curr_index + len(indexes)] = indexes
+                curr_index += profile_lenghts[i]
+                curr_profile += n
+
+        # Get the indexes
+        obj = cls([])
+        obj._profiles = _profiles
+        obj._indexes = _indexes
+
+        return obj
 
 
 def make_composite_profiles(

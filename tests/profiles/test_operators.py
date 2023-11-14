@@ -1,10 +1,17 @@
 import pytest
-from emiproc.profiles.temporal_profiles import DailyProfile, WeeklyProfile
+
+import xarray as xr
+from emiproc.profiles.temporal_profiles import (
+    CompositeTemporalProfiles,
+    DailyProfile,
+    WeeklyProfile,
+)
 from emiproc.tests_utils.temporal_profiles import (
     read_test_copernicus,
     TEST_COPENICUS_PROFILES,
     get_random_profiles,
     indexes_african_simple,
+    indexes_african_2d,
 )
 from emiproc.profiles.operators import (
     get_weights_of_gdf_profiles,
@@ -40,6 +47,15 @@ def test_weighted_combination_fails_on_different_profiles_types():
 def test_weighted_combination_fails_on_wrong_weights_lenghts():
     pytest.raises(
         ValueError, weighted_combination, [DailyProfile(), DailyProfile()], [0.5]
+    )
+
+
+def test_combine_profiles_single_dimension():
+    new_profiles, new_indices = combine_profiles(
+        profiles=vertical_profiles.get_random_profiles(2),
+        profiles_indexes=vertical_profiles.single_dim_profile_indexes,
+        weights=vertical_profiles.single_dim_weights,
+        dimension="category",
     )
 
 
@@ -80,6 +96,36 @@ def test_get_random_profies_vertical():
     assert len(p) == 5
 
 
+@pytest.mark.parametrize(
+    "profiles, indexes",
+    [
+        (
+            get_random_profiles_vertical(indexes_african_simple.max().values + 1),
+            indexes_african_simple,
+        ),
+        (
+            get_random_profiles(indexes_african_simple.max().values + 1),
+            indexes_african_simple,
+        ),
+        (
+            get_random_profiles_vertical(indexes_african_2d.max().values + 1),
+            indexes_african_2d,
+        ),
+        (
+            get_random_profiles(indexes_african_2d.max().values + 1),
+            indexes_african_2d,
+        ),
+    ],
+)
+def test_countries_to_cells(profiles, indexes):
+    grid = regular_grid_africa
+
+    new_profiles, new_indexes = country_to_cells(profiles, indexes, grid)
+
+    assert "cell" in new_indexes.dims
+    assert "country" not in new_indexes.dims
+
+    assert len(new_profiles) > new_indexes.max().values
 
 
 if __name__ == "__main__":
