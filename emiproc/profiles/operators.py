@@ -195,7 +195,7 @@ def combine_profiles(
         # Make it composite temporal profiles
         profiles = CompositeTemporalProfiles(profiles)
     # Get the ratios to use depending on the profile type
-    if isinstance(profiles, VerticalProfiles | CompositeTemporalProfiles):
+    if isinstance(profiles, (VerticalProfiles, CompositeTemporalProfiles)):
         # Access the profile data (this adds a new dim to the array)
         ratios_to_average = profiles.ratios[profiles_indexes, :]
         # Find the specified dimension of the profiles
