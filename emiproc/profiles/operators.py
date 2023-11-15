@@ -21,6 +21,8 @@ from emiproc.utilities import get_country_mask
 if TYPE_CHECKING:
     from emiproc.grids import Grid
 
+logger = logging.getLogger(__name__)
+
 
 def concatenate_profiles(
     profiles_list: list[
@@ -241,42 +243,6 @@ def combine_profiles(
                 types=profiles.types,
             )
 
-    elif isinstance(profiles, list):
-        if len(profiles_indexes.dims) > 2:
-            raise NotImplementedError(
-                "Currently no implementation for time profiles varying on more than 2"
-                f" dimensions. Got {profiles_indexes.dims=}"
-            )
-        # get the name of the other dimension
-        other_dim = [d for d in profiles_indexes.dims if d != dimension][0]
-
-        # Iterate over the other dimension
-        new_profiles = []
-        new_indexes = []
-
-        coords_of_merging = profiles_indexes.coords[dimension]
-        coords_other_dim = profiles_indexes.coords[other_dim]
-        for i, coord_other in enumerate(coords_other_dim):
-            profiles_to_merge = []
-            weights_to_merge = []
-            for coord_of_merging in coords_of_merging:
-                # Get the profiles of this category
-                sel_dict = {other_dim: coord_other, dimension: coord_of_merging}
-                profile_index = profiles_indexes.sel(**sel_dict).to_numpy()
-                # Add the weights and profile we will merge
-                profiles_to_merge.append(profiles[profile_index])
-                weights_to_merge.append(weights.sel(**sel_dict).data)
-
-            # Perform the combination
-            new_profiles.append(
-                weighted_combination_time(profiles_to_merge, weights_to_merge)
-            )
-            new_indexes.append(i)
-
-        new_indexes = xr.DataArray(
-            new_indexes, coords=[coords_other_dim], dims=[other_dim]
-        )
-
     else:
         raise TypeError(
             f"Unknown profile type {type(profiles)}, must be VerticalProfiles or list"
@@ -474,6 +440,21 @@ def country_to_cells(
             f"Expected {profiles_indexes=} to not have a cell dimension, got"
             f" {profiles_indexes.dims}"
         )
+    if isinstance(profiles, list):
+        # Make it composite temporal profiles
+        profiles = CompositeTemporalProfiles(profiles)
+
+    # Check that the set makes sense
+    if not np.all(profiles_indexes >= -1):
+        raise ValueError(
+            f"Expected {profiles_indexes=} to have all values >= -1, got"
+            f" {profiles_indexes.min()}"
+        )
+    if not np.all(profiles_indexes < len(profiles)):
+        raise ValueError(
+            f"Expected {profiles_indexes=} to have all values <= {len(profiles)}, got"
+            f" {profiles_indexes.max()}"
+        )
 
     # These will be the weights of the profiles
     countries_fractions: xr.DataArray = get_country_mask(
@@ -491,10 +472,6 @@ def country_to_cells(
             f"Missing countries {missing_countries=} in {profiles_indexes=}"
         )
 
-    if isinstance(profiles, list):
-        # Make it composite temporal profiles
-        profiles = CompositeTemporalProfiles(profiles)
-
     current_profile_index = len(profiles)
     new_indexes = []
     new_profiles = []
@@ -505,7 +482,7 @@ def country_to_cells(
         # Get the indexes of the countries that are in this cell
         cell_fractions = countries_fractions.sel(cell=cell)
         # Get the indexes of the countries that are in this cell (non zero fracs)
-        mask_non_zero = cell_fractions != 0
+        mask_non_zero = cell_fractions > 0
         cell_countries = cell_fractions.coords["country"].loc[mask_non_zero]
         if len(cell_countries) == 0:
             # No countries in this cell
@@ -517,9 +494,14 @@ def country_to_cells(
                 .squeeze("country")
                 .expand_dims({"cell": [cell]})
                 .drop_vars("country")
+                .copy()
             )
             continue
         # Combine the profiles according to the weights
+        logger.debug(
+            f"Combining {profiles_indexes.sel(country=cell_countries)=} on country"
+            f" with {cell_fractions.sel(country=cell_countries)=}"
+        )
         merged_profiles, merged_indexes = combine_profiles(
             profiles=profiles,
             profiles_indexes=profiles_indexes.sel(country=cell_countries).drop_vars(
@@ -527,6 +509,10 @@ def country_to_cells(
             ),
             dimension="country",
             weights=cell_fractions.sel(country=cell_countries).drop_vars(["cell"]),
+        )
+        assert len(merged_profiles) == merged_indexes.max() + 1, (
+            f"Expected {len(merged_profiles)=} to be equal to"
+            f" {merged_indexes.max() + 1=}"
         )
         merged_indexes += current_profile_index
         current_profile_index += len(merged_profiles)

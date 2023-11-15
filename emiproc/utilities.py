@@ -13,6 +13,7 @@ from io import BytesIO
 import urllib
 from urllib.request import urlopen
 from zipfile import ZipFile
+from functools import cache
 
 import numpy as np
 import geopandas as gpd
@@ -236,6 +237,7 @@ def get_timezone_mask(output_grid: Grid, **kwargs) -> np.ndarray:
     return timezones.reshape((output_grid.nx, output_grid.ny))
 
 
+@cache
 def get_natural_earth(
     resolution: str = "10m",
     category: str = "physical",
@@ -246,6 +248,8 @@ def get_natural_earth(
     For more information about the natural earth data, see
     `the natural earth website <https://www.naturalearthdata.com/>`_.
 
+    As this function reads a large dataset, it caches it in case of many uses
+    (ex: testing).
 
     :arg resolution: The resolution for the used shapefile.
         Available resolutions are: '10m', '50m', '110m'

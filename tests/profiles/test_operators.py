@@ -117,14 +117,32 @@ def test_get_random_profies_vertical():
         ),
     ],
 )
-def test_countries_to_cells(profiles, indexes):
+def test_countries_to_cells(profiles, indexes: xr.DataArray):
     grid = regular_grid_africa
 
+    print(profiles, indexes)
     new_profiles, new_indexes = country_to_cells(profiles, indexes, grid)
 
     assert "cell" in new_indexes.dims
     assert "country" not in new_indexes.dims
 
+    # test for some cells that we now what it should be
+    # Full in MRT, profiles should be the same as the original
+    xr.testing.assert_equal(
+        new_indexes.sel(cell=78).drop_vars("cell"),
+        indexes.sel(country="MRT").drop_vars("country"),
+    )
+    # THis is shared between SEN and ocean, so only in SEN for the profile
+    xr.testing.assert_equal(
+        new_indexes.sel(cell=26).drop_vars("cell"),
+        indexes.sel(country="SEN").drop_vars("country"),
+    )
+    # assert da.sel(cell=26, country="SEN").values > 0.01
+    # assert da.sel(cell=26, country="SEN").values < 0.5
+    # assert total_fractions.sel(cell=26).values < 0.5
+    # This is just ocean
+    assert 0 not in new_indexes.coords["cell"].values
+    print("new profiles", len(new_profiles), "indexes", new_indexes)
     assert len(new_profiles) > new_indexes.max().values
 
 

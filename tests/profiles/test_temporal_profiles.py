@@ -55,16 +55,41 @@ def test_multiple_profiles():
     assert len(p) == 3
 
 
-def test_composite_temporal_profiles():
-    p = CompositeTemporalProfiles(
-        [
-            [TemporalProfile(), DailyProfile()],
-            [WeeklyProfile()],
-        ]
-    )
-    assert p.n_profiles == 2
-    assert len(p[0]) == 2
-    assert len(p[1]) == 1
+@pytest.mark.parametrize(
+    "profiles_list_list",
+    [
+        (
+            [
+                [TemporalProfile(), DailyProfile()],
+                [WeeklyProfile()],
+            ]
+        ),
+        (
+            [
+                [],
+                [WeeklyProfile()],
+            ]
+        ),
+        (
+            [
+                [],
+                [],
+            ]
+        ),
+        (
+            [
+                [],
+            ]
+        ),
+    ],
+)
+def test_composite_temporal_profiles(profiles_list_list):
+    p = CompositeTemporalProfiles(profiles_list_list)
+    assert p.n_profiles == len(profiles_list_list)
+    for key, expected in enumerate(profiles_list_list):
+        assert len(p[key]) == len(expected)
+        for profile, expected_profile in zip(sorted(p[key]), sorted(expected)):
+            assert profile == expected_profile
 
 
 def test_composite_error_wrong_type():
@@ -115,6 +140,51 @@ def test_composite_ratios():
             assert o == n
 
 
+@pytest.mark.parametrize(
+    "ratios, types, expected",
+    [
+        (
+            np.concatenate(
+                [
+                    (np.ones((2, 7)) / 7.0),
+                    (np.ones((2, 24)) / 24.0),
+                ],
+                axis=1,
+            ),
+            [WeeklyProfile, DailyProfile],
+            {
+                0: [WeeklyProfile(), DailyProfile()],
+                1: [WeeklyProfile(), DailyProfile()],
+            },
+        ),
+        (
+            np.full((2, 7 + 24), np.nan),
+            [WeeklyProfile, DailyProfile],
+            {0: [], 1: []},
+        ),
+        (
+            np.full((1, 7 + 24), np.nan),
+            [WeeklyProfile, DailyProfile],
+            {0: []},
+        ),
+    ],
+)
+def test_composite_profiles_from_ratios(
+    ratios: np.ndarray,
+    types: list[TemporalProfile],
+    expected: dict[int, list[TemporalProfile]],
+):
+    profiles = CompositeTemporalProfiles.from_ratios(ratios, types)
+
+    assert profiles.n_profiles == len(expected)
+    for index, expected_profiles in expected.items():
+        assert len(profiles[index]) == len(expected_profiles)
+        for profile, expected_profile in zip(
+            sorted(profiles[index]), sorted(expected_profiles)
+        ):
+            assert profile == expected_profile
+
+
 def test_internals():
     # This test should not need to exist and could be invalid if someone changes the internal mechanics
 
@@ -134,32 +204,65 @@ def test_internals():
     assert len(p._profiles[DailyProfile]) == 1
 
 
-def test_join_composites():
-    joined = CompositeTemporalProfiles.join(
-        CompositeTemporalProfiles(
+@pytest.mark.parametrize(
+    "profiles, expected",
+    [
+        (
             [
-                [WeeklyProfile(), DailyProfile()],
-                [WeeklyProfile()],
-            ]
+                CompositeTemporalProfiles(
+                    [
+                        [WeeklyProfile(), DailyProfile()],
+                        [WeeklyProfile()],
+                    ]
+                ),
+                CompositeTemporalProfiles(
+                    [
+                        [WeeklyProfile(), DailyProfile()],
+                        [WeeklyProfile()],
+                    ]
+                ),
+                CompositeTemporalProfiles(
+                    [
+                        [WeeklyProfile()],
+                    ]
+                ),
+            ],
+            {
+                0: [WeeklyProfile(), DailyProfile()],
+                1: [WeeklyProfile()],
+                2: [WeeklyProfile(), DailyProfile()],
+                3: [WeeklyProfile()],
+                4: [WeeklyProfile()],
+            },
         ),
-        CompositeTemporalProfiles(
+        (
             [
-                [WeeklyProfile(), DailyProfile()],
-                [WeeklyProfile()],
-            ]
+                CompositeTemporalProfiles(
+                    [
+                        [],
+                        [],
+                    ]
+                ),
+                CompositeTemporalProfiles(
+                    [
+                        [],
+                        [],
+                    ]
+                ),
+            ],
+            {0: [], 1: [], 2: [], 3: []},
         ),
-        CompositeTemporalProfiles(
-            [
-                [WeeklyProfile()],
-            ]
-        ),
-    )
-    assert joined.n_profiles == 5
-    assert len(joined[0]) == 2
-    assert len(joined[1]) == 1
-    assert len(joined[2]) == 2
-    assert len(joined[3]) == 1
-    assert len(joined[4]) == 1
+    ],
+)
+def test_join_composites(profiles, expected):
+    joined = CompositeTemporalProfiles.join(*profiles)
+
+    for key, expected_profiles in expected.items():
+        assert len(joined[key]) == len(expected_profiles)
+        for profile, expected_profile in zip(
+            sorted(joined[key]), sorted(expected_profiles)
+        ):
+            assert profile == expected_profile
 
 
 def test_equality():

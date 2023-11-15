@@ -185,6 +185,13 @@ class TemporalProfile:
             return False
         return (self.ratios == other.ratios).all()
 
+    # Defined greater smaller by the size attribute
+    def __lt__(self, other: AnyTimeProfile) -> bool:
+        # All subclasses can be compared
+        if not isinstance(other, TemporalProfile):
+            raise TypeError(f"{other=} must be a {TemporalProfile}.")
+        return self.size < other.size
+
 
 @dataclass(eq=False)
 class DailyProfile(TemporalProfile):
@@ -313,7 +320,7 @@ class CompositeTemporalProfiles:
 
     _profiles: dict[type[AnyTimeProfile], AnyTimeProfile]
     # Store for each type, the indexes of the profiles
-    _indexes: dict[type[AnyTimeProfile], np.ndarray[int]]
+    _indexes: dict[type[AnyTimeProfile] | None, np.ndarray[int]]
 
     def __init__(self, profiles: list[list[AnyTimeProfile]] = []) -> None:
         n = len(profiles)
@@ -322,6 +329,13 @@ class CompositeTemporalProfiles:
         self._indexes = {}
         # Get the unique types of profiles
         types = set(type(p) for profiles_list in profiles for p in profiles_list)
+
+        if len(types) == 0:
+            # Empty profiles
+            # only empty lists given
+            self._indexes[None] = np.full(n, fill_value=-1, dtype=int)
+            return
+
         # Allocate arrays
         for profile_type in types:
             if not issubclass(profile_type, TemporalProfile):
@@ -378,7 +392,7 @@ class CompositeTemporalProfiles:
         return [
             self._profiles[p_type][index]
             for p_type, indexes in self._indexes.items()
-            if (index := indexes[key]) != -1
+            if p_type is not None and (index := indexes[key]) != -1
         ]
 
     def __setitem__(self, key: int, value: list[AnyTimeProfile]) -> None:
