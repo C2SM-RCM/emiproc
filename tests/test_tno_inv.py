@@ -4,7 +4,6 @@ from emiproc.inventories.tno import TNO_Inventory
 from emiproc.inventories.utils import group_categories
 from emiproc.profiles.vertical_profiles import check_valid_vertical_profile
 from pathlib import Path
-import matplotlib.pyplot as plt
 import pytest
 
 # TODO change the pth of that if you want to test it
@@ -41,10 +40,6 @@ def test_loading_and_grouping():
     assert sum([len(gdf) for gdf in inv_tno.gdfs.values()]) == len(
         groupped_tno.gdfs["all"]
     )
-    # plot the vertical profiles from the groupped inventory
-    # fig, ax = plt.subplots()
-    # for r in groupped_tno.v_profiles.ratios:
-    #    ax.plot(groupped_tno.v_profiles.height, r)
 
 
 if __name__ == "__main__":
