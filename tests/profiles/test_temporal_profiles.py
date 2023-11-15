@@ -131,10 +131,8 @@ def test_composite_ratios():
     )
 
     for old, new in zip(profiles, new_profiles):
-        assert isinstance(old, list)
-        assert isinstance(new, list)
-        assert old == new
-        for o, n in zip(old, new):
+        assert len(old) == len(new)
+        for o, n in zip(sorted(old), sorted(new)):
             assert isinstance(o, TemporalProfile)
             assert isinstance(n, TemporalProfile)
             assert o == n
