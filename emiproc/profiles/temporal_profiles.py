@@ -15,6 +15,7 @@ import xarray as xr
 import emiproc
 
 from emiproc.profiles.utils import (
+    get_objects_of_same_type_from_list,
     get_profiles_indexes,
     merge_indexes,
     read_profile_csv,
@@ -58,6 +59,35 @@ class SpecificDay(Enum):
 
     # One of the 2 last days
     WEEKEND = auto()
+
+    @classmethod
+    def from_day_number(cls, day_number: int) -> SpecificDay:
+        """Return the day corresponding to the day number.
+
+        Day start at 0 for Monday and ends at 6 for Sunday.
+        """
+        if not isinstance(day_number, int):
+            raise TypeError(f"{day_number=} must be an int.")
+
+        dict_day = {
+            0: cls.MONDAY,
+            1: cls.TUESDAY,
+            2: cls.WEDNESDAY,
+            3: cls.THURSDAY,
+            4: cls.FRIDAY,
+            5: cls.SATURDAY,
+            6: cls.SUNDAY,
+        }
+
+        if day_number not in dict_day:
+            raise ValueError(f"{day_number=} is not a valid day number.")
+
+        return dict_day[day_number]
+
+
+def days_of_specific_day(specific_day: SpecificDay) -> list[SpecificDay]:
+    int_days = get_days_as_ints(specific_day)
+    return [SpecificDay.from_day_number(i) for i in int_days]
 
 
 def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
@@ -551,6 +581,70 @@ def make_composite_profiles(
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
 
 
+def ensure_specific_days_consistency(
+    profiles: list[AnyTimeProfile],
+) -> list[AnyTimeProfile]:
+    """Make sure that there is not confilct between specific days profiles and normal daily profiles.
+
+    In case there is any conflict, this return a profile for each day of the week.
+    """
+
+    if not any(isinstance(p, SpecificDayProfile) for p in profiles):
+        return profiles
+
+    # Get the specific days profiles
+
+    daily_profiles = [p for p in profiles if isinstance(p, DailyProfile)]
+    non_daily_profiles = [p for p in profiles if not isinstance(p, DailyProfile)]
+
+    weekdays_profiles = {
+        SpecificDay.MONDAY: None,
+        SpecificDay.TUESDAY: None,
+        SpecificDay.WEDNESDAY: None,
+        SpecificDay.THURSDAY: None,
+        SpecificDay.FRIDAY: None,
+        SpecificDay.SATURDAY: None,
+        SpecificDay.SUNDAY: None,
+    }
+    # First assign what we have sepcific
+    for p in daily_profiles:
+        if isinstance(p, SpecificDayProfile):
+            days = days_of_specific_day(p.specific_day)
+            if len(days) == 1:
+                # This day was concerned specifically
+                weekdays_profiles[p.specific_day] = p
+            else:
+                # This was a weekend or weekday profile
+                for day in days:
+                    # Only override if not already defined
+                    if weekdays_profiles[day] is None:
+                        weekdays_profiles[day] = SpecificDayProfile(
+                            specific_day=day, ratios=p.ratios
+                        )
+
+    general_daily_profiles = [p for p in daily_profiles if type(p) == DailyProfile]
+
+    # Add a constant profile for missing day
+    for day, profile in weekdays_profiles.items():
+        if profile is not None:
+            continue
+        if len(general_daily_profiles) == 0:
+            p = SpecificDayProfile(specific_day=day)
+
+        elif len(general_daily_profiles) == 1:
+            p = SpecificDayProfile(
+                specific_day=day, ratios=general_daily_profiles[0].ratios
+            )
+        else:
+            raise ValueError(
+                f"Cannot assign {general_daily_profiles=} to {day=}, more than one"
+                f" general {type(DailyProfile)} was given."
+            )
+        weekdays_profiles[day] = p
+
+    return non_daily_profiles + list(weekdays_profiles.values())
+
+
 def create_scaling_factors_time_serie(
     start_time: datetime,
     end_time: datetime,
@@ -583,6 +677,9 @@ def create_scaling_factors_time_serie(
 
     # Create the scaling factors
     scaling_factors = np.ones(len(time_serie))
+
+    # Correct profiles list with specific day profiles
+    profiles = ensure_specific_days_consistency(profiles)
 
     # Apply the profiles
     for profile in profiles:
@@ -622,7 +719,19 @@ def profile_to_scaling_factors(
     scaling_factors = np.ones(len(time_serie))
 
     # Get the profile
-    if isinstance(profile, DailyProfile):
+    if isinstance(profile, SpecificDayProfile):
+        # Find the days corresponding to this factor
+        days_allowed = get_days_as_ints(profile.specific_day)
+        if len(days_allowed) != 1:
+            raise ValueError(
+                f"Cannot apply {profile=} to a time serie, it must have only one day."
+                "convert the time profiles with `ensure_specific_days_consistency`."
+            )
+        mask_matching_day = np.isin(time_serie.day_of_week, days_allowed)
+        for hour, factor in enumerate(factors):
+            # Other days will not have a scaling factor
+            scaling_factors[(time_serie.hour == hour) & mask_matching_day] *= factor
+    elif isinstance(profile, DailyProfile):
         # Get the mask for each hour of day and apply the scaling factor
         for hour, factor in enumerate(factors):
             scaling_factors[time_serie.hour == hour] *= factor
@@ -657,13 +766,6 @@ def profile_to_scaling_factors(
                 # Months start with 1
                 month += 1
                 scaling_factors[time_serie.month == month] *= factor
-    elif isinstance(profile, SpecificDayProfile):
-        # Find the days corresponding to this factor
-        days_allowed = get_days_as_ints(profile.specific_day)
-        mask_matching_day = np.isin(time_serie.day_of_week, days_allowed)
-        for hour, factor in enumerate(factors):
-            # Other days will not have a scaling factor
-            scaling_factors[(time_serie.hour == hour) & mask_matching_day] *= factor
     else:
         raise NotImplementedError(
             f"Cannot apply {profile=}, {type(profile)=} is not implemented."

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from os import PathLike
 from pathlib import Path
-from typing import Any, Type
+from typing import TYPE_CHECKING, Any, Type
 
 import pandas as pd
 import xarray as xr
@@ -11,6 +11,10 @@ import numpy as np
 
 import emiproc
 from emiproc.profiles import naming
+
+if TYPE_CHECKING:
+    from emiproc.profiles.vertical_profiles import VerticalProfiles
+    from emiproc.profiles.temporal_profiles import CompositeTemporalProfiles
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +42,44 @@ def remove_objects_of_type_from_list(object: Any, objects_list: list[Any]) -> li
 
 
 def get_objects_of_same_type_from_list(
-    object: Any, objects_list: list[Any]
+    object: Any, objects_list: list[Any], exact_type: bool = False
 ) -> list[Any]:
     """Return the object of the same type from the list."""
+    func = isinstance if exact_type else lambda x, y: type(x) == y
     return [o for o in objects_list if isinstance(object, type(o))]
+
+
+def check_valid_indexes(
+    indexes: xr.DataArray, profiles: VerticalProfiles | CompositeTemporalProfiles = None
+) -> None:
+    """Check that the given indexes are valid.
+
+    :raises ValueError: if the indexes are not valid
+    """
+
+    # check all the dims names are valid
+    dims_not_allowed = set(indexes.dims) - set(naming.type_of_dim.keys())
+    if len(dims_not_allowed) > 0:
+        raise ValueError(
+            f"Indexes are not allowed to contain {dims_not_allowed=}, "
+            f"allowed dims are {naming.type_of_dim.keys()}"
+        )
+    # Make sure no coords has duplicated values
+    for coord in indexes.coords:
+        if len(indexes.coords[coord]) != len(np.unique(indexes.coords[coord])):
+            raise ValueError(
+                f"Indexes are not valid, they contain duplicated values for {coord=}:"
+                f" {indexes.coords[coord]}"
+            )
+
+    if profiles is not None:
+        # Check that the max value of the index is given in the profiles
+        if indexes.max().values >= len(profiles):
+            raise ValueError(
+                "Indexes are not valid, they contain values that are not in the"
+                f" profiles.Got {indexes.max().values=} but profiles has"
+                f" {len(profiles)=}"
+            )
 
 
 def get_desired_profile_index(
