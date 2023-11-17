@@ -1,3 +1,4 @@
+import random
 import emiproc
 from emiproc.profiles.temporal_profiles import (
     AnyTimeProfile,
@@ -8,7 +9,8 @@ from emiproc.profiles.temporal_profiles import (
     from_csv,
     read_temporal_profiles,
 )
-
+import xarray as xr
+import numpy as np
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
 
@@ -22,6 +24,18 @@ def read_test_copernicus() -> dict[str, list[AnyTimeProfile]]:
         p: from_csv(copernicus_profiles_dir / f"timeprofiles-{p}.csv")
         for p in TEST_COPENICUS_PROFILES
     }
+
+
+def get_random_profiles(num: int) -> list[list[AnyTimeProfile]]:
+    """Get random profiles for testing."""
+    return [
+        [
+            type(ratios=((ratios := np.random.rand(type.size)) / ratios.sum()))
+            for type in [DailyProfile, WeeklyProfile, MounthsProfile]
+            if random.choice([True, False])
+        ]
+        for _ in range(num)
+    ]
 
 
 three_profiles = [
@@ -115,3 +129,21 @@ oem_test_profile = [
     mounths_test_profile,
     daily_test_profile,
 ]
+
+# For the african test set
+african_countries_test_set = ["SEN", "MLI", "MRT", "GIN", "GNB", "LBR", "SLE", "GMB"]
+indexes_african_simple = xr.DataArray(
+    data=np.arange(len(african_countries_test_set)),
+    dims=["country"],
+    coords={"country": african_countries_test_set},
+)
+indexes_african_2d = xr.DataArray(
+    data=np.arange(len(african_countries_test_set) * 3).reshape(
+        (len(african_countries_test_set), 3)
+    ),
+    dims=["country", "category"],
+    coords={
+        "country": african_countries_test_set,
+        "category": ["liku", "blek", "test"],
+    },
+)

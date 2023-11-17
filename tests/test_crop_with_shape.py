@@ -113,7 +113,7 @@ def test_different_points_and_polygons_in_gdfs():
         gdfs={
             "adf": gpd.GeoDataFrame(
                 {
-                    "CO2": [1, 1, 1, 1, 1, 1, 1],
+                    "CO2": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
                 },
                 geometry=[
                     # corner point
