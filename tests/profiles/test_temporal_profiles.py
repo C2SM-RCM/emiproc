@@ -92,6 +92,22 @@ def test_composite_temporal_profiles(profiles_list_list):
             assert profile == expected_profile
 
 
+def test_composite_copy():
+    p = CompositeTemporalProfiles(
+        [
+            [TemporalProfile(), DailyProfile()],
+            [],
+            [WeeklyProfile()],
+        ]
+    )
+    p2 = p.copy()
+    assert p2.n_profiles == p.n_profiles
+    for key, expected in enumerate(p):
+        assert len(p2[key]) == len(expected)
+        for profile, expected_profile in zip(sorted(p2[key]), sorted(expected)):
+            assert profile == expected_profile
+
+
 def test_composite_error_wrong_type():
     with pytest.raises(TypeError):
         CompositeTemporalProfiles(

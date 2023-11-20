@@ -524,6 +524,10 @@ class CompositeTemporalProfiles:
 
         return obj
 
+    def copy(self) -> CompositeTemporalProfiles:
+        """Return a copy of the object."""
+        return CompositeTemporalProfiles.join(self)
+
 
 def make_composite_profiles(
     profiles: AnyProfiles,
