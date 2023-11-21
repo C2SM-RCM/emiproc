@@ -1,6 +1,6 @@
 """Temporal profiles."""
 from __future__ import annotations
-import yaml
+
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -12,18 +12,16 @@ from typing import Any, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
-import emiproc
+import yaml
 
+import emiproc
 from emiproc.profiles.utils import (
-    get_objects_of_same_type_from_list,
     get_profiles_indexes,
+    load_country_tz,
     merge_indexes,
+    ratios_to_factors,
     read_profile_csv,
     read_profile_file,
-    remove_objects_of_type_from_list,
-    type_in_list,
-    ratios_to_factors,
-    load_country_tz,
 )
 
 logger = logging.getLogger(__name__)
@@ -534,6 +532,31 @@ class CompositeTemporalProfiles:
 
     def __radd__(self, other: CompositeTemporalProfiles) -> CompositeTemporalProfiles:
         return self.join(other, self)
+
+    def append(self, profiles_list: list[AnyTimeProfile]) -> None:
+        """Append a profile list to this."""
+        new_len = len(self) + 1
+        original_types = self.types
+        # expend all the indexes list
+        for t in self._indexes.keys():
+            self._indexes[t] = np.concatenate(
+                (
+                    self._indexes[t],
+                    np.array([-1], dtype=int),
+                )
+            )
+
+        for p in profiles_list:
+            t = type(p)
+            if t not in original_types:
+                self._profiles[t] = t(ratios=p.ratios)
+                self._indexes[t] = np.full(new_len, fill_value=-1, dtype=int)
+                self._indexes[t][-1] = 0
+            else:
+                self._indexes[t][-1] = len(self._profiles[t])
+                self._profiles[t].ratios = np.concatenate(
+                    (self._profiles[t].ratios, p.ratios)
+                )
 
 
 def make_composite_profiles(
