@@ -1,6 +1,6 @@
 """Temporal profiles."""
 from __future__ import annotations
-import yaml
+
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -12,18 +12,16 @@ from typing import Any, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
-import emiproc
+import yaml
 
+import emiproc
 from emiproc.profiles.utils import (
-    get_objects_of_same_type_from_list,
     get_profiles_indexes,
+    load_country_tz,
     merge_indexes,
+    ratios_to_factors,
     read_profile_csv,
     read_profile_file,
-    remove_objects_of_type_from_list,
-    type_in_list,
-    ratios_to_factors,
-    load_country_tz,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +81,12 @@ class SpecificDay(Enum):
             raise ValueError(f"{day_number=} is not a valid day number.")
 
         return dict_day[day_number]
+
+    def __lt__(self, other: SpecificDay) -> bool:
+        """Compare the days by the order of the week."""
+        if not isinstance(other, SpecificDay):
+            raise TypeError(f"{other=} must be a {SpecificDay}.")
+        return self.value < other.value
 
 
 def days_of_specific_day(specific_day: SpecificDay) -> list[SpecificDay]:
@@ -240,6 +244,31 @@ class SpecificDayProfile(DailyProfile):
 
     specific_day: SpecificDay | None = None
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        if self.specific_day is None:
+            raise ValueError(f"{self.specific_day=} must be defined.")
+
+    def __getitem__(self, key: int) -> SpecificDayProfile:
+        """Return the profile at the given index."""
+        return SpecificDayProfile(self.ratios[key], specific_day=self.specific_day)
+
+    # Defie the equality of the profiles
+    def __eq__(self, other: Any) -> bool:
+        super_result = super().__eq__(other)
+        if isinstance(other, SpecificDayProfile):
+            return super_result and (self.specific_day == other.specific_day)
+        else:
+            return super_result
+
+    # Defined greater smaller by the size attribute
+    def __lt__(self, other: AnyTimeProfile) -> bool:
+        # sort by the specific day
+        if isinstance(other, SpecificDayProfile):
+            return self.specific_day < other.specific_day
+        return super().__lt__(other)
+
 
 @dataclass(eq=False)
 class WeeklyProfile(TemporalProfile):
@@ -348,9 +377,15 @@ class CompositeTemporalProfiles:
     Stores a dict for each type of profile,
     """
 
-    _profiles: dict[type[AnyTimeProfile], AnyTimeProfile]
+    _profiles: dict[
+        type[AnyTimeProfile] | tuple[type[SpecificDayProfile], SpecificDay],
+        AnyTimeProfile,
+    ]
     # Store for each type, the indexes of the profiles
-    _indexes: dict[type[AnyTimeProfile] | None, np.ndarray[int]]
+    _indexes: dict[
+        type[AnyTimeProfile] | tuple[type[SpecificDayProfile], SpecificDay] | None,
+        np.ndarray[int],
+    ]
 
     def __init__(self, profiles: list[list[AnyTimeProfile]] = []) -> None:
         n = len(profiles)
@@ -358,7 +393,11 @@ class CompositeTemporalProfiles:
         profiles_lists = {}
         self._indexes = {}
         # Get the unique types of profiles
-        types = set(type(p) for profiles_list in profiles for p in profiles_list)
+        types = set(
+            t if (t := type(p)) != SpecificDayProfile else (t, p.specific_day)
+            for profiles_list in profiles
+            for p in profiles_list
+        )
 
         if len(types) == 0:
             # Empty profiles
@@ -368,7 +407,9 @@ class CompositeTemporalProfiles:
 
         # Allocate arrays
         for profile_type in types:
-            if not issubclass(profile_type, TemporalProfile):
+            if not isinstance(profile_type, tuple) and not issubclass(
+                profile_type, TemporalProfile
+            ):
                 raise TypeError(
                     f"Profiles must be subclass of {TemporalProfile}. Not"
                     f" {profile_type=}"
@@ -388,6 +429,8 @@ class CompositeTemporalProfiles:
                         f" {profile.n_profiles=}, got {profile=}."
                     )
                 p_type = type(profile)
+                if p_type == SpecificDayProfile:
+                    p_type = (p_type, profile.specific_day)
                 list_this_type = profiles_lists[p_type]
                 if self._indexes[p_type][i] != -1:
                     raise ValueError(
@@ -397,9 +440,15 @@ class CompositeTemporalProfiles:
                 list_this_type.append(profile)
         # Convert the lists to arrays
         for profile_type, profiles_list in profiles_lists.items():
-            self._profiles[profile_type] = profile_type(
-                ratios=np.concatenate(([p.ratios for p in profiles_list]))
-            )
+            ratios = np.concatenate([p.ratios for p in profiles_list])
+            if isinstance(profile_type, tuple):
+                profile = profile_type[0](
+                    ratios=ratios,
+                    specific_day=profile_type[1],
+                )
+            else:
+                profile = profile_type(ratios=ratios)
+            self._profiles[profile_type] = profile
 
     def __len__(self) -> int:
         indexes_len = [len(indexes) for indexes in self._indexes.values()]
@@ -523,6 +572,47 @@ class CompositeTemporalProfiles:
         obj._indexes = _indexes
 
         return obj
+
+    def copy(self) -> CompositeTemporalProfiles:
+        """Return a copy of the object."""
+        return CompositeTemporalProfiles.join(self)
+
+    # define the addition to be the same as if this was a list
+    def __add__(self, other: CompositeTemporalProfiles) -> CompositeTemporalProfiles:
+        return self.join(self, other)
+
+    def __radd__(self, other: CompositeTemporalProfiles) -> CompositeTemporalProfiles:
+        return self.join(other, self)
+
+    def append(self, profiles_list: list[AnyTimeProfile]) -> None:
+        """Append a profile list to this."""
+        new_len = len(self) + 1
+        original_types = self.types
+        # expend all the indexes list
+        for t in self._indexes.keys():
+            self._indexes[t] = np.concatenate(
+                (
+                    self._indexes[t],
+                    np.array([-1], dtype=int),
+                )
+            )
+
+        for p in profiles_list:
+            t = type(p)
+            if t == SpecificDayProfile:
+                t = (SpecificDayProfile, p.specific_day)
+            if t not in self._indexes.keys():
+                if isinstance(t, tuple):
+                    self._profiles[t] = t[0](ratios=p.ratios, specific_day=t[1])
+                else:
+                    self._profiles[t] = t(ratios=p.ratios)
+                self._indexes[t] = np.full(new_len, fill_value=-1, dtype=int)
+                self._indexes[t][-1] = 0
+            else:
+                self._indexes[t][-1] = len(self._profiles[t])
+                self._profiles[t].ratios = np.concatenate(
+                    (self._profiles[t].ratios, p.ratios)
+                )
 
 
 def make_composite_profiles(
@@ -925,7 +1015,12 @@ def read_temporal_profiles(
                         f" sum:{np.sum(ratios, axis=0)} \n Try to set {rtol=} to a"
                         " higher value if this is due to rounding erros."
                     )
-                profiles = profile_type(ratios.T)
+                if isinstance(profile_type, tuple):
+                    profiles = profile_type[0](
+                        ratios=ratios.T, specific_day=profile_type[1]
+                    )
+                else:
+                    profiles = profile_type(ratios.T)
             except Exception as e:
                 raise ValueError(
                     f"Cannot create profile {profile_type=} from {file=} with {ratios=}"
