@@ -1,4 +1,5 @@
 """File containing the TNO inventory functions."""
+import logging
 from os import PathLike
 from pathlib import Path
 
@@ -12,49 +13,11 @@ from emiproc.grids import WGS84, TNOGrid
 from emiproc.inventories import Inventory, Substance
 from emiproc.profiles.operators import group_profiles_indexes
 from emiproc.profiles.temporal_profiles import read_temporal_profiles
-from emiproc.profiles.vertical_profiles import (
-    VerticalProfiles,
-    check_valid_vertical_profile,
-)
+from emiproc.profiles.vertical_profiles import read_vertical_profiles
+from emiproc.profiles import naming
+from emiproc.inventories.utils import group_substances
 
-
-def read_vertical_profiles(file: PathLike) -> tuple[VerticalProfiles, list[str]]:
-    """Read tno vertical profiles.
-
-    Vertical profiles only depend on the category.
-
-    :return: A tuple containing the vertical profiles and a list of the
-        categories that matches each profiles.
-    """
-
-    # These are the names in the sectors column of tno
-    # seems that these should be changed with new versions
-    sectors_column = "TNO GNFR sectors Sept 2018"
-    alternative_name_for_sectors_column = "GNFR_Category"
-
-    df_vertical = pd.read_csv(
-        file,
-        header=17,
-        sep="\t",
-    )
-    boundarys = df_vertical.columns[3:]
-    starts = []
-    ends = []
-    for boundary_str in boundarys:
-        a, b = boundary_str.split("-")
-        starts.append(int(a))
-        ends.append(int(b.replace("m", "")))
-    tops = np.array(ends)
-    bots = np.array(starts)
-
-    # Store the profiles in the object and check the validity
-    profiles = VerticalProfiles(df_vertical[boundarys].to_numpy(), tops)
-    check_valid_vertical_profile(profiles)
-
-    # Categories are the sectors
-    categories = df_vertical[sectors_column].to_list()
-
-    return profiles, categories
+logger = logging.getLogger(__name__)
 
 
 class TNO_Inventory(Inventory):
@@ -66,6 +29,20 @@ class TNO_Inventory(Inventory):
     https://topas.tno.nl/emissions/
 
 
+    All the information of the inventory is stored in a netcdf file.
+
+    Each substance is a separate variable in the netcdf file.
+    This class will read the `long_name` attribute of each variable to
+    determine the substance variables. The `long_name` attribute should
+    start with `emission of `.
+    You can then merge the substances from the file to a new set of
+    substances using the `substances_mapping` argument.
+    A default mapping which should work for general cases is provided.
+
+    In the profile files, if you specifiy the substances, you will have to
+    use the names created by the mapping, not the names in the nc file.
+
+
     :attr tno_ds: The xarray dataset with the TNO emission data.
     """
 
@@ -75,7 +52,6 @@ class TNO_Inventory(Inventory):
     def __init__(
         self,
         nc_file: PathLike,
-        substances: list[Substance] = ["CO2", "CO", "NOx", "CH4", "VOC"],
         substances_mapping: dict[str, str] = {
             "co2_ff": "CO2",
             "co2_bf": "CO2",
@@ -85,19 +61,67 @@ class TNO_Inventory(Inventory):
             "ch4": "CH4",
             "nmvoc": "VOC",
         },
+        profiles_dir: PathLike = None,
+        vertical_profiles_dir: PathLike = None,
+        temporal_profiles_dir: PathLike = None,
+        # I assume it is (no info in nc file)
+        crs: str = WGS84,
     ) -> None:
         """Create a TNO_Inventory.
 
         :arg nc_file: The TNO NetCDF dataset.
         :arg substances: A list of substances to load in the inventory.
         :arg substances_mapping: How to mapp the names from the nc files,
-            to names for empiproc.
+            to names for empiproc. See in :py:class:`TNO_Inventory` for more
+            information.
+        :arg profiles_dir: The directory where the profiles are stored.
+            If None the same directory as the nc_file is used.
+        :arg vertical_profiles_dir: The directory where the vertical profiles
+            are stored. If None profiles_dir is used.
+        :arg temporal_profiles_dir: The directory where the temporal profiles
+            are stored. If None profiles_dir is used.
         """
         super().__init__()
 
         nc_file = Path(nc_file)
         if not nc_file.is_file():
             raise FileNotFoundError(f"TNO Inventory file {nc_file} is not a file.")
+
+        if profiles_dir is None:
+            profiles_dir = nc_file.parent
+        else:
+            profiles_dir = Path(profiles_dir)
+            if not profiles_dir.is_dir():
+                raise FileNotFoundError(
+                    f"Profiles directory {profiles_dir} is not a directory."
+                )
+
+        if vertical_profiles_dir is None:
+            vertical_profiles_dir = profiles_dir
+        else:
+            vertical_profiles_dir = Path(vertical_profiles_dir)
+
+        if temporal_profiles_dir is None:
+            temporal_profiles_dir = profiles_dir
+        else:
+            temporal_profiles_dir = Path(temporal_profiles_dir)
+            if not temporal_profiles_dir.is_dir():
+                raise FileNotFoundError(
+                    f"Temporal profiles directory {temporal_profiles_dir} is not a"
+                    " directory."
+                )
+
+        # Read the vertical profiles files
+        v_profiles, v_profiles_indexes = read_vertical_profiles(vertical_profiles_dir)
+
+        # Set the Temporal profiles
+        # Time profiles can vary on category and also on substance
+        t_profiles, t_profiles_indexes = read_temporal_profiles(
+            temporal_profiles_dir,
+            profile_csv_kwargs={
+                "encoding": "latin",
+            },
+        )
 
         self.name = nc_file.stem
 
@@ -106,29 +130,67 @@ class TNO_Inventory(Inventory):
 
         self.grid = TNOGrid(nc_file)
 
-        mask_area_sources = ds["source_type_index"] == 1
-        mask_point_sources = ds["source_type_index"] == 2
-
+        # Read the source types codes
+        source_types = ds["source_type_code"].to_numpy()
+        for i, source_type in enumerate(source_types):
+            # Indexes start at 1 🤦‍♀️
+            mask = ds["source_type_index"] == i + 1
+            if source_type == b"a":
+                mask_area_sources = mask
+            elif source_type == b"p":
+                mask_point_sources = mask
+            else:
+                raise NotImplementedError(f"Unknown `source_type_code` {source_type}.")
+        # Check that we got all the sources
+        masks = [mask_area_sources, mask_point_sources]
+        if not all(np.logical_xor.reduce(masks)):
+            raise ValueError(
+                "The masks overlap or not all point sources were assigned. This is"
+                " probably a problem with how the source types are defined or assigned."
+            )
         categories = ds["emis_cat_code"].to_numpy()
+        # Decode from bytes
+        categories = [c.decode("utf-8") for c in categories]
+
+        # Read the variables in the file
+        file_substances = [
+            var
+            for var, xr_var in ds.variables.items()
+            if xr_var.attrs.get("long_name", "").startswith("emission of")
+        ]
+        if substances_mapping:
+            # Check that all the file substances are in the mapping
+            missing_substances = set(file_substances) - set(substances_mapping.keys())
+            if missing_substances:
+                self.logger.warning(
+                    f"Substances {missing_substances} in the file are not in the"
+                    f" mapping: {substances_mapping}.\n"
+                    "They will be ignored."
+                )
+                file_substances = [
+                    s for s in file_substances if s not in missing_substances
+                ]
+            # Check if all the mapping substances are in the file
+            missing_substances = set(substances_mapping.keys()) - set(file_substances)
+            if missing_substances:
+                raise ValueError(
+                    f"Substances {missing_substances} in the mapping are not in the"
+                    f" nc file: {file_substances}.\n"
+                    "Please check the names in the mapping."
+                )
+        else:
+            substances_mapping = {s: s for s in file_substances}
 
         weights = xr.DataArray(
             data=np.zeros((len(categories), len(substances_mapping))),
             coords={
-                "category": [c.decode() for c in categories],
+                "category": categories,
                 "substance": list(substances_mapping.keys()),
             },
             dims=["category", "substance"],
         )
 
-        # Select only the requested substances
-        substances_mapping = {
-            k: v for k, v in substances_mapping.items() if v in substances
-        }
-
         polys = self.grid.cells_as_polylist
-
-        # I assume it is (no info in nc file)
-        crs = WGS84
 
         # Index in the polygon list (from the gdf) (index start at 1 )
         poly_ind = (
@@ -137,37 +199,7 @@ class TNO_Inventory(Inventory):
         mapping = {}
         self.gdfs = {}
 
-        # Vertical Profiles are read from a file
-        self.v_profiles, profiles_categories = read_vertical_profiles(
-            nc_file.with_name("TNO_height-distribution_GNFR.csv")
-        )
-
-        # Set the matching of the profiles
-        self.v_profiles_indexes = xr.DataArray(
-            np.arange(len(profiles_categories), dtype=int),
-            dims=("category"),
-            coords={"category": profiles_categories},
-        )
-
-        # Set the Temporal profiles
-        # Time profiles can vary on category and also on substance
-        t_profiles, t_profiles_indexes = read_temporal_profiles(
-            nc_file.parent,
-            profile_csv_kwargs={
-                "cat_colname": "GNFR_Category",
-                "read_csv_kwargs": {"sep": ";", "header": 6, "encoding": "latin"},
-            },
-        )
-        # Check that the substances in the profiles match the ones in the
-        # nc file
-        for sub in t_profiles_indexes["substance"].data:
-            if sub not in substances_mapping.keys():
-                self.logger.error(
-                    f"Substance {sub} in temporal profiles is not in the nc file. Please check the names in the profile files."
-                )
-
         for cat_idx, cat_name in enumerate(categories):
-            cat_name = cat_name.decode("utf-8")
             # Indexes start at 1
             mask_this_category = ds["emission_category_index"] == cat_idx + 1
 
@@ -219,21 +251,67 @@ class TNO_Inventory(Inventory):
 
         self.cell_areas = ds["area"].T.to_numpy().reshape(-1)
 
-        # We are going to apply the mapping of substances to the
+        for profile_type, profiles_indexes in {
+            "vertical": v_profiles_indexes,
+            "temporal": t_profiles_indexes,
+        }.items():
+            if profiles_indexes is None:
+                continue
+            if "substance" in profiles_indexes.dims:
+                # Check that the substances in the profiles match the ones in the
+                # nc file
+                for sub in profiles_indexes["substance"].data:
+                    if sub not in substances_mapping.keys():
+                        self.logger.warning(
+                            f"Substance {sub} in {profile_type} profiles is not in the"
+                            f" nc file ({file_substances}). Please check the names in"
+                            " the profile files."
+                        )
+            if "category" in profiles_indexes.dims:
+                # Check that the categories in the profiles match the ones in the
+                # nc file
+                for cat in profiles_indexes["category"].data:
+                    if cat not in categories:
+                        self.logger.warning(
+                            f"Category {cat} in {profile_type} profiles is not in the"
+                            f" nc file {categories}. Please check the names in the"
+                            " profile files."
+                        )
+
+        # We are going to apply the mapping of substances to the profiles
 
         groupp_mapping = {}
         for sub_from, sub_to in substances_mapping.items():
             if sub_to not in groupp_mapping:
                 groupp_mapping[sub_to] = []
             groupp_mapping[sub_to].append(sub_from)
-
-        self.t_profiles_groups, self.t_profiles_indexes = group_profiles_indexes(
-            t_profiles,
-            t_profiles_indexes,
-            weights,
-            groupp_mapping,
-            groupping_dimension='substance',
-        )
+        if t_profiles is not None:
+            if "substance" in t_profiles_indexes.dims:
+                (
+                    self.t_profiles_groups,
+                    self.t_profiles_indexes,
+                ) = group_profiles_indexes(
+                    t_profiles,
+                    t_profiles_indexes,
+                    weights,
+                    groupp_mapping,
+                    groupping_dimension="substance",
+                )
+            else:
+                self.t_profiles_groups = t_profiles
+                self.t_profiles_indexes = t_profiles_indexes
+        if v_profiles is not None:
+            if "substance" in v_profiles_indexes.dims:
+                self.v_profiles, self.v_profiles_indexes = group_profiles_indexes(
+                    v_profiles,
+                    v_profiles_indexes,
+                    weights,
+                    groupp_mapping,
+                    groupping_dimension="substance",
+                )
+            else:
+                self.v_profiles = v_profiles
+                self.v_profiles_indexes = v_profiles_indexes
 
 
 if __name__ == "__main__":

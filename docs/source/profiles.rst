@@ -169,17 +169,26 @@ Assigning profiles to emissions
 
 We can add vertical profiles the following way:
 
-1. Adding profiles to gridded emissions.
-2. Specify a profile to a shape in the gdfs.
+1. Adding profiles generally to emissions.
+2. Specify a profile to a particular shape in the gdfs.
 
 In both cases, the profiles are assigned using indexes.
 If no profile exists is assigned, a value of -1 can be used as the index.
 
-Gridded Emissions 
-^^^^^^^^^^^^^^^^^
+
+General Indexes 
+^^^^^^^^^^^^^^^
 
 The first option requires to create a data array containing the profile index
-to use for any combination of the 4 coordinates ( category / substance / cell / time ).
+to use for any combination of the following coordinates :
+
+* `category`: a str matching the name of a category 
+* `substance`: a str matching the name of a substance 
+* `cell` : an integer matching the index of a cell 
+* `time` : a datetime object matching the time of the emission (not implemented yet)
+* `country` : the 3 letter code of a country
+* `type` : ['gridded', 'shapped'] depending if applies to gridded or shapped emissions
+
 The coordinates don't need to all be present in the file, one could simply
 put one of them, and emiproc assumes the vertical profiles are the same 
 no matter the other coordinates.
