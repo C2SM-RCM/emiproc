@@ -528,6 +528,13 @@ class CompositeTemporalProfiles:
         """Return a copy of the object."""
         return CompositeTemporalProfiles.join(self)
 
+    # define the addition to be the same as if this was a list
+    def __add__(self, other: CompositeTemporalProfiles) -> CompositeTemporalProfiles:
+        return self.join(self, other)
+
+    def __radd__(self, other: CompositeTemporalProfiles) -> CompositeTemporalProfiles:
+        return self.join(other, self)
+
 
 def make_composite_profiles(
     profiles: AnyProfiles,

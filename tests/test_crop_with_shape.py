@@ -1,12 +1,11 @@
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
-from emiproc.inventories.utils import crop_with_shape
-from emiproc.regrid import (
-    geoserie_intersection,
-)
-from emiproc.inventories import Inventory
-from emiproc.tests_utils import WEIGHTS_DIR
 
+from emiproc.inventories import Inventory
+from emiproc.inventories.utils import crop_with_shape
+from emiproc.regrid import geoserie_intersection
+from emiproc.tests_utils import WEIGHTS_DIR
+from emiproc.tests_utils.test_inventories import inv_only_one_gdfs
 
 serie = gpd.GeoSeries(
     [
@@ -109,31 +108,7 @@ def test_with_modify_grid_and_cached():
 
 
 def test_different_points_and_polygons_in_gdfs():
-    inv = Inventory.from_gdf(
-        gdfs={
-            "adf": gpd.GeoDataFrame(
-                {
-                    "CO2": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                },
-                geometry=[
-                    # corner point
-                    Point(0.75, 0.75),
-                    # Outside point
-                    Point(0.5, 0.4),
-                    # Inside point
-                    Point(1.2, 1),
-                    # 1/8 inside polygon
-                    Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
-                    # 1/4 inside polygon
-                    Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
-                    # outside polygon
-                    Polygon(((3, 3), (3, 4), (4, 4), (4, 3))),
-                    # fully inside polygon
-                    Polygon(((1, 0.5), (1.5, 0.5), (1.5, 1), (1, 1))),
-                ],
-            )
-        }
-    )
+    inv = inv_only_one_gdfs
 
     cropped = crop_with_shape(inv, triangle)
     # outside shapes are removed

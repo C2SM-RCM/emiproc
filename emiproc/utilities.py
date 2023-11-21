@@ -1,29 +1,28 @@
 """Utility functions and constants for emission processing."""
 from __future__ import annotations
+
+import json
 import logging
-from os import PathLike
-from pathlib import Path
 import sys
 import time
-import json
-from typing import Literal, overload
-from warnings import warn
-from enum import Enum
-from io import BytesIO
 import urllib
-from urllib.request import urlopen
-from zipfile import ZipFile
+from enum import Enum
 from functools import cache
+from io import BytesIO
+from os import PathLike
+from pathlib import Path
+from typing import Literal, overload
+from urllib.request import urlopen
+from warnings import warn
+from zipfile import ZipFile
 
-import numpy as np
 import geopandas as gpd
+import numpy as np
 import xarray as xr
+from shapely.geometry import MultiPolygon, Polygon
 
-from shapely.geometry import Polygon, MultiPolygon
-
-from emiproc.grids import Grid, WGS84, WGS84_PROJECTED
 from emiproc import FILES_DIR, PROCESS
-
+from emiproc.grids import WGS84, WGS84_PROJECTED, Grid
 
 # constants to convert from yr -> sec
 DAY_PER_YR = 365.25
@@ -38,7 +37,11 @@ class Units(Enum):
     """Units for emissions."""
 
     KG_PER_YEAR = "kg/y"
+    KG_PER_HOUR = "kg/h"
     KG_PER_M2_PER_S = "kg/m2/s"
+
+
+PER_M2_UNITS = [Units.KG_PER_M2_PER_S]
 
 
 def grid_polygon_intersects(

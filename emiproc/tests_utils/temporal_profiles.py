@@ -1,16 +1,18 @@
 import random
+
+import numpy as np
+import xarray as xr
+
 import emiproc
 from emiproc.profiles.temporal_profiles import (
     AnyTimeProfile,
     DailyProfile,
+    MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
-    MounthsProfile,
     from_csv,
     read_temporal_profiles,
 )
-import xarray as xr
-import numpy as np
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
 
@@ -129,6 +131,22 @@ oem_test_profile = [
     mounths_test_profile,
     daily_test_profile,
 ]
+
+# For the inventories in test_inventories.py
+
+indexes_inv_catsub = xr.DataArray(
+    data=np.array(
+        [
+            [0, 1, 2],
+            [3, 2, -1],
+        ]
+    ),
+    dims=["category", "substance"],
+    coords={
+        "category": ["adf", "liku"],  # omit one category on purpose
+        "substance": ["CH4", "CO2", "NH3"],
+    },
+)
 
 # For the african test set
 african_countries_test_set = ["SEN", "MLI", "MRT", "GIN", "GNB", "LBR", "SLE", "GMB"]

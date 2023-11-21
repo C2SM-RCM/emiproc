@@ -2,8 +2,8 @@
 
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
-from emiproc.inventories import Inventory
 
+from emiproc.inventories import Inventory
 
 serie = gpd.GeoSeries(
     [
@@ -47,4 +47,30 @@ inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
         "AITS": [1, 2],
     },
     geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
+)
+
+inv_only_one_gdfs = Inventory.from_gdf(
+    gdfs={
+        "adf": gpd.GeoDataFrame(
+            {
+                "CO2": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            },
+            geometry=[
+                # corner point
+                Point(0.75, 0.75),
+                # Outside point
+                Point(0.5, 0.4),
+                # Inside point
+                Point(1.2, 1),
+                # 1/8 inside polygon
+                Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
+                # 1/4 inside polygon
+                Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
+                # outside polygon
+                Polygon(((3, 3), (3, 4), (4, 4), (4, 3))),
+                # fully inside polygon
+                Polygon(((1, 0.5), (1.5, 0.5), (1.5, 1), (1, 1))),
+            ],
+        )
+    }
 )

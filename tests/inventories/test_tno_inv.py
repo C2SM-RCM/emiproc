@@ -1,10 +1,12 @@
 """Test file for tno inventory"""
+from pathlib import Path
+
+import pytest
+
 import emiproc
 from emiproc.inventories.tno import TNO_Inventory
 from emiproc.inventories.utils import group_categories
 from emiproc.profiles.vertical_profiles import check_valid_vertical_profile
-from pathlib import Path
-import pytest
 
 # TODO change the pth of that if you want to test it
 tno_path = emiproc.FILES_DIR / "TNO_6x6_GHGco_v4_0/TNO_GHGco_v4_0_year2018.nc"

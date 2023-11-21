@@ -1,20 +1,21 @@
 """Utitlity functions for profiles."""
 from __future__ import annotations
+
 import logging
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Type
 
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
 
 import emiproc
 from emiproc.profiles import naming
 
 if TYPE_CHECKING:
-    from emiproc.profiles.vertical_profiles import VerticalProfiles
     from emiproc.profiles.temporal_profiles import CompositeTemporalProfiles
+    from emiproc.profiles.vertical_profiles import VerticalProfiles
 
 logger = logging.getLogger(__name__)
 
@@ -95,54 +96,35 @@ def get_desired_profile_index(
     It will check that the profile can be extracted.
     """
 
+    dimensions_values = {
+        "cell": cell,
+        "category": cat,
+        "substance": sub,
+        "type": type,
+    }
+
     # First check that the user did not omit a required dimension
     dims = profiles_indexes.dims
-    if cell is None and "cell" in dims:
-        raise ValueError("cell must be specified, as each cell has a specific profile.")
-    if cat is None and "category" in dims:
-        raise ValueError(
-            "category must be specified, as each category has a specific profile."
-        )
-    if sub is None and "substance" in dims:
-        raise ValueError(
-            "substance must be specified, as each substance has a specific profile."
-        )
-    if type is None and "type" in dims:
-        raise ValueError("type must be specified, as each type has a specific profile.")
+    for dim_name, dim_value in dimensions_values.items():
+        if dim_value is None and dim_name in dims:
+            raise ValueError(
+                f"dimension {dim_name=} is required because the indexes differentiate"
+                " it. Please specify it."
+            )
 
     access_dict = {}
 
     # Add to the access the dimension specified,
     # If a dimension is specified but not in the dims, it means
     # we don't care becausse it is the same for all the dimension cooridnates
-    if cell is not None and "cell" in dims:
-        if cell not in profiles_indexes.coords["cell"]:
-            raise ValueError(
-                f"cell {cell} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['cell']}"
-            )
-        access_dict["cell"] = cell
-    if cat is not None and "category" in dims:
-        if cat not in profiles_indexes.coords["category"]:
-            raise ValueError(
-                f"category {cat} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['category']}"
-            )
-        access_dict["category"] = cat
-    if sub is not None and "substance" in dims:
-        if sub not in profiles_indexes.coords["substance"]:
-            raise ValueError(
-                f"substance {sub} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['substance']}"
-            )
-        access_dict["substance"] = sub
-    if type is not None and "type" in dims:
-        if type not in profiles_indexes.coords["type"]:
-            raise ValueError(
-                f"type {type} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['type']}"
-            )
-        access_dict["type"] = type
+    for dim_name, dim_value in dimensions_values.items():
+        if dim_value is not None and dim_name in dims:
+            if dim_value not in profiles_indexes.coords[dim_name]:
+                raise ValueError(
+                    f"{dim_name} {dim_value} is not in the profiles indexes, "
+                    f"got {profiles_indexes.coords[dim_name]}"
+                )
+            access_dict[dim_name] = dim_value
 
     # Access the xarray
     desired_index = profiles_indexes.sel(**access_dict)
