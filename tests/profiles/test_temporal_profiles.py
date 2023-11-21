@@ -10,6 +10,7 @@ from emiproc.profiles.temporal_profiles import (
     HourOfLeapYearProfile,
     HourOfYearProfile,
     MounthsProfile,
+    SpecificDay,
     SpecificDayProfile,
     TemporalProfile,
     WeeklyProfile,
@@ -81,6 +82,17 @@ def test_multiple_profiles():
                 [],
             ]
         ),
+        (
+            [
+                [TemporalProfile(), DailyProfile()],
+                [
+                    WeeklyProfile(),
+                    SpecificDayProfile(
+                        np.array(23 * [0.01] + [0.77]), specific_day=SpecificDay.SUNDAY
+                    ),
+                ],
+            ]
+        ),
     ],
 )
 def test_composite_temporal_profiles(profiles_list_list):
@@ -97,6 +109,25 @@ def test_composite_temporal_profiles(profiles_list_list):
     assert p.n_profiles == len(profiles_list_list) + 1
     assert len(p[-1]) == 1
     assert p[-1][0] == append_profile
+    # Check that the first profile has not changed (assume okay if the others are)
+    assert len(p[0]) == len(profiles_list_list[0])
+    for profile, expected_profile in zip(sorted(p[0]), sorted(profiles_list_list[0])):
+        assert profile == expected_profile
+
+    # Now append specific days
+    append_profiles = [
+        SpecificDayProfile(
+            np.array(23 * [0.02] + [0.54]), specific_day=SpecificDay.SATURDAY
+        ),
+        SpecificDayProfile(
+            np.array(23 * [0.01] + [0.77]), specific_day=SpecificDay.SUNDAY
+        ),
+    ]
+    p.append(append_profiles)
+    assert p.n_profiles == len(profiles_list_list) + 2
+    assert len(p[-1]) == 2
+    for profile, expected_profile in zip(sorted(p[-1]), sorted(append_profiles)):
+        assert profile == expected_profile
     # Check that the first profile has not changed (assume okay if the others are)
     assert len(p[0]) == len(profiles_list_list[0])
     for profile, expected_profile in zip(sorted(p[0]), sorted(profiles_list_list[0])):
