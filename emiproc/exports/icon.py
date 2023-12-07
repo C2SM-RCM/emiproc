@@ -400,7 +400,7 @@ def make_icon_time_profiles(
         raise NotImplementedError(f"{profiles_type} is not implemented.")
 
     for ds in dict_ds.values():
-        # ds["country"] = [i for i in range(len(time_zones))]
+        ds["country"] = [i for i in range(len(time_zones))]
         ds.assign_coords({"timezone_of_country": (("country",), time_zones)})
 
     if out_dir is not None:
