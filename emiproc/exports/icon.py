@@ -143,6 +143,14 @@ def export_icon_oem(
     time_profiles: dict[str, list[TemporalProfile]] = {}
     vertical_profiles: dict[str, VerticalProfile] = {}
 
+    # Check that the inventory has the same amount of cells
+    # as the icon grid
+    if len(inv.gdf) != ds_out["cell"].size:
+        raise ValueError(
+            f"The inventory has {len(inv.gdf)} cells, but the icon grid has"
+            f" {ds_out['cell'].size} cells."
+        )
+
     for categorie, sub in inv._gdf_columns:
         if substances is not None and sub not in substances:
             continue

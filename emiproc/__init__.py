@@ -5,6 +5,7 @@ from pathlib import Path
 
 # directory where the data files are stored
 FILES_DIR = Path(__file__).parent.parent / "files"
+TESTS_DIR = FILES_DIR / "test"
 
 logger = logging.getLogger("emiproc")
 
