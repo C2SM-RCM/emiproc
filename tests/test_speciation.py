@@ -10,6 +10,7 @@ from shapely.geometry import Point
 
 from emiproc import TESTS_DIR
 from emiproc.inventories import Inventory
+from emiproc.profiles.vertical_profiles import VerticalProfile, VerticalProfiles
 from emiproc.speciation import (
     read_speciation_table,
     speciate,
@@ -87,6 +88,27 @@ def test_speciate_simple_inventory():
         inv_with_pnt_sources.total_emissions.loc["CO2", :].sort_index().fillna(0),
         check_names=False,
     )
+
+
+def test_speciate_when_profiles_are_there():
+    da_speciation = read_speciation_table(
+        TESTS_DIR / "speciation" / "table_test_inv_CO2.csv"
+    )
+
+    inv_with_pnt_sources.set_profile(
+        VerticalProfile(ratios=np.array([1.0, 0.0]), height=np.array([1.0, 2.0])),
+        category="liku",
+        substance="CO2",
+    )
+    inv_speciated = speciate(
+        inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
+    )
+    new_subs = ["CO2_ANT", "CO2_BIO"]
+    for sub in new_subs:
+        assert sub in inv_speciated.substances
+
+        # Check in the profiles are there
+        assert sub in inv_speciated.v_profiles_indexes.coords["substance"].values
 
 
 def test_speciate_inventory():

@@ -111,6 +111,11 @@ def speciate(
 ) -> Inventory:
     """Speciate a substance in an inventory.
 
+    .. note:: Profiles (vertical and temporal) are not speciated.
+        The profiles of the speciated substance are simply applied.
+        If you have specific profiles for the speciated substance,
+        you need to set them after the speciation operation.
+
     :arg inv: The inventory to speciate.
     :arg substance: The substance to speciate.
     :arg speciation_ratios: The speciation ratios. See :py:func:`read_speciation_table`.
@@ -240,7 +245,26 @@ def speciate(
         if drop:
             new_inv.gdfs[cat].drop(columns=[substance], inplace=True)
 
-    # TODO profiles
+    # profiles
+    # this is easy because we can simply duplicate the indexes in substance
+    for indexes_name in ["t_profiles_indexes", "v_profiles_indexes"]:
+        if not hasattr(inv, indexes_name):
+            continue
+        indexes: xr.DataArray = getattr(inv, indexes_name)
+        if indexes is None or "substance" not in getattr(inv, indexes_name).dims:
+            continue
+
+        speciated_indexes = (
+            indexes.sel(substance=substance)
+            .drop("substance")
+            .expand_dims(dim={"substance": da_ratios["substance"].values})
+        )
+        new_indexes = xr.concat([indexes, speciated_indexes], dim="substance")
+        if drop:
+            # Remove the substance from the substance coordinate
+            new_indexes = new_indexes.drop_sel(substance=[substance])
+
+        setattr(new_inv, indexes_name, new_indexes)
 
     new_inv.history.append(f"Speciated {substance} to {da_ratios['substance'].values}.")
 
