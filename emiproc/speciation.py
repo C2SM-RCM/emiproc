@@ -135,7 +135,8 @@ def speciate(
                 f" {speciation_ratios} do."
             )
         # Get the speciation ratios for the year of the inventory
-        speciation_ratios = speciation_ratios.sel(year=inv.year)
+        mask_year = speciation_ratios["year"] == inv.year
+        speciation_ratios = speciation_ratios.loc[mask_year]
 
     if "country" in speciation_ratios.coords:
         countries_fractions: xr.DataArray = get_country_mask(
@@ -182,7 +183,9 @@ def speciate(
                     raise ValueError(
                         f"The speciation ratios for {cat} and {substance} is not"
                         " defined for the following cells that have emission values :"
-                        f" {da_ratios_cells[mask_problem]}"
+                        f" {da_ratios_cells[mask_problem]['cell']}\n"
+                        "You can add a row with country set to -99 to define the"
+                        " default speciation ratios for those homeless cells."
                     )
                 # Set the missing value
                 da_ratios_cells = da_ratios_cells.where(
@@ -226,17 +229,33 @@ def speciate(
 
         if "type" in speciation_ratios.coords:
             da_ratios = da_ratios.loc[da_ratios["type"] == "shapped"]
-
-        if da_ratios["speciation"].size == 0:
-            raise ValueError(
-                f"The speciation ratios for {cat} and {substance} is not defined for"
-                " shapped emissions."
+        if "country" in speciation_ratios.coords:
+            country_mask = get_country_mask(
+                inv.gdfs[cat].geometry, **country_mask_kwargs
             )
-        if da_ratios["speciation"].size > 1:
-            raise ValueError(
-                f"The speciation ratios for {cat} and {substance} is not unique"
-                f" {da_ratios=}."
+            mask_no_country = country_mask == "-99"
+            if any(mask_no_country) and "-99" not in da_ratios.coords["country"]:
+                raise ValueError(
+                    f"The speciation ratios for {cat} and {substance} is not defined"
+                    f" for the following shapes {inv.gdfs[cat].loc[mask_no_country]}"
+                    "You can add a country with iso3='-99' to define the"
+                    " default speciation ratios for those homeless shapes."
+                )
+            da_ratios_country = da_ratios.set_index(speciation="country").rename(
+                {"speciation": "country"}
             )
+            da_ratios = da_ratios_country.loc[country_mask]
+        else:
+            if da_ratios["speciation"].size == 0:
+                raise ValueError(
+                    f"The speciation ratios for {cat} and {substance} is not defined"
+                    " for shapped emissions."
+                )
+            if da_ratios["speciation"].size > 1:
+                raise ValueError(
+                    f"The speciation ratios for {cat} and {substance} is not unique"
+                    f" {da_ratios=}."
+                )
 
         # Speciate the gdf
         for new_sub in da_ratios["substance"].values:
