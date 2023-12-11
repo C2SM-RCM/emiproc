@@ -363,8 +363,9 @@ def get_country_mask(
         )
     start = time.time()
 
+    ne_name = "admin_0_countries"
     countries_gdf = get_natural_earth(
-        resolution=resolution, category="cultural", name="admin_0_countries"
+        resolution=resolution, category="cultural", name=ne_name
     )
 
     grid_gdf = output_grid.gdf
@@ -387,11 +388,20 @@ def get_country_mask(
 
     progress = ProgressIndicator(len(countries_gdf) + 10)
 
-    for geometry, iso3 in zip(countries_gdf.geometry, countries_gdf["ISO_A3_EH"]):
+    for geometry, iso3, sovereignt in zip(
+        countries_gdf.geometry, countries_gdf["ISO_A3_EH"], countries_gdf["SOVEREIGNT"]
+    ):
         progress.step()
 
         mask_intersect = grid_polygon_intersects(grid_gdf.geometry, geometry)
         if np.any(mask_intersect):
+            if iso3 == "-99":
+                # Countries with missing iso3 code
+                logger.info(
+                    f"Country {sovereignt=} has no iso3 code (ISO_A3_EH) in natural"
+                    f" earth data '{ne_name}'"
+                )
+                continue
             grid_gdf.loc[grid_gdf.index, iso3] = mask_intersect
             country_shapes[iso3] = geometry
             country_corresponding_codes.append(iso3)
