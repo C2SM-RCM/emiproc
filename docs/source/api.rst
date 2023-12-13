@@ -53,9 +53,8 @@ Categories Manipulations
 Speciation
 ----------
 
-.. autofunction:: emiproc.speciation.speciate_inventory
+.. autofunction:: emiproc.speciation.speciate
 
-.. autofunction:: emiproc.speciation.speciate_nox
 
 
 Utilities

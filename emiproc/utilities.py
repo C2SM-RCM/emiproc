@@ -298,7 +298,7 @@ def get_country_mask(return_fractions: Literal[False]) -> np.ndarray:
 
 
 def get_country_mask(
-    output_grid: Grid,
+    output_grid: Grid | gpd.GeoSeries,
     resolution: str = "110m",
     weight_filepath: PathLike | None = None,
     return_fractions: bool = False,
@@ -313,7 +313,8 @@ def get_country_mask(
 
 
     :arg output_grid:
-        Contains all necessary information about the output grid
+        Contains all necessary information about the output grid.
+        Can be a Grid object or a GeoSeries with a custom geometry.
     :arg resolution:
         The resolution for the used shapefile, used as argument for
         :py:func:`get_natural_earth`
@@ -363,13 +364,20 @@ def get_country_mask(
         )
     start = time.time()
 
+    ne_name = "admin_0_countries"
     countries_gdf = get_natural_earth(
-        resolution=resolution, category="cultural", name="admin_0_countries"
+        resolution=resolution, category="cultural", name=ne_name
     )
+    if isinstance(output_grid, Grid):
+        grid_gdf = output_grid.gdf
+    elif isinstance(output_grid, gpd.GeoSeries):
+        grid_gdf = gpd.GeoDataFrame(geometry=output_grid)
+    else:
+        raise TypeError(
+            f"output_grid should be a Grid or a GeoSeries, not {type(output_grid)}"
+        )
 
-    grid_gdf = output_grid.gdf
-
-    if output_grid.crs != WGS84:
+    if grid_gdf.crs != WGS84:
         # make sure the grid is in WGS84 as is the country data
         grid_gdf = grid_gdf.to_crs(WGS84)
 
@@ -387,11 +395,20 @@ def get_country_mask(
 
     progress = ProgressIndicator(len(countries_gdf) + 10)
 
-    for geometry, iso3 in zip(countries_gdf.geometry, countries_gdf["ISO_A3_EH"]):
+    for geometry, iso3, sovereignt in zip(
+        countries_gdf.geometry, countries_gdf["ISO_A3_EH"], countries_gdf["SOVEREIGNT"]
+    ):
         progress.step()
 
         mask_intersect = grid_polygon_intersects(grid_gdf.geometry, geometry)
         if np.any(mask_intersect):
+            if iso3 == "-99":
+                # Countries with missing iso3 code
+                logger.info(
+                    f"Country {sovereignt=} has no iso3 code (ISO_A3_EH) in natural"
+                    f" earth data '{ne_name}'"
+                )
+                continue
             grid_gdf.loc[grid_gdf.index, iso3] = mask_intersect
             country_shapes[iso3] = geometry
             country_corresponding_codes.append(iso3)
@@ -485,7 +502,8 @@ def get_country_mask(
         if weight_filepath is not None:
             da.to_netcdf(weight_filepath)
         return da
-    country_mask = country_mask.reshape((output_grid.nx, output_grid.ny))
+    if isinstance(output_grid, Grid):
+        country_mask = country_mask.reshape((output_grid.nx, output_grid.ny))
     if weight_filepath is not None:
         np.save(weight_filepath, country_mask)
     return country_mask
