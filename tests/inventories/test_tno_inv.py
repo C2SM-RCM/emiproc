@@ -7,6 +7,7 @@ import emiproc
 from emiproc.inventories.tno import TNO_Inventory
 from emiproc.inventories.utils import group_categories
 from emiproc.profiles.vertical_profiles import check_valid_vertical_profile
+from emiproc.utilities import get_country_mask
 
 # TODO change the pth of that if you want to test it
 tno_path = emiproc.FILES_DIR / "TNO_6x6_GHGco_v4_0/TNO_GHGco_v4_0_year2018.nc"
@@ -42,6 +43,12 @@ def test_loading_and_grouping():
     assert sum([len(gdf) for gdf in inv_tno.gdfs.values()]) == len(
         groupped_tno.gdfs["all"]
     )
+
+
+def test_country_ratios():
+    inv_tno = TNO_Inventory(tno_template)
+    # test getting the country mask of the test grid of tno
+    ratios = get_country_mask(inv_tno.grid, return_fractions=True)
 
 
 if __name__ == "__main__":
