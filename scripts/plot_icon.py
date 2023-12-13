@@ -10,8 +10,8 @@ import matplotlib
 from emiproc.plots.nclcmaps import cmap
 
 #%% Load the file of icon
-icon_file = r"C:\Users\coli\Documents\emiproc\scripts\.emiproc_weights_swiss_2_icon\icon_Zurich_R19B9_wide_DOM01_zh_ch_tno_combined.nc"
-out_folder = Path(r"C:\Users\coli\Pictures\icon_zh_ch_tno_combined")
+icon_file = Path("iconoem_emiproc_outputs") / "oem_gridded_emissions.nc"
+out_folder = Path("plots")
 out_folder.mkdir(exist_ok=True)
 ds = xr.load_dataset(icon_file)
 
@@ -59,5 +59,4 @@ for var in emiproc_generated_variables:
     fig.colorbar(poly_coll)
     fig.savefig(out_folder/ f"{var}.png")
     #fig.show()
-#%%
-# %%
+

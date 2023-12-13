@@ -37,7 +37,7 @@ RASTER_EDGE = 100
 USE_GNRF = True
 
 # TODO: remove it also from the swiss inventory ?
-REMOVE_JOSEFSTRASSE_KHKW = True
+REMOVE_JOSEFSTRASSE_KHKW = False
 
 # Whether to split the F category of the GNRF into 4 subcategories for accounting
 # for the different vehicle types (cars, light duty, heavy duty, two wheels)
@@ -114,9 +114,7 @@ for i in range(4):
 rasters_inv = remap_inventory(
     crop_with_shape(inv, zh_shape),
     zh_gdf.geometry,
-    weigths_file=(
-        outdir / "weights_files" / f"{mapluf_file.stem}_2_{RASTER_EDGE}x{RASTER_EDGE}"
-    ),
+    weigths_file=weights_dir / f"{inv.name}_weights_josephstrasse{REMOVE_JOSEFSTRASSE_KHKW}",
 )
 # %% change the categories
 if USE_GNRF:
@@ -399,7 +397,7 @@ for category, sub in rasters_inv._gdf_columns:
 # %%
 ds_out.to_netcdf(
     outdir
-    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{'Fsplit' if SPLIT_GNRF_ROAD_TRANSPORT else ''}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.4.nc"
+    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{'Fsplit' if SPLIT_GNRF_ROAD_TRANSPORT else ''}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.5.nc"
 )
 
 # %%

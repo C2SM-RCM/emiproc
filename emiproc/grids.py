@@ -6,6 +6,7 @@ grids used in different emissions inventories.
 from __future__ import annotations
 from functools import cache, cached_property
 from typing import Iterable
+import warnings
 import numpy as np
 import xarray as xr
 import geopandas as gpd
@@ -37,7 +38,7 @@ class Grid:
 
     # The crs value as an integer
     crs: int | str
-    gdf: gpd.GeoDataFrame | None = None
+    gdf: gpd.GeoDataFrame
 
     def __init__(self, name: str, crs: int | str = WGS84):
         """
@@ -48,6 +49,23 @@ class Grid:
         """
         self.name = name
         self.crs = crs
+
+    @property
+    def gdf(self) -> gpd.GeoDataFrame:
+        """Return a geopandas dataframe containing the grid."""
+        if not hasattr(self, "_gdf"):
+            self._gdf = gpd.GeoDataFrame(
+                geometry=self.cells_as_polylist,
+                crs=self.crs,
+            )
+        return self._gdf
+
+    @gdf.setter
+    def gdf(self, value: gpd.GeoDataFrame):
+        warnings.warn(
+            "deprectated to set the gdf of a grid. It is now automatically generated."
+        )
+        self._gdf = value
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -100,14 +118,21 @@ class Grid:
         ]
 
     @cached_property
+    def shape(self) -> tuple[int, int]:
+        return (self.nx, self.ny)
+
+    @cached_property
     def cell_areas(self) -> Iterable[float]:
         """Return an array containing the area of each cell in m2."""
         return (
             gpd.GeoSeries(self.cells_as_polylist, crs=self.crs)
             # Convert to WGS84 to get the area in m^2
-            .to_crs(epsg=WGS84_NSIDC)
-            .area
+            .to_crs(epsg=WGS84_NSIDC).area
         )
+
+    def __len__(self):
+        """Return the number of cells in the grid."""
+        return self.nx * self.ny
 
 
 class RegularGrid(Grid):
@@ -123,7 +148,7 @@ class RegularGrid(Grid):
     * xmax, ymax to define the bounding box
     * nx, ny to define the number of cells in each direction
     * dx, dy to define the size of the cells in each direction
-    
+
     Leave the unused parameters as None.
     """
 
@@ -149,7 +174,7 @@ class RegularGrid(Grid):
         ny: int | None = None,
         dx: float | None = None,
         dy: float | None = None,
-        name: str = "",
+        name: str | None = None,
         crs: int | str = WGS84,
     ):
         self.xmin, self.ymin = xmin, ymin
@@ -161,7 +186,7 @@ class RegularGrid(Grid):
                 "Specify only 2 of the following: "
                 "(xmax, ymax), (nx, ny), (dx, dy)"
             )
-        
+
         if dx is None and dy is None and xmax is None and ymax is None:
             raise ValueError(
                 "Cannot create grid with only nx and ny. "
@@ -183,7 +208,7 @@ class RegularGrid(Grid):
             # Guess the nx and ny values, override the max
             nx = math.ceil((xmax - xmin) / dx)
             ny = math.ceil((ymax - ymin) / dy)
-        
+
         if xmax is None and ymax is None:
             xmax = xmin + nx * dx
             ymax = ymin + ny * dy
@@ -194,6 +219,9 @@ class RegularGrid(Grid):
 
         self.lon_range = np.linspace(xmin, xmax, nx) + self.dx / 2
         self.lat_range = np.linspace(ymin, ymax, ny) + self.dy / 2
+
+        if name is None:
+            name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
 
@@ -212,10 +240,6 @@ class RegularGrid(Grid):
             np.array([y, y, y + self.dy, y + self.dy]),
         )
 
-    @cached_property
-    def shape(self) -> tuple[int, int]:
-        return (self.nx, self.ny)
-    
     @cached_property
     def bounds(self) -> tuple[int, int, int, int]:
         return self.xmin, self.ymin, self.xmax, self.ymax
@@ -388,7 +412,9 @@ class EDGARGrid(Grid):
         lats_c = np.deg2rad(lats_c)
 
         dlon = 2 * np.pi / self.nx
-        areas = (R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:])))
+        areas = (
+            R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
+        )
         areas = np.broadcast_to(areas[np.newaxis, :], (self.nx, self.ny))
 
         return areas.flatten()
@@ -400,10 +426,15 @@ class GeoPandasGrid(Grid):
     def __init__(self, gdf: gpd.GeoDataFrame, name: str = "gpd_grid"):
         super().__init__(name, gdf.crs)
 
-        self.gdf = gdf
+        self._gdf = gdf
 
         self.nx = len(gdf)
         self.ny = 1
+
+    @property
+    def cells_as_polylist(self) -> list[Polygon]:
+        """Return all the cells as a list of polygons."""
+        return self.gdf.geometry.tolist()
 
 
 class VPRMGrid(Grid):
@@ -571,14 +602,7 @@ class SwissGrid(RegularGrid):
         # however the points returned by the cell_corners() method are in
         # WGS84, which PlateCarree defaults to.
         super().__init__(
-            name=name,
-            nx=nx,
-            ny=ny,
-            dx=dx,
-            dy=dy,
-            xmin=xmin,
-            ymin=ymin,
-            crs=crs
+            name=name, nx=nx, ny=ny, dx=dx, dy=dy, xmin=xmin, ymin=ymin, crs=crs
         )
 
     @cached_property
@@ -791,7 +815,7 @@ class ICONGrid(Grid):
         # Apparently the crs of icon is not what is written in the nc file.
         ICON_FILE_CRS = WGS84
 
-        self.gdf = gpd.GeoDataFrame(geometry=self.polygons, crs=ICON_FILE_CRS)
+        self._gdf = gpd.GeoDataFrame(geometry=self.polygons, crs=ICON_FILE_CRS)
         self.process_overlap_antimeridian()
 
         # Consider the ICON-grid as a 1-dimensional grid where ny=1
@@ -886,7 +910,6 @@ class ICONGrid(Grid):
             coords_cond2 = [list(c) for c in coords_cond1]
 
             if cond2:
-
                 if lon1 * lon2 < 0 and lon1 * lon3 < 0:
                     coords_cond2[0][0] = lon1 - math.copysign(1, lon1) * 360
 
@@ -905,10 +928,10 @@ class ICONGrid(Grid):
         coords_bounds = [(x, y) for x, y in zip(xx_bounds, yy_bounds)]
         bounds_line = LineString(coords_bounds)
 
-        self.gdf = self.gdf.set_geometry(
+        self._gdf = self.gdf.set_geometry(
             self.gdf.geometry.apply(lambda poly: detect_antimeridian_poly(poly))
         )
-        gdf_inter = self.gdf.loc[self.gdf.intersects(bounds_line)]
+        gdf_inter = self._gdf.loc[self.gdf.intersects(bounds_line)]
         gdf_inter = gdf_inter.set_geometry(
             gdf_inter.geometry.apply(
                 lambda poly: MultiPolygon(split(poly, bounds_line))
@@ -921,4 +944,4 @@ class ICONGrid(Grid):
                 )
             )
         )
-        self.gdf.loc[gdf_inter.index, "geometry"] = gdf_inter.geometry
+        self._gdf.loc[gdf_inter.index, "geometry"] = gdf_inter.geometry

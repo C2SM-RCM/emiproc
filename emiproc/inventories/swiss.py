@@ -6,6 +6,7 @@ from emiproc.inventories import Inventory
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
+from shapely.creation import polygons
 import numpy as np
 import rasterio
 
@@ -45,8 +46,17 @@ class SwissRasters(Inventory):
         """
         super().__init__()
 
+        data_path = Path(data_path)
+
         # Emission data file
-        total_emission_file = data_path / "Emissions_CH.xlsx"
+        if data_path.is_dir():
+            total_emission_file = data_path / "Emissions_CH.xlsx"
+        elif data_path.is_file():
+            total_emission_file = data_path
+        else:
+            raise FileNotFoundError(
+                f"Data path {data_path} is not an existing file or a folder."
+            )
 
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)
@@ -158,7 +168,12 @@ class SwissRasters(Inventory):
         raster_sub = df_emissions.index.tolist()
         rasters_w_emis = []
         for t in raster_sub:
-            cat, sub = t.split("_")
+            split = t.split("_")
+            if len(split) > 2:
+                # Custom substance or cat which cannot be in the raster categories
+                # (ex: CO2_biog )
+                continue
+            cat, sub = split
             subname = sub.lower()
             if cat == "evstr":
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
@@ -247,23 +262,29 @@ class SwissRasters(Inventory):
                     if factor > 0:
                         mapping[(category, sub)] = _raster_array * factor
 
+        if self.requires_grid:
+            x_coords, y_coords = np.meshgrid(xs, ys[::-1])
+            # Reshape to 1D
+            x_coords = x_coords.flatten()
+            y_coords = y_coords.flatten()
+            dx = self.grid.dx
+            dy = self.grid.dy
+            coords = np.array(
+                [
+                    [x, y]
+                    for x, y in zip(
+                        [x_coords, x_coords, x_coords + dx, x_coords + dx],
+                        [y_coords, y_coords + dy, y_coords + dy, y_coords],
+                    )
+                ]
+            )
+            coords = np.rollaxis(coords, -1, 0)
         self.gdf = gpd.GeoDataFrame(
             mapping,
             crs=LV95,
             # This vector is same as raster data reshaped using reshape(-1)
             geometry=(
-                [
-                    Polygon(
-                        (
-                            (x, y),
-                            (x, y + self.grid.dy),
-                            (x + self.grid.dx, y + self.grid.dy),
-                            (x + self.grid.dx, y),
-                        )
-                    )
-                    for y in reversed(ys)
-                    for x in xs
-                ]
+                polygons(coords)
                 if self.requires_grid
                 else np.full(self.grid.nx * self.grid.ny, np.nan)
             ),

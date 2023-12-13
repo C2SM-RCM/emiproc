@@ -25,7 +25,7 @@ dependencies = [
     "netCDF4",
     "scipy",
     "shapely",
-    "xarray",
+    "xarray>=2023.10",
     "rasterio",
     "pyogrio",
     "pygeos",
@@ -55,5 +55,7 @@ include = ["emiproc"]  # package names should match these glob patterns (["*"] b
 doc = [
     "sphinx",
     "furo",
+    "enum-tools",
+    "sphinx_toolbox",
 ]
 dev = ["black"]

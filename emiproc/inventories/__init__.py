@@ -1,29 +1,33 @@
-"""Inventories of emissions."""
+"""Inventories of emissions.
+
+Contains the classes and functions to work with inventories of emissions.
+"""
 from __future__ import annotations
+
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from os import PathLike
-from pathlib import Path
-from typing import NewType
-import pandas as pd
+from typing import NewType, Union
+
 import geopandas as gpd
-from shapely.geometry import Point
 import numpy as np
+import pandas as pd
 import xarray as xr
 
-from emiproc.grids import LV95, Grid, SwissGrid
-from emiproc.profiles.temporal_profiles import TemporalProfile
-from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.regrid import get_weights_mapping, weights_remap
+from emiproc.grids import GeoPandasGrid, Grid
+from emiproc.profiles import naming
+from emiproc.profiles.temporal_profiles import (
+    AnyTimeProfile,
+    CompositeTemporalProfiles,
+    TemporalProfile,
+)
+from emiproc.profiles.utils import check_valid_indexes
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
     resample_vertical_profiles,
 )
-
-from emiproc.grids import Grid
-from emiproc.regrid import get_weights_mapping, weights_remap
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)
@@ -31,6 +35,8 @@ Substance = NewType("Substance", str)
 Category = NewType("Category", str)
 # A colum from the gdf
 CatSub = tuple[Category, Substance]
+
+TemporalProfiles = Union[list[list[TemporalProfile]], CompositeTemporalProfiles]
 
 
 @dataclass
@@ -66,58 +72,55 @@ class EmissionInfo:
 
 
 class Inventory:
-    """Base class for inventories.
+    """Parent class for inventories.
 
-    :attr name: The name of the inventory. This is going to be used
+    :param name: The name of the inventory. This is going to be used
         for adding metadata to the output files, and also for the reggridding
         weights files.
-    :attr grid: The grid on which the inventory is.
-    :attr substances: The :py:class:`Substance` present in this inventory.
-    :attr categories: List of the categories present in the inventory.
+    :param grid: The grid on which the inventory is. Can be none if the invenotry
+        is not defined on a grid. (only shapped emissions)
+    :param substances: The :py:class:`Substance` present in this inventory.
+    :param categories: List of the categories present in the inventory.
 
-    :attr emission_infos: Information about the emissions.
-        Concerns only the :attr:`Inventory.gdfs` features.
-        This is optional, but mandoatory for some models (ex. Gramm-Gral).
+    :param emission_infos: Information about the emissions.
+        Concerns only the :py:attr:`gdfs` features.
+        This is optional, but mandatory for some models (ex. Gramm-Gral).
 
-    :attr gdf: The GeoPandas DataFrame that represent the whole inventory.
-        The geometry column contains all the grid cells.
+    :param gdf: The GeoPandas DataFrame that represent the whole inventory.
+        The geometry column contains geometric objects for all the grid cells.
         The other columns should contain the emission value for the substances
         and the categories.
 
-    :attr gdfs: Some inventories are given on more than one grid.
+    :param gdfs: Some inventories are given on more than one grid.
         For example, :py:class:`MapLuftZurich` is given on a grid
         where every category has different shape file.
         In this case gdf must be set to None and gdfs will be
         a dictionnary mapping only the categories desired.
 
-    :attr v_profiles: A vertical profiles object.
-    :attr v_profiles_indexes: A :py:class:`xarray.DataArray` storing the information
+    :param v_profiles: A vertical profiles object.
+    :param v_profiles_indexes: A :py:class:`xarray.DataArray` storing the information
         of which vertical profile belongs to which cell/category/substance.
         This allow to map each single emission value from the gdf to a specific
         profile.
         See :ref:`vertical_profiles` for more information.
 
-    :attr t_profiles_groups: A list  of temporal profiles groups.
+    :param t_profiles_groups: A list  of temporal profiles groups.
         One temporal pattern can be defined by more than one temporal profile.
         (ex you can combine hour of day and day of week).
         The main list contains the different groups of temporal profiles.
         Each group is a list of :py:class:`TemporalProfile`.
-    :attr t_profiles_indexes: Same as :py:attr:`v_profiles_indexes`.
+    :param t_profiles_indexes: Same as :py:attr:`v_profiles_indexes`.
         For the temporal profiles, the indexes point to one of the groups.
 
 
-    :attr history: Stores all the operations that happened to this inventory.
+    :param history: Stores all the operations that happened to this inventory.
 
-    .. note::
-        If your data contains point sources, the data on them must be stored in
-        the gdfs, as :attr:`gdf` is only valid for the inventory grid.
-        A gdf should contain only point sources.
 
     """
 
     name: str
 
-    grid: Grid
+    grid: Grid | None
     substances: list[Substance]
     categories: list[Category]
     emission_infos: dict[Category, EmissionInfo]
@@ -129,13 +132,11 @@ class Inventory:
     v_profiles: VerticalProfiles | None = None
     v_profiles_indexes: xr.DataArray | None = None
 
-    t_profiles_groups: list[list[TemporalProfile]] | None = None
+    t_profiles_groups: TemporalProfiles | None = None
     t_profiles_indexes: xr.DataArray | None = None
 
     logger: logging.Logger
     history: list[str]
-
-    _groupping: dict[str, list[str]] | None = None
 
     def __init__(self) -> None:
         class_name = type(self).__name__
@@ -225,6 +226,13 @@ class Inventory:
             subs.remove("geometry")
         return subs
 
+    @property
+    def total_emissions(self) -> pd.DataFrame:
+        """Simple accessor to the function."""
+        from emiproc.inventories.utils import get_total_emissions
+
+        return pd.DataFrame(get_total_emissions(self)).T
+
     def copy(self, no_gdfs: bool = False, profiles: bool = True) -> Inventory:
         """Copy the inventory.
 
@@ -261,49 +269,6 @@ class Inventory:
         inv.history.append(f"Copied from {type(self).__name__} to {inv}.")
         return inv
 
-    def get_emissions(
-        self, category: str, substance: str, ignore_point_sources: bool = False
-    ):
-        """Get the emissions of the requested category and substance.
-
-        In case you have point sources the will be assigned their correct grid cells.
-
-        :arg ignore_point_sources: Whether points sources should not be counted.
-        .. note::
-            Internally emiproc stores categories and substances as a tuple
-            in the header of the gdf: (category, substance),
-            or uses the gdfs dictonary for {category: df} where the
-            df has substances in the header.
-            If you combined the two, a category not in the df should
-            be present in the gdfs.
-            If you have an optimized way of doing this, you can reimplement
-            this function in your :py:class:`Inventory` .
-        """
-        tuple_name = (category, substance)
-        if tuple_name in self.gdf:
-            return self.gdf[tuple_name]
-        if category in self.gdfs.keys():
-            gdf = self.gdfs[category]
-            # check if it is point sources
-            if len(gdf) == 0 or isinstance(gdf.geometry.iloc[0], Point):
-                if ignore_point_sources:
-                    return np.zeros(len(gdf))
-                else:
-                    return weights_remap(
-                        get_weights_mapping(
-                            Path(".emiproc")
-                            / f"Point_source_{type(self).__name__}_{category}",
-                            gdf.geometry,
-                            self.gdf.geometry,
-                            loop_over_inv_objects=True,
-                        ),
-                        gdf[substance],
-                        len(self.gdf),
-                    )
-            else:
-                return gdf[substance]
-        raise IndexError(f"Nothing found for {category}, {substance}")
-
     @classmethod
     def from_gdf(
         cls,
@@ -316,6 +281,7 @@ class Inventory:
         inv.name = name
         inv.gdf = gdf
         inv.gdfs = gdfs
+        inv.grid = None if gdf is None else GeoPandasGrid(gdf)
 
         return inv
 
@@ -378,7 +344,7 @@ class Inventory:
             self.gdfs[category][col] = 0
 
         # Now we can append
-        self.gdfs[category] = self.gdfs[category].append(gdf, ignore_index=True)
+        self.gdfs[category] = pd.concat((self.gdfs[category], gdf), ignore_index=True)
 
     def set_profile(
         self,
@@ -471,6 +437,74 @@ class Inventory:
             self.t_profiles_indexes = indexes_array
 
         self.history.append(f"Set profile {profile_idx} to {category}, {substance}.")
+
+    def set_profiles(
+        self,
+        profiles: VerticalProfiles
+        | CompositeTemporalProfiles
+        | list[list[AnyTimeProfile]],
+        indexes: xr.DataArray,
+    ):
+        """Replace the profiles of the invenotry with the new profiles given.
+
+        This checks that the indexes are correct and that the coords are matching.
+        If they are not, gives a warning.
+
+        If the profiles given are not valid (ex. not the same number of profiles
+        as categories), raises an error.
+        """
+
+        indexes = indexes.copy()
+
+        if isinstance(profiles, list):
+            profiles = CompositeTemporalProfiles(profiles)
+
+        # Check that the indexes are correct
+        check_valid_indexes(indexes, profiles)
+
+        # Check the coord if they match correctly what is given in the inventory
+        for coord in naming.type_of_dim.keys():
+            if coord not in indexes.dims:
+                continue
+            if coord == "cell":
+                values_in_inv = list(range(len(self.grid)))
+            elif coord == "category":
+                values_in_inv = self.categories
+            elif coord == "substance":
+                values_in_inv = self.substances
+            elif coord == "time":
+                raise NotImplementedError(
+                    "Setting profiles with a time coord is not implemented yet"
+                )
+            elif coord == "country":
+                # Cannot really check the countries for now
+                continue
+            else:
+                raise ValueError(f"Unknown coord {coord}")
+            values_in_indexes = indexes.coords[coord].values
+            values_not_in_inv = set(values_in_indexes) - set(values_in_inv)
+            values_not_in_indexes = set(values_in_inv) - set(values_in_indexes)
+            if values_not_in_inv:
+                self.logger.warning(
+                    f"{coord} {values_not_in_inv} from profiles are not in"
+                    " the inventory."
+                )
+                indexes = indexes.drop_sel({coord: list(values_not_in_inv)})
+            if values_not_in_indexes:
+                self.logger.warning(
+                    f"{coord} {values_not_in_indexes} from inventory are not in"
+                    " the profiles."
+                )
+
+        # Assign to the inventory
+        if isinstance(profiles, VerticalProfiles):
+            self.v_profiles = profiles
+            self.v_profiles_indexes = indexes
+        elif isinstance(profiles, CompositeTemporalProfiles):
+            self.t_profiles_groups = profiles
+            self.t_profiles_indexes = indexes
+        else:
+            raise ValueError(f"Unknown profile type {type(profiles)}")
 
 
 class EmiprocNetCDF(Inventory):
