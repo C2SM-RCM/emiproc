@@ -1,25 +1,26 @@
-import pytest
-
 import numpy as np
+import pytest
 import xarray as xr
+
 from emiproc.profiles.operators import concatenate_profiles, weighted_combination
 from emiproc.profiles.temporal_profiles import (
     AnyProfiles,
-    TemporalProfile,
-    DailyProfile,
-    WeeklyProfile,
-    MounthsProfile,
     CompositeTemporalProfiles,
-    SpecificDayProfile,
-    HourOfYearProfile,
+    DailyProfile,
     HourOfLeapYearProfile,
+    HourOfYearProfile,
+    MounthsProfile,
+    SpecificDay,
+    SpecificDayProfile,
+    TemporalProfile,
+    WeeklyProfile,
     make_composite_profiles,
 )
 from emiproc.profiles.utils import merge_indexes
 from emiproc.tests_utils.temporal_profiles import (
     daily_test_profile,
-    weekly_test_profile,
     mounths_test_profile,
+    weekly_test_profile,
 )
 
 
@@ -81,6 +82,17 @@ def test_multiple_profiles():
                 [],
             ]
         ),
+        (
+            [
+                [TemporalProfile(), DailyProfile()],
+                [
+                    WeeklyProfile(),
+                    SpecificDayProfile(
+                        np.array(23 * [0.01] + [0.77]), specific_day=SpecificDay.SUNDAY
+                    ),
+                ],
+            ]
+        ),
     ],
 )
 def test_composite_temporal_profiles(profiles_list_list):
@@ -90,6 +102,36 @@ def test_composite_temporal_profiles(profiles_list_list):
         assert len(p[key]) == len(expected)
         for profile, expected_profile in zip(sorted(p[key]), sorted(expected)):
             assert profile == expected_profile
+
+    # Test append
+    append_profile = DailyProfile()
+    p.append([append_profile])
+    assert p.n_profiles == len(profiles_list_list) + 1
+    assert len(p[-1]) == 1
+    assert p[-1][0] == append_profile
+    # Check that the first profile has not changed (assume okay if the others are)
+    assert len(p[0]) == len(profiles_list_list[0])
+    for profile, expected_profile in zip(sorted(p[0]), sorted(profiles_list_list[0])):
+        assert profile == expected_profile
+
+    # Now append specific days
+    append_profiles = [
+        SpecificDayProfile(
+            np.array(23 * [0.02] + [0.54]), specific_day=SpecificDay.SATURDAY
+        ),
+        SpecificDayProfile(
+            np.array(23 * [0.01] + [0.77]), specific_day=SpecificDay.SUNDAY
+        ),
+    ]
+    p.append(append_profiles)
+    assert p.n_profiles == len(profiles_list_list) + 2
+    assert len(p[-1]) == 2
+    for profile, expected_profile in zip(sorted(p[-1]), sorted(append_profiles)):
+        assert profile == expected_profile
+    # Check that the first profile has not changed (assume okay if the others are)
+    assert len(p[0]) == len(profiles_list_list[0])
+    for profile, expected_profile in zip(sorted(p[0]), sorted(profiles_list_list[0])):
+        assert profile == expected_profile
 
 
 def test_composite_copy():

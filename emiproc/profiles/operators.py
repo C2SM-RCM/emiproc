@@ -1,21 +1,23 @@
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
+
+import geopandas as gpd
 import numpy as np
 import xarray as xr
-import geopandas as gpd
 
-from emiproc.profiles.vertical_profiles import (
-    VerticalProfiles,
-    VerticalProfile,
-    resample_vertical_profiles,
-)
 from emiproc.profiles.temporal_profiles import (
     CompositeTemporalProfiles,
     SpecificDayProfile,
     TemporalProfile,
 )
 from emiproc.profiles.utils import get_objects_of_same_type_from_list
+from emiproc.profiles.vertical_profiles import (
+    VerticalProfile,
+    VerticalProfiles,
+    resample_vertical_profiles,
+)
 from emiproc.utilities import get_country_mask
 
 if TYPE_CHECKING:
@@ -172,6 +174,24 @@ def combine_profiles(
         )
     ), "Some invalid profiles (=-1) don't have 0 weights."
 
+    # Weights can be either given in the averaging dimension or in all the dimensions
+    weights_missing_dims = set(profiles_indexes.dims) - set(weights.dims)
+    if weights_missing_dims:
+        # We need to broadcast the weights to the indexes
+        weights = weights.broadcast_like(profiles_indexes)
+
+    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
+
+    # Check that the weights have the same coords and ordering
+    # as the profiles_indexes
+    for dim in profiles_indexes.dims:
+        if dim == dimension:
+            continue
+        # Select only the coords of the given dimension
+        weights = weights.sel({dim: profiles_indexes.coords[dim]})
+        # Make sure the ordering is the same
+        weights = weights.reindex(coords={dim: profiles_indexes.coords[dim]})
+
     # Check that weights never sum to 0
     mask_sum_0 = weights.sum(dim=dimension) == 0
     if np.any(mask_sum_0):
@@ -185,68 +205,64 @@ def combine_profiles(
         # I assum this is okay as the weight value is only used on the axis where
         # the sum exists
 
-    # Weights can be either given in the averaging dimension or in all the dimensions
-    weights_missing_dims = set(profiles_indexes.dims) - set(weights.dims)
-    if weights_missing_dims:
-        # We need to broadcast the weights to the indexes
-        weights = weights.broadcast_like(profiles_indexes)
-
-    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
-
     if isinstance(profiles, list):
         # Make it composite temporal profiles
         profiles = CompositeTemporalProfiles(profiles)
     # Get the ratios to use depending on the profile type
-    if isinstance(profiles, (VerticalProfiles, CompositeTemporalProfiles)):
-        # Access the profile data (this adds a new dim to the array)
-        ratios_to_average = profiles.ratios[profiles_indexes, :]
-        # Find the specified dimension of the profiles
-        axis = profiles_indexes.dims.index(dimension)
-        # Weights must be extended on the last dimension such that a weight can take care of the whole time index
-        averaging_weights = np.repeat(
-            weights.to_numpy().reshape(*weights.shape, 1),
-            ratios_to_average.shape[-1],
-            -1,
-        )
-        logger.debug(
-            f"Creating averaged profiles with {ratios_to_average=} and"
-            f" {averaging_weights=} on {axis=}"
-        )
-        # Perform the average on the profiles
-        new_profiles = np.average(
-            ratios_to_average,
-            axis=axis,
-            weights=averaging_weights,
-        )
-        # Reduce the size of the profiles by removing duplicates
-        unique_profiles, inverse = np.unique(
-            new_profiles.reshape(-1, new_profiles.shape[-1]),
-            axis=0,
-            return_inverse=True,
-        )
-
-        # Reshape the indexes of the new profiles
-        shape = list(profiles_indexes.shape)
-        shape.pop(profiles_indexes.dims.index(dimension))
-        # These are now the indexes of this category
-        logger.debug(f"Reshaping {inverse=} to {shape=} with {new_coords=}")
-        new_indexes = xr.DataArray(
-            inverse.reshape(shape),
-            # Remove the coord of the given dimension
-            coords=new_coords,
-        )
-        if isinstance(profiles, VerticalProfiles):
-            new_profiles = VerticalProfiles(unique_profiles, profiles.height)
-        elif isinstance(profiles, CompositeTemporalProfiles):
-            new_profiles = CompositeTemporalProfiles.from_ratios(
-                ratios=unique_profiles,
-                types=profiles.types,
-            )
-
-    else:
+    if not isinstance(profiles, (VerticalProfiles, CompositeTemporalProfiles)):
         raise TypeError(
-            f"Unknown profile type {type(profiles)}, must be VerticalProfiles or list"
+            f"Unknown profile type {type(profiles)}, must be VerticalProfiles or"
+            " CompositeTemporalProfiles"
         )
+    # Access the profile data (this adds a new dim to the array)
+    ratios_to_average = profiles.ratios[profiles_indexes, :]
+    # Find the specified dimension of the profiles
+    axis = profiles_indexes.dims.index(dimension)
+    # Weights must be extended on the last dimension such that a weight can take care of the whole time index
+    averaging_weights = np.repeat(
+        weights.to_numpy().reshape(*weights.shape, 1),
+        ratios_to_average.shape[-1],
+        -1,
+    )
+    logger.debug(
+        f"Creating averaged profiles with {ratios_to_average=} and"
+        f" {averaging_weights=} on {axis=}"
+    )
+    # Perform the average on the profiles
+    new_profiles = np.average(
+        ratios_to_average,
+        axis=axis,
+        weights=averaging_weights,
+    )
+    # Reduce the size of the profiles by removing duplicates
+    unique_profiles, inverse = np.unique(
+        new_profiles.reshape(-1, new_profiles.shape[-1]),
+        axis=0,
+        return_inverse=True,
+    )
+
+    # Reshape the indexes of the new profiles
+    shape = list(profiles_indexes.shape)
+    # Remove the coord of the given dimension
+    shape.pop(profiles_indexes.dims.index(dimension))
+    # These are now the indexes of this category
+    logger.debug(f"Reshaping {inverse=} to {shape=} with {new_coords=}")
+
+    new_indexes = xr.DataArray(
+        inverse.reshape(shape),
+        # Remove the profile coord as sometimes created and empty
+        dims=[c.name for c in new_coords if c.name != "profile"],
+        coords={c.name: c.values for c in new_coords if c.name != "profile"},
+    )
+    if isinstance(profiles, VerticalProfiles):
+        new_profiles = VerticalProfiles(unique_profiles, profiles.height)
+    elif isinstance(profiles, CompositeTemporalProfiles):
+        new_profiles = CompositeTemporalProfiles.from_ratios(
+            ratios=unique_profiles,
+            types=profiles.types,
+        )
+    else:
+        raise TypeError(f"Unknown profile type {type(profiles)}")
 
     # Set the invalid profiles back
     new_indexes = xr.where(mask_sum_0, -1, new_indexes)

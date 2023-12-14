@@ -122,6 +122,7 @@ class TNO_Inventory(Inventory):
                 "encoding": "latin",
             },
         )
+        logging.debug(f"Temporal profiles indexes: {t_profiles_indexes}")
 
         self.name = nc_file.stem
 
@@ -163,7 +164,7 @@ class TNO_Inventory(Inventory):
             missing_substances = set(file_substances) - set(substances_mapping.keys())
             if missing_substances:
                 self.logger.warning(
-                    f"Substances {missing_substances} in the file are not in the"
+                    f"Substances {missing_substances} in the nc file are not in the"
                     f" mapping: {substances_mapping}.\n"
                     "They will be ignored."
                 )
