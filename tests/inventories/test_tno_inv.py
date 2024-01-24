@@ -51,5 +51,44 @@ def test_country_ratios():
     ratios = get_country_mask(inv_tno.grid, return_fractions=True)
 
 
+def test_with_t_profiles():
+    inv_tno = TNO_Inventory(
+        tno_template, profiles_dir=emiproc.FILES_DIR / "test/tno/profiles_cat"
+    )
+    assert "category" in inv_tno.t_profiles_indexes.dims
+    assert "substance" not in inv_tno.t_profiles_indexes.dims
+
+
+def test_with_t_profiles_catsub():
+    inv_tno = TNO_Inventory(
+        tno_template, profiles_dir=emiproc.FILES_DIR / "test/tno/profiles_catsub"
+    )
+    assert "category" in inv_tno.t_profiles_indexes.dims
+    assert "substance" in inv_tno.t_profiles_indexes.dims
+
+
+def test_with_t_profiles_misssing():
+    inv_tno = TNO_Inventory(
+        tno_template, profiles_dir=emiproc.FILES_DIR / "test/tno/profiles_missing_cat"
+    )
+    assert "category" in inv_tno.t_profiles_indexes.dims
+    assert "substance" not in inv_tno.t_profiles_indexes.dims
+
+
+def test_with_t_profiles_catsub_misssing():
+    inv_tno = TNO_Inventory(
+        tno_template,
+        profiles_dir=emiproc.FILES_DIR / "test/tno/profiles_catsub_missing",
+    )
+    assert "category" in inv_tno.t_profiles_indexes.dims
+    assert "substance" in inv_tno.t_profiles_indexes.dims
+    missing_cat = "F2"
+    other_cats = ["A", "B", "F1"]
+    assert missing_cat not in inv_tno.t_profiles_indexes["category"].values
+    assert all(
+        [cat in inv_tno.t_profiles_indexes["category"].values for cat in other_cats]
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
