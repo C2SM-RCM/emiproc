@@ -46,6 +46,8 @@ class SwissRasters(Inventory):
         """
         super().__init__()
 
+        self.year = year
+
         data_path = Path(data_path)
 
         # Emission data file

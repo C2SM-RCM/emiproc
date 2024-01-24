@@ -77,6 +77,7 @@ class Inventory:
     :param name: The name of the inventory. This is going to be used
         for adding metadata to the output files, and also for the reggridding
         weights files.
+    :param year: The year of the inventory. (optional)
     :param grid: The grid on which the inventory is. Can be none if the invenotry
         is not defined on a grid. (only shapped emissions)
     :param substances: The :py:class:`Substance` present in this inventory.
@@ -119,6 +120,7 @@ class Inventory:
     """
 
     name: str
+    year: int | None = None
 
     grid: Grid | None
     substances: list[Substance]
