@@ -65,21 +65,33 @@ def people_to_emissions(
     output_gdfs: bool = False,
     name: str = "human_respiration"
 ) -> Inventory:
-    """Convert people living there to emissions.
+    """Get human respiration emissions.
 
-    People produce only CO2
+    Convert the number of people living in different areas
+    to annual emission of CO2 from human respiration.
 
-    :arg people_gdf: A geodataframe containing the number of people from each emission category.
-    :arg time_ratios: The ratio of time that people spend in each of the 
-        activities. 
-    :arg time_profiles: Instead of just ratio we can provied time profiles for 
-        each of the activities.
+    Different categories can be provided in the input. (ex. working, living, etc.)
+
+    The formula used is quite simple:
+
+    .. math::
+        \\text{emissions} [kg/y/shape] =
+        \\text{emission factor} [kg/p/d]
+        * \\text{people} [p/shape]
+        * \\text{time ratio} [-]
+        * \\text{days per year} [d/y]
+
+    :arg people_gdf: A geodataframe containing the number of people for
+        each geometry/shape/row. Each column must be named after the category of people.
+    :arg time_ratios: The ratio of time that people spend for each category.
+        The sum of all the ratios must be 1.
+        Ex: `{'working': 0.3, 'living': 0.7}`.
     :arg emission_factor: The emission factor to use for each of the activities.
+        Can be a single value or a dict with the same keys as the categories.
     :arg output_gdfs: Whether the output inventory should contain the emission
         data in gdfs instead of in the gdf(default).
 
-    :return: The Inventory of human emissions.
-
+    :return: The Inventory containing human emissions.
     """
 
     categories = list(time_ratios.keys())
