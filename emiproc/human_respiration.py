@@ -12,6 +12,7 @@ from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.utilities import DAY_PER_YR
 
+
 class EmissionFactor(Enum):
     """Emissions factors are how much CO2 is produce per individual per day
 
@@ -24,7 +25,7 @@ class EmissionFactor(Enum):
 
 def load_data_from_quartieranalyse(
     file: PathLike,
-    grid: RegularGrid | None,
+    grid: RegularGrid | None = None,
 ) -> gpd.GeoDataFrame:
     """Load the data required from the quartieranalyse file from zurich.
 
@@ -63,7 +64,7 @@ def people_to_emissions(
     time_ratios: dict[str, float],
     emission_factor: dict[str, float] | float = EmissionFactor.ROUGH_ESTIMATON.value,
     output_gdfs: bool = False,
-    name: str = "human_respiration"
+    name: str = "human_respiration",
 ) -> Inventory:
     """Get human respiration emissions.
 
@@ -99,31 +100,30 @@ def people_to_emissions(
         emission_factor = {cat: emission_factor for cat in categories}
 
     if not sum(time_ratios.values()) == 1:
-        raise ValueError(f"The time ratios must sum up to 1, got {time_ratios.values() = }")
+        raise ValueError(
+            f"The time ratios must sum up to 1, got {time_ratios.values() = }"
+        )
 
     yearly_emissions = {
         # Calculate the yearly emissions for each of the categories
         # (kg/p/day) * (p/shape) * (-) * (day/y) = (kg/y/shape)
-        cat: emission_factor[cat] * people_gdf[cat] * time_ratios[cat] * DAY_PER_YR  
+        cat: emission_factor[cat] * people_gdf[cat] * time_ratios[cat] * DAY_PER_YR
         for cat in categories
     }
-    
+
     inv_kwargs = {}
     if output_gdfs:
-        inv_kwargs['gdfs'] = {
-            cat: gpd.GeoDataFrame({'CO2': yearly_emissions[cat]},geometry=people_gdf.geometry)
+        inv_kwargs["gdfs"] = {
+            cat: gpd.GeoDataFrame(
+                {"CO2": yearly_emissions[cat]}, geometry=people_gdf.geometry
+            )
             for cat in categories
         }
     else:
-        # Use the main gdf 
-        inv_kwargs['gdf'] = gpd.GeoDataFrame(
-            {
-                (cat, 'CO2'): yearly_emissions[cat] for cat in categories
-            },
-            geometry=people_gdf.geometry
+        # Use the main gdf
+        inv_kwargs["gdf"] = gpd.GeoDataFrame(
+            {(cat, "CO2"): yearly_emissions[cat] for cat in categories},
+            geometry=people_gdf.geometry,
         )
-    
+
     return Inventory.from_gdf(**inv_kwargs, name=name)
-
-
-
