@@ -174,6 +174,24 @@ def combine_profiles(
         )
     ), "Some invalid profiles (=-1) don't have 0 weights."
 
+    # Weights can be either given in the averaging dimension or in all the dimensions
+    weights_missing_dims = set(profiles_indexes.dims) - set(weights.dims)
+    if weights_missing_dims:
+        # We need to broadcast the weights to the indexes
+        weights = weights.broadcast_like(profiles_indexes)
+
+    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
+
+    # Check that the weights have the same coords and ordering
+    # as the profiles_indexes
+    for dim in profiles_indexes.dims:
+        if dim == dimension:
+            continue
+        # Select only the coords of the given dimension
+        weights = weights.sel({dim: profiles_indexes.coords[dim]})
+        # Make sure the ordering is the same
+        weights = weights.reindex(coords={dim: profiles_indexes.coords[dim]})
+
     # Check that weights never sum to 0
     mask_sum_0 = weights.sum(dim=dimension) == 0
     if np.any(mask_sum_0):
@@ -186,14 +204,6 @@ def combine_profiles(
         weights = xr.where(mask_invalid_weights, 1, weights)
         # I assum this is okay as the weight value is only used on the axis where
         # the sum exists
-
-    # Weights can be either given in the averaging dimension or in all the dimensions
-    weights_missing_dims = set(profiles_indexes.dims) - set(weights.dims)
-    if weights_missing_dims:
-        # We need to broadcast the weights to the indexes
-        weights = weights.broadcast_like(profiles_indexes)
-
-    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
 
     if isinstance(profiles, list):
         # Make it composite temporal profiles
@@ -233,13 +243,16 @@ def combine_profiles(
 
     # Reshape the indexes of the new profiles
     shape = list(profiles_indexes.shape)
+    # Remove the coord of the given dimension
     shape.pop(profiles_indexes.dims.index(dimension))
     # These are now the indexes of this category
     logger.debug(f"Reshaping {inverse=} to {shape=} with {new_coords=}")
+
     new_indexes = xr.DataArray(
         inverse.reshape(shape),
-        # Remove the coord of the given dimension
-        coords=new_coords,
+        # Remove the profile coord as sometimes created and empty
+        dims=[c.name for c in new_coords if c.name != "profile"],
+        coords={c.name: c.values for c in new_coords if c.name != "profile"},
     )
     if isinstance(profiles, VerticalProfiles):
         new_profiles = VerticalProfiles(unique_profiles, profiles.height)

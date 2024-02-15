@@ -148,7 +148,7 @@ class GralInventory(Inventory):
             if substance not in self.gdfs[category].columns:
                 self.gdfs[category][substance] = 0
             # Now we can append
-            self.gdfs[category] = self.gdfs[category].append(gdf, ignore_index=True)
+            self.gdfs[category] = pd.concat([self.gdfs[category], gdf], ignore_index=True)
 
     def _read_points(self) -> None:
         """Read the point sources."""
