@@ -30,6 +30,7 @@ class MapLuftZurich(Inventory):
             "N2O",
             "NH3",
             "CH4",
+            "BC",
             "VOC",
             "benzene",
         ],
