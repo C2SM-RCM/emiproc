@@ -4,17 +4,18 @@ Classes handling different grids, namely the simulation grids and
 grids used in different emissions inventories.
 """
 from __future__ import annotations
+
+import math
+import warnings
 from functools import cache, cached_property
 from typing import Iterable
-import warnings
-import numpy as np
-import xarray as xr
-import geopandas as gpd
-import pyproj
-import math
 
+import geopandas as gpd
+import numpy as np
+import pyproj
+import xarray as xr
 from netCDF4 import Dataset
-from shapely.geometry import Polygon, Point, box, LineString, MultiPolygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.ops import split
 
 WGS84 = 4326
