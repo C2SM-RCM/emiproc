@@ -1,0 +1,17 @@
+country,category,CO2_ANT,CO2_BIO
+SEN,test,0.2,0.8
+MLI,test,0.1,0.9
+MRT,test,0.1,0.9
+GIN,test,0.5,0.5
+GNB,test,0.8,0.2
+LBR,test,0.1,0.9
+SLE,test,0.0,1.0
+GMB,test,0.1,0.9
+SEN,test2,0.2,0.8
+MLI,test2,0.1,0.9
+MRT,test2,0.1,0.9
+GIN,test2,0.5,0.5
+GNB,test2,0.5,0.5
+LBR,test2,0.1,0.9
+SLE,test2,0.0,1.0
+GMB,test2,0.1,0.9

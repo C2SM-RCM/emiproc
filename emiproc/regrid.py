@@ -24,7 +24,7 @@ def get_weights_mapping(
     shapes_inv: Iterable[Polygon | Point],
     shapes_out: Iterable[Polygon],
     loop_over_inv_objects: bool = False,
-    method: str = 'new',
+    method: str = "new",
 ) -> dict[str, np.ndarray]:
     """Get the requested weights mapping.
 
@@ -50,7 +50,7 @@ def get_weights_mapping(
 
     """
     logger.debug(
-        f"get_weights_mapping("
+        "get_weights_mapping("
         f"{weights_filepath=},"
         f"{shapes_inv=},"
         f"{shapes_out=},"
@@ -68,10 +68,7 @@ def get_weights_mapping(
 
     if (weights_filepath is None) or (not weights_filepath.exists()):
         w_mapping = calculate_weights_mapping(
-            shapes_inv,
-            shapes_out,
-            loop_over_inv_objects,
-            method
+            shapes_inv, shapes_out, loop_over_inv_objects, method
         )
         if weights_filepath is not None:
             # Make sure dir is created
@@ -80,7 +77,7 @@ def get_weights_mapping(
 
     else:
         w_mapping = {**np.load(weights_filepath)}
-        
+
     return w_mapping
 
 
@@ -88,7 +85,7 @@ def calculate_weights_mapping(
     shapes_inv: Iterable[Polygon | Point | MultiPolygon],
     shapes_out: Iterable[Polygon],
     loop_over_inv_objects: bool = False,
-    method: str = 'new',
+    method: str = "new",
 ) -> dict[str, np.ndarray]:
     """Return a dictionary with the mapping.
 
@@ -111,7 +108,7 @@ def calculate_weights_mapping(
     # shapes_out = grid.gdf.to_crs(inv.crs)
     # loop_over_inv_objects=False
     logger.info(
-        f"calculating weights mapping "
+        "calculating weights mapping "
         f"from {len(shapes_inv)} inventory shapes "
         f"to {len(shapes_out)} grid cells."
     )
@@ -144,8 +141,9 @@ def calculate_weights_mapping(
         shapes_vect.map(lambda shape: isinstance(shape, (Polygon, MultiPolygon)))
     ):
         raise TypeError(
-            "Non Polygon geometries were found on the grid but cannot be used for remapping."
-            " Use 'loop_over_inv_objects' if you want to remap points to a grid."
+            "Non Polygon geometries were found on the grid but cannot be used for"
+            " remapping. Use 'loop_over_inv_objects' if you want to remap points to a"
+            " grid."
         )
 
     if isinstance(shapes_looped, gpd.GeoDataFrame):
@@ -156,6 +154,7 @@ def calculate_weights_mapping(
         shapes_looped = gpd.GeoSeries(shapes_looped)
     else:
         raise TypeError(f"'shapes_looped' cannot be {type(shapes_looped)}")
+    shapes_looped: gpd.GeoSeries
     minx, miny, maxx, maxy = shapes_looped.total_bounds
     if minx != maxx and miny != maxy:
         # Seems to remove all the data if boundaries are equal
@@ -164,7 +163,7 @@ def calculate_weights_mapping(
 
     progress = ProgressIndicator(len(shapes_looped))
 
-    if method == 'old':
+    if method == "old":
         # Loop over the output shapes
         for looped_index, shape in enumerate(shapes_looped):
             progress.step()
@@ -182,7 +181,9 @@ def calculate_weights_mapping(
                 else:
                     # Calculate the intersection areas
                     areas = (
-                        intersecting_serie.intersection(shape).area.to_numpy().reshape(-1)
+                        intersecting_serie.intersection(shape)
+                        .area.to_numpy()
+                        .reshape(-1)
                     )
                     if loop_over_inv_objects:
                         # Take the ratio of the shape from the overlap from the shape i
@@ -208,35 +209,47 @@ def calculate_weights_mapping(
                 w_mapping[key] = np.concatenate(l, axis=0).reshape(-1)
 
     elif method == "new":
-
         # Merge the two geometries using intersections
         gdf_in = gpd.GeoDataFrame(geometry=shapes_vect)
         gdf_out = gpd.GeoDataFrame(geometry=shapes_looped)
-        gdf_weights = gdf_in.sjoin(gdf_out, rsuffix='out')
-        gdf_weights = gdf_weights.merge(gdf_out, left_on="index_out", right_index=True, suffixes=("", "_out"))
-        gdf_weights.index.name = 'index_inv'
-        gdf_weights = gdf_weights.assign(geometry_inter=lambda d: (d["geometry"].intersection(gpd.GeoSeries(d["geometry_out"]))))
+        gdf_weights = gdf_in.sjoin(gdf_out, rsuffix="out")
+        gdf_weights = gdf_weights.merge(
+            gdf_out, left_on="index_out", right_index=True, suffixes=("", "_out")
+        )
+        gdf_weights.index.name = "index_inv"
+        gdf_weights = gdf_weights.assign(
+            geometry_inter=lambda d: (
+                d["geometry"].intersection(gpd.GeoSeries(d["geometry_out"]))
+            )
+        )
 
         if loop_over_inv_objects:
             # Calculate weights for polygons
-            gdf_weights["weights"] = gdf_weights.geometry_inter.area / gdf_weights.geometry_out.area
+            gdf_weights["weights"] = (
+                gdf_weights.geometry_inter.area / gdf_weights.geometry_out.area
+            )
 
             # Process the points
-            gdf_points =  gdf_weights.loc[gdf_weights.geometry_out.type == 'Point']
+            gdf_points = gdf_weights.loc[gdf_weights.geometry_out.type == "Point"]
             if gdf_points.shape[0]:
-                nareas_points = gdf_points.groupby('index_out').transform(np.count_nonzero)['geometry']
-                gdf_weights.loc[gdf_weights.geometry_out.type == 'Point', 'weights'] = 1 / nareas_points
+                nareas_points = gdf_points.groupby("index_out").transform(
+                    np.count_nonzero
+                )["geometry"]
+                gdf_weights.loc[gdf_weights.geometry_out.type == "Point", "weights"] = (
+                    1 / nareas_points
+                )
 
             # Extract indices
-            gdf_weights = gdf_weights.sort_values(by=['index_inv', 'index_out'])
+            gdf_weights = gdf_weights.sort_values(by=["index_inv", "index_out"])
             w_mapping["inv_indexes"] = gdf_weights.index_out.to_numpy()
             w_mapping["output_indexes"] = gdf_weights.index.to_numpy()
 
-
         else:
             # Calculate weights and extract indices
-            gdf_weights["weights"] = gdf_weights.geometry_inter.area / gdf_weights.geometry.area
-            gdf_weights = gdf_weights.sort_values(by=['index_out', 'index_inv'])
+            gdf_weights["weights"] = (
+                gdf_weights.geometry_inter.area / gdf_weights.geometry.area
+            )
+            gdf_weights = gdf_weights.sort_values(by=["index_out", "index_inv"])
             w_mapping["inv_indexes"] = gdf_weights.index.to_numpy()
             w_mapping["output_indexes"] = gdf_weights.index_out.to_numpy()
 
@@ -244,7 +257,7 @@ def calculate_weights_mapping(
 
     else:
         raise ValueError(f"'method' must be one of ['new', 'old'] not {method}.")
-    # Ensure types 
+    # Ensure types
     w_mapping["output_indexes"] = np.array(w_mapping["output_indexes"], dtype=int)
     w_mapping["inv_indexes"] = np.array(w_mapping["inv_indexes"], dtype=int)
     w_mapping["weights"] = np.array(w_mapping["weights"], dtype=float)
@@ -286,7 +299,6 @@ def weights_remap_matrix(
     This allow for not having to build the matrix multiple times
     """
     return w_matrix.dot(remapped_values)
-
 
 
 def geoserie_intersection(
@@ -421,14 +433,19 @@ def remap_inventory(
         # Create the weights matrix
         if max(w_mapping["output_indexes"]) > len(grid_cells):
             raise ValueError(
-                f"Error in weights mapping: {max(w_mapping['output_indexes'])=} > {len(grid_cells)=}"
+                f"Error in weights mapping: {max(w_mapping['output_indexes'])=} >"
+                f" {len(grid_cells)=}"
             )
         if max(w_mapping["inv_indexes"]) > len(inv.gdf):
             raise ValueError(
-                f"Error in weights mapping: {max(w_mapping['inv_indexes'])=} > {len(inv.gdf)=}"
+                f"Error in weights mapping: {max(w_mapping['inv_indexes'])=} >"
+                f" {len(inv.gdf)=}"
             )
         w_matrix = coo_array(
-            (w_mapping["weights"], (w_mapping["output_indexes"], w_mapping["inv_indexes"])),
+            (
+                w_mapping["weights"],
+                (w_mapping["output_indexes"], w_mapping["inv_indexes"]),
+            ),
             shape=(len(grid_cells), len(inv.gdf)),
             dtype=float,
         )
@@ -445,7 +462,7 @@ def remap_inventory(
         for category, gdf in inv.gdfs.items():
             # Get the weights of that gdf
             if weigths_file is None:
-                w_file = None   
+                w_file = None
             else:
                 w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
             w_mapping = get_weights_mapping(
@@ -473,12 +490,12 @@ def remap_inventory(
         # Copy the profiles to the new inventory
         profiles=True,
     )
+    out_inv.grid = grid
     out_inv.gdf = gpd.GeoDataFrame(
         mapping_dict,
         geometry=grid_cells,
         crs=inv.crs,
     )
-
     if keep_gdfs:
         out_inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in inv.gdfs.items()}
     else:

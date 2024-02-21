@@ -292,7 +292,7 @@ def from_csv(file: PathLike) -> tuple[VerticalProfiles, list[str | tuple[str, st
 
 def read_vertical_profiles(
     profiles_dir: PathLike,
-) -> tuple[VerticalProfiles, list[str]]:
+) -> tuple[VerticalProfiles, xr.DataArray]:
     """Read vertical profiles from csv files.
 
     Vertical profiles only depend on the category.
@@ -330,8 +330,8 @@ def read_vertical_profiles(
         in the name of the file to specify if the profiles are for gridded emissions
         or for shapped emissions.
 
-    :return: A tuple containing the vertical profiles and a list of the
-        categories that matches each profiles.
+    :return: A tuple containing the vertical profiles and an xarray mapping
+        which kind of emission correspond to which profile.
     """
     profiles_dir = Path(profiles_dir)
 

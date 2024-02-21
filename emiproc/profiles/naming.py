@@ -41,6 +41,10 @@ attributes_accepted_colnames = {
     "type": type_colnames,
 }
 
+# Add lowercase versions of the accepted colnames
+for key, value in attributes_accepted_colnames.items():
+    attributes_accepted_colnames[key].extend([v.lower() for v in value])
+
 type_of_dim = {
     "category": str,
     "substance": str,

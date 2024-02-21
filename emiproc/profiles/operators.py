@@ -1,11 +1,52 @@
 from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+import geopandas as gpd
 import numpy as np
 import xarray as xr
-import geopandas as gpd
 
-from emiproc.profiles.vertical_profiles import VerticalProfiles, VerticalProfile
-from emiproc.profiles.temporal_profiles import SpecificDayProfile, TemporalProfile
+from emiproc.profiles.temporal_profiles import (
+    CompositeTemporalProfiles,
+    SpecificDayProfile,
+    TemporalProfile,
+)
 from emiproc.profiles.utils import get_objects_of_same_type_from_list
+from emiproc.profiles.vertical_profiles import (
+    VerticalProfile,
+    VerticalProfiles,
+    resample_vertical_profiles,
+)
+from emiproc.utilities import get_country_mask
+
+if TYPE_CHECKING:
+    from emiproc.grids import Grid
+
+logger = logging.getLogger(__name__)
+
+
+def concatenate_profiles(
+    profiles_list: list[
+        VerticalProfiles | list[list[TemporalProfile]] | CompositeTemporalProfiles
+    ],
+) -> VerticalProfiles | CompositeTemporalProfiles:
+    # Check that all profiles are of the same type
+    profile_type = type(profiles_list[0])
+    if not all([type(p) == profile_type for p in profiles_list]):
+        raise TypeError(
+            "All profiles must be of the same type, got"
+            f" {[type(p) for p in profiles_list]}"
+        )
+    if profile_type == VerticalProfiles:
+        return resample_vertical_profiles(*profiles_list)
+    elif profile_type == list:
+        reduced_list = sum(profiles_list, [])
+        return CompositeTemporalProfiles(reduced_list)
+    elif profile_type == CompositeTemporalProfiles:
+        return CompositeTemporalProfiles.join(*profiles_list)
+    else:
+        raise TypeError(f"Unknown profile type {profile_type}")
 
 
 def weighted_combination(
@@ -92,11 +133,13 @@ def weighted_combination_time(
 
 
 def combine_profiles(
-    profiles: VerticalProfiles | list[list[TemporalProfile]],
+    profiles: VerticalProfiles
+    | list[list[TemporalProfile]]
+    | CompositeTemporalProfiles,
     profiles_indexes: xr.DataArray,
     dimension: str,
     weights: xr.DataArray,
-) -> tuple[VerticalProfiles, xr.DataArray]:
+) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray,]:
     """Combine profiles from multidimensional array by reducing over a specified dimension.
 
     The indexes and the weights but be of the same dimensions.
@@ -112,6 +155,9 @@ def combine_profiles(
         in these new profiles.
         The indexes array has the dimension of combination removed.
     """
+
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Combining {profiles_indexes=} on {dimension=} with {weights=}")
     # assert len(indexes.coords[dimension]) > 1, "Cannot combine over 1 dimension"
     if dimension not in profiles_indexes.dims:
         raise ValueError(
@@ -128,6 +174,24 @@ def combine_profiles(
         )
     ), "Some invalid profiles (=-1) don't have 0 weights."
 
+    # Weights can be either given in the averaging dimension or in all the dimensions
+    weights_missing_dims = set(profiles_indexes.dims) - set(weights.dims)
+    if weights_missing_dims:
+        # We need to broadcast the weights to the indexes
+        weights = weights.broadcast_like(profiles_indexes)
+
+    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
+
+    # Check that the weights have the same coords and ordering
+    # as the profiles_indexes
+    for dim in profiles_indexes.dims:
+        if dim == dimension:
+            continue
+        # Select only the coords of the given dimension
+        weights = weights.sel({dim: profiles_indexes.coords[dim]})
+        # Make sure the ordering is the same
+        weights = weights.reindex(coords={dim: profiles_indexes.coords[dim]})
+
     # Check that weights never sum to 0
     mask_sum_0 = weights.sum(dim=dimension) == 0
     if np.any(mask_sum_0):
@@ -141,80 +205,64 @@ def combine_profiles(
         # I assum this is okay as the weight value is only used on the axis where
         # the sum exists
 
-    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
-
+    if isinstance(profiles, list):
+        # Make it composite temporal profiles
+        profiles = CompositeTemporalProfiles(profiles)
     # Get the ratios to use depending on the profile type
-    if isinstance(profiles, VerticalProfiles):
-        # Perform the average on the profiles
-        new_profiles = np.average(
-            # Access the profile data (this adds a new dim to the array)
-            profiles.ratios[profiles_indexes, :],
-            # Find the specified dimension of the profiles
-            axis=profiles_indexes.dims.index(dimension),
-            # Weights must be extended on the last dimension such that a weight can take care of the whole time index
-            weights=np.repeat(
-                weights.to_numpy().reshape(*weights.shape, 1), len(profiles.height), -1
-            ),
-        )
-        # Reduce the size of the profiles by removing duplicates
-        unique_profiles, inverse = np.unique(
-            new_profiles.reshape(-1, new_profiles.shape[-1]),
-            axis=0,
-            return_inverse=True,
-        )
-
-        # Reshape the indexes of the new profiles
-        shape = list(profiles_indexes.shape)
-        shape.pop(profiles_indexes.dims.index(dimension))
-        # These are now the indexes of this category
-        new_indexes = xr.DataArray(
-            inverse.reshape(shape),
-            # Remove the coord of the given dimension
-            coords=new_coords,
-        )
-
-        new_profiles = VerticalProfiles(unique_profiles, profiles.height)
-
-    elif isinstance(profiles, list):
-        if len(profiles_indexes.dims) > 2:
-            raise NotImplementedError(
-                "Currently no implementation for time profiles varying on more than 2"
-                f" dimensions. Got {profiles_indexes.dims=}"
-            )
-        # get the name of the other dimension
-        other_dim = [d for d in profiles_indexes.dims if d != dimension][0]
-
-        # Iterate over the other dimension
-        new_profiles = []
-        new_indexes = []
-
-        coords_of_merging = profiles_indexes.coords[dimension]
-        coords_other_dim = profiles_indexes.coords[other_dim]
-        for i, coord_other in enumerate(coords_other_dim):
-            profiles_to_merge = []
-            weights_to_merge = []
-            for coord_of_merging in coords_of_merging:
-                # Get the profiles of this category
-                sel_dict = {other_dim: coord_other, dimension: coord_of_merging}
-                profile_index = profiles_indexes.sel(**sel_dict).to_numpy()
-                # Add the weights and profile we will merge
-                profiles_to_merge.append(profiles[profile_index])
-                weights_to_merge.append(weights.sel(**sel_dict).data)
-
-            # Perform the combination
-            new_profiles.append(
-                weighted_combination_time(profiles_to_merge, weights_to_merge)
-            )
-            new_indexes.append(i)
-
-        new_indexes = xr.DataArray(
-            new_indexes, coords=[coords_other_dim], dims=[other_dim]
-        )
-
-    else:
+    if not isinstance(profiles, (VerticalProfiles, CompositeTemporalProfiles)):
         raise TypeError(
-            f"Unknown profile type {type(profiles)}, must be VerticalProfiles or list"
+            f"Unknown profile type {type(profiles)}, must be VerticalProfiles or"
+            " CompositeTemporalProfiles"
         )
+    # Access the profile data (this adds a new dim to the array)
+    ratios_to_average = profiles.ratios[profiles_indexes, :]
+    # Find the specified dimension of the profiles
+    axis = profiles_indexes.dims.index(dimension)
+    # Weights must be extended on the last dimension such that a weight can take care of the whole time index
+    averaging_weights = np.repeat(
+        weights.to_numpy().reshape(*weights.shape, 1),
+        ratios_to_average.shape[-1],
+        -1,
+    )
+    logger.debug(
+        f"Creating averaged profiles with {ratios_to_average=} and"
+        f" {averaging_weights=} on {axis=}"
+    )
+    # Perform the average on the profiles
+    new_profiles = np.average(
+        ratios_to_average,
+        axis=axis,
+        weights=averaging_weights,
+    )
+    # Reduce the size of the profiles by removing duplicates
+    unique_profiles, inverse = np.unique(
+        new_profiles.reshape(-1, new_profiles.shape[-1]),
+        axis=0,
+        return_inverse=True,
+    )
+
+    # Reshape the indexes of the new profiles
+    shape = list(profiles_indexes.shape)
+    # Remove the coord of the given dimension
+    shape.pop(profiles_indexes.dims.index(dimension))
+    # These are now the indexes of this category
+    logger.debug(f"Reshaping {inverse=} to {shape=} with {new_coords=}")
+
+    new_indexes = xr.DataArray(
+        inverse.reshape(shape),
+        # Remove the profile coord as sometimes created and empty
+        dims=[c.name for c in new_coords if c.name != "profile"],
+        coords={c.name: c.values for c in new_coords if c.name != "profile"},
+    )
+    if isinstance(profiles, VerticalProfiles):
+        new_profiles = VerticalProfiles(unique_profiles, profiles.height)
+    elif isinstance(profiles, CompositeTemporalProfiles):
+        new_profiles = CompositeTemporalProfiles.from_ratios(
+            ratios=unique_profiles,
+            types=profiles.types,
+        )
+    else:
+        raise TypeError(f"Unknown profile type {type(profiles)}")
 
     # Set the invalid profiles back
     new_indexes = xr.where(mask_sum_0, -1, new_indexes)
@@ -361,6 +409,10 @@ def group_profiles_indexes(
         merged_profiles = sum(
             merged_profiles,
         )
+    elif isinstance(merged_profiles[0], CompositeTemporalProfiles):
+        merged_profiles = CompositeTemporalProfiles.join(
+            *merged_profiles,
+        )
     else:
         merged_profiles = sum(merged_profiles, [])
 
@@ -370,3 +422,119 @@ def group_profiles_indexes(
     )
 
     return merged_profiles, new_indices
+
+
+def country_to_cells(
+    profiles: VerticalProfiles
+    | list[list[TemporalProfile]]
+    | CompositeTemporalProfiles,
+    profiles_indexes: xr.DataArray,
+    grid: Grid,
+    country_mask_kwargs: dict[str, any] = {},
+) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
+    """Takes profiles given for countries and transform them to cells.
+
+    The input profiles must have a 'country' dimension.
+    The output profiles will have a 'cell' dimension.
+
+    country_mask_kwargs are passed to :py:func:`emiproc.utilities.get_country_mask`.
+    """
+
+    # First check that the profiles are for countries
+    if not isinstance(profiles_indexes, xr.DataArray):
+        raise TypeError(
+            f"Expected {profiles_indexes=} to be a xr.DataArray, got"
+            f" {type(profiles_indexes)}"
+        )
+    if "country" not in profiles_indexes.dims:
+        raise ValueError(
+            f"Expected {profiles_indexes=} to have a country dimension, got"
+            f" {profiles_indexes.dims}"
+        )
+    if "cell" in profiles_indexes.dims:
+        raise ValueError(
+            f"Expected {profiles_indexes=} to not have a cell dimension, got"
+            f" {profiles_indexes.dims}"
+        )
+    if isinstance(profiles, list):
+        # Make it composite temporal profiles
+        profiles = CompositeTemporalProfiles(profiles)
+
+    # Check that the set makes sense
+    if not np.all(profiles_indexes >= -1):
+        raise ValueError(
+            f"Expected {profiles_indexes=} to have all values >= -1, got"
+            f" {profiles_indexes.min()}"
+        )
+    if not np.all(profiles_indexes < len(profiles)):
+        raise ValueError(
+            f"Expected {profiles_indexes=} to have all values <= {len(profiles)}, got"
+            f" {profiles_indexes.max()}"
+        )
+
+    # These will be the weights of the profiles
+    countries_fractions: xr.DataArray = get_country_mask(
+        grid, return_fractions=True, **country_mask_kwargs
+    )
+
+    # Check that the countries are all given
+    # All the countries of the grid must be in the profiles
+    missing_countries = set(countries_fractions.coords["country"].values) - set(
+        profiles_indexes.coords["country"].values
+    )
+
+    if missing_countries:
+        raise ValueError(
+            f"Missing countries {missing_countries=} in {profiles_indexes=}"
+        )
+
+    current_profile_index = len(profiles)
+    new_indexes = []
+    new_profiles = []
+    new_profiles.append(profiles)
+    # Now what we want to do is similar to groupping the indexes, but we want to
+    # change the new dimension to cells instead of countries
+    for cell in countries_fractions.coords["cell"]:
+        # Get the indexes of the countries that are in this cell
+        cell_fractions = countries_fractions.sel(cell=cell)
+        # Get the indexes of the countries that are in this cell (non zero fracs)
+        mask_non_zero = cell_fractions > 0
+        cell_countries = cell_fractions.coords["country"].loc[mask_non_zero]
+        if len(cell_countries) == 0:
+            # No countries in this cell
+            continue
+        if len(cell_countries) == 1:
+            # Only one country, no need to group, simply convert country to cell
+            new_indexes.append(
+                profiles_indexes.sel(country=cell_countries)
+                .squeeze("country")
+                .expand_dims({"cell": [cell]})
+                .drop_vars("country")
+                .copy()
+            )
+            continue
+        # Combine the profiles according to the weights
+        logger.debug(
+            f"Combining {profiles_indexes.sel(country=cell_countries)=} on country"
+            f" with {cell_fractions.sel(country=cell_countries)=}"
+        )
+        merged_profiles, merged_indexes = combine_profiles(
+            profiles=profiles,
+            profiles_indexes=profiles_indexes.sel(country=cell_countries).drop_vars(
+                ["cell"]
+            ),
+            dimension="country",
+            weights=cell_fractions.sel(country=cell_countries).drop_vars(["cell"]),
+        )
+        assert len(merged_profiles) == merged_indexes.max() + 1, (
+            f"Expected {len(merged_profiles)=} to be equal to"
+            f" {merged_indexes.max() + 1=}"
+        )
+        merged_indexes += current_profile_index
+        current_profile_index += len(merged_profiles)
+        new_profiles.append(merged_profiles)
+        new_indexes.append(merged_indexes.expand_dims({"cell": [cell]}))
+
+    new_indexes = xr.concat(new_indexes, dim="cell")
+
+    return concatenate_profiles(new_profiles), new_indexes

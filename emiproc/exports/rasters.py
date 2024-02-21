@@ -5,7 +5,6 @@ import xarray as xr
 import numpy as np
 from emiproc.inventories import Inventory
 from emiproc.grids import RegularGrid
-from emiproc.profiles.utils import get_desired_profile_index
 from emiproc.regrid import remap_inventory
 from emiproc.exports.netcdf import NetcdfAttributes
 from emiproc.utilities import Units, SEC_PER_YR

@@ -3,30 +3,31 @@
 Contains the classes and functions to work with inventories of emissions.
 """
 from __future__ import annotations
+
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from os import PathLike
-from pathlib import Path
-from typing import NewType
-import pandas as pd
+from typing import NewType, Union
+
 import geopandas as gpd
-from shapely.geometry import Point
 import numpy as np
+import pandas as pd
 import xarray as xr
 
-from emiproc.grids import LV95, Grid, SwissGrid
-from emiproc.profiles.temporal_profiles import TemporalProfile
-from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.regrid import get_weights_mapping, weights_remap
+from emiproc.grids import GeoPandasGrid, Grid
+from emiproc.profiles import naming
+from emiproc.profiles.temporal_profiles import (
+    AnyTimeProfile,
+    CompositeTemporalProfiles,
+    TemporalProfile,
+)
+from emiproc.profiles.utils import check_valid_indexes
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
     resample_vertical_profiles,
 )
-
-from emiproc.grids import Grid
-from emiproc.regrid import get_weights_mapping, weights_remap
 
 # Represent a substance that is emitted and can be present in a dataset.
 Substance = NewType("Substance", str)
@@ -35,7 +36,7 @@ Category = NewType("Category", str)
 # A colum from the gdf
 CatSub = tuple[Category, Substance]
 
-TemporalProfiles = list[list[TemporalProfile]]
+TemporalProfiles = Union[list[list[TemporalProfile]], CompositeTemporalProfiles]
 
 
 @dataclass
@@ -76,7 +77,9 @@ class Inventory:
     :param name: The name of the inventory. This is going to be used
         for adding metadata to the output files, and also for the reggridding
         weights files.
-    :param grid: The grid on which the inventory is.
+    :param year: The year of the inventory. (optional)
+    :param grid: The grid on which the inventory is. Can be none if the invenotry
+        is not defined on a grid. (only shapped emissions)
     :param substances: The :py:class:`Substance` present in this inventory.
     :param categories: List of the categories present in the inventory.
 
@@ -117,8 +120,9 @@ class Inventory:
     """
 
     name: str
+    year: int | None = None
 
-    grid: Grid
+    grid: Grid | None
     substances: list[Substance]
     categories: list[Category]
     emission_infos: dict[Category, EmissionInfo]
@@ -224,6 +228,13 @@ class Inventory:
             subs.remove("geometry")
         return subs
 
+    @property
+    def total_emissions(self) -> pd.DataFrame:
+        """Simple accessor to the function."""
+        from emiproc.inventories.utils import get_total_emissions
+
+        return pd.DataFrame(get_total_emissions(self)).T
+
     def copy(self, no_gdfs: bool = False, profiles: bool = True) -> Inventory:
         """Copy the inventory.
 
@@ -272,6 +283,7 @@ class Inventory:
         inv.name = name
         inv.gdf = gdf
         inv.gdfs = gdfs
+        inv.grid = None if gdf is None else GeoPandasGrid(gdf)
 
         return inv
 
@@ -427,6 +439,74 @@ class Inventory:
             self.t_profiles_indexes = indexes_array
 
         self.history.append(f"Set profile {profile_idx} to {category}, {substance}.")
+
+    def set_profiles(
+        self,
+        profiles: VerticalProfiles
+        | CompositeTemporalProfiles
+        | list[list[AnyTimeProfile]],
+        indexes: xr.DataArray,
+    ):
+        """Replace the profiles of the invenotry with the new profiles given.
+
+        This checks that the indexes are correct and that the coords are matching.
+        If they are not, gives a warning.
+
+        If the profiles given are not valid (ex. not the same number of profiles
+        as categories), raises an error.
+        """
+
+        indexes = indexes.copy()
+
+        if isinstance(profiles, list):
+            profiles = CompositeTemporalProfiles(profiles)
+
+        # Check that the indexes are correct
+        check_valid_indexes(indexes, profiles)
+
+        # Check the coord if they match correctly what is given in the inventory
+        for coord in naming.type_of_dim.keys():
+            if coord not in indexes.dims:
+                continue
+            if coord == "cell":
+                values_in_inv = list(range(len(self.grid)))
+            elif coord == "category":
+                values_in_inv = self.categories
+            elif coord == "substance":
+                values_in_inv = self.substances
+            elif coord == "time":
+                raise NotImplementedError(
+                    "Setting profiles with a time coord is not implemented yet"
+                )
+            elif coord == "country":
+                # Cannot really check the countries for now
+                continue
+            else:
+                raise ValueError(f"Unknown coord {coord}")
+            values_in_indexes = indexes.coords[coord].values
+            values_not_in_inv = set(values_in_indexes) - set(values_in_inv)
+            values_not_in_indexes = set(values_in_inv) - set(values_in_indexes)
+            if values_not_in_inv:
+                self.logger.warning(
+                    f"{coord} {values_not_in_inv} from profiles are not in"
+                    " the inventory."
+                )
+                indexes = indexes.drop_sel({coord: list(values_not_in_inv)})
+            if values_not_in_indexes:
+                self.logger.warning(
+                    f"{coord} {values_not_in_indexes} from inventory are not in"
+                    " the profiles."
+                )
+
+        # Assign to the inventory
+        if isinstance(profiles, VerticalProfiles):
+            self.v_profiles = profiles
+            self.v_profiles_indexes = indexes
+        elif isinstance(profiles, CompositeTemporalProfiles):
+            self.t_profiles_groups = profiles
+            self.t_profiles_indexes = indexes
+        else:
+            raise ValueError(f"Unknown profile type {type(profiles)}")
 
 
 class EmiprocNetCDF(Inventory):

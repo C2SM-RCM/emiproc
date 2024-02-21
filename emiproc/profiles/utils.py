@@ -1,16 +1,21 @@
 """Utitlity functions for profiles."""
 from __future__ import annotations
+
 import logging
 from os import PathLike
 from pathlib import Path
-from typing import Any, Type
+from typing import TYPE_CHECKING, Any, Type
 
+import numpy as np
 import pandas as pd
 import xarray as xr
-import numpy as np
 
 import emiproc
 from emiproc.profiles import naming
+
+if TYPE_CHECKING:
+    from emiproc.profiles.temporal_profiles import CompositeTemporalProfiles
+    from emiproc.profiles.vertical_profiles import VerticalProfiles
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +43,44 @@ def remove_objects_of_type_from_list(object: Any, objects_list: list[Any]) -> li
 
 
 def get_objects_of_same_type_from_list(
-    object: Any, objects_list: list[Any]
+    object: Any, objects_list: list[Any], exact_type: bool = False
 ) -> list[Any]:
     """Return the object of the same type from the list."""
+    func = isinstance if exact_type else lambda x, y: type(x) == y
     return [o for o in objects_list if isinstance(object, type(o))]
+
+
+def check_valid_indexes(
+    indexes: xr.DataArray, profiles: VerticalProfiles | CompositeTemporalProfiles = None
+) -> None:
+    """Check that the given indexes are valid.
+
+    :raises ValueError: if the indexes are not valid
+    """
+
+    # check all the dims names are valid
+    dims_not_allowed = set(indexes.dims) - set(naming.type_of_dim.keys())
+    if len(dims_not_allowed) > 0:
+        raise ValueError(
+            f"Indexes are not allowed to contain {dims_not_allowed=}, "
+            f"allowed dims are {naming.type_of_dim.keys()}"
+        )
+    # Make sure no coords has duplicated values
+    for coord in indexes.coords:
+        if len(indexes.coords[coord]) != len(np.unique(indexes.coords[coord])):
+            raise ValueError(
+                f"Indexes are not valid, they contain duplicated values for {coord=}:"
+                f" {indexes.coords[coord]}"
+            )
+
+    if profiles is not None:
+        # Check that the max value of the index is given in the profiles
+        if indexes.max().values >= len(profiles):
+            raise ValueError(
+                "Indexes are not valid, they contain values that are not in the"
+                f" profiles.Got {indexes.max().values=} but profiles has"
+                f" {len(profiles)=}"
+            )
 
 
 def get_desired_profile_index(
@@ -49,6 +88,7 @@ def get_desired_profile_index(
     cell: int | None = None,
     cat: str | None = None,
     sub: str | None = None,
+    type: str | None = None,
 ) -> int:
     """Return the index of the desired profile.
 
@@ -56,45 +96,35 @@ def get_desired_profile_index(
     It will check that the profile can be extracted.
     """
 
+    dimensions_values = {
+        "cell": cell,
+        "category": cat,
+        "substance": sub,
+        "type": type,
+    }
+
     # First check that the user did not omit a required dimension
     dims = profiles_indexes.dims
-    if cell is None and "cell" in dims:
-        raise ValueError("cell must be specified, as each cell has a specific profile.")
-    if cat is None and "category" in dims:
-        raise ValueError(
-            "category must be specified, as each category has a specific profile."
-        )
-    if sub is None and "substance" in dims:
-        raise ValueError(
-            "substance must be specified, as each substance has a specific profile."
-        )
+    for dim_name, dim_value in dimensions_values.items():
+        if dim_value is None and dim_name in dims:
+            raise ValueError(
+                f"dimension {dim_name=} is required because the indexes differentiate"
+                " it. Please specify it."
+            )
 
     access_dict = {}
 
     # Add to the access the dimension specified,
     # If a dimension is specified but not in the dims, it means
     # we don't care becausse it is the same for all the dimension cooridnates
-    if cell is not None and "cell" in dims:
-        if cell not in profiles_indexes.coords["cell"]:
-            raise ValueError(
-                f"cell {cell} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['cell']}"
-            )
-        access_dict["cell"] = cell
-    if cat is not None and "category" in dims:
-        if cat not in profiles_indexes.coords["category"]:
-            raise ValueError(
-                f"category {cat} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['category']}"
-            )
-        access_dict["category"] = cat
-    if sub is not None and "substance" in dims:
-        if sub not in profiles_indexes.coords["substance"]:
-            raise ValueError(
-                f"substance {sub} is not in the profiles indexes, "
-                f"got {profiles_indexes.coords['substance']}"
-            )
-        access_dict["substance"] = sub
+    for dim_name, dim_value in dimensions_values.items():
+        if dim_value is not None and dim_name in dims:
+            if dim_value not in profiles_indexes.coords[dim_name]:
+                raise ValueError(
+                    f"{dim_name} {dim_value} is not in the profiles indexes, "
+                    f"got {profiles_indexes.coords[dim_name]}"
+                )
+            access_dict[dim_name] = dim_value
 
     # Access the xarray
     desired_index = profiles_indexes.sel(**access_dict)
@@ -217,13 +247,18 @@ def load_country_tz(file: Path | None = None) -> pd.DataFrame:
 
 def read_profile_file(file: PathLike, **kwargs: Any) -> pd.DataFrame:
     """Read any kind of profile file and return the dataframe."""
+    default_kwargs = {
+        "comment": "#",
+        "sep": r";|\t|,",
+        "engine": "python",  # This is needed to use regex in sep
+    }
+    for key, value in default_kwargs.items():
+        if key not in kwargs:
+            kwargs[key] = value
     try:
         logger.log(emiproc.PROCESS, f"Reading {file}")
         df = pd.read_csv(
             file,
-            comment="#",
-            sep=";|\t|,",
-            engine="python",  # This is needed to use regex in sep
             **kwargs,
         )
     except Exception as e:
