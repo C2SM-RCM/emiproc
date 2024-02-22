@@ -520,6 +520,44 @@ def confirm_prompt(question: str) -> bool:
     return reply == "y"
 
 
+def total_emissions_almost_equal(
+    total_dict_1: dict[str, dict[str, float]],
+    total_dict_2: dict[str, dict[str, float]],
+    relative_tolerance: float = 1e-5,
+) -> bool:
+    """Test that the total emissions of two inventories are almost equal.
+    
+    :arg total_dict_1: The first total emissions dictionary
+    :arg total_dict_2: The second total emissions dictionary
+    :arg relative_tolerance: The relative tolerance to use for the comparison.
+        The comparison is done as follows:
+        abs(total_dict_1 - total_dict_2) < relative_tolerance * (total_dict_1 + total_dict_2) / 2
+        
+    :returns: True if the total emissions are almost equal, False otherwise
+    :raises ValueError: If the two dictionaries have different keys.
+    """
+    for sub in total_dict_1.keys() | total_dict_2.keys():
+        if sub not in total_dict_1 or sub not in total_dict_2:
+            raise ValueError(
+                f"Subcategory {sub} is missing in one of the dictionaries"
+            )
+        for cat in total_dict_1[sub].keys() | total_dict_2[sub].keys():
+            if cat not in total_dict_1[sub] or cat not in total_dict_2[sub]:
+                raise ValueError(
+                    f"Category {cat} is missing in one of the dictionaries for substance {sub}"
+                )
+            # Get a very small proportion of the total emissions
+            err_allowed = (
+                relative_tolerance
+                * (total_dict_1[sub][cat] + total_dict_2[sub][cat])
+                / 2
+            )
+
+            if abs(total_dict_1[sub][cat] - total_dict_2[sub][cat]) > err_allowed:
+                return False
+    return True
+
+
 class ProgressIndicator:
     """Used to show progress for long operations.
 
