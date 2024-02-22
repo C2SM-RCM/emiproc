@@ -17,6 +17,7 @@ import xarray as xr
 from netCDF4 import Dataset
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.ops import split
+from shapely.creation import polygons
 
 WGS84 = 4326
 WGS84_PROJECTED = 3857
@@ -218,13 +219,37 @@ class RegularGrid(Grid):
         self.nx, self.ny = nx, ny
         self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
 
-        self.lon_range = np.linspace(xmin, xmax, nx) + self.dx / 2
-        self.lat_range = np.linspace(ymin, ymax, ny) + self.dy / 2
+        self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
+        self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
 
         if name is None:
             name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
+    
+    @cached_property
+    def cells_as_polylist(self) -> list[Polygon]:
+
+        x_coords, y_coords = np.meshgrid(
+            self.lon_range - self.dx / 2.,
+            self.lat_range - self.dy / 2.
+        )
+        # Reshape to 1D (order set for backward compatibility)
+        x_coords = x_coords.flatten(order="F")
+        y_coords = y_coords.flatten(order="F")
+        dx = float(self.dx)
+        dy = float(self.dy)
+        coords = np.array(
+            [
+                [x, y]
+                for x, y in zip(
+                    [x_coords, x_coords, x_coords + dx, x_coords + dx],
+                    [y_coords, y_coords + dy, y_coords + dy, y_coords],
+                )
+            ]
+        )
+        coords = np.rollaxis(coords, -1, 0)
+        return polygons(coords)
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
