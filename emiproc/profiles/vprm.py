@@ -74,7 +74,7 @@ def calculate_vegetation_indices(
 
 
 def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.DataFrame:
-    """Caluculate the emissions using the VPRM model.
+    """Calculate the emissions using the VPRM model.
 
     This function uses timeseries of vegetation indices, temperature and radiation 
     to calculate the
@@ -88,26 +88,30 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
 
     The equations used are the following:
 
-    #. PAR (Photosynthetically Active Radiation) is calculated from the shortwave radiation:
+    PAR (Photosynthetically Active Radiation) is calculated from the shortwave radiation:
+    
     .. math::
         \\mathrm{PAR} = \\frac{\\mathrm{RAD}}{0.505}
     
-    #. Respiration is calculated from the temperature:
+    Respiration is calculated from the temperature:
+    
     .. math::
         \\mathrm{Resp} = \\alpha * T + \\beta
     
-    #. The Gross Ecosystem Exchange (GEE) is calculated from the temperature, PAR and the vegetation indices:
+    The Gross Ecosystem Exchange (GEE) is calculated from the temperature, PAR and the vegetation indices:
+    
     .. math::
-        \\mathrm{GEE} = \\lambda * T_{scale} * P_{scale} * W_{scale} * \\mathrm{EVI} * \\mathrm{PAR} * \\frac{1}{1 + \\frac{\\mathrm{PAR}}{PAR0}}
+        \\mathrm{GEE} = \\lambda * T_{scale} * P_{scale} * W_{scale} * \\mathrm{EVI} * \\frac{ \\mathrm{PAR} }{1 + \\frac{\\mathrm{PAR}}{PAR0}}
 
     where the different scales are:
 
     - :math:`T_{scale}`: Temperature scale
-    if :math:`T < T_{min}` then :math:`T_{scale} = 0`
-    else:
+
     .. math::
-        T_{scale} = \\frac{(T - T_{min}) * (T - T_{max})}{(T - T_{min}) * (T - T_{max}) + (T - T_{opt})^2}
-    
+        T_{\\text{scale}} = \\frac{(T - T_{\\text{min}}) \\cdot (T - T_{\\text{max}})}{(T - T_{\\text{min}}) \\cdot (T - T_{\\text{max}}) + (T - T_{\\text{opt}})^2} \\text{if } T \\geq T_{\\text{min}} \\text{ else } 0
+        
+
+
     - :math:`P_{scale}`: Photosynthesis scale
     .. math::
         P_{scale} = \\frac{1 + \\mathrm{LSWI}}{2}
@@ -116,52 +120,65 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
     .. math::
         W_{scale} = \\frac{1 + \\mathrm{LSWI}}{1 + \\mathrm{LSWI}_{max}}
 
-    #. The Net Ecosystem Exchange (NEE) is calculated from the respiration and GEE:
+    The Net Ecosystem Exchange (NEE) is calculated from the respiration and GEE.
+    
     .. math::
         \\mathrm{NEE} = \\mathrm{Resp} + \\mathrm{GEE}
 
+        
+    Units for all fluxes (NEE, GEE, Resp, ...) are
+
+    .. math:: 
+        \\frac{\\mu mol_{\\mathrm{CO2}}}{m^2 * s}
 
         
     Urban modifications
 
-    The VPRM model can be extended to urban areas.
+    The VPRM model can be extended to urban areas according to  [Urban_VPRM]_ .
     
-    #. The urban temperature is used instead of the global temperature.
-    #. The formula for :math:`P_{scale}` is modified to:
+    - A "urban temperature" is used instead of the global temperature to represent
+        the urban heat island phenomenon.
+    - The formula for :math:`P_{scale}` is modified to
     .. math::
         P_{scale} = \\frac{\\mathrm{EVI} - \\mathrm{EVI}_{min}}{\\mathrm{EVI}_{max} - \\mathrm{EVI}_{min}}
-    #. The respiration is calculated differently:
+    - The respiration is calculated differently
     .. math::
-        \\mathrm{Resp} = \\frac{\\mathrm{resp_e_init}}{2} * (1 - \\mathrm{ISA}) + \\frac{\\mathrm{EVI} + \\mathrm{EVI}_{min} * \\mathrm{ISA}}{\\mathrm{EVI}_{ref}} * \\frac{\\mathrm{resp_e_init}}{2}
+        \\mathrm{Resp} = \\frac{\\mathrm{Resp_{e-init}}}{2} * (1 - \\mathrm{ISA}) + \\frac{\\mathrm{EVI} + \\mathrm{EVI}_{min} * \\mathrm{ISA}}{\\mathrm{EVI}_{ref}} * \\frac{\\mathrm{Resp_{e-init}}}{2}
+    
+    where :math:`\\mathrm{Resp_{e-init}}` is the basic vprm respiration and :math:`\\mathrm{ISA}` is the impervious surface area at the vegetation location.
+    
     .. warning::
         The urban VPRM model is currently not fully implemented.
     
     
     :param df: Dataframe with the observations. It must be a multiindex dataframe with the following columns:
-        - RAD: Shortwave radiation in W/m2
+    
+        - `RAD`: Shortwave radiation in W/m2
         - ('T', 'global'): Temperature in degC
         - (vegetation_type, 'lswi'): Land Surface Water Index 
         - (vegetation_type, 'evi'): Enhanced Vegetation Index
         - ('T', 'urban'): Optional for urban VPRM. Temperature in degC (urban area)
+    
     :param df_vprm: Dataframe with the VPRM parameters.
         Each row must correspond to a vegetation type and have the following columns:
-        - alpha: Respiration parameter
-        - beta: Respiration parameter
-        - lambda: Photosynthesis parameter
-        - Tmin: Minimum temperature for the vegetation type
-        - Topt: Optimal temperature for the vegetation type
-        - Tmax: Maximum temperature for the vegetation type
-        - Tlow: Low temperature for the vegetation type
-        - PAR0: Photosynthetically Active Radiation parameter
-        - is_urban: Boolean indicating if the vegetation type is urban (optional, default is False)
-    :return: Dataframe with the emissions. Columns added are:
-        Units are:math:`\frac{\mu mol_{\mathrm{CO2}}}{m^2 * s}`
+        
+        - `alpha`: Respiration parameter
+        - `beta`: Respiration parameter
+        - `lambda`: Photosynthesis parameter
+        - `Tmin`: Minimum temperature for photosynthesis
+        - `Topt`: Optimal temperature for photosynthesis
+        - `Tmax`: Maximum temperature for photosynthesis
+        - `Tlow`: Low temperature for photosynthesis
+        - `PAR0`: Photosynthetically Active Radiation parameter
+        - `is_urban`: Boolean indicating if the vegetation type is urban (optional, default is False)
+   
+    :return: Dataframe with the emissions. Some columns are added
+
         - (vegetation_type, 'resp_min'): Respiration at the minimum temperature
         - (vegetation_type, 'resp_max'): Respiration at the maximum temperature
         - (vegetation_type, 'resp'): Respiration
         - (vegetation_type, 'gee'): Gross Ecosystem Exchange
         - (vegetation_type, 'nee'): Net Ecosystem Exchange (nee = gee - resp)
-
     """
     logger = logging.getLogger(__name__)
     df = df.copy()
