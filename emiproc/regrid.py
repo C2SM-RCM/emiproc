@@ -278,7 +278,7 @@ def weights_remap(
     if isinstance(output_size, int):
         out_len = output_size
     else:
-        out_len = np.product(output_size)
+        out_len = np.prod(output_size)
 
     A = coo_array(
         (w_mapping["weights"], (w_mapping["output_indexes"], w_mapping["inv_indexes"])),

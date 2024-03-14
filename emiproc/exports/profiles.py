@@ -48,6 +48,13 @@ def export_inventory_profiles(
     logger = logging.getLogger("emiproc.export_inventory_profiles")
     output_dir = Path(output_dir)
 
+    if "type" in inv.v_profiles_indexes.coords:
+        raise NotImplementedError(
+            "Can only export only profiles varying on 'category' and 'substance' . \n"
+            "If you want to export inventory profiles, "
+            "please use another function or remap your inventory."
+        )
+
     # Add the vertical profiles
     if inv.v_profiles:
         profiles = {

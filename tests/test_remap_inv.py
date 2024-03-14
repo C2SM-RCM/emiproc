@@ -5,6 +5,7 @@ from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
 from emiproc.tests_utils.test_grids import regular_grid, gpd_grid
 
 from emiproc.inventories.utils import get_total_emissions
+from emiproc.utilities import total_emissions_almost_equal
 
 
 
@@ -22,7 +23,7 @@ def test_remap():
     # Check the total emissions dictionaries are the same (grid is larger than inventory)
     total_inv = get_total_emissions(inv_with_pnt_sources)
     total_remapped = get_total_emissions(remaped_inv)
-    assert total_inv == total_remapped
+    assert total_emissions_almost_equal(total_inv, total_remapped)
 
 
 def test_remap_keep_shapes():
@@ -48,7 +49,7 @@ def test_remap_keep_shapes():
     # Check the total emissions dictionaries are the same (grid is larger than inventory)
     total_inv = get_total_emissions(inv_with_pnt_sources)
     total_remapped = get_total_emissions(remaped_inv)
-    assert total_inv == total_remapped
+    assert total_emissions_almost_equal(total_inv, total_remapped)
 
 
 

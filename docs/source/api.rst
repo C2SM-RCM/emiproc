@@ -176,6 +176,12 @@ Human Respiration
 .. autoenum:: emiproc.human_respiration.EmissionFactor
 
 
+VPRM 
+^^^^
+
+.. automodule:: emiproc.profiles.vprm
+    :members:
+
 
 
 Exporting 
