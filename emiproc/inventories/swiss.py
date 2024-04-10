@@ -155,13 +155,13 @@ class SwissRasters(Inventory):
         rasters_str_dir = Path(rasters_str_dir)
         str_rasters = [
             r
-            for r in rasters_str_dir.rglob("*.asc")
+            for r in rasters_str_dir.glob("*.asc")
             # Don't include the tunnel specific grids as they are already included in the grids for road transport
             if "_tun" not in r.stem
         ]
 
         # Grids that do not depend on chemical species
-        normal_rasters = [r for r in rasters_dir.rglob("*.asc")]
+        normal_rasters = [r for r in rasters_dir.glob("*.asc")]
 
         self.all_raster_files = normal_rasters + str_rasters
 
