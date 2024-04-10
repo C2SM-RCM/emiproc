@@ -64,6 +64,9 @@ class MapLuftZurich(Inventory):
         super().__init__()
         self.mapluft_gdb = Path(mapluft_gdb)
 
+        if not self.mapluft_gdb.is_dir():
+            raise FileNotFoundError(f"{self.mapluft_gdb=} is not a existing directory.")
+
         if not categories:
             # Load all the categories
             categories = list_categories(mapluft_gdb)
