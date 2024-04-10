@@ -4,6 +4,7 @@ The idea of this scripts is to produce raster files for zurich.
 
 It is possible put the rasters inside the swiss inventory as well.
 """
+
 # %%
 # autoreload modules in interactive python
 # %load_ext autoreload
@@ -26,28 +27,44 @@ from emiproc.inventories.swiss import SwissRasters
 from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.regrid import remap_inventory
 from emiproc.utilities import SEC_PER_YR
-from emiproc.inventories.utils import add_inventories, scale_inventory,get_total_emissions, crop_with_shape
+from emiproc.inventories.utils import (
+    add_inventories,
+    scale_inventory,
+    get_total_emissions,
+    crop_with_shape,
+)
 from emiproc.speciation import speciate_inventory
 from emiproc.exports.netcdf import nc_cf_attributes
+from emiproc.speciation import speciate
 
 # %% define some parameters for the output
 
+
+YEAR = 2022
+
 INCLUDE_SWISS_OUTSIDE = True
-swiss_data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
-outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
-mapluf_file = Path(
-    r"C:\Users\coli\Documents\ZH-CH-emission\Data\mapLuft_2020_v2021\mapLuft_2020_v2021.gdb"
+swiss_data_path = Path(
+    r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen\CH_Emissions_CO2_CO2biog_CH4_N2O_BC.xlsx"
 )
+outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
+mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
+mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
+
 # edge of the raster cells
 RASTER_EDGE = 100
-VERSION = "v1.6"
+VERSION = "v1.7"
+
+# Whether to split the biogenic CO2 and the antoropogenic CO2
+SPLIT_BIOGENIC_CO2 = True
 
 
 # Make a Enum class for output unit choices
 class Unit(Enum):
     """Enum class for units"""
+
     kg_yr = "kg yr-1 cell-1"
     ug_m2_s = "μg m-2 s-1"
+
 
 output_unit = Unit.ug_m2_s
 
@@ -75,9 +92,9 @@ if INCLUDE_SWISS_OUTSIDE:
     assert USE_GNRF
 
 
-
 # %% load the zurich inventory
 inv = MapLuftZurich(mapluf_file, remove_josefstrasse_khkw=REMOVE_JOSEFSTRASSE_KHKW)
+
 
 # %%
 def load_zurich_shape(
@@ -122,6 +139,11 @@ for i in range(4):
         lambda poly: poly.exterior.coords[i]
     )
 
+# %% Split the biogenic CO2
+
+if SPLIT_BIOGENIC_CO2:
+    from emiproc.inventories.zurich.speciation_co2_bio import ZH_CO2_BIO_RATIOS
+    inv = speciate(inv, "CO2", ZH_CO2_BIO_RATIOS, drop=False)
 
 # %% do the actual remapping of zurich to rasters
 
@@ -131,6 +153,8 @@ rasters_inv = remap_inventory(
     weigths_file=weights_dir
     / f"{mapluf_file.stem}_weights_josephstrasse{REMOVE_JOSEFSTRASSE_KHKW}",
 )
+
+
 # %% change the categories
 if USE_GNRF:
     from emiproc.inventories.utils import group_categories
@@ -167,11 +191,24 @@ if USE_GNRF:
 if INCLUDE_SWISS_OUTSIDE:
     inv_ch = SwissRasters(
         data_path=swiss_data_path,
-        rasters_dir=swiss_data_path / "ekat_gridascii",
-        rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
+        rasters_dir=swiss_data_path.parent / "ekat_gridascii",
+        rasters_str_dir=swiss_data_path.parent / "ekat_str_gridascii_v17",
         requires_grid=True,
         # requires_grid=False,
-        year=2020,
+        year=YEAR,
+        # Specify the compound in the inventory and how they should be named in the output
+        dict_spec={
+            "NOX": "NOx",
+            "NMVOC": "VOC",
+            "PM2.5": "PM25",
+            "F-Gase": "F-gases",
+            "CO2": "CO2-ant",
+            "CO2_biog": "CO2-bio",
+        },
+    )
+
+    inv_ch.history.append(
+        "the map of CO2 for evstr was used for BC and CO2-bio as they did not exist"
     )
 
     from emiproc.inventories.categories_groups import CH_2_GNFR
@@ -372,7 +409,7 @@ ds_out = xr.Dataset(
                     f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission"
                 ),
                 "long_name": f"Aggregated Emissions of {sub} from all sectors",
-                "units":  output_unit.value,
+                "units": output_unit.value,
                 "comment": "annual mean emission rate",
             },
         )
@@ -412,7 +449,7 @@ for category, sub in rasters_inv._gdf_columns:
         continue
     emissions = rasters_inv.gdf[(category, sub)].to_numpy().reshape((ny, nx))
     # convert from kg/y to μg m-2 s-1
-    # Get the desired unit  
+    # Get the desired unit
     if output_unit == Unit.ug_m2_s:
         rescaled = emissions * 1e9 / SEC_PER_YR / (RASTER_EDGE * RASTER_EDGE)
     elif output_unit == Unit.kg_yr:
