@@ -26,6 +26,9 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
         year: int = 2015,
+        dict_spec: dict[str, str] = {
+            "NOX": "NOx", "NMVOC": "VOC", "PM2.5": "PM25", "F-Gase": "F-gases"
+        },
     ) -> None:
         """Create a swiss raster inventory.
 
@@ -43,6 +46,9 @@ class SwissRasters(Inventory):
             This should be present in the `Emissions_CH.xlsx` file.
             The raster files are the same for all years. Only the scaling
             of the full raster pro substance changes.
+        :arg dict_spec: Dictionary to rename the chemical species
+            according to emiproc conventions. Mapping from the original to the 
+            name that will be in the inventory.
         """
         super().__init__()
 
@@ -63,10 +69,7 @@ class SwissRasters(Inventory):
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)
 
-        # Dictionary to rename chemical species according to emiproc conventions
-        dict_spec = {"NOX": "NOx", "NMVOC": "VOC", "PM2.5": "PM25", "F-Gase": "F-gases"}
-
-        # Rename chemical specis according to emiproc conventions
+        # Rename chemical specis according to the specified dictionary
         df_emissions["Chemical Species"] = df_emissions["Chemical Species"].replace(
             dict_spec
         )
