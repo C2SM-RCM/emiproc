@@ -28,7 +28,6 @@ dependencies = [
     "xarray>=2023.10",
     "rasterio",
     "pyogrio",
-    "pygeos",
     "pyyaml",
 ]
 license = {file = "LICENSE.txt"}
