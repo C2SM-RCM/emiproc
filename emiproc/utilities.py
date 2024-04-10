@@ -286,17 +286,7 @@ def get_natural_earth(
     shpfile = str(path_to_save / f"ne_{resolution}_{name}.shp")
     return gpd.read_file(shpfile)
 
-
-@overload
-def get_country_mask(return_fractions: Literal[True] = ...) -> xr.DataArray:
-    ...
-
-
-@overload
-def get_country_mask(return_fractions: Literal[False]) -> np.ndarray:
-    ...
-
-
+    
 def get_country_mask(
     output_grid: Grid | gpd.GeoSeries,
     resolution: str = "110m",
@@ -318,10 +308,12 @@ def get_country_mask(
     :arg resolution:
         The resolution for the used shapefile, used as argument for
         :py:func:`get_natural_earth`
-    arg return_fractions:
+    :arg return_fractions:
         In case you want to know the fraction of each country in each grid cell,
         instead of just the main country, set this to True.
-        This will return a xarray DataArray with the fraction of each country.
+        If True, this will return a `xarray.DataArray` with the fraction of each country.
+        If False (default), this will return a numpy array with the main country code.
+
 
     :returns: Gridded data with the country identifier of each country (eg. BUR).
         Array of 3 char strings of the shape of the grid.
