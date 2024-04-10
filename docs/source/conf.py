@@ -8,7 +8,7 @@
 
 project = 'emiproc'
 copyright = '2022-2024, Empa'
-author = 'Empa'
+author = 'Lionel Constantin, Empa'
 release = 'v2'
 
 # -- General configuration ---------------------------------------------------
