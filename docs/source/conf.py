@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'emiproc'
-copyright = '2022, Empa'
+copyright = '2022-2024, Empa'
 author = 'Empa'
 release = 'v2'
 
