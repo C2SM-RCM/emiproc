@@ -172,19 +172,20 @@ class SwissRasters(Inventory):
         # List with Raster categories for which we have emissions
         raster_sub = df_emissions.index.tolist()
         rasters_w_emis = []
+
+        evstr_subname_to_subname = {}
         for t in raster_sub:
             split = t.split("_")
-            if len(split) > 2:
-                # Custom substance or cat which cannot be in the raster categories
-                # (ex: CO2_biog )
-                continue
-            cat, sub = split
-            subname = sub.lower()
+            assert len(split) > 1
+            cat = split[0]
+            sub = "_".join(split[1:])
             if cat == "evstr":
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
+                subname = sub.lower()
                 if subname == "voc":
                     subname = "nmvoc"
                 rasters_w_emis.append(cat + "_" + subname)
+                evstr_subname_to_subname[subname] = sub
             else:
                 rasters_w_emis.append(cat)
         # Remove duplicates
@@ -248,9 +249,7 @@ class SwissRasters(Inventory):
             _raster_array = self.load_raster(raster_file).reshape(-1)
             if "_" in category:
                 cat, sub = category.split("_")
-                sub_name = sub.upper()
-                if sub_name in dict_spec.keys():
-                    sub_name = dict_spec[sub_name]
+                sub_name = evstr_subname_to_subname[sub]
                 idx = cat + "_" + sub_name
                 # Transform units [t/y] -> [kg/y]
                 factor = self.df_emission[year].loc[idx] * 1000
