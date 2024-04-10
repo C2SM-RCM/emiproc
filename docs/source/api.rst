@@ -55,6 +55,8 @@ Speciation
 
 .. autofunction:: emiproc.speciation.speciate
 
+.. autofunction:: emiproc.speciation.read_speciation_table
+
 
 
 Utilities
