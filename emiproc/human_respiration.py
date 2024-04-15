@@ -65,6 +65,7 @@ def people_to_emissions(
     emission_factor: dict[str, float] | float = EmissionFactor.ROUGH_ESTIMATON.value,
     output_gdfs: bool = False,
     name: str = "human_respiration",
+    substance: str = "CO2",
 ) -> Inventory:
     """Get human respiration emissions.
 
@@ -91,6 +92,8 @@ def people_to_emissions(
         Can be a single value or a dict with the same keys as the categories.
     :arg output_gdfs: Whether the output inventory should contain the emission
         data in gdfs instead of in the gdf(default).
+    :arg name: The name of the inventory.
+    :arg substance: The substance name of the emissions. 
 
     :return: The Inventory containing human emissions.
     """
@@ -115,14 +118,14 @@ def people_to_emissions(
     if output_gdfs:
         inv_kwargs["gdfs"] = {
             cat: gpd.GeoDataFrame(
-                {"CO2": yearly_emissions[cat]}, geometry=people_gdf.geometry
+                {substance: yearly_emissions[cat]}, geometry=people_gdf.geometry
             )
             for cat in categories
         }
     else:
         # Use the main gdf
         inv_kwargs["gdf"] = gpd.GeoDataFrame(
-            {(cat, "CO2"): yearly_emissions[cat] for cat in categories},
+            {(cat, substance): yearly_emissions[cat] for cat in categories},
             geometry=people_gdf.geometry,
         )
 
