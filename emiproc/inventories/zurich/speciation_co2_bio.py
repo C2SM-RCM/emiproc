@@ -75,7 +75,7 @@ values = np.array(list(ZH_CO2_BIO_RATIOS_DICT.values()))
 ZH_CO2_BIO_RATIOS = xr.DataArray(
     np.row_stack([values, 1 - values]),
     coords={
-        "substance": ["CO2_fos", "CO2_bio"],
+        "substance": ["CO2_bio", "CO2_fos"],
         "speciation": range(len(keys)),
         "category": ("speciation", keys),
     },
