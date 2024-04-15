@@ -5,22 +5,32 @@
 """
 from __future__ import annotations
 
-from enum import Enum
 from os import PathLike
 import geopandas as gpd
 from emiproc.grids import RegularGrid
-from emiproc.inventories import Inventory
+from emiproc.inventories import Inventory, Category, Substance, CatSub
 from emiproc.utilities import DAY_PER_YR
 
 
-class EmissionFactor(Enum):
-    """Emissions factors are how much CO2 is produce per individual per day
+class EmissionFactor:
+    """Emissions factors are how much of a compound is produced per individual per day.
 
-    Units are kg/day (kg of CO2)
+    Units are kg/day (kg of the compounds)
     """
 
     # Very simple estimation for aproximate results
     ROUGH_ESTIMATON = 1.0
+    CO2_ROUGH_ESTIMATON = 1.0
+
+    # 2.1 g / year / person 
+    # https://doi.org/10.1016/S0048-9697(97)00267-2
+    N2O_MITSUI_ET_ALL = 2.1e-3 / DAY_PER_YR
+
+    # Breath: 2.3 mmol / day / person 
+    # Flatus: 7.0 mmol / day / person 
+    # https://doi.org/10.1016/j.atmosenv.2019.116823
+    # Multiply by the molar mass of CH4 and correct units
+    CH4_POLAG_KEPPLER = (2.3 + 7.0) * 1e-3 * 16e-3 
 
 
 def load_data_from_quartieranalyse(
@@ -61,11 +71,11 @@ def load_data_from_quartieranalyse(
 
 def people_to_emissions(
     people_gdf: gpd.GeoDataFrame,
-    time_ratios: dict[str, float],
-    emission_factor: dict[str, float] | float = EmissionFactor.ROUGH_ESTIMATON.value,
+    time_ratios: dict[Category, float],
+    emission_factor:  dict[CatSub, float] | float = EmissionFactor.ROUGH_ESTIMATON,
     output_gdfs: bool = False,
     name: str = "human_respiration",
-    substance: str = "CO2",
+    substance: Substance = "CO2",
 ) -> Inventory:
     """Get human respiration emissions.
 
@@ -100,8 +110,16 @@ def people_to_emissions(
 
     categories = list(time_ratios.keys())
     if isinstance(emission_factor, (int, float)):
-        emission_factor = {cat: emission_factor for cat in categories}
-
+        # Apply the emission to all categories
+        emission_factor = {(cat, substance): emission_factor for cat in categories}
+    else:
+        # Check that the keys are correct
+        for key in emission_factor.keys():
+            if not isinstance(key, tuple) or len(key) != 2:
+                raise ValueError(f"Invalid key {key = } in emission_factor. Must be a tuple of (category, substance).")
+            cat, sub = key
+            if cat not in categories:
+                raise ValueError(f"Invalid category {cat = } in emission_factor. Must be one of {categories = }")
     if not sum(time_ratios.values()) == 1:
         raise ValueError(
             f"The time ratios must sum up to 1, got {time_ratios.values() = }"
@@ -110,22 +128,22 @@ def people_to_emissions(
     yearly_emissions = {
         # Calculate the yearly emissions for each of the categories
         # (kg/p/day) * (p/shape) * (-) * (day/y) = (kg/y/shape)
-        cat: emission_factor[cat] * people_gdf[cat] * time_ratios[cat] * DAY_PER_YR
-        for cat in categories
+        catsub: factor * people_gdf[catsub[0]] * time_ratios[catsub[0]] * DAY_PER_YR
+        for catsub, factor in emission_factor.items()
     }
 
     inv_kwargs = {}
     if output_gdfs:
         inv_kwargs["gdfs"] = {
-            cat: gpd.GeoDataFrame(
-                {substance: yearly_emissions[cat]}, geometry=people_gdf.geometry
+            catsub[0]: gpd.GeoDataFrame(
+                {catsub[1]: yearly_emissions[catsub]}, geometry=people_gdf.geometry
             )
-            for cat in categories
+            for catsub in emission_factor.keys()
         }
     else:
         # Use the main gdf
         inv_kwargs["gdf"] = gpd.GeoDataFrame(
-            {(cat, substance): yearly_emissions[cat] for cat in categories},
+            {catsub: yearly_emissions[catsub] for catsub in emission_factor.keys()},
             geometry=people_gdf.geometry,
         )
 
