@@ -35,7 +35,7 @@ class MapLuftZurich(Inventory):
             "benzene",
         ],
         categories: list[Category] = [],
-        remove_josefstrasse_khkw: bool = True,
+        remove_josefstrasse_khkw: bool = False,
         convert_lines_to_polygons: bool = True,
     ) -> None:
         """Load the mapluft inventory.
