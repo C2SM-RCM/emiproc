@@ -109,15 +109,14 @@ def crop_with_shape(
     weight_file: PathLike | None = None,
     modify_grid: bool = False,
 ) -> Inventory:
-    """Crop the inventory in place so that only what is inside the requested shape stays.
+    """Crop the inventory with the provided shape.
 
-    For each shape/grid_cell of the inventory. Only the part that
-    is included inside the shape will stay.
-    The emission of the shape remaining will be determined using the
-    ratio of the areas.
+    Keeps only the part of the emissions that is included inside the shape.
+    Emissions at the boundary with the shapes will see their values based on 
+    the fraction which is inside the shape.
 
-    Point sources at the boundary will have their emissions value divided
-    by 2.
+    Point sources located exactly at the boundary
+    will have their emissions value divided by 2.
 
     This might removes categories and substances from the inventory, if they
     are not present anymore !
@@ -131,7 +130,7 @@ def crop_with_shape(
         them.
     :arg modify_grid: Whether the main grid (the gdf) should be modified.
         Grid cells cropped will disappear.
-        Grid cells intersected will be replace by the intersection with
+        Grid cells intersected will be replaced by the intersection with
         the shape.
 
     .. warning::
