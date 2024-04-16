@@ -3,7 +3,8 @@ import xarray as xr
 
 ZH_CO2_BIO_RATIOS_DICT = {
     "c2201_BHKW_Emissionen_Kanton": 0.0,
-    "c2301_KHKWKehricht_Emissionen_Kanton": 0.0,
+    # https://doi.org/10.1016/j.wasman.2012.04.002
+    "c2301_KHKWKehricht_Emissionen_Kanton": 0.52,
     "c2302_KHKWErdgas_Emissionen_Kanton": 0.0,
     "c2303_KHKWHeizoel_Emissionen_Kanton": 0.0,
     "c3201_Notstromanlagen_Emissionen_Kanton": 0.0,
