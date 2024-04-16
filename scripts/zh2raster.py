@@ -40,11 +40,11 @@ from emiproc.utilities import SEC_PER_YR
 # %% define some parameters for the output
 
 
-YEAR = 2022
+YEAR = 2020
 
-INCLUDE_SWISS_OUTSIDE = False
+INCLUDE_SWISS_OUTSIDE = True
 swiss_data_path = Path(
-    r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen\CH_Emissions_CO2_CO2biog_CH4_N2O_BC.xlsx"
+    r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen\CH_Emissions_2015_2020_2022_CO2_CO2biog_CH4_N2O_BC_AP.xlsx"
 )
 outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
 mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
@@ -52,7 +52,7 @@ mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 
 # edge of the raster cells
 RASTER_EDGE = 100
-VERSION = "v1.7"
+VERSION = "v1.8"
 
 # Whether to split the biogenic CO2 and the antoropogenic CO2
 SPLIT_BIOGENIC_CO2 = True
@@ -203,11 +203,10 @@ if INCLUDE_SWISS_OUTSIDE:
         # Specify the compound in the inventory and how they should be named in the output
         dict_spec={
             "NOX": "NOx",
-            "NMVOC": "VOC",
             "PM2.5": "PM25",
             "F-Gase": "F-gases",
-            "CO2": "CO2-fos",
-            "CO2_biog": "CO2-bio",
+            "CO2": "CO2_fos",
+            "CO2_biog": "CO2_bio",
         },
     )
 
@@ -216,8 +215,16 @@ if INCLUDE_SWISS_OUTSIDE:
     )
 
     from emiproc.inventories.categories_groups import CH_2_GNFR
+    
+    # These categories are not in the invenotry here, because we don't care about them
+    missing_cats = ['eilgk', 'evklm', 'evtrk', 'enwal']
+    # Remove the missing categories
+    our_CH_2_GNFR = {
+        new_cat: [c for c in cats if c not in missing_cats] for new_cat, cats in CH_2_GNFR.items() 
+    }
+    groupped_ch = group_categories(inv_ch, our_CH_2_GNFR)
 
-    groupped_ch = group_categories(inv_ch, CH_2_GNFR)
+
 
     if SPLIT_GNRF_ROAD_TRANSPORT:
         # Calculate splitting ratios in zurich
@@ -520,5 +527,9 @@ ds_out.to_netcdf(
     outdir
     / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{'Fsplit' if SPLIT_GNRF_ROAD_TRANSPORT else ''}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem}_{VERSION}.nc"
 )
+
+# %%
+
+print(f"Output written to {outdir}")
 
 # %%
