@@ -110,6 +110,10 @@ class SwissRasters(Inventory):
         # Set company name as index for location of point sources
         df_loc_ps = df_loc_ps.set_index("Company")
 
+        # Remove commas in the coordinates and ensure float 
+        for col in ["Easting", "Northing"]:
+            df_loc_ps[col] = df_loc_ps[col].str.replace(",", "").astype(float)
+
         # Companies with point source emissions
         # Rmk: *set() removes duplicates
         comp_ps = [*set(df_eipwp_ori["Company"].tolist())]
@@ -248,7 +252,9 @@ class SwissRasters(Inventory):
         for raster_file, category in zip(self.all_raster_files, self.raster_categories):
             _raster_array = self.load_raster(raster_file).reshape(-1)
             if "_" in category:
-                cat, sub = category.split("_")
+                split = category.split("_")
+                cat = split[0]
+                sub = '_'.join(split[1:])
                 sub_name = evstr_subname_to_subname[sub]
                 idx = cat + "_" + sub_name
                 # Transform units [t/y] -> [kg/y]
