@@ -31,6 +31,8 @@ Inventory Operators
 
 .. autofunction:: emiproc.inventories.utils.get_total_emissions
 
+.. autofunction:: emiproc.inventories.utils.drop
+
 Geometric Transformations 
 -------------------------
 

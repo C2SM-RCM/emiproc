@@ -24,7 +24,7 @@ from emiproc.profiles.operators import (
 )
 
 if TYPE_CHECKING:
-    from emiproc.inventories import Inventory, Category
+    from emiproc.inventories import Inventory, Category, Substance
 
 
 def list_categories(file: PathLike) -> list[str]:
@@ -673,6 +673,54 @@ def combine_inventories(
     # Now that the two are on the same grid, we can simply
 
     raise NotImplementedError()
+
+
+def drop(
+        inv: Inventory,
+        substances: list[Substance] = [],
+        categories: list[Category] = [],
+) -> Inventory:
+    """Drop substances and categories from an inventory.
+
+    This will drop all the emissions related to the substances and categories
+    from the inventory.
+
+    If both substances and categories are specified, the emissions will be dropped
+    if they are in any of the two lists.
+
+    :arg inv: The inventory to drop from.
+    :arg substances: The substances to drop.
+    :arg categories: The categories to drop.
+    """
+
+    # Check the types 
+    for var_name, var in [("substances", substances), ("categories", categories)]: 
+        if not isinstance(var, list):
+            raise TypeError(f"{var_name=} should be a list.")
+        if not all(isinstance(sub, str) for sub in var):
+            raise TypeError(f"{var_name=} should be a list of strings.")
+
+    # Deep copy of the inventory
+    out_inv = inv.copy(no_gdfs=True)
+
+
+    gdf_cols_to_drop = [
+        (cat, sub) for cat, sub in inv._gdf_columns
+        if cat in categories or sub in substances
+    ] 
+    
+    out_inv.gdf = inv.gdf.drop(columns=gdf_cols_to_drop) if inv.gdf is not None else None
+
+    # Process the gdfs
+    out_inv.gdfs = {}
+    for cat, gdf in inv.gdfs.items():
+        if cat in categories:
+            continue
+        out_inv.gdfs[cat] = gdf.drop(columns=[sub for sub in substances if sub in gdf.columns])
+
+    out_inv.history.append(f"Dropped {substances=} and {categories=}")
+    return out_inv
+
 
 
 if __name__ == "__main__":
