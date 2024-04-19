@@ -1,4 +1,3 @@
-
 import numpy as np
 import geopandas as gpd
 import xarray as xr
@@ -11,6 +10,15 @@ from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
 )
+
+
+def get_random_profiles(
+    num: int, heights: list[int] = [14, 50, 89]
+) -> VerticalProfiles:
+    """Get random profiles for testing."""
+    ratios = np.random.rand(num, len(heights))
+    return VerticalProfiles(ratios / ratios.sum(axis=1)[:, None], height=heights)
+
 
 # Create test profiles
 list_of_three = [
@@ -68,12 +76,26 @@ corresponding_vertical_profiles = xr.DataArray(
 corresponding_2d_profiles = xr.DataArray(
     [
         [2, 1, 0],
-        [-1,  1, 0],
+        [-1, 1, 0],
     ],
     dims=("category", "substance"),
     coords={
         "category": ["test_cat", "test_cat2"],
         "substance": (substances := ["CH4", "CO2", "NH3"]),
+    },
+)
+single_dim_profile_indexes = xr.DataArray(
+    [0, 1, -1],
+    dims="category",
+    coords={
+        "category": ["test_cat", "test_cat2", "test_cat3"],
+    },
+)
+single_dim_weights = xr.DataArray(
+    [0.5, 0.2, 0.0],
+    dims="category",
+    coords={
+        "category": ["test_cat", "test_cat2", "test_cat3"],
     },
 )
 
@@ -104,7 +126,7 @@ inv = Inventory.from_gdf(
     },
 )
 inv_groups_dict = {"new_cat": ["test_cat"], "new_cat2": ["test_cat2", "test_cat3"]}
-inv_groups_subs_dict = {'co2': ['CO2'], 'others': ['CH4', 'NH3']}
+inv_groups_subs_dict = {"co2": ["CO2"], "others": ["CH4", "NH3"]}
 
 inv.v_profiles = VerticalProfiles_instance
 inv.v_profiles_indexes = corresponding_vertical_profiles

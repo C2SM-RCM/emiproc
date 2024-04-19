@@ -40,8 +40,8 @@ class TemporalProfilesTypes(Enum):
     :param THREE_CYCLES:  Three cycles (hour of day, day of week, month of year)
     """
 
-    HOUR_OF_YEAR = auto()
-    THREE_CYCLES = auto()
+    HOUR_OF_YEAR = 0
+    THREE_CYCLES = 3
 
 
 def get_constant_time_profile(
@@ -143,6 +143,14 @@ def export_icon_oem(
     time_profiles: dict[str, list[TemporalProfile]] = {}
     vertical_profiles: dict[str, VerticalProfile] = {}
 
+    # Check that the inventory has the same amount of cells
+    # as the icon grid
+    if len(inv.gdf) != ds_out["cell"].size:
+        raise ValueError(
+            f"The inventory has {len(inv.gdf)} cells, but the icon grid has"
+            f" {ds_out['cell'].size} cells."
+        )
+
     for categorie, sub in inv._gdf_columns:
         if substances is not None and sub not in substances:
             continue
@@ -168,13 +176,13 @@ def export_icon_oem(
 
         if inv.v_profiles is not None:
             profile_index = get_desired_profile_index(
-                inv.v_profiles_indexes, cat=categorie, sub=sub
+                inv.v_profiles_indexes, cat=categorie, sub=sub, type="gridded"
             )
             vertical_profiles[name] = inv.v_profiles[profile_index]
 
         if inv.t_profiles_groups is not None:
             profile_index = get_desired_profile_index(
-                inv.t_profiles_indexes, cat=categorie, sub=sub
+                inv.t_profiles_indexes, cat=categorie, sub=sub, type="gridded"
             )
             time_profiles[name] = inv.t_profiles_groups[profile_index]
 
@@ -307,7 +315,12 @@ def make_icon_time_profiles(
             for profile in time_profiles[key]:
                 if not issubclass(type(profile), TemporalProfile):
                     raise TypeError(f"{profile} from {key} is not a TemporalProfile")
-                scaling_factors = profile.ratios * profile.size
+                if profile.n_profiles != 1:
+                    raise ValueError(
+                        f"{profile} from {key} has {profile.n_profiles} profiles."
+                        " Only one profile is allowed for the THREE_CYCLES option."
+                    )
+                scaling_factors = profile.ratios.reshape(-1) * profile.size
                 if isinstance(profile, DailyProfile):
                     ds = hourofday
                     # Use the shifts in the intervals
@@ -387,7 +400,7 @@ def make_icon_time_profiles(
         raise NotImplementedError(f"{profiles_type} is not implemented.")
 
     for ds in dict_ds.values():
-        # ds["country"] = [i for i in range(len(time_zones))]
+        ds["country"] = [i for i in range(len(time_zones))]
         ds.assign_coords({"timezone_of_country": (("country",), time_zones)})
 
     if out_dir is not None:

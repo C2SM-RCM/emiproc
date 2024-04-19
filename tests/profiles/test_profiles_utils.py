@@ -5,6 +5,34 @@ from emiproc.tests_utils.profiles import (
 )
 
 from emiproc.profiles.utils import get_desired_profile_index
+from emiproc.profiles.temporal_profiles import SpecificDay, days_of_specific_day
+
+
+@pytest.mark.parametrize(
+    "specific_days, expected",
+    (
+        (SpecificDay.MONDAY, [SpecificDay.MONDAY]),
+        (SpecificDay.TUESDAY, [SpecificDay.TUESDAY]),
+        (SpecificDay.WEDNESDAY, [SpecificDay.WEDNESDAY]),
+        (SpecificDay.THURSDAY, [SpecificDay.THURSDAY]),
+        (SpecificDay.FRIDAY, [SpecificDay.FRIDAY]),
+        (SpecificDay.SATURDAY, [SpecificDay.SATURDAY]),
+        (SpecificDay.SUNDAY, [SpecificDay.SUNDAY]),
+        (SpecificDay.WEEKEND, [SpecificDay.SATURDAY, SpecificDay.SUNDAY]),
+        (
+            SpecificDay.WEEKDAY,
+            [
+                SpecificDay.MONDAY,
+                SpecificDay.TUESDAY,
+                SpecificDay.WEDNESDAY,
+                SpecificDay.THURSDAY,
+                SpecificDay.FRIDAY,
+            ],
+        ),
+    ),
+)
+def test_days_of_specific_day(specific_days, expected):
+    assert days_of_specific_day(specific_days) == expected
 
 
 def test_get_desired_profile_index_working_cases():
@@ -29,6 +57,7 @@ def test_get_desired_profile_index_errors():
     pytest.raises(
         ValueError, get_desired_profile_index, da_profiles_indexes_catsub, cat="a"
     )
+
 
 def test_get_desired_profile_index_wrong_catsub():
     # Category does not exist

@@ -53,9 +53,8 @@ Categories Manipulations
 Speciation
 ----------
 
-.. autofunction:: emiproc.speciation.speciate_inventory
+.. autofunction:: emiproc.speciation.speciate
 
-.. autofunction:: emiproc.speciation.speciate_nox
 
 
 Utilities
@@ -156,6 +155,27 @@ input/output
 .. autofunction:: emiproc.profiles.temporal_profiles.from_yaml
 
 .. autofunction:: emiproc.profiles.temporal_profiles.to_yaml
+
+
+Data Generation
+---------------
+
+Functions that can be used to generate some parts of inventory data.
+
+Heating Degree Days (HDD)
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autofunction:: emiproc.profiles.hdd.create_HDD_scaling_factor
+
+
+Human Respiration 
+^^^^^^^^^^^^^^^^^ 
+
+.. autofunction:: emiproc.human_respiration.people_to_emissions
+
+.. autoenum:: emiproc.human_respiration.EmissionFactor
+
+
 
 
 Exporting 

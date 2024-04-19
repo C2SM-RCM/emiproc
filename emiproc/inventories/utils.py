@@ -219,7 +219,7 @@ def crop_with_shape(
             ) | mask_boundary
 
             # Points at the boundary are divided by 2
-            points_gdf.loc[mask_boundary, cols] /= 2
+            points_gdf.loc[mask_boundary, cols] /= 2.0
             inv_out.add_gdf(cat, points_gdf.loc[mask_shapes].reset_index(drop=True))
         if not all(mask_points):
             # We keep crop the geometry
@@ -366,6 +366,105 @@ def group_categories(
     return out_inv
 
 
+def group_substances(
+    inv: Inventory,
+    substances_group: dict[str, list[str]],
+    ignore_missing: bool = False,
+) -> Inventory:
+    """Group the substances of an inventory in new substances.
+
+    Simalar to :py:func:`group_categories` but for substances.
+
+    """
+    if ignore_missing:
+        # Remove the missing categories
+        substances_group = {
+            group: [sub for sub in substances if sub in inv.substances]
+            for group, substances in substances_group.items()
+        }
+
+    validate_group(substances_group, inv.substances)
+
+    out_inv = inv.copy(no_gdfs=True)
+
+    if inv.gdf is not None:
+        out_inv.gdf = gpd.GeoDataFrame(
+            {
+                # Sum all the substances containing that category
+                (cat, group): group_sum
+                for cat in inv.categories
+                for group, substances in substances_group.items()
+                # Only add the group if there are some non zero value
+                if np.any(
+                    group_sum := sum(
+                        (
+                            inv.gdf[(cat, sub)]
+                            for sub in substances
+                            if (cat, sub) in inv.gdf
+                        )
+                    )
+                )
+            },
+            geometry=inv.gdf.geometry,
+            crs=inv.crs,
+        )
+    else:
+        out_inv.gdf = None
+    # Add the additional gdfs as well
+    # Merging the categories directly
+    out_inv.gdfs = {}
+    for cat, gdf in inv.gdfs.items():
+        for group, substances in substances_group.items():
+            columns_to_group = [sub for sub in substances if sub in gdf.columns]
+            new_gdf = gdf.copy(deep=True)
+            if columns_to_group:
+                new_gdf[group] = new_gdf[columns_to_group].sum(axis=1)
+                new_gdf.drop(columns=columns_to_group, inplace=True)
+            out_inv.gdfs[cat] = new_gdf
+
+    # Group the vertical profiles
+    # we group only on the gdf, as the gdfs will keep their own profiles
+    for profiles_name, profiles_indexes_name in [
+        ("v_profiles", "v_profiles_indexes"),
+        ("t_profiles_groups", "t_profiles_indexes"),
+    ]:
+        profiles = getattr(inv, profiles_name)
+        profiles_indexes: xr.DataArray = getattr(inv, profiles_indexes_name)
+
+        out_profiles = getattr(out_inv, profiles_name)
+
+        if (
+            profiles is not None
+            # if they don't depend on category, we don't need to create new profiles
+            and "substance" in profiles_indexes.dims
+        ):
+            new_profiles, new_indices = group_profiles_indexes(
+                profiles,
+                profiles_indexes,
+                indexes_weights=get_weights_of_gdf_profiles(inv.gdf, profiles_indexes),
+                categories_group=substances_group,
+                groupping_dimension="substance",
+            )
+
+            # Offset the indexes for merging with the profiles
+            new_indices = xr.where(
+                new_indices != -1,
+                new_indices + len(profiles),
+                -1,
+            )
+            out_profiles += new_profiles
+            # Replace the old indexes by the new
+            setattr(out_inv, profiles_name, out_profiles)
+            setattr(out_inv, profiles_indexes_name, new_indices)
+            out_inv.history.append(
+                f"Generated new {profiles_indexes_name} from groupping."
+            )
+
+    out_inv.history.append(f"groupped from {inv.categories} to {out_inv.categories}")
+
+    return out_inv
+
+
 def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     """Add inventories together.
 
@@ -392,8 +491,9 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
             )
         else:
             logger.warn(
-                f"Vertical profiles of {other_inv} are going to be lost."
-                "Please place it in the first position of the arguments of function `add_inventories()`."
+                f"Vertical profiles of {other_inv} are going to be lost.Please place it"
+                " in the first position of the arguments of function"
+                " `add_inventories()`."
             )
 
     if other_inv.t_profiles_groups is not None:
@@ -403,8 +503,8 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
             )
         else:
             logger.warn(
-                f"Time profiles of {other_inv} are going to be lost."
-                "Please place it in the first position of the arguments of function `add_inventories()`."
+                f"Time profiles of {other_inv} are going to be lost.Please place it in"
+                " the first position of the arguments of function `add_inventories()`."
             )
 
     out_inv = inv.copy(no_gdfs=True)

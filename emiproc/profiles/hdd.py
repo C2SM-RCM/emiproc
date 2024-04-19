@@ -35,7 +35,7 @@ def create_HDD_scaling_factor(
     A profile for domestic hot water is then added to this profile. 
 
     .. math::
-        a_{H} = HDD_{H} * a_{HDD} + a_{DHW} * f_{DHW}
+        a_{H} = (1 - f_{DHW}) * HDD_{H} * a_{HDD} + a_{DHW} * f_{DHW}
 
     Where :math:`HDD_{H}` is the hourly heating profile and :math:`a_{DHW}` is the
     hourly domestic hot water profile and :math:`f_{DHW}` is the scaling factor for
@@ -49,6 +49,9 @@ def create_HDD_scaling_factor(
     :arg dhw_profile: the domestic hot water profile
     :arg min_heating_T: the minimum temperature for which heating is activated
     :arg inside_T: the inside temperature
+    :arg dhw_scaling: :math:`f_{DHW}`, the scaling of domesting hot water demand vs surface heating
+        must be a ratio between 0 and 1. If 0, the profiles will correspond to 
+        space heating only.
     """
     serie_daily_T = serie_T.resample("D").mean()
 
@@ -77,5 +80,5 @@ def create_HDD_scaling_factor(
     heating_ts = create_scaling_factors_time_serie(start, end, heating_profile)
     dhw_ts = create_scaling_factors_time_serie(start, end, dhw_profile)
 
-    return a_HDD_hourly * heating_ts + dhw_ts * dhw_scaling
+    return (1. - dhw_scaling) * a_HDD_hourly * heating_ts + dhw_ts * dhw_scaling
 

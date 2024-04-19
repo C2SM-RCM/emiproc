@@ -12,6 +12,7 @@ from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.utilities import DAY_PER_YR
 
+
 class EmissionFactor(Enum):
     """Emissions factors are how much CO2 is produce per individual per day
 
@@ -24,7 +25,7 @@ class EmissionFactor(Enum):
 
 def load_data_from_quartieranalyse(
     file: PathLike,
-    grid: RegularGrid | None,
+    grid: RegularGrid | None = None,
 ) -> gpd.GeoDataFrame:
     """Load the data required from the quartieranalyse file from zurich.
 
@@ -63,23 +64,35 @@ def people_to_emissions(
     time_ratios: dict[str, float],
     emission_factor: dict[str, float] | float = EmissionFactor.ROUGH_ESTIMATON.value,
     output_gdfs: bool = False,
-    name: str = "human_respiration"
+    name: str = "human_respiration",
 ) -> Inventory:
-    """Convert people living there to emissions.
+    """Get human respiration emissions.
 
-    People produce only CO2
+    Convert the number of people living in different areas
+    to annual emission of CO2 from human respiration.
 
-    :arg people_gdf: A geodataframe containing the number of people from each emission category.
-    :arg time_ratios: The ratio of time that people spend in each of the 
-        activities. 
-    :arg time_profiles: Instead of just ratio we can provied time profiles for 
-        each of the activities.
+    Different categories can be provided in the input. (ex. working, living, etc.)
+
+    The formula used is quite simple:
+
+    .. math::
+        \\text{emissions} [kg/y/shape] =
+        \\text{emission factor} [kg/p/d]
+        * \\text{people} [p/shape]
+        * \\text{time ratio} [-]
+        * \\text{days per year} [d/y]
+
+    :arg people_gdf: A geodataframe containing the number of people for
+        each geometry/shape/row. Each column must be named after the category of people.
+    :arg time_ratios: The ratio of time that people spend for each category.
+        The sum of all the ratios must be 1.
+        Ex: `{'working': 0.3, 'living': 0.7}`.
     :arg emission_factor: The emission factor to use for each of the activities.
+        Can be a single value or a dict with the same keys as the categories.
     :arg output_gdfs: Whether the output inventory should contain the emission
         data in gdfs instead of in the gdf(default).
 
-    :return: The Inventory of human emissions.
-
+    :return: The Inventory containing human emissions.
     """
 
     categories = list(time_ratios.keys())
@@ -87,31 +100,30 @@ def people_to_emissions(
         emission_factor = {cat: emission_factor for cat in categories}
 
     if not sum(time_ratios.values()) == 1:
-        raise ValueError(f"The time ratios must sum up to 1, got {time_ratios.values() = }")
+        raise ValueError(
+            f"The time ratios must sum up to 1, got {time_ratios.values() = }"
+        )
 
     yearly_emissions = {
         # Calculate the yearly emissions for each of the categories
         # (kg/p/day) * (p/shape) * (-) * (day/y) = (kg/y/shape)
-        cat: emission_factor[cat] * people_gdf[cat] * time_ratios[cat] * DAY_PER_YR  
+        cat: emission_factor[cat] * people_gdf[cat] * time_ratios[cat] * DAY_PER_YR
         for cat in categories
     }
-    
+
     inv_kwargs = {}
     if output_gdfs:
-        inv_kwargs['gdfs'] = {
-            cat: gpd.GeoDataFrame({'CO2': yearly_emissions[cat]},geometry=people_gdf.geometry)
+        inv_kwargs["gdfs"] = {
+            cat: gpd.GeoDataFrame(
+                {"CO2": yearly_emissions[cat]}, geometry=people_gdf.geometry
+            )
             for cat in categories
         }
     else:
-        # Use the main gdf 
-        inv_kwargs['gdf'] = gpd.GeoDataFrame(
-            {
-                (cat, 'CO2'): yearly_emissions[cat] for cat in categories
-            },
-            geometry=people_gdf.geometry
+        # Use the main gdf
+        inv_kwargs["gdf"] = gpd.GeoDataFrame(
+            {(cat, "CO2"): yearly_emissions[cat] for cat in categories},
+            geometry=people_gdf.geometry,
         )
-    
+
     return Inventory.from_gdf(**inv_kwargs, name=name)
-
-
-
