@@ -70,11 +70,18 @@ On the other hand, the GRAL model can simulate, line, point or rectangular sourc
 GRAL also needs very detailed information about the emissions, such as the height,
 the temperature or the gas exit velocity of the source.
 
-Moreover, when a modeller designs a transport simulation, they often are interested in
+Moreover, when modellers design transport simulations, they often are interested in
 modifying the inventories. For example, they may want to scale the emissions based on
 different scenarios, or they may want to aggregate emissions by sector or pollutant.
 (SHOULD WE CITE SOME PAPERS FOR EXAMPLES).
 Nikolai used `emiproc` to fill the space around the city of zurich. 
+
+Another python software, `HERMESv3` [@hermesv3_part1], can already process emission 
+data and generate input files for athmospheric transport models. However, `HERMESv3` is
+relying on specific confiuration files. `emiproc` is more flexible and extensible
+as it is designed to
+be used directly in python scripts. 
+
 
 # History
 
@@ -151,6 +158,24 @@ modeller. However some transport model might require some specific data which is
 given in the inventories. In this case, `emiproc` provides error messages which
 guide the modeller into adding the missing data.
 
+
+## Emissions generation 
+
+In some cases, the emissions are not provided in the inventory. For example, the
+emissions from human respiration are not provided in the inventory. However, 
+they can be estimated based on the population density. 
+TODO: add link 
+
+
+Another example is the emissions from vegetation. 
+Different models can estimate the emissions from vegetation based on satellite
+observations. `emiproc` implements the VPRM model [@vprm] with an example in 
+TODO: add link.
+
+This topic is one for which the HERMES model is already well developed in 
+its bottom-up part [@hermesv3_part2] as they implemented many sectors and polluants.
+
+In the future, we hope users will contribute by adding new emission models.
 
 ## Visualizing the data
 At the end of the processing, a modeller usually wants to check the output files 
