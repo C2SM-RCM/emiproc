@@ -45,17 +45,7 @@ resolutions, aggregating emissions by sector or pollutant, or scaling emissions 
 projection scenarios. The package is designed to be flexible and extensible, allowing
 users to easily add new functionality, to read new inventories or export data to new formats.
 
-
-INCLUDE AN IMAGE OF AN INVENOTRY
-
-# Figures
-
-Figures can be included like this:
-![Caption for example figure.\label{fig:example}](figure.png)
-and referenced from text using \autoref{fig:example}.
-
-Figure sizes can be customized by adding an optional second parameter:
-![Caption for example figure.](figure.png){ width=20% }
+![CO2 emissions of the for year 2015 from the TNO inventory. \label{fig:tno}](raster_total_CO2.png). 
 
 
 # Statement of need
