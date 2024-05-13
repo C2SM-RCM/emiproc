@@ -93,6 +93,8 @@ Since then the package is regularly updated with new features and bug fixes.
 To be able to use these different kind of inventories in air quality models, it is
 necessary to harmonize them. This is what the `emiproc` package is designed for.
 
+![Design of the idea behind emiproc \label{fig:design}.](pipeline.drawio.svg)
+
 Thanks to the harmonization of the data, processing functions can be applied to the
 different inventories once loaded into emiproc.  
 
