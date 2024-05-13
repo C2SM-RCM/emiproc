@@ -156,9 +156,10 @@ to see if the processing was successful.
 
 For some of the outputs, emiproc provides example plot scripts based on matplotlib.
 
-ADD LINK TO EXAMPLE PLOT SCRIPTS
 
-The figures from this paper were created using those scripts.
+For regular grids, the `plot_inventory` function from the `emiproc.plots` module
+can be used to plot the emissions on a map.
+Figure \ref{fig:tno} was created using this function.
 
 
 
