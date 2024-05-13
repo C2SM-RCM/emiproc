@@ -31,6 +31,8 @@ Inventory Operators
 
 .. autofunction:: emiproc.inventories.utils.get_total_emissions
 
+.. autofunction:: emiproc.inventories.utils.drop
+
 Geometric Transformations 
 -------------------------
 
@@ -53,7 +55,14 @@ Categories Manipulations
 Speciation
 ----------
 
+Speciation in emiproc means splitting a substance in multiple sub-substances. 
+
+This can be used for example to split NOx in NO and NO2 or to split 
+the anthropogenic and biogenic part of a CO2.
+
 .. autofunction:: emiproc.speciation.speciate
+
+.. autofunction:: emiproc.speciation.read_speciation_table
 
 
 
@@ -175,6 +184,12 @@ Human Respiration
 
 .. autoenum:: emiproc.human_respiration.EmissionFactor
 
+
+VPRM 
+^^^^
+
+.. automodule:: emiproc.profiles.vprm
+    :members:
 
 
 

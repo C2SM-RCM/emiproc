@@ -2,6 +2,8 @@
 from os import PathLike
 from pathlib import Path
 
+import xarray as xr
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -173,3 +175,28 @@ def test_speciate_nox():
     s_inv = speciate_nox(inv, NOX_TO_NO2={"cat1": 0.5, "cat2": 0.2})
     assert np.allclose(s_inv.gdf[("cat1", "NO2")], 0.5 * gdf[("cat1", "NOx")])
     assert np.allclose(s_inv.gdf[("cat2", "NO2")], 0.2 * gdf[("cat2", "NOx")])
+
+
+def test_simple():
+
+    categories = ["adf", "blek", "liku"]
+    da_speciation = xr.DataArray(
+        np.array([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]),
+        coords={"substance": ["CO2_ANT", "CO2_BIO"], "speciation": range(len(categories)), "category": ("speciation", categories)},
+        dims=["substance", "speciation"],
+    )
+
+    inv_speciated = speciate(
+        inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
+    )
+def test_no_speciation_in_ratios():
+
+    da_speciation = xr.DataArray(
+        np.array([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]),
+        coords=[["CO2_ANT", "CO2_BIO"], ["A", "B", "C"]],
+        dims=["substance", "category"],
+    )
+    with pytest.raises(ValueError):
+        inv_speciated = speciate(
+            inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
+        )

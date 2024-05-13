@@ -286,17 +286,7 @@ def get_natural_earth(
     shpfile = str(path_to_save / f"ne_{resolution}_{name}.shp")
     return gpd.read_file(shpfile)
 
-
-@overload
-def get_country_mask(return_fractions: Literal[True] = ...) -> xr.DataArray:
-    ...
-
-
-@overload
-def get_country_mask(return_fractions: Literal[False]) -> np.ndarray:
-    ...
-
-
+    
 def get_country_mask(
     output_grid: Grid | gpd.GeoSeries,
     resolution: str = "110m",
@@ -318,10 +308,12 @@ def get_country_mask(
     :arg resolution:
         The resolution for the used shapefile, used as argument for
         :py:func:`get_natural_earth`
-    arg return_fractions:
+    :arg return_fractions:
         In case you want to know the fraction of each country in each grid cell,
         instead of just the main country, set this to True.
-        This will return a xarray DataArray with the fraction of each country.
+        If True, this will return a `xarray.DataArray` with the fraction of each country.
+        If False (default), this will return a numpy array with the main country code.
+
 
     :returns: Gridded data with the country identifier of each country (eg. BUR).
         Array of 3 char strings of the shape of the grid.
@@ -518,6 +510,44 @@ def confirm_prompt(question: str) -> bool:
     while reply not in ("y", "n"):
         reply = input(f"{question} (y/n): ").casefold()
     return reply == "y"
+
+
+def total_emissions_almost_equal(
+    total_dict_1: dict[str, dict[str, float]],
+    total_dict_2: dict[str, dict[str, float]],
+    relative_tolerance: float = 1e-5,
+) -> bool:
+    """Test that the total emissions of two inventories are almost equal.
+    
+    :arg total_dict_1: The first total emissions dictionary
+    :arg total_dict_2: The second total emissions dictionary
+    :arg relative_tolerance: The relative tolerance to use for the comparison.
+        The comparison is done as follows:
+        abs(total_dict_1 - total_dict_2) < relative_tolerance * (total_dict_1 + total_dict_2) / 2
+        
+    :returns: True if the total emissions are almost equal, False otherwise
+    :raises ValueError: If the two dictionaries have different keys.
+    """
+    for sub in total_dict_1.keys() | total_dict_2.keys():
+        if sub not in total_dict_1 or sub not in total_dict_2:
+            raise ValueError(
+                f"Subcategory {sub} is missing in one of the dictionaries"
+            )
+        for cat in total_dict_1[sub].keys() | total_dict_2[sub].keys():
+            if cat not in total_dict_1[sub] or cat not in total_dict_2[sub]:
+                raise ValueError(
+                    f"Category {cat} is missing in one of the dictionaries for substance {sub}"
+                )
+            # Get a very small proportion of the total emissions
+            err_allowed = (
+                relative_tolerance
+                * (total_dict_1[sub][cat] + total_dict_2[sub][cat])
+                / 2
+            )
+
+            if abs(total_dict_1[sub][cat] - total_dict_2[sub][cat]) > err_allowed:
+                return False
+    return True
 
 
 class ProgressIndicator:

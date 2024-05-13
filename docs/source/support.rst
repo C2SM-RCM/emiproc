@@ -34,3 +34,8 @@ History
 Emiproc was originally published for the OEM of ICON in [Jähn_et_al_2020]_.
 In 2022 it was refactored with a more modular and object-oriented design,
 in order to account for more inventories and models.
+
+License
+-------
+
+Since 2024, emiproc is licensed by Empa under The 3-Clause BSD License. 
