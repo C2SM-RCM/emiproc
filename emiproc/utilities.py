@@ -1,24 +1,28 @@
 """Utility functions and constants for emission processing."""
 from __future__ import annotations
+
+import json
 import logging
 import sys
 import time
-import json
-from warnings import warn
-from enum import Enum
-from io import BytesIO
 import urllib
+from enum import Enum
+from functools import cache
+from io import BytesIO
+from os import PathLike
+from pathlib import Path
+from typing import Literal, overload
 from urllib.request import urlopen
+from warnings import warn
 from zipfile import ZipFile
-import fiona
-import numpy as np
+
 import geopandas as gpd
+import numpy as np
+import xarray as xr
+from shapely.geometry import MultiPolygon, Polygon
 
-from shapely.geometry import Polygon, MultiPolygon
-
-from emiproc.grids import Grid, WGS84, WGS84_PROJECTED
 from emiproc import FILES_DIR, PROCESS
-
+from emiproc.grids import WGS84, WGS84_PROJECTED, Grid
 
 # constants to convert from yr -> sec
 DAY_PER_YR = 365.25
@@ -33,20 +37,31 @@ class Units(Enum):
     """Units for emissions."""
 
     KG_PER_YEAR = "kg/y"
+    KG_PER_HOUR = "kg/h"
     KG_PER_M2_PER_S = "kg/m2/s"
 
 
+PER_M2_UNITS = [Units.KG_PER_M2_PER_S]
+
+
 def grid_polygon_intersects(
-    grid: gpd.GeoSeries, poly: Polygon | MultiPolygon
+    grid: gpd.GeoSeries,
+    poly: Polygon | MultiPolygon,
+    within: bool = False,
 ) -> np.ndarray:
     """Return a mask of the intersection from grid with the polygon.
 
-    This will be fast if the grid is way lareger than the polygon.
-    Or if the polygon is mostly ouside of the picture
+    This will be fast if the grid is way larger than the polygon.
+    Or if the polygon is mostly ouside of the picture.
+
+    :arg grid: The grid to use, as a GeoSeries
+    :arg poly: The polygon to check which grid cells intersect with.
+    :arg within: If True, return the cells that are fully within the polygon.
+        If False, return the cells that intersect with the polygon.
     """
     if isinstance(poly, MultiPolygon):
         return np.logical_or.reduce(
-            [grid_polygon_intersects(grid, p) for p in poly.geoms]
+            [grid_polygon_intersects(grid, p, within=within) for p in poly.geoms]
         )
 
     grid_boundary = Polygon.from_bounds(*grid.total_bounds)
@@ -61,7 +76,11 @@ def grid_polygon_intersects(
 
     out = np.zeros(len(grid), dtype=bool)
 
-    out[sub_grid.index] = sub_grid.intersects(poly_cropped)
+    if within:
+        mask = sub_grid.within(poly_cropped)
+    else:
+        mask = sub_grid.intersects(poly_cropped)
+    out[sub_grid.index] = mask
 
     return out
 
@@ -221,6 +240,7 @@ def get_timezone_mask(output_grid: Grid, **kwargs) -> np.ndarray:
     return timezones.reshape((output_grid.nx, output_grid.ny))
 
 
+@cache
 def get_natural_earth(
     resolution: str = "10m",
     category: str = "physical",
@@ -231,6 +251,8 @@ def get_natural_earth(
     For more information about the natural earth data, see
     `the natural earth website <https://www.naturalearthdata.com/>`_.
 
+    As this function reads a large dataset, it caches it in case of many uses
+    (ex: testing).
 
     :arg resolution: The resolution for the used shapefile.
         Available resolutions are: '10m', '50m', '110m'
@@ -264,8 +286,13 @@ def get_natural_earth(
     shpfile = str(path_to_save / f"ne_{resolution}_{name}.shp")
     return gpd.read_file(shpfile)
 
-
-def get_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
+    
+def get_country_mask(
+    output_grid: Grid | gpd.GeoSeries,
+    resolution: str = "110m",
+    weight_filepath: PathLike | None = None,
+    return_fractions: bool = False,
+) -> np.ndarray | xr.DataArray:
     """Determine the country-code for each gridcell and return the grid.
 
     Each gridcell gets assigned to code of the country with the most
@@ -276,34 +303,73 @@ def get_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
 
 
     :arg output_grid:
-        Contains all necessary information about the output grid
+        Contains all necessary information about the output grid.
+        Can be a Grid object or a GeoSeries with a custom geometry.
     :arg resolution:
         The resolution for the used shapefile, used as argument for
         :py:func:`get_natural_earth`
+    :arg return_fractions:
+        In case you want to know the fraction of each country in each grid cell,
+        instead of just the main country, set this to True.
+        If True, this will return a `xarray.DataArray` with the fraction of each country.
+        If False (default), this will return a numpy array with the main country code.
+
 
     :returns: Gridded data with the country identifier of each country (eg. BUR).
         Array of 3 char strings of the shape of the grid.
     """
     logger = logging.getLogger("emiproc.get_country_mask")
 
+    if weight_filepath is not None:
+        suffix = ".npy" if not return_fractions else ".nc"
+        weight_filepath = Path(weight_filepath)
+        if weight_filepath.suffix != suffix:
+            raise ValueError(
+                f"Weight file {weight_filepath} should have suffix {suffix}"
+                f" with arg: {return_fractions=}"
+            )
+        if weight_filepath.is_file():
+            try:
+                if suffix == ".npy":
+                    weigts = np.load(weight_filepath)
+                    if weigts.shape == (output_grid.nx, output_grid.ny):
+                        return weigts
+                    else:
+                        logger.warning(
+                            f"Weight file {weight_filepath} does not match the grid"
+                            " shape, ignoring it."
+                        )
+                        weight_filepath = None
+                elif suffix == ".nc":
+                    weigts = xr.load_dataarray(weight_filepath)
+                    return weigts
+            except Exception as e:
+                warn(f"Could not load weight file {weight_filepath}, {e}")
+                weight_filepath = None
+
     if resolution in ["10m", "50m"]:
         logger.log(
             PROCESS,
-            (
-                f"Computing the country mask with {resolution} resolution.\n"
-                "Consider using a coarser resolution to speed up the process "
-                "if necessary."
-            ),
+            f"Computing the country mask with {resolution} resolution.\n"
+            "Consider using a coarser resolution to speed up the process "
+            "if necessary.",
         )
     start = time.time()
 
+    ne_name = "admin_0_countries"
     countries_gdf = get_natural_earth(
-        resolution=resolution, category="cultural", name="admin_0_countries"
+        resolution=resolution, category="cultural", name=ne_name
     )
+    if isinstance(output_grid, Grid):
+        grid_gdf = output_grid.gdf
+    elif isinstance(output_grid, gpd.GeoSeries):
+        grid_gdf = gpd.GeoDataFrame(geometry=output_grid)
+    else:
+        raise TypeError(
+            f"output_grid should be a Grid or a GeoSeries, not {type(output_grid)}"
+        )
 
-    grid_gdf = output_grid.gdf
-
-    if output_grid.crs != WGS84:
+    if grid_gdf.crs != WGS84:
         # make sure the grid is in WGS84 as is the country data
         grid_gdf = grid_gdf.to_crs(WGS84)
 
@@ -321,11 +387,20 @@ def get_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
 
     progress = ProgressIndicator(len(countries_gdf) + 10)
 
-    for geometry, iso3 in zip(countries_gdf.geometry, countries_gdf["ISO_A3_EH"]):
+    for geometry, iso3, sovereignt in zip(
+        countries_gdf.geometry, countries_gdf["ISO_A3_EH"], countries_gdf["SOVEREIGNT"]
+    ):
         progress.step()
 
         mask_intersect = grid_polygon_intersects(grid_gdf.geometry, geometry)
         if np.any(mask_intersect):
+            if iso3 == "-99":
+                # Countries with missing iso3 code
+                logger.info(
+                    f"Country {sovereignt=} has no iso3 code (ISO_A3_EH) in natural"
+                    f" earth data '{ne_name}'"
+                )
+                continue
             grid_gdf.loc[grid_gdf.index, iso3] = mask_intersect
             country_shapes[iso3] = geometry
             country_corresponding_codes.append(iso3)
@@ -335,30 +410,45 @@ def get_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
         dtype="U3",
     )
 
+    if return_fractions:
+        # Create the output empty array
+        da = xr.DataArray(
+            np.zeros((len(country_corresponding_codes), len(grid_gdf))),
+            coords={
+                "country": country_corresponding_codes,
+                "cell": grid_gdf.index,
+            },
+            dims=["country", "cell"],
+        )
+
     # Find how many countries each cell intersected
     progress.step()
     number_of_intersections = grid_gdf[country_shapes.keys()].sum(axis=1)
 
     # Cells having only one country
     progress.step()
-    one_cell_df = grid_gdf.loc[number_of_intersections == 1, country_shapes.keys()]
-    # Will have in col-0 the index of countries from on_cell_df and col-1 the codes
-    cell_country_maps = np.argwhere(one_cell_df.to_numpy())
-    country_mask[
-        one_cell_df.index[cell_country_maps[:, 0]]
-    ] = country_corresponding_codes[cell_country_maps[:, 1]]
-
-    # Find indexes of cell in more than one country
-    progress.step()
-    many_cells_df = grid_gdf.loc[number_of_intersections > 1, country_shapes.keys()]
+    if not return_fractions:
+        # Some small optimization for countries that are in only one cell
+        one_cell_df = grid_gdf.loc[number_of_intersections == 1, country_shapes.keys()]
+        # Will have in col-0 the index of countries from on_cell_df and col-1 the codes
+        cell_country_maps = np.argwhere(one_cell_df.to_numpy())
+        country_mask[
+            one_cell_df.index[cell_country_maps[:, 0]]
+        ] = country_corresponding_codes[cell_country_maps[:, 1]]
+        # Find indexes of cell in more than one country
+        progress.step()
+        mask_many_cells = number_of_intersections > 1
+    else:
+        # Take only cells with at least one country
+        mask_many_cells = number_of_intersections >= 1
+    many_cells_df = grid_gdf.loc[mask_many_cells, country_shapes.keys()]
     if len(many_cells_df) > 0:
+        # First column is the index of the cell, second column is the index of the country
         cell_country_duplicates = np.argwhere(many_cells_df.to_numpy())
 
         # Create two arrays for preparing intersection area between grid cells and countries
         grid_shapes = gpd.GeoSeries(
-            grid_gdf.loc[number_of_intersections > 1].geometry.iloc[
-                cell_country_duplicates[:, 0]
-            ],
+            grid_gdf.loc[mask_many_cells].geometry.iloc[cell_country_duplicates[:, 0]],
             crs=grid_gdf.crs,
         )
         countries = gpd.GeoSeries(
@@ -375,22 +465,40 @@ def get_country_mask(output_grid: Grid, resolution: str = "110m") -> np.ndarray:
         # Prepare a matrix for comparing the area of intersection of cells with each country
         u, i = np.unique(intersection_areas.index, return_inverse=True)
 
-        # rows match each cell that contain duplicate, columns match
+        # rows match each cell that contain duplicate, columns match countries
         areas_matrix = np.zeros(
             (np.max(i) + 1, np.max(cell_country_duplicates[:, 1]) + 1)
         )
         areas_matrix[
             cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]
         ] = intersection_areas
-        # Find the countries in which the area is the largest
-        country_mask[many_cells_df.index] = country_corresponding_codes[
-            np.argmax(areas_matrix, axis=1)
-        ]
+        if return_fractions:
+            # Get the fractions of each country in each cell
+            cell_areas = grid_gdf.to_crs(WGS84_PROJECTED).area
+            fractions = areas_matrix / cell_areas[u].values[:, None]
+            da.loc[
+                {
+                    "country": country_corresponding_codes,
+                    "cell": many_cells_df.index,
+                }
+            ] = fractions.T
+        else:
+            # Find the countries in which the area is the largest
+            country_mask[many_cells_df.index] = country_corresponding_codes[
+                np.argmax(areas_matrix, axis=1)
+            ]
 
     end = time.time()
-    print(f"Computation is over, it took\n{int(end - start)} seconds")
-
-    return country_mask.reshape((output_grid.nx, output_grid.ny))
+    logger.log(PROCESS, f"Computation is over, it took {int(end - start)} seconds")
+    if return_fractions:
+        if weight_filepath is not None:
+            da.to_netcdf(weight_filepath)
+        return da
+    if isinstance(output_grid, Grid):
+        country_mask = country_mask.reshape((output_grid.nx, output_grid.ny))
+    if weight_filepath is not None:
+        np.save(weight_filepath, country_mask)
+    return country_mask
 
 
 def confirm_prompt(question: str) -> bool:
@@ -402,6 +510,44 @@ def confirm_prompt(question: str) -> bool:
     while reply not in ("y", "n"):
         reply = input(f"{question} (y/n): ").casefold()
     return reply == "y"
+
+
+def total_emissions_almost_equal(
+    total_dict_1: dict[str, dict[str, float]],
+    total_dict_2: dict[str, dict[str, float]],
+    relative_tolerance: float = 1e-5,
+) -> bool:
+    """Test that the total emissions of two inventories are almost equal.
+    
+    :arg total_dict_1: The first total emissions dictionary
+    :arg total_dict_2: The second total emissions dictionary
+    :arg relative_tolerance: The relative tolerance to use for the comparison.
+        The comparison is done as follows:
+        abs(total_dict_1 - total_dict_2) < relative_tolerance * (total_dict_1 + total_dict_2) / 2
+        
+    :returns: True if the total emissions are almost equal, False otherwise
+    :raises ValueError: If the two dictionaries have different keys.
+    """
+    for sub in total_dict_1.keys() | total_dict_2.keys():
+        if sub not in total_dict_1 or sub not in total_dict_2:
+            raise ValueError(
+                f"Subcategory {sub} is missing in one of the dictionaries"
+            )
+        for cat in total_dict_1[sub].keys() | total_dict_2[sub].keys():
+            if cat not in total_dict_1[sub] or cat not in total_dict_2[sub]:
+                raise ValueError(
+                    f"Category {cat} is missing in one of the dictionaries for substance {sub}"
+                )
+            # Get a very small proportion of the total emissions
+            err_allowed = (
+                relative_tolerance
+                * (total_dict_1[sub][cat] + total_dict_2[sub][cat])
+                / 2
+            )
+
+            if abs(total_dict_1[sub][cat] - total_dict_2[sub][cat]) > err_allowed:
+                return False
+    return True
 
 
 class ProgressIndicator:
@@ -420,7 +566,12 @@ class ProgressIndicator:
         """
         self.curr_step = 0
         self.steps = steps
-        self.stream = sys.stdout
+        # Take the stream from a logger if possible
+        logger = logging.getLogger("emiproc.ProgressIndicator")
+        logger.setLevel(PROCESS)
+        handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(handler)
+        self.stream = handler.stream
 
         self._curr_progress_step = 0
 
@@ -437,3 +588,10 @@ class ProgressIndicator:
         self.stream.write(f"\r{progress:.1f}%")
         if self.curr_step == self.steps:
             self.stream.write("\r")
+
+
+if __name__ == "__main__":
+    progg = ProgressIndicator(100)
+    for i in range(100):
+        progg.step()
+        time.sleep(0.1)

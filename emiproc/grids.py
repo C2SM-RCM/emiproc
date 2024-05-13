@@ -4,18 +4,20 @@ Classes handling different grids, namely the simulation grids and
 grids used in different emissions inventories.
 """
 from __future__ import annotations
+
+import math
+import warnings
 from functools import cache, cached_property
 from typing import Iterable
-import warnings
-import numpy as np
-import xarray as xr
-import geopandas as gpd
-import pyproj
-import math
 
+import geopandas as gpd
+import numpy as np
+import pyproj
+import xarray as xr
 from netCDF4 import Dataset
-from shapely.geometry import Polygon, Point, box, LineString, MultiPolygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.ops import split
+from shapely.creation import polygons
 
 WGS84 = 4326
 WGS84_PROJECTED = 3857
@@ -38,7 +40,7 @@ class Grid:
 
     # The crs value as an integer
     crs: int | str
-    gdf: gpd.GeoDataFrame 
+    gdf: gpd.GeoDataFrame
 
     def __init__(self, name: str, crs: int | str = WGS84):
         """
@@ -59,10 +61,12 @@ class Grid:
                 crs=self.crs,
             )
         return self._gdf
-    
+
     @gdf.setter
     def gdf(self, value: gpd.GeoDataFrame):
-        warnings.warn("deprectated to set the gdf of a grid. It is now automatically generated.")
+        warnings.warn(
+            "deprectated to set the gdf of a grid. It is now automatically generated."
+        )
         self._gdf = value
 
     def cell_corners(self, i, j):
@@ -116,14 +120,21 @@ class Grid:
         ]
 
     @cached_property
+    def shape(self) -> tuple[int, int]:
+        return (self.nx, self.ny)
+
+    @cached_property
     def cell_areas(self) -> Iterable[float]:
         """Return an array containing the area of each cell in m2."""
         return (
             gpd.GeoSeries(self.cells_as_polylist, crs=self.crs)
             # Convert to WGS84 to get the area in m^2
-            .to_crs(epsg=WGS84_NSIDC)
-            .area
+            .to_crs(epsg=WGS84_NSIDC).area
         )
+
+    def __len__(self):
+        """Return the number of cells in the grid."""
+        return self.nx * self.ny
 
 
 class RegularGrid(Grid):
@@ -139,7 +150,7 @@ class RegularGrid(Grid):
     * xmax, ymax to define the bounding box
     * nx, ny to define the number of cells in each direction
     * dx, dy to define the size of the cells in each direction
-    
+
     Leave the unused parameters as None.
     """
 
@@ -165,7 +176,7 @@ class RegularGrid(Grid):
         ny: int | None = None,
         dx: float | None = None,
         dy: float | None = None,
-        name: str = "",
+        name: str | None = None,
         crs: int | str = WGS84,
     ):
         self.xmin, self.ymin = xmin, ymin
@@ -177,7 +188,7 @@ class RegularGrid(Grid):
                 "Specify only 2 of the following: "
                 "(xmax, ymax), (nx, ny), (dx, dy)"
             )
-        
+
         if dx is None and dy is None and xmax is None and ymax is None:
             raise ValueError(
                 "Cannot create grid with only nx and ny. "
@@ -199,7 +210,7 @@ class RegularGrid(Grid):
             # Guess the nx and ny values, override the max
             nx = math.ceil((xmax - xmin) / dx)
             ny = math.ceil((ymax - ymin) / dy)
-        
+
         if xmax is None and ymax is None:
             xmax = xmin + nx * dx
             ymax = ymin + ny * dy
@@ -208,10 +219,37 @@ class RegularGrid(Grid):
         self.nx, self.ny = nx, ny
         self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
 
-        self.lon_range = np.linspace(xmin, xmax, nx) + self.dx / 2
-        self.lat_range = np.linspace(ymin, ymax, ny) + self.dy / 2
+        self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
+        self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
+
+        if name is None:
+            name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
+    
+    @cached_property
+    def cells_as_polylist(self) -> list[Polygon]:
+
+        x_coords, y_coords = np.meshgrid(
+            self.lon_range - self.dx / 2.,
+            self.lat_range - self.dy / 2.
+        )
+        # Reshape to 1D (order set for backward compatibility)
+        x_coords = x_coords.flatten(order="F")
+        y_coords = y_coords.flatten(order="F")
+        dx = float(self.dx)
+        dy = float(self.dy)
+        coords = np.array(
+            [
+                [x, y]
+                for x, y in zip(
+                    [x_coords, x_coords, x_coords + dx, x_coords + dx],
+                    [y_coords, y_coords + dy, y_coords + dy, y_coords],
+                )
+            ]
+        )
+        coords = np.rollaxis(coords, -1, 0)
+        return polygons(coords)
 
     def cell_corners(self, i, j):
         """Return the corners of the cell with indices (i,j).
@@ -228,10 +266,6 @@ class RegularGrid(Grid):
             np.array([y, y, y + self.dy, y + self.dy]),
         )
 
-    @cached_property
-    def shape(self) -> tuple[int, int]:
-        return (self.nx, self.ny)
-    
     @cached_property
     def bounds(self) -> tuple[int, int, int, int]:
         return self.xmin, self.ymin, self.xmax, self.ymax
@@ -404,7 +438,9 @@ class EDGARGrid(Grid):
         lats_c = np.deg2rad(lats_c)
 
         dlon = 2 * np.pi / self.nx
-        areas = (R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:])))
+        areas = (
+            R_EARTH * R_EARTH * dlon * np.abs(np.sin(lats_c[:-1]) - np.sin(lats_c[1:]))
+        )
         areas = np.broadcast_to(areas[np.newaxis, :], (self.nx, self.ny))
 
         return areas.flatten()
@@ -420,6 +456,11 @@ class GeoPandasGrid(Grid):
 
         self.nx = len(gdf)
         self.ny = 1
+
+    @property
+    def cells_as_polylist(self) -> list[Polygon]:
+        """Return all the cells as a list of polygons."""
+        return self.gdf.geometry.tolist()
 
 
 class VPRMGrid(Grid):
@@ -587,14 +628,7 @@ class SwissGrid(RegularGrid):
         # however the points returned by the cell_corners() method are in
         # WGS84, which PlateCarree defaults to.
         super().__init__(
-            name=name,
-            nx=nx,
-            ny=ny,
-            dx=dx,
-            dy=dy,
-            xmin=xmin,
-            ymin=ymin,
-            crs=crs
+            name=name, nx=nx, ny=ny, dx=dx, dy=dy, xmin=xmin, ymin=ymin, crs=crs
         )
 
     @cached_property
@@ -902,7 +936,6 @@ class ICONGrid(Grid):
             coords_cond2 = [list(c) for c in coords_cond1]
 
             if cond2:
-
                 if lon1 * lon2 < 0 and lon1 * lon3 < 0:
                     coords_cond2[0][0] = lon1 - math.copysign(1, lon1) * 360
 

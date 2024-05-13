@@ -25,13 +25,12 @@ dependencies = [
     "netCDF4",
     "scipy",
     "shapely",
-    "xarray",
+    "xarray>=2023.10",
     "rasterio",
     "pyogrio",
-    "pygeos",
     "pyyaml",
 ]
-license = {file = "LICENSE.txt"}
+license = {text = "BSD-3-Clause"}
 readme = "README.md"
 requires-python = ">=3.9"
 keywords = ["emission", "processing", "inventory", "cosmo", "icon-art"]

@@ -6,6 +6,7 @@ from emiproc.inventories import Inventory
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
+from shapely.creation import polygons
 import numpy as np
 import rasterio
 
@@ -25,6 +26,9 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
         year: int = 2015,
+        dict_spec: dict[str, str] = {
+            "NOX": "NOx", "NMVOC": "VOC", "PM2.5": "PM25", "F-Gase": "F-gases"
+        },
     ) -> None:
         """Create a swiss raster inventory.
 
@@ -42,8 +46,13 @@ class SwissRasters(Inventory):
             This should be present in the `Emissions_CH.xlsx` file.
             The raster files are the same for all years. Only the scaling
             of the full raster pro substance changes.
+        :arg dict_spec: Dictionary to rename the chemical species
+            according to emiproc conventions. Mapping from the original to the 
+            name that will be in the inventory.
         """
         super().__init__()
+
+        self.year = year
 
         data_path = Path(data_path)
 
@@ -53,15 +62,14 @@ class SwissRasters(Inventory):
         elif data_path.is_file():
             total_emission_file = data_path
         else:
-            raise FileNotFoundError(f"Data path {data_path} is not an existing file or a folder.")
+            raise FileNotFoundError(
+                f"Data path {data_path} is not an existing file or a folder."
+            )
 
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)
 
-        # Dictionary to rename chemical species according to emiproc conventions
-        dict_spec = {"NOX": "NOx", "NMVOC": "VOC", "PM2.5": "PM25", "F-Gase": "F-gases"}
-
-        # Rename chemical specis according to emiproc conventions
+        # Rename chemical specis according to the specified dictionary
         df_emissions["Chemical Species"] = df_emissions["Chemical Species"].replace(
             dict_spec
         )
@@ -101,6 +109,10 @@ class SwissRasters(Inventory):
 
         # Set company name as index for location of point sources
         df_loc_ps = df_loc_ps.set_index("Company")
+
+        # Remove commas in the coordinates and ensure float 
+        for col in ["Easting", "Northing"]:
+            df_loc_ps[col] = df_loc_ps[col].str.replace(",", "").astype(float)
 
         # Companies with point source emissions
         # Rmk: *set() removes duplicates
@@ -147,13 +159,13 @@ class SwissRasters(Inventory):
         rasters_str_dir = Path(rasters_str_dir)
         str_rasters = [
             r
-            for r in rasters_str_dir.rglob("*.asc")
+            for r in rasters_str_dir.glob("*.asc")
             # Don't include the tunnel specific grids as they are already included in the grids for road transport
             if "_tun" not in r.stem
         ]
 
         # Grids that do not depend on chemical species
-        normal_rasters = [r for r in rasters_dir.rglob("*.asc")]
+        normal_rasters = [r for r in rasters_dir.glob("*.asc")]
 
         self.all_raster_files = normal_rasters + str_rasters
 
@@ -164,14 +176,20 @@ class SwissRasters(Inventory):
         # List with Raster categories for which we have emissions
         raster_sub = df_emissions.index.tolist()
         rasters_w_emis = []
+
+        evstr_subname_to_subname = {}
         for t in raster_sub:
-            cat, sub = t.split("_")
-            subname = sub.lower()
+            split = t.split("_")
+            assert len(split) > 1
+            cat = split[0]
+            sub = "_".join(split[1:])
             if cat == "evstr":
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
+                subname = sub.lower()
                 if subname == "voc":
                     subname = "nmvoc"
                 rasters_w_emis.append(cat + "_" + subname)
+                evstr_subname_to_subname[subname] = sub
             else:
                 rasters_w_emis.append(cat)
         # Remove duplicates
@@ -234,10 +252,10 @@ class SwissRasters(Inventory):
         for raster_file, category in zip(self.all_raster_files, self.raster_categories):
             _raster_array = self.load_raster(raster_file).reshape(-1)
             if "_" in category:
-                cat, sub = category.split("_")
-                sub_name = sub.upper()
-                if sub_name in dict_spec.keys():
-                    sub_name = dict_spec[sub_name]
+                split = category.split("_")
+                cat = split[0]
+                sub = '_'.join(split[1:])
+                sub_name = evstr_subname_to_subname[sub]
                 idx = cat + "_" + sub_name
                 # Transform units [t/y] -> [kg/y]
                 factor = self.df_emission[year].loc[idx] * 1000
@@ -254,23 +272,29 @@ class SwissRasters(Inventory):
                     if factor > 0:
                         mapping[(category, sub)] = _raster_array * factor
 
+        if self.requires_grid:
+            x_coords, y_coords = np.meshgrid(xs, ys[::-1])
+            # Reshape to 1D
+            x_coords = x_coords.flatten()
+            y_coords = y_coords.flatten()
+            dx = self.grid.dx
+            dy = self.grid.dy
+            coords = np.array(
+                [
+                    [x, y]
+                    for x, y in zip(
+                        [x_coords, x_coords, x_coords + dx, x_coords + dx],
+                        [y_coords, y_coords + dy, y_coords + dy, y_coords],
+                    )
+                ]
+            )
+            coords = np.rollaxis(coords, -1, 0)
         self.gdf = gpd.GeoDataFrame(
             mapping,
             crs=LV95,
             # This vector is same as raster data reshaped using reshape(-1)
             geometry=(
-                [
-                    Polygon(
-                        (
-                            (x, y),
-                            (x, y + self.grid.dy),
-                            (x + self.grid.dx, y + self.grid.dy),
-                            (x + self.grid.dx, y),
-                        )
-                    )
-                    for y in reversed(ys)
-                    for x in xs
-                ]
+                polygons(coords)
                 if self.requires_grid
                 else np.full(self.grid.nx * self.grid.ny, np.nan)
             ),

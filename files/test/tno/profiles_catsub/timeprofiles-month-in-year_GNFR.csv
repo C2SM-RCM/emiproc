@@ -1,0 +1,16 @@
+# Emission temporal profiles for month in year;;;;;;;;;;;;;;
+#;;;;;;;;;;;;;;
+# HISTORY;;;;;;;;;;;;;;
+#;;;;;;;;;;;;;;
+# 2018-10-12, Antoon Visschedijk, Temporal profiles converted from SNAP-based to GNFR-based, new temporal profiles for K_AgriLivestock and L_AgriOther based on Skj�th, C. A., Geels, C., Berge, H., Gyldenk�rne, S., Fagerli, H., Ellermann, T., ... & Hertel, O. (2011). Spatial and temporal variations in ammonia emissions�a freely accessible model code for Europe. Atmospheric Chemistry and Physics, 11(11), 5221-5236.;;;;;;;;;;;;;;
+#;;;;;;;;;;;;;;
+;GNFR_Category;Substance;GNFR_Category_Name; jan ; feb ; mar ; apr ; may ; jun ; jul ; aug ; sep ; oct ; nov ; dec 
+1;A;co2_ff;A_PublicPower;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+1;A;co2_bf;A_PublicPower;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+1;A;co_ff;A_PublicPower;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+1;A;co_bf;A_PublicPower;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+1;A;co2_ff;A_PublicPower;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+1;A;co2_ff;A_PublicPower;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+2;B;co2_ff;B_Industry;1.1;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1.1;1.075;1.10
+6;F1;co2_ff;F_RoadTransport_exhaust_gasoline;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10
+6;F2;co2_ff;F_RoadTransport_exhaust_diesel;1.2;1.20;1.05;1;0.9;0.85;0.8;0.875;0.95;1;1.075;1.10

@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum, auto
 from os import PathLike
 import numpy as np
 import pandas as pd
+import xarray as xr
 
-from emiproc.profiles.utils import read_profile_csv
+from emiproc import deprecated
+from emiproc.profiles.utils import (
+    get_profiles_indexes,
+    merge_indexes,
+    read_profile_csv,
+    read_profile_file,
+)
+from emiproc.profiles import naming
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -49,6 +61,11 @@ class VerticalProfiles:
     ratios: np.ndarray
     height: np.ndarray
 
+    def __post_init__(self):
+        # Make sure numpy arrays
+        self.ratios = np.asarray(self.ratios)
+        self.height = np.asarray(self.height)
+
     @property
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
@@ -82,7 +99,7 @@ class VerticalProfiles:
             ratios=self.ratios[index],
             height=self.height,
         )
-    
+
     def __len__(self) -> int:
         return self.n_profiles
 
@@ -178,7 +195,6 @@ def resample_vertical_profiles(
     else:
         levels = specified_levels
 
-
     out_ratios = []
     for p in profiles:
         # Get the weights for remapping those profiles
@@ -212,7 +228,7 @@ def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalPro
     assert np.all(~np.isnan(r)) and np.all(~np.isnan(h)), "Cannot contain nan values"
 
     assert np.all(h > 0)
-    assert np.all(h[1:] > np.roll(h, 1)[1:]), "height must be increasing"
+    assert np.all(h[1:] > np.roll(h, 1)[1:]), f"height must be increasing, got {h=}"
     if isinstance(vertical_profile, VerticalProfile):
         assert np.sum(r) == 1.0
         assert len(r) == len(h)
@@ -223,8 +239,12 @@ def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalPro
     assert np.all(r >= 0)
 
 
+@deprecated
 def from_csv(file: PathLike) -> tuple[VerticalProfiles, list[str | tuple[str, str]]]:
     """Read a csv file containing vertical profiles.
+
+    ..warning:: This is deprecated. Use :py:func:`read_vertical_profiles` instead.
+
 
     The format is the following::
 
@@ -268,3 +288,150 @@ def from_csv(file: PathLike) -> tuple[VerticalProfiles, list[str | tuple[str, st
         cat_sub = df[[cat_header, sub_header]].apply(tuple, axis=1).to_list()
 
     return profiles, cat_sub
+
+
+def read_vertical_profiles(
+    profiles_dir: PathLike,
+) -> tuple[VerticalProfiles, xr.DataArray]:
+    """Read vertical profiles from csv files.
+
+    Vertical profiles only depend on the category.
+
+    The format expected from the files is:
+    Line starting with # are ignored.
+    A header line should contain a column for the category, substance, country ...
+
+    The other columns should contain the value of the levels.
+    The columns must be sorted from smallest to largest.
+    They should be called one of the following:
+    - using the ending height: ex.  12;23;76
+    - using the interval ex. 12-23;23-76
+
+
+    You can add a m  (20m, 40m) to specify it is meters, but it is not required.
+    The height is always assumed to be of meter units.
+
+    An example of a file is::
+
+        # This is a comment
+        # Any number of comment lines are allowed
+        # Below is the header line
+        Category,Substance,20m,92m,184m,324m,522m,781m,1106m
+        Public_Power,CO2,0,0,0.0025,0.51,0.453,0.0325,0.002
+        Public_Power,CH4,0,0,0.0025,0.51,0.453,0.0325,0.002
+        Industry,CO2,0.06,0.16,0.75,0.03,0,0,0
+        ...
+
+
+    :arg profiles_dir: The directory containing the profiles.
+        The profiles file must contain the word "height" in their name.
+        Alternatively you can provide a path to a specific file.
+        For compatiblity with tno, you can also include the words "area" or "point"
+        in the name of the file to specify if the profiles are for gridded emissions
+        or for shapped emissions.
+
+    :return: A tuple containing the vertical profiles and an xarray mapping
+        which kind of emission correspond to which profile.
+    """
+    profiles_dir = Path(profiles_dir)
+
+    if profiles_dir.is_file():
+        v_profiles_files = [profiles_dir]
+    elif profiles_dir.is_dir():
+        v_profiles_files = [f for f in profiles_dir.glob("*.csv") if "height" in f.stem]
+    else:
+        raise FileNotFoundError(
+            f"Vertical profiles directory {profiles_dir} is not a directory."
+        )
+
+    # Check if we found any file
+    if len(v_profiles_files) == 0:
+        logger.warning(f"No vertical profiles found in {profiles_dir}.")
+        return None, None
+
+    # These are the names in the sectors column of tno
+    # seems that these should be changed with new versions
+
+    v_profiles = []
+    v_profiles_indexes = []
+    index_offset = 0
+
+    for file in v_profiles_files:
+        logger.debug(f"Reading vertical profiles from '{file}' .")
+        df_vertical = read_profile_file(file)
+
+        boundarys = [
+            col
+            for col in df_vertical.columns
+            if col.strip() not in naming.all_reserved_colnames
+        ]
+        logger.debug(f"Vertical boundaries columns found: {boundarys}")
+        starts = []
+        ends = []
+        end = 0
+        try:
+            for boundary_str in boundarys:
+                for char in ["m", " ", "\t"]:
+                    boundary_str = boundary_str.replace(char, "")
+
+                if "-" in boundary_str:
+                    # Specified interval
+                    a, b = boundary_str.split("-")
+                    start = float(a)
+                    end = float(b)
+                else:
+                    # Specified only the end of the interval
+                    start = end  # Use the previous end
+                    end = float(boundary_str)
+                # Save
+                starts.append(start)
+                ends.append(end)
+        except Exception as e:
+            raise ValueError(
+                f"Cound not interpret the vertical boundaries in '{file}' . Read"
+                f" {boundarys=}.\n Please check the format of the file. For more"
+                " information, see:"
+                " https://emiproc.rtfd.io/en/latest/api.html#emiproc.profiles.vertical_profiles.read_vertical_profiles "
+            ) from e
+        tops = np.array(ends)
+        bots = np.array(starts)
+        if bots[0] != 0:
+            raise ValueError(
+                f"The first vertical boundary should be 0, not {bots[0]}.\n Check the"
+                f" file {file}."
+            )
+
+        # Store the profiles in the object and check the validity
+        profile = VerticalProfiles(df_vertical[boundarys].to_numpy(), tops)
+        try:
+            check_valid_vertical_profile(profile)
+        except AssertionError as e:
+            raise ValueError(
+                f"Vertical profile in {file} is not valid. Please check the format of"
+                " the file."
+            ) from e
+        v_profiles.append(profile)
+
+        # all the profiles (time and vertical)
+        indexes = get_profiles_indexes(df_vertical)
+        # Add the offset where the indexes is defined (!= -1)
+        indexes = indexes.where(indexes == -1, indexes + index_offset)
+
+        if not "type" in indexes.dims:
+            if "area" in file.stem:
+                indexes = indexes.expand_dims({"type": ["gridded"]})
+            elif "point" in file.stem:
+                indexes = indexes.expand_dims({"type": ["shapped"]})
+            else:
+                logger.debug(
+                    f"Could not determine a type of profile in {file.stem}. Assuming"
+                    " applies to all types."
+                )
+
+        v_profiles_indexes.append(indexes)
+        index_offset += len(profile)
+
+    logger.debug(f"combining {v_profiles_indexes=}")
+    combined_indexes = merge_indexes(v_profiles_indexes)
+
+    return resample_vertical_profiles(*v_profiles), combined_indexes

@@ -1,47 +1,90 @@
-"""Script used for creating raster data of zurich.
+"""Script used for creating raster data of zurich for the ICOS-cities project.
 
 The idea of this scripts is to produce raster files for zurich.
 
 It is possible put the rasters inside the swiss inventory as well.
 """
+
 # %%
+# autoreload modules in interactive python
+%load_ext autoreload
+%autoreload 2
+# %%
+from datetime import datetime
+from enum import Enum
 from math import floor
 from pathlib import Path
 
-
-from emiproc.grids import SwissGrid, LV95, WGS84
-from emiproc.inventories.swiss import SwissRasters
-from emiproc.inventories.zurich import MapLuftZurich
-from emiproc.regrid import remap_inventory, weights_remap, get_weights_mapping
-from emiproc.utilities import SEC_PER_YR
-import numpy as np
 import geopandas as gpd
-import pandas as pd
-from shapely.geometry import Polygon, Point
-from emiproc.inventories.utils import add_inventories
-from emiproc.inventories.utils import get_total_emissions
-from emiproc.speciation import speciate_inventory
-from emiproc.regrid import remap_inventory
-from emiproc.inventories.utils import crop_with_shape
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import xarray as xr
+from shapely.geometry import Point, Polygon
+
+from emiproc.exports.netcdf import nc_cf_attributes
+from emiproc.grids import LV95, WGS84, SwissGrid
+from emiproc.inventories.swiss import SwissRasters
+from emiproc.inventories.utils import (
+    add_inventories,
+    crop_with_shape,
+    get_total_emissions,
+    scale_inventory,
+    group_categories
+)
+from emiproc.inventories.zurich import MapLuftZurich
+from emiproc.regrid import remap_inventory
+from emiproc.speciation import speciate, speciate_inventory
+from emiproc.utilities import SEC_PER_YR
 
 # %% define some parameters for the output
 
+
+YEAR = 2020
+
 INCLUDE_SWISS_OUTSIDE = True
-swiss_data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
+swiss_data_path = Path(
+    r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen\CH_Emissions_2015_2020_2022_CO2_CO2biog_CH4_N2O_BC_AP.xlsx"
+)
+outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
+mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
+mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 
 # edge of the raster cells
 RASTER_EDGE = 100
+VERSION = "v1.8"
 
+# Whether to split the biogenic CO2 and the antoropogenic CO2
+SPLIT_BIOGENIC_CO2 = True
+
+# Whether to add the human respiration
+ADD_HUMAN_RESPIRATION = True
+# File with the data required for the human respiration
+quartier_anlyse_file = r"C:\Users\coli\Documents\emiproc\cases\parks_polygons\Quartieranalyse_-OGD\Quartieranalyse_-OGD.gpkg"
+
+
+# Make a Enum class for output unit choices
+class Unit(Enum):
+    """Enum class for units"""
+
+    kg_yr = "kg yr-1 cell-1"
+    ug_m2_s = "μg m-2 s-1"
+
+
+output_unit = Unit.kg_yr
+
+# Whether to group categories to the GNRF categories
 USE_GNRF = True
 
-# TODO: remove it also from the swiss inventory ?
-REMOVE_JOSEFSTRASSE_KHKW = True
 
 # Whether to split the F category of the GNRF into 4 subcategories for accounting
 # for the different vehicle types (cars, light duty, heavy duty, two wheels)
 SPLIT_GNRF_ROAD_TRANSPORT = True
+
+
+# %% Check some parameters and create the output directory
+weights_dir = outdir / f"weights_files_{RASTER_EDGE}_{YEAR}_{VERSION}"
+
 if SPLIT_GNRF_ROAD_TRANSPORT and not USE_GNRF:
     raise ValueError("Cannot split GNRF if not using GNRF")
 
@@ -50,19 +93,10 @@ if INCLUDE_SWISS_OUTSIDE:
     assert RASTER_EDGE == 100
     # Need to have the same categories between swiss and zurich
     assert USE_GNRF
-# %%
 
-outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
-weights_dir = outdir / "weights_files"
-mapluf_file = Path(
-    r"C:\Users\coli\Documents\ZH-CH-emission\Data\mapLuft_2020_v2021\mapLuft_2020_v2021.gdb"
-)
 
-inv = MapLuftZurich(mapluf_file, remove_josefstrasse_khkw=REMOVE_JOSEFSTRASSE_KHKW)
-# %% Out dataset
-
-import xarray as xr
-from datetime import datetime
+# %% load the zurich inventory
+inv = MapLuftZurich(mapluf_file)
 
 
 # %%
@@ -108,19 +142,26 @@ for i in range(4):
         lambda poly: poly.exterior.coords[i]
     )
 
+# %% Split the biogenic CO2
+
+if SPLIT_BIOGENIC_CO2:
+    from emiproc.inventories.zurich.speciation_co2_bio import ZH_CO2_BIO_RATIOS
+
+    inv = speciate(inv, "CO2", ZH_CO2_BIO_RATIOS, drop=True)
 
 # %% do the actual remapping of zurich to rasters
 
 rasters_inv = remap_inventory(
     crop_with_shape(inv, zh_shape),
     zh_gdf.geometry,
-    weigths_file=(
-        outdir / "weights_files" / f"{mapluf_file.stem}_2_{RASTER_EDGE}x{RASTER_EDGE}"
-    ),
+    weigths_file=weights_dir
+    / f"{mapluf_file.stem}_weights",
 )
+
+
 # %% change the categories
 if USE_GNRF:
-    from emiproc.inventories.utils import group_categories
+    
     from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR
 
     if SPLIT_GNRF_ROAD_TRANSPORT:
@@ -152,19 +193,38 @@ if USE_GNRF:
 
 # %% add the swiss inventory when needed
 if INCLUDE_SWISS_OUTSIDE:
-
     inv_ch = SwissRasters(
         data_path=swiss_data_path,
-        rasters_dir=swiss_data_path / "ekat_gridascii",
-        rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
+        rasters_dir=swiss_data_path.parent / "ekat_gridascii",
+        rasters_str_dir=swiss_data_path.parent / "ekat_str_gridascii_v17",
         requires_grid=True,
-        #requires_grid=False,
-        year=2020,
+        # requires_grid=False,
+        year=YEAR,
+        # Specify the compound in the inventory and how they should be named in the output
+        dict_spec={
+            "NOX": "NOx",
+            "PM2.5": "PM25",
+            "F-Gase": "F-gases",
+            "CO2": "CO2_fos",
+            "CO2_biog": "CO2_bio",
+        },
+    )
+
+    inv_ch.history.append(
+        "the map of CO2 for evstr was used for BC and CO2-bio as they did not exist"
     )
 
     from emiproc.inventories.categories_groups import CH_2_GNFR
+    
+    # These categories are not in the invenotry here, because we don't care about them
+    missing_cats = ['eilgk', 'evklm', 'evtrk', 'enwal']
+    # Remove the missing categories
+    our_CH_2_GNFR = {
+        new_cat: [c for c in cats if c not in missing_cats] for new_cat, cats in CH_2_GNFR.items() 
+    }
+    groupped_ch = group_categories(inv_ch, our_CH_2_GNFR)
 
-    groupped_ch = group_categories(inv_ch, CH_2_GNFR)
+
 
     if SPLIT_GNRF_ROAD_TRANSPORT:
         # Calculate splitting ratios in zurich
@@ -207,7 +267,7 @@ if INCLUDE_SWISS_OUTSIDE:
     remapped_ch_out = remap_inventory(
         ch_outside_zh,
         zh_gdf.geometry,
-        #weigths_file=(weights_dir / f"swiss_around_zh_2_{RASTER_EDGE}x{RASTER_EDGE}"),
+        # weigths_file=(weights_dir / f"swiss_around_zh_2_{RASTER_EDGE}x{RASTER_EDGE}"),
     )
 # %% Rescale the swiss and add it, the scaling is made such that the
 # mapluft inventory is not changed and the total swiss inventory is also not changed
@@ -233,13 +293,58 @@ if INCLUDE_SWISS_OUTSIDE:
             ]
             scaling_factors[sub][cat] = scaling_factor
     # rescale inventory
-    from emiproc.inventories.utils import scale_inventory
-
     rescaled_ch = scale_inventory(remapped_ch_out, scaling_factors)
     # add the inventories
     rasters_inv = add_inventories(rasters_inv, rescaled_ch)
+
+# %% Add the human respiration
+if ADD_HUMAN_RESPIRATION:
+
+    from emiproc.human_respiration import (
+        load_data_from_quartieranalyse,
+        people_to_emissions,
+        EmissionFactor,
+    )
+
+    # Load the data. It is available for the whole Kanton of zurich, 
+    # which covers the whole grid of the output
+    df_quariter = load_data_from_quartieranalyse(quartier_anlyse_file)
+    # Load into an emiproc Inventory
+    raw_resp_inv = people_to_emissions(
+        df_quariter,
+        # Assumes people spend 60% of their time at home and 40% at work
+        time_ratios={"people_living": 0.6, "people_working": 0.4},
+        emission_factor={
+            ("people_living", "CO2_bio"): EmissionFactor.ROUGH_ESTIMATON,
+            ("people_working", "CO2_bio"): EmissionFactor.ROUGH_ESTIMATON,
+            ("people_living", "N2O"): EmissionFactor.N2O_MITSUI_ET_ALL,
+            ("people_working", "N2O"): EmissionFactor.N2O_MITSUI_ET_ALL,
+            ("people_living", "CH4"): EmissionFactor.CH4_POLAG_KEPPLER,
+            ("people_working", "CH4"): EmissionFactor.CH4_POLAG_KEPPLER,
+        },
+    )
+
+    # Group the categories
+    resp_inv = group_categories(
+        raw_resp_inv,
+        {
+            "GNFR_O": ["people_living", "people_working"],
+        },
+    )
+    # If keep inside, crop the inventory to the zurich shape
+    if not INCLUDE_SWISS_OUTSIDE:
+        resp_inv = crop_with_shape(resp_inv, zh_shape)
+
+    # Remap the inventory to the raster
+    remapped_resp = remap_inventory(
+        resp_inv,
+        zh_gdf.geometry,
+        weigths_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}",
+    )
+
+    rasters_inv = add_inventories(rasters_inv, remapped_resp)
 # %% Populate the dataframe of the output
-from emiproc.exports.netcdf import nc_cf_attributes
+
 
 ds_out = xr.Dataset(
     coords={
@@ -332,9 +437,11 @@ ds_out = xr.Dataset(
             ("source_category", "y", "x"),
             np.full((len(rasters_inv.categories), ny, nx), np.nan),
             {
-                "standard_name": f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission",
+                "standard_name": (
+                    f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission"
+                ),
                 "long_name": f"Emissions of {sub}",
-                "units": "μg m-2 s-1",
+                "units": output_unit.value,
                 "comment": "annual mean emission rate",
             },
         )
@@ -342,7 +449,7 @@ ds_out = xr.Dataset(
     }
     | {
         f"emi_{sub}_total": (
-            ("source_category"),
+            "source_category",
             np.full(len(rasters_inv.categories), np.nan),
             {
                 "long_name": f"Total Emissions of {sub}",
@@ -356,9 +463,11 @@ ds_out = xr.Dataset(
             ("y", "x"),
             np.zeros((ny, nx)),
             {
-                "standard_name": f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission",
+                "standard_name": (
+                    f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission"
+                ),
                 "long_name": f"Aggregated Emissions of {sub} from all sectors",
-                "units": "μg m-2 s-1",
+                "units": output_unit.value,
                 "comment": "annual mean emission rate",
             },
         )
@@ -367,14 +476,24 @@ ds_out = xr.Dataset(
     attrs=nc_cf_attributes(
         author="Lionel Constantin, Empa",
         contact="dominik.brunner@empa.ch",
-        title="Annual mean emissions of CO2 of the city of Zurich (only emissions within the political borders of the city)",
+        title=(
+            "Annual mean emissions of CO2 of the city of Zurich (only emissions within"
+            " the political borders of the city)"
+        ),
         source="https://www.stadt-zuerich.ch/gud/de/index/umwelt_energie/luftqualitaet/schadstoffquellen/emissionskataster.html",
         comment="Created for use in the EU project ICOS-Cities",
-        history="Created from original GIS inventory mapLuft of the city of Zurich by rasterizing all point, line and area sources",
+        history=(
+            "Created from original GIS inventory mapLuft of the city of Zurich by"
+            " rasterizing all point, line and area sources"
+        ),
         additional_attributes={
             "swiss_coordinate_system_lv95": "https://www.swisstopo.admin.ch/en/knowledge-facts/surveying-geodesy/coordinates/swiss-coordinates.html",
-            "comment_lv95": "In original LV95 system, x denote northings and y eastings. They have been exchanged here for better compatibility with lon/lat.",
+            "comment_lv95": (
+                "In original LV95 system, x denote northings and y eastings. They have"
+                " been exchanged here for better compatibility with lon/lat."
+            ),
             "copyright_notice": "",
+            "script_version": VERSION,
             "emiproc_history": str(rasters_inv.history),
         },
     ),
@@ -388,7 +507,14 @@ for category, sub in rasters_inv._gdf_columns:
         continue
     emissions = rasters_inv.gdf[(category, sub)].to_numpy().reshape((ny, nx))
     # convert from kg/y to μg m-2 s-1
-    rescaled = emissions * 1e9 / SEC_PER_YR / (RASTER_EDGE * RASTER_EDGE)
+    # Get the desired unit
+    if output_unit == Unit.ug_m2_s:
+        rescaled = emissions * 1e9 / SEC_PER_YR / (RASTER_EDGE * RASTER_EDGE)
+    elif output_unit == Unit.kg_yr:
+        rescaled = emissions
+    else:
+        raise ValueError(f"Unknown unit {output_unit}")
+
     # Assign emissions of this category
     ds_out[f"emi_{sub}"].loc[dict(source_category=category)] = rescaled
     # Add the the categories aggregated emission
@@ -399,7 +525,11 @@ for category, sub in rasters_inv._gdf_columns:
 # %%
 ds_out.to_netcdf(
     outdir
-    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{'Fsplit' if SPLIT_GNRF_ROAD_TRANSPORT else ''}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem[:-6]}_v1.4.nc"
+    / f"zurich_{'inside_swiss' if INCLUDE_SWISS_OUTSIDE else 'cropped'}_{'Fsplit' if SPLIT_GNRF_ROAD_TRANSPORT else ''}_{RASTER_EDGE}x{RASTER_EDGE}_{mapluf_file.stem}_{VERSION}.nc"
 )
+
+# %%
+
+print(f"Output written to {outdir}")
 
 # %%

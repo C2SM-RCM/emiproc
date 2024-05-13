@@ -31,6 +31,8 @@ Inventory Operators
 
 .. autofunction:: emiproc.inventories.utils.get_total_emissions
 
+.. autofunction:: emiproc.inventories.utils.drop
+
 Geometric Transformations 
 -------------------------
 
@@ -53,9 +55,15 @@ Categories Manipulations
 Speciation
 ----------
 
-.. autofunction:: emiproc.speciation.speciate_inventory
+Speciation in emiproc means splitting a substance in multiple sub-substances. 
 
-.. autofunction:: emiproc.speciation.speciate_nox
+This can be used for example to split NOx in NO and NO2 or to split 
+the anthropogenic and biogenic part of a CO2.
+
+.. autofunction:: emiproc.speciation.speciate
+
+.. autofunction:: emiproc.speciation.read_speciation_table
+
 
 
 Utilities
@@ -156,6 +164,33 @@ input/output
 .. autofunction:: emiproc.profiles.temporal_profiles.from_yaml
 
 .. autofunction:: emiproc.profiles.temporal_profiles.to_yaml
+
+
+Data Generation
+---------------
+
+Functions that can be used to generate some parts of inventory data.
+
+Heating Degree Days (HDD)
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autofunction:: emiproc.profiles.hdd.create_HDD_scaling_factor
+
+
+Human Respiration 
+^^^^^^^^^^^^^^^^^ 
+
+.. autofunction:: emiproc.human_respiration.people_to_emissions
+
+.. autoenum:: emiproc.human_respiration.EmissionFactor
+
+
+VPRM 
+^^^^
+
+.. automodule:: emiproc.profiles.vprm
+    :members:
+
 
 
 Exporting 
