@@ -73,7 +73,11 @@ the temperature or the gas exit velocity of the source.
 Moreover, when modellers design transport simulations, they often are interested in
 modifying the inventories. For example, they may want to scale the emissions based on
 different scenarios, or they may want to aggregate emissions by sector or pollutant.
-(SHOULD WE CITE SOME PAPERS FOR EXAMPLES).
+
+`emiproc` has already been successfully applied for different models.
+
+[@acp-24-2759-2024] produced emission files for ICON-ART-OEM based on the EDGARv6
+inventory [@edgar_v6].
 Nikolai used `emiproc` to fill the space around the city of zurich. 
 
 Another python software, `HERMESv3` [@hermesv3_part1], can already process emission 
