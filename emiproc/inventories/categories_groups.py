@@ -89,10 +89,10 @@ CH_2_GNFR = {
     ],
     # Others
     "GNFR_R": [
-        "ehhab",
-        "ehhaf",
-        "ehhan",
-        "enwal",
+        "ehhab", # Haushalte andere brande
+        "ehhaf",  # Haushalte andere feuerwerk
+        "ehhan", # Haushalte andere private
+        "enwal", # Emissionen aus Waldern
     ],
 }
 
