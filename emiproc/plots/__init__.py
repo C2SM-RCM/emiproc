@@ -1,4 +1,5 @@
 """Few plot functions for the emiproc package."""
+
 from __future__ import annotations
 from os import PathLike
 from pathlib import Path
@@ -9,7 +10,7 @@ import pandas as pd
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, SymLogNorm
 
 
 from emiproc.plots import nclcmaps
@@ -110,6 +111,7 @@ def plot_inventory(
     figsize=(16, 9),
     q=0.001,
     cmap=nclcmaps.cmap("WhViBlGrYeOrRe"),
+    symcmap="RdBu_r",
     spec_lims: None | tuple[float] = None,
     out_dir: PathLike | None = None,
     axis_formatter: str | None = None,
@@ -184,22 +186,39 @@ def plot_inventory(
 
             fig, ax = plt.subplots(
                 figsize=figsize,
-                # figsize=(38.40, 21.60),
                 # gridspec_kw={"right": 0.9, "wspace": 0},
             )
-            # cax = fig.add_axes([0.87, 0.15, 0.02, 0.7])
 
-            emission_non_zero_values = emissions[emissions > 0]
+            # Check if there are values below 0
+            emission_non_zero_values = emissions[
+                (emissions != 0) & (~np.isnan(emissions))
+            ]
+            if len(emission_non_zero_values) == 0:
+                print(f"passsed {sub},{cat} no emissions")
+                continue
 
-            norm = LogNorm(
-                vmin=np.quantile(emission_non_zero_values, q),
-                vmax=np.quantile(emission_non_zero_values, 1 - q),
-            )
+            if np.any(emissions < 0):
+                abs_values = np.abs(emission_non_zero_values)
+                vmax = np.quantile(abs_values, 1 - q)
+                # Use symlog instead
+                norm = SymLogNorm(
+                    linthresh=np.quantile(abs_values, q),
+                    vmin=-vmax,
+                    vmax=vmax,
+                )
+                this_cmap = symcmap
+
+            else:
+                norm = LogNorm(
+                    vmin=np.quantile(emission_non_zero_values, q),
+                    vmax=np.quantile(emission_non_zero_values, 1 - q),
+                )
+                this_cmap = cmap
 
             im = ax.imshow(
                 emissions,
                 norm=norm,
-                cmap=cmap,
+                cmap=this_cmap,
                 extent=[x_min, x_max, y_min, y_max],
             )
             add_ax_info(ax)
@@ -208,7 +227,7 @@ def plot_inventory(
                 im,
                 label="kg/y/m2",
                 extend="both",
-                extendfrac=0.02
+                extendfrac=0.02,
                 # cax=cax,
             )
 
@@ -229,7 +248,13 @@ def plot_inventory(
 
         fig, ax = plt.subplots(figsize=figsize)
 
-        emission_non_zero_values = total_sub_emissions[total_sub_emissions > 0]
+        emission_non_zero_values = total_sub_emissions[
+            (total_sub_emissions > 0) & (~np.isnan(total_sub_emissions))
+        ]
+        if len(emission_non_zero_values) == 0:
+            print(f"passsed {sub},total_emissions, no emissions")
+            continue
+
         norm = LogNorm(
             vmin=np.quantile(emission_non_zero_values, q),
             vmax=np.quantile(emission_non_zero_values, 1 - q),
@@ -246,7 +271,7 @@ def plot_inventory(
             im,
             label="kg/y/m2",
             extend="both",
-            extendfrac=0.02
+            extendfrac=0.02,
             # cax=cax,
         )
 

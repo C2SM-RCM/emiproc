@@ -178,9 +178,18 @@ class Inventory:
 
         These match the geometry from the gdf.
         """
-        if hasattr(self, "_cell_area"):
-            return self._cell_area
-        raise NotImplementedError(f"implement or assign 'cell_areas' in {self.name}")
+        if not hasattr(self, "_cell_area"):
+            # Compute with the grid
+            if self.grid is None:
+                raise ValueError(
+                    "No grid set, cannot compute cell areas. "
+                    f"implement or assign 'cell_areas' in {self.name}"
+                )
+            self._cell_area = np.array(self.grid.cell_areas)
+            
+        return self._cell_area
+
+
 
     @cell_areas.setter
     def cell_areas(self, cell_areas):
