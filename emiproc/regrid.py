@@ -467,7 +467,7 @@ def remap_inventory(
                 w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
             w_mapping = get_weights_mapping(
                 w_file,
-                gdf.geometry,
+                gdf.geometry.reset_index(drop=True),
                 grid_cells,
                 loop_over_inv_objects=True,
                 method=method,
@@ -476,7 +476,12 @@ def remap_inventory(
             for sub in gdf.columns:
                 if isinstance(gdf[sub].dtype, gpd.array.GeometryDtype):
                     continue  # Geometric column
-                remapped = weights_remap(w_mapping, gdf[sub], len(grid_cells))
+                remapped = weights_remap(
+                    w_mapping,
+                    # Reset the index, same as the grid was applied in the weights mapping function
+                    gdf[sub].reset_index(drop=True),
+                    len(grid_cells),
+                )
                 if (category, sub) not in mapping_dict:
                     # Create new entry
                     mapping_dict[(category, sub)] = remapped
