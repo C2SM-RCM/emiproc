@@ -3,6 +3,7 @@
 The function speciate_inventory() is the main function.
 Other functions are hardcoded for several substances.
 """
+
 from __future__ import annotations
 
 from os import PathLike
@@ -102,6 +103,24 @@ def read_speciation_table(path: PathLike, drop_zeros: bool = False) -> xr.DataAr
     return da
 
 
+def ratios_of_category(
+    speciation_ratios: xr.DataArray,
+    category: Category,
+) -> xr.DataArray:
+    """Get the speciation ratios for a category.
+
+    :arg speciation_ratios: The speciation ratios.
+    :arg category: The category to get the speciation ratios for.
+
+    :returns: The speciation ratios for the category.
+    """
+    if "category" not in speciation_ratios.coords:
+        return speciation_ratios
+
+    mask = speciation_ratios["category"] == category
+    return speciation_ratios.loc[dict(speciation=mask)]
+
+
 def speciate(
     inv: Inventory,
     substance: str,
@@ -118,7 +137,32 @@ def speciate(
 
     :arg inv: The inventory to speciate.
     :arg substance: The substance to speciate.
-    :arg speciation_ratios: The speciation ratios. See :py:func:`read_speciation_table`.
+    :arg speciation_ratios: The speciation ratios.
+        See :py:func:`read_speciation_table` to load them from a file.
+        The ratios must be a 2-D data array. One dimension is the substances
+        to create with the speciation, the other dimension is called 'speciation'
+        and each element is a set of ratios that sum to 1.
+        Each speciation can be specific to a category, a country, a year, or a type.
+        This is done by adding coordinates on the 'speciation' dimension.
+
+        .. code-block:: python
+
+            <xarray.DataArray (speciation: 5, substance: 2)>
+            # Speciation ratios
+            array([[0.5, 0.5],
+                [0.2, 0.8],
+                [0.3, 0.7],
+                [0.4, 0.6],
+                [0.1, 0.9]])
+            Coordinates:
+            * speciation  (speciation) int64 0 1 2 3 4
+            * substance   (substance) <U7 'CO2_ANT' 'CO2_BIO'
+            # Optional dimensions which tell which combination of parameters the ratios apply to
+                category    (speciation) <U4 'adf' 'liku' 'adf' 'liku' 'blek'
+                type        (speciation) <U7 'gridded' 'gridded' 'gridded' 'shapped' 'shapped'
+                year        (speciation) int64 2010 2010 2010 2010 2010
+
+
     :arg drop: Whether to drop the speciated substance.
     :arg country_mask_kwargs: If the speciation ratios depend on the country,
         this function is used to pass optional arguments to
@@ -127,6 +171,20 @@ def speciate(
 
     """
     new_inv = inv.copy()
+
+    # If speciation is not given it is okay
+    for dim in ["speciation", "substance"]:
+        if dim not in speciation_ratios.coords:
+            raise ValueError(
+                f"The speciation ratios must have a '{dim}' dimension."
+                f" {speciation_ratios.coords=}"
+            )
+
+    # Check that it is 2D
+    if len(speciation_ratios.dims) != 2:
+        raise ValueError(
+            f"The speciation ratios must be a 2D array, not {speciation_ratios.dims=}"
+        )
 
     if "year" in speciation_ratios.coords:
         if inv.year is None:
@@ -147,10 +205,7 @@ def speciate(
         if sub != substance:
             continue
         # Check that the speciation ratios are defined for this category
-        if "category" in speciation_ratios.coords:
-            da_ratios = speciation_ratios.loc[speciation_ratios["category"] == cat]
-        else:
-            da_ratios = speciation_ratios
+        da_ratios = ratios_of_category(speciation_ratios, cat)
 
         if "type" in speciation_ratios.coords:
             da_ratios = da_ratios.loc[da_ratios["type"] == "gridded"]
@@ -222,10 +277,7 @@ def speciate(
         if substance not in inv.gdfs[cat].columns:
             continue
             # Check that the speciation ratios are defined for this category
-        if "category" in speciation_ratios.coords:
-            da_ratios = speciation_ratios.loc[speciation_ratios["category"] == cat]
-        else:
-            da_ratios = speciation_ratios
+        da_ratios = ratios_of_category(speciation_ratios, cat)
 
         if "type" in speciation_ratios.coords:
             da_ratios = da_ratios.loc[da_ratios["type"] == "shapped"]

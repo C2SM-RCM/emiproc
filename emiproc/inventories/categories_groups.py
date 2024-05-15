@@ -24,15 +24,15 @@ CH_2_GNFR = {
     ],
     # Fugitives
     "GNFR_D": [
-        "eilgk",
-        "eivgn",
-        "evklm",
-        "evtrk",
+        "eilgk", # F-Gase: Läden, Gebäude mit Klimaanlagen Refrigeration (F-gases: shops, buildings with air conditioning)
+        "eivgn", # Verluste Gasnetz (losses gas network)
+        "evklm", # F-Gase: Klimaanlagen Motorfahrzeuge (F-gases: air conditioning motor vehicles)
+        "evtrk", # F-Gase: Transporte mit Kühlung  (F-gases: transports with cooling)
     ],
     # Solvents and product use
     "GNFR_E": [
         "eilmi",  # Lösungsmittel Industrie
-        "ehlmk", # Lösungsmittel Konsumprodukte
+        "ehlmk",  # Lösungsmittel Konsumprodukte
     ],
     # Road transport
     "GNFR_F": [
@@ -44,8 +44,8 @@ CH_2_GNFR = {
         # "evstr_nmvoc",
         # "evstr_nox",
         # "evstr_so2",
-        "evstr",
-        "evzon",
+        "evstr", # Strassenverkehr (road transport)
+        "evzon", # Zonenverkehr Kaltstart/Verdampfung (zone traffic, cold start/evaporation)
     ],
     # Shipping
     "GNFR_G": [
@@ -92,7 +92,7 @@ CH_2_GNFR = {
         "ehhab", # Haushalte andere brande
         "ehhaf",  # Haushalte andere feuerwerk
         "ehhan", # Haushalte andere private
-        "enwal", # Emissionen aus Waldern
+        "enwal", # Emissionen aus Waldern (emissions from forests)
     ],
 }
 

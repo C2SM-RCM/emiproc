@@ -1,4 +1,4 @@
-"""VPRM: Vegetation Photosynthesis and Respiration Model.
+"""*VPRM* : Vegetation Photosynthesis and Respiration Model.
 
 
 The VPRM model is a parametrized model that estimates
@@ -34,13 +34,16 @@ def calculate_vegetation_indices(
     The formulas are the following:
 
     .. math::
-        \\mathrm{EVI} = \\frac{G * (\\mathrm{NIR} - \\mathrm{RED})}{(\\mathrm{NIR} + C_1 * \\mathrm{RED} - C_2 * \\mathrm{BLUE}) + L}
 
-    .. math::
-        \\mathrm{LSWI} = \\frac{\\mathrm{NIR} - \\mathrm{SWIR}}{\\mathrm{NIR} + \\mathrm{SWIR}}
+        \\mathrm{EVI} &= \\frac{G \\cdot (\\mathrm{NIR} - \\mathrm{RED})}{(\\mathrm{NIR} + C_1 \\cdot \\mathrm{RED} - C_2 \\cdot \\mathrm{BLUE}) + L}
+        
+        \\newline
 
-    .. math::
-        \\mathrm{NDVI} = \\frac{\\mathrm{NIR} - \\mathrm{RED}}{\\mathrm{NIR} + \\mathrm{RED}}
+        \\mathrm{LSWI} &= \\frac{\\mathrm{NIR} - \\mathrm{SWIR}}{\\mathrm{NIR} + \\mathrm{SWIR}}
+        
+        \\newline
+
+        \\mathrm{NDVI} &= \\frac{\\mathrm{NIR} - \\mathrm{RED}}{\\mathrm{NIR} + \\mathrm{RED}}
 
 
     
@@ -113,10 +116,12 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
 
 
     - :math:`P_{scale}`: Photosynthesis scale
+
     .. math::
         P_{scale} = \\frac{1 + \\mathrm{LSWI}}{2}
     
     - :math:`W_{scale}`: Water scale
+
     .. math::
         W_{scale} = \\frac{1 + \\mathrm{LSWI}}{1 + \\mathrm{LSWI}_{max}}
 
@@ -139,9 +144,12 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
     - A "urban temperature" is used instead of the global temperature to represent
         the urban heat island phenomenon.
     - The formula for :math:`P_{scale}` is modified to
+
     .. math::
         P_{scale} = \\frac{\\mathrm{EVI} - \\mathrm{EVI}_{min}}{\\mathrm{EVI}_{max} - \\mathrm{EVI}_{min}}
+
     - The respiration is calculated differently
+    
     .. math::
         \\mathrm{Resp} = \\frac{\\mathrm{Resp_{e-init}}}{2} * (1 - \\mathrm{ISA}) + \\frac{\\mathrm{EVI} + \\mathrm{EVI}_{min} * \\mathrm{ISA}}{\\mathrm{EVI}_{ref}} * \\frac{\\mathrm{Resp_{e-init}}}{2}
     
