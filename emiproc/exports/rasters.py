@@ -18,7 +18,7 @@ def export_raster_netcdf(
     weights_path: PathLike | None = None,
     lon_name: str = "lon",
     lat_name: str = "lat",
-    var_name_format: str = "{substance}_{category}",
+    var_name_format: str | None = None,
     unit: Units = Units.KG_PER_YEAR,
     group_categories: bool = False,
     add_totals: bool = True,
@@ -52,6 +52,12 @@ def export_raster_netcdf(
         over all cells.
 
     """
+
+    if var_name_format is None:
+        if group_categories:
+            var_name_format = "{substance}"
+        else:
+            var_name_format = "{substance}_{category}"
 
     remapped_inv = remap_inventory(inv, grid, weights_path)
 
@@ -98,10 +104,14 @@ def export_raster_netcdf(
                     ["category", lat_name, lon_name],
                     np.array(
                         [
-                            remapped_inv.gdf[(cat, sub)]
-                            .to_numpy()
-                            .reshape(grid.shape)
-                            .T
+                            (
+                                remapped_inv.gdf[(cat, sub)]
+                                .to_numpy()
+                                .reshape(grid.shape)
+                                .T
+                                if (cat, sub) in remapped_inv.gdf
+                                else np.zeros(grid.shape).T
+                            )
                             for cat in inv.categories
                         ]
                     )
@@ -153,15 +163,18 @@ def export_raster_netcdf(
 
     if add_totals:
         for sub in inv.substances:
-            names = (
-                [
+            if group_categories:
+                da = ds[var_name_format.format(substance=sub)].sum("category")
+            else:
+                var_names = [
                     var_name_format.format(substance=sub, category=cat)
                     for cat in inv.categories
+                    if var_name_format.format(substance=sub, category=cat)
+                    in ds.data_vars
                 ]
-                if not group_categories
-                else var_name_format.format(substance=sub)
-            )
-            ds[f"emi_{sub}_all_sectors"] = ds[names].sum("category")
+                da = sum([ds[name] for name in var_names])
+
+            ds[f"emi_{sub}_all_sectors"] = da
             ds[f"emi_{sub}_all_sectors"].attrs = {
                 "standard_name": f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission",
                 "long_name": f"Aggregated Emissions of {sub} from all sectors",
@@ -169,10 +182,18 @@ def export_raster_netcdf(
                 "comment": "annual mean emission rate",
                 "projection": f"{crs}",
             }
-
+            if group_categories:
+                total_emission = ds[var_name_format.format(substance=sub)]
+            else:
+                da_of_cat = {
+                    cat: ds[var_name_format.format(substance=sub, category=cat)]
+                    if var_name_format.format(substance=sub, category=cat) in ds.data_vars
+                    else xr.zeros_like(da)
+                    for cat in inv.categories
+                }
+                total_emission = xr.concat(list(da_of_cat.values()), dim="category")
             # Total emission is not weighted by the cell area
             # So we always give kg/year
-            total_emission = ds[names]
             if unit == Units.KG_PER_M2_PER_S:
                 total_emission = (
                     total_emission
