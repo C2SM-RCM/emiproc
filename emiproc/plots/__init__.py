@@ -158,7 +158,7 @@ def plot_inventory(
                 # And also miss point sources for that category
                 print(f"passsed {sub},{cat} no data")
                 continue
-            emissions = inv.gdf[(cat, sub)].to_numpy()
+            emissions = inv.gdf[(cat, sub)].copy(deep=True).to_numpy()
             if cat in inv.gdfs and sub in inv.gdfs[cat]:
                 weights_file = out_dir / f".emiproc_weights_{inv.name}_gdfs_{cat}"
                 weights_mapping = get_weights_mapping(
@@ -241,6 +241,8 @@ def plot_inventory(
                 fig.clear()
             else:
                 plt.show()
+            
+            plt.close(fig)
 
         if not np.any(total_sub_emissions):
             print(f"passsed {sub},total_emissions, no emissions")
@@ -286,3 +288,5 @@ def plot_inventory(
             fig.clear()
         else:
             plt.show()
+        
+        plt.close(fig)
