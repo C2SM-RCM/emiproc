@@ -18,7 +18,7 @@ ZH_CO2_BIO_RATIOS_DICT = {
     "c3407_Roestereien_Emissionen_Kanton": 0.0,
     "c3408_Druckereien_Emissionen_Kanton": 0.0,
     "c3409_Laboratorien_Emissionen_Kanton": 0.0,
-    "c3410_Bierbrauereien_Emissionen_Kanton": 0.0,
+    "c3410_Bierbrauereien_Emissionen_Kanton": 1.0,
     "c3411_Brotproduktion_Emissionen_Kanton": 0.0,
     "c3412_MedizinischePraxen_Emissionen_Kanton": 0.0,
     "c3413_Gesundheitswesen_Emissionen_Kanton": 0.0,

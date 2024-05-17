@@ -39,6 +39,7 @@ class Units(Enum):
     KG_PER_YEAR = "kg/y"
     KG_PER_HOUR = "kg/h"
     KG_PER_M2_PER_S = "kg/m2/s"
+    MUG_PER_M2_PER_S = "µg/m2/s"
 
 
 PER_M2_UNITS = [Units.KG_PER_M2_PER_S]

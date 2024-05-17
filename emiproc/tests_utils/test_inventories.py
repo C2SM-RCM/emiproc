@@ -74,3 +74,13 @@ inv_only_one_gdfs = Inventory.from_gdf(
         )
     }
 )
+
+inv_with_gdfs_bad_indexes = Inventory.from_gdf(
+    gdfs={
+        "adf": gpd.GeoDataFrame(
+            {"CO2": [1, 2, 3]},
+            geometry=[Point(0, 0), Point(1, 1), Point(2, 2)],
+            index=[0, 1, 100000000],
+        )
+    }
+)
