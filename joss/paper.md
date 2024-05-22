@@ -74,11 +74,16 @@ Moreover, when modellers design transport simulations, they often are interested
 modifying the inventories. For example, they may want to scale the emissions based on
 different scenarios, or they may want to aggregate emissions by sector or pollutant.
 
-`emiproc` has already been successfully applied for different models.
+`emiproc` has already been successfully applied for different use cases.
 
-[@acp-24-2759-2024] produced emission files for ICON-ART-OEM based on the EDGARv6
+* [@acp-24-2759-2024] produced emission files for ICON-ART-OEM based on the EDGARv6
 inventory [@edgar_v6].
-Nikolai used `emiproc` to fill the space around the city of zurich. 
+
+* [@donmez2024urban] conducted urban climate simulation using emissions produced 
+with `emiproc` for cities of zurich and basel.
+
+* [@ponomarev2024estimation] used `emiproc` to nest the zurich city inventory
+inside the swiss national invenotry around the city boundary
 
 Another python software, `HERMESv3` [@hermesv3_part1], can already process emission 
 data and generate input files for athmospheric transport models. However, `HERMESv3` is
