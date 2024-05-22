@@ -239,7 +239,11 @@ class Inventory:
 
     @property
     def total_emissions(self) -> pd.DataFrame:
-        """Simple accessor to the function."""
+        """Calculate the total emissions, returning a DataFrame.
+        
+        Simple accessor to the function
+        :py:func:`~emiproc.inventories.utils.get_total_emissions`.
+        """
         from emiproc.inventories.utils import get_total_emissions
 
         return pd.DataFrame(get_total_emissions(self)).T
