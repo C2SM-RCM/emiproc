@@ -425,6 +425,23 @@ class Inventory:
             if "category" not in indexes_array.dims:
                 # Exapnd the array over the categories of the inventory
                 indexes_array = indexes_array.expand_dims({"category": self.categories})
+            if category not in indexes_array.coords["category"].values:
+                if category not in self.categories:
+                    raise ValueError(
+                        f"Category {category} is not in the inventory. "
+                        "Please add it before setting the profile."
+                    )
+                # Otherwise add it to the coords and set the values to -1 (unassigned)
+                # emtpy da with the new category being the only one in the 
+                new_cat_array = xr.DataArray(
+                    -1,
+                    dims=indexes_array.dims,
+                    coords={
+                        "category": [category],
+                        **{coord: indexes_array.coords[coord] for coord in indexes_array.dims if coord != "category"},
+                    },
+                )
+                indexes_array = xr.concat([indexes_array, new_cat_array], dim="category")
 
             sel_dict["category"] = category
         if substance is not None:
