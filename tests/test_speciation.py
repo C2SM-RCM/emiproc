@@ -248,7 +248,7 @@ def test_merge_substances_use_as_rename():
 
     # Check that the total emissions are the same
     merged_emissions = merged.total_emissions.loc["co2"]
-    previous_emissions = inv_with_pnt_sources.total_emissions.loc["co2"]
+    previous_emissions = inv_with_pnt_sources.total_emissions.loc["CO2"]
     pd.testing.assert_series_equal(
         merged_emissions.sort_index(),
         previous_emissions.sort_index(),
@@ -259,8 +259,15 @@ def test_merge_substances_use_as_rename():
 def test_cannot_merge_using_new_substances():
 
     pytest.raises(
-        ValueError,
+        KeyError,
         merge_substances,
         inv_with_pnt_sources,
         substances={"GHG": ["CO2", "CH4"], "GHG2": ["GHG"]},
+    )
+
+    pytest.raises(
+        ValueError,
+        merge_substances,
+        inv_with_pnt_sources,
+        substances={"CO2": ["CO2", "CH4"], "GHG2": ["CO2"]},
     )
