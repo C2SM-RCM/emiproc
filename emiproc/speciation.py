@@ -466,3 +466,64 @@ def speciate_nox(
         raise TypeError(f"NOX_TO_NO2 must be a float or dict, not {type(NOX_TO_NO2)}.")
 
     return speciate_inventory(inv, speciation_dict, drop=drop)
+
+
+def merge_substances(
+    inv: Inventory,
+    substances: dict[str, list[str]],
+    drop: bool = True,
+) -> Inventory:
+    """Merge substances in an inventory.
+
+    :arg inv: The inventory to merge substances.
+    :arg substances: A dict with the substances to merge.
+        The keys are the new substance names.
+        The values are the list of substances to merge.
+    :arg drop: Whether to drop the merged substances.
+
+    :returns: The inventory with the merged substances.
+    """
+    new_inv = inv.copy()
+
+    # Check that the substances merge is valid
+    # New substances should not be contained in merges of other substances
+    for new_substance, old_substances in substances.items():
+        for old_substance in old_substances:
+            if old_substance in substances.keys() and new_substance != old_substance:
+                raise ValueError(
+                    f"Cannot merge {old_substance} into {new_substance} because"
+                    f" {old_substance} is merged."
+                )
+
+    for new_substance, old_substances in substances.items():
+        for cat in inv.categories:
+            cols_to_merge = []
+            for old_substance in old_substances:
+                if (cat, old_substance) in inv._gdf_columns:
+                    cols_to_merge.append((cat, old_substance))
+            if not cols_to_merge:
+                continue
+            # Merge the gdf
+            new_inv.gdf[(cat, new_substance)] = sum(
+                new_inv.gdf[col] for col in cols_to_merge
+            )
+            if drop:
+                new_inv.gdf.drop(
+                    columns=[c for c in cols_to_merge if c[1] != new_substance],
+                    inplace=True,
+                )
+
+    # Apply the same operation to the gdfs
+    for cat, gdf in inv.gdfs.items():
+        cols_to_merge = [old_s for old_s in old_substances if old_s in gdf.columns]
+        if not cols_to_merge:
+            continue
+        new_inv.gdfs[cat][new_substance] = sum(gdf[col] for col in cols_to_merge)
+        if drop:
+            new_inv.gdfs[cat].drop(
+                columns=[s for s in cols_to_merge if s != new_substance], inplace=True
+            )
+
+    new_inv.history.append(f"Merged substances with {substances}.")
+
+    return new_inv

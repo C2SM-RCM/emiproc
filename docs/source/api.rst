@@ -64,7 +64,12 @@ the anthropogenic and biogenic part of a CO2.
 
 .. autofunction:: emiproc.speciation.read_speciation_table
 
+.. autofunction:: emiproc.speciation.merge_substances
 
+Input/Output
+^^^^^^^^^^^^
+
+.. autofunction:: emiproc.speciation.read_speciation_table
 
 Utilities
 ---------

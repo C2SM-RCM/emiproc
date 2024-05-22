@@ -1,4 +1,5 @@
 """Test the speciation module."""
+
 from os import PathLike
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from emiproc.speciation import (
     speciate,
     speciate_inventory,
     speciate_nox,
+    merge_substances,
 )
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 from emiproc.tests_utils.african_case import (
@@ -182,13 +184,19 @@ def test_simple():
     categories = ["adf", "blek", "liku"]
     da_speciation = xr.DataArray(
         np.array([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]),
-        coords={"substance": ["CO2_ANT", "CO2_BIO"], "speciation": range(len(categories)), "category": ("speciation", categories)},
+        coords={
+            "substance": ["CO2_ANT", "CO2_BIO"],
+            "speciation": range(len(categories)),
+            "category": ("speciation", categories),
+        },
         dims=["substance", "speciation"],
     )
 
     inv_speciated = speciate(
         inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
     )
+
+
 def test_no_speciation_in_ratios():
 
     da_speciation = xr.DataArray(
@@ -200,3 +208,59 @@ def test_no_speciation_in_ratios():
         inv_speciated = speciate(
             inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
         )
+
+
+def test_merge_substances():
+
+    merged = merge_substances(inv_with_pnt_sources, substances={"GHG": ["CO2", "CH4"]})
+
+    assert "GHG" in merged.substances
+    assert "CO2" not in merged.substances
+    assert "CH4" not in merged.substances
+
+    # Check that the total emissions are the same
+    merged_emissions = merged.total_emissions.loc["GHG"].fillna(0)
+    previous_emissions = inv_with_pnt_sources.total_emissions.loc[["CO2", "CH4"]].sum(
+        axis="index"
+    )
+    pd.testing.assert_series_equal(
+        merged_emissions.sort_index(),
+        previous_emissions.sort_index(),
+        check_names=False,
+    )
+
+
+def test_merge_substances_no_drop():
+
+    merged = merge_substances(
+        inv_with_pnt_sources, substances={"GHG": ["CO2", "CH4"]}, drop=False
+    )
+
+    assert "GHG" in merged.substances
+    # Substances should not be dropped
+    assert "CO2" in merged.substances
+    assert "CH4" in merged.substances
+
+
+def test_merge_substances_use_as_rename():
+
+    merged = merge_substances(inv_with_pnt_sources, substances={"co2": ["CO2"]})
+
+    # Check that the total emissions are the same
+    merged_emissions = merged.total_emissions.loc["co2"]
+    previous_emissions = inv_with_pnt_sources.total_emissions.loc["co2"]
+    pd.testing.assert_series_equal(
+        merged_emissions.sort_index(),
+        previous_emissions.sort_index(),
+        check_names=False,
+    )
+
+
+def test_cannot_merge_using_new_substances():
+
+    pytest.raises(
+        ValueError,
+        merge_substances,
+        inv_with_pnt_sources,
+        substances={"GHG": ["CO2", "CH4"], "GHG2": ["GHG"]},
+    )
