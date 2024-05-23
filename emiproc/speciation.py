@@ -342,7 +342,7 @@ def speciate(
     return new_inv
 
 
-@deprecated(msg="Use speciate instead.")
+
 def speciate_inventory(
     inv: Inventory,
     speciation_dict: dict[CatSub, dict[CatSub, float]],
