@@ -51,6 +51,9 @@ class Grid:
         """
         self.name = name
         self.crs = crs
+    
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
 
     @property
     def gdf(self) -> gpd.GeoDataFrame:
@@ -223,7 +226,7 @@ class RegularGrid(Grid):
         self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
 
         if name is None:
-            name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
+            name = f"x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
     
