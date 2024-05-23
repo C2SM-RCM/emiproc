@@ -7,7 +7,7 @@ from emiproc.inventories import Inventory
 from emiproc.grids import RegularGrid
 from emiproc.regrid import remap_inventory
 from emiproc.exports.netcdf import NetcdfAttributes
-from emiproc.utilities import Units, SEC_PER_YR
+from emiproc.utilities import Units, SEC_PER_YR, PER_CELL_UNITS, PER_M2_UNITS
 
 
 def export_raster_netcdf(
@@ -78,6 +78,10 @@ def export_raster_netcdf(
         ) * 1e9
     else:
         raise NotImplementedError(f"Unknown {unit=}")
+    
+    unit_str = str(unit.value)
+    if unit in PER_CELL_UNITS:
+        unit_str += " cell-1"
 
     ds = xr.Dataset(
         data_vars=(
@@ -89,7 +93,7 @@ def export_raster_netcdf(
                     {
                         "standard_name": f"{sub}_{cat}",
                         "long_name": f"{sub}_{cat}",
-                        "units": str(unit.value),
+                        "units": unit_str,
                         "comment": f"emissions of {sub} in {cat}",
                         "projection": f"{crs}",
                     },
@@ -119,7 +123,7 @@ def export_raster_netcdf(
                     {
                         "standard_name": f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission",
                         "long_name": f"{sub}",
-                        "units": str(unit.value),
+                        "units": unit_str,
                         "comment": f"emissions of {sub}",
                         "projection": f"{crs}",
                     },
@@ -178,7 +182,7 @@ def export_raster_netcdf(
             ds[f"emi_{sub}_all_sectors"].attrs = {
                 "standard_name": f"tendency_of_atmosphere_mass_content_of_{sub}_due_to_emission",
                 "long_name": f"Aggregated Emissions of {sub} from all sectors",
-                "units": str(unit.value),
+                "units": unit_str,
                 "comment": "annual mean emission rate",
                 "projection": f"{crs}",
             }
@@ -218,19 +222,19 @@ def export_raster_netcdf(
                 "comment": "annual total emission",
             }
 
-    if unit in [Units.KG_PER_M2_PER_S, Units.MUG_PER_M2_PER_S]:
-        # add the cell area
-        ds["cell_area"] = (
-            [lat_name, lon_name],
-            np.array(grid.cell_areas).reshape(grid.shape).T,
-            {
-                "standard_name": "cell_area",
-                "long_name": "cell_area",
-                "units": "m2",
-                "comment": "area of the cell",
-                "projection": f"{crs}",
-            },
-        )
+
+    # add the cell area
+    ds["cell_area"] = (
+        [lat_name, lon_name],
+        np.array(grid.cell_areas).reshape(grid.shape).T,
+        {
+            "standard_name": "cell_area",
+            "long_name": "cell_area",
+            "units": "m2",
+            "comment": "area of the cell",
+            "projection": f"{crs}",
+        },
+    )
     path = Path(path)
     out_filepath = path.with_suffix(".nc")
     ds.to_netcdf(out_filepath)

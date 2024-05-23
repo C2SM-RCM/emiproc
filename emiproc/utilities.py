@@ -36,13 +36,14 @@ HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
 class Units(Enum):
     """Units for emissions."""
 
-    KG_PER_YEAR = "kg/y"
-    KG_PER_HOUR = "kg/h"
-    KG_PER_M2_PER_S = "kg/m2/s"
-    MUG_PER_M2_PER_S = "µg/m2/s"
+    KG_PER_YEAR = "kg y-1"
+    KG_PER_HOUR = "kg h-1"
+    KG_PER_M2_PER_S = "kg m-2 s-1"
+    MUG_PER_M2_PER_S = "µg m-2 s-1"
 
 
-PER_M2_UNITS = [Units.KG_PER_M2_PER_S]
+PER_M2_UNITS = [Units.KG_PER_M2_PER_S, Units.MUG_PER_M2_PER_S]
+PER_CELL_UNITS = [Units.KG_PER_YEAR, Units.KG_PER_HOUR]
 
 
 def grid_polygon_intersects(
