@@ -222,7 +222,7 @@ def speciate(
                 {"speciation": "country"}
             )
             da_ratios_cells = countries_fractions.dot(
-                da_ratios_country, dims=["country"]
+                da_ratios_country, dim=["country"]
             )
             # First check that where the sum is 0, the total emissions are 0
             mask_zero_ratios = da_ratios_cells.sum("substance") == 0
@@ -327,7 +327,7 @@ def speciate(
 
         speciated_indexes = (
             indexes.sel(substance=substance)
-            .drop("substance")
+            .drop_vars("substance")
             .expand_dims(dim={"substance": da_ratios["substance"].values})
         )
         new_indexes = xr.concat([indexes, speciated_indexes], dim="substance")
@@ -340,6 +340,7 @@ def speciate(
     new_inv.history.append(f"Speciated {substance} to {da_ratios['substance'].values}.")
 
     return new_inv
+
 
 
 
@@ -397,6 +398,29 @@ def speciate_inventory(
                 new_inv.gdfs[new_cat][new_sub] = inv.gdfs[cat][sub] * speciation_ratio
             if drop:
                 new_inv.gdfs[cat].drop(columns=sub, inplace=True)
+    
+    # Profiles should also be speciated, simply apply the profile to all compounds
+    for indexes_name in ["t_profiles_indexes", "v_profiles_indexes"]:
+        if not hasattr(inv, indexes_name):
+            continue
+        indexes: xr.DataArray = getattr(inv, indexes_name)
+        if indexes is None or "substance" not in indexes.dims:
+            continue
+        new_data_arrays = []
+        for cat_sub, new_species in speciation_dict.items():
+            cat, sub = cat_sub
+            new_species = [sub for cat, sub in new_species]
+            if not drop:
+                new_species = [sub] + new_species
+            speciated_indexes = (
+                indexes.sel(substance=sub)
+                .drop_vars(["substance"])
+                .expand_dims(dim={"substance": [new_sub for new_sub in new_species]})
+            )
+            new_data_arrays.append(speciated_indexes)
+        new_indexes = xr.concat(new_data_arrays, dim="substance")
+        setattr(new_inv, indexes_name, new_indexes)
+
 
     new_inv.history.append(f"Speciated with {speciation_dict}.")
 

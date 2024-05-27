@@ -156,6 +156,50 @@ def test_speciate_inventory():
     )
 
 
+def test_speciate_inventory_with_profiles():
+    # create a test speciation dictionary
+    speciation_dict = {
+        ("adf", "CH4"): {
+            ("adf", "14CH4"): 0.9,
+            ("adf", "12CH4"): 0.1,
+        },
+        ("liku", "CO2"): {
+            ("liku", "14CO2"): 0.5,
+            ("liku", "12CO2"): 0.2,
+        },
+    }
+
+    inv = inv_with_pnt_sources.copy()
+    inv.set_profile(
+        VerticalProfile(ratios=np.array([1.0, 0.0]), height=np.array([1.0, 2.0])),
+        category="liku",
+        substance="CO2",
+    )
+    # This is what the indexes should be after setting the profile
+    assert inv.v_profiles_indexes.sel(substance="CO2", category="liku").values != -1
+    assert inv.v_profiles_indexes.sel(substance="CH4", category="adf").values == -1
+    assert inv.v_profiles_indexes.sel(substance="CO2", category="adf").values == -1
+    assert inv.v_profiles_indexes.sel(substance="CH4", category="liku").values == -1
+
+    sp_inv = speciate_inventory(inv, speciation_dict)
+
+    assert np.all(
+        sp_inv.v_profiles[
+            sp_inv.v_profiles_indexes.sel(substance="14CO2", category="liku")
+        ].ratios
+        == np.array([1.0, 0.0])
+    )
+    assert np.all(
+        sp_inv.v_profiles[
+            sp_inv.v_profiles_indexes.sel(substance="12CO2", category="liku")
+        ].ratios
+        == np.array([1.0, 0.0])
+    )
+
+    # Should not be found
+    assert sp_inv.v_profiles_indexes.sel(substance="12CO2", category="adf").values == -1
+
+
 def test_speciate_nox():
     # create a test inventory containg NOx and 2 test categories
     gdf = gpd.GeoDataFrame(
