@@ -6,7 +6,6 @@ from emiproc.inventories import Inventory
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
-from shapely.creation import polygons
 import numpy as np
 import rasterio
 
@@ -25,7 +24,7 @@ class SwissRasters(Inventory):
         rasters_dir: PathLike,
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
-        year: int = 2015,
+        year: int = 2019,
     ) -> None:
         """Create a swiss raster inventory.
 
@@ -46,17 +45,8 @@ class SwissRasters(Inventory):
         """
         super().__init__()
 
-        data_path = Path(data_path)
-
         # Emission data file
-        if data_path.is_dir():
-            total_emission_file = data_path / "Emissions_CH.xlsx"
-        elif data_path.is_file():
-            total_emission_file = data_path
-        else:
-            raise FileNotFoundError(
-                f"Data path {data_path} is not an existing file or a folder."
-            )
+        total_emission_file = data_path / "Emissions_CH.xlsx"
 
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)
@@ -168,12 +158,7 @@ class SwissRasters(Inventory):
         raster_sub = df_emissions.index.tolist()
         rasters_w_emis = []
         for t in raster_sub:
-            split = t.split("_")
-            if len(split) > 2:
-                # Custom substance or cat which cannot be in the raster categories
-                # (ex: CO2_biog )
-                continue
-            cat, sub = split
+            cat, sub = t.split("_")
             subname = sub.lower()
             if cat == "evstr":
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
@@ -262,29 +247,51 @@ class SwissRasters(Inventory):
                     if factor > 0:
                         mapping[(category, sub)] = _raster_array * factor
 
-        if self.requires_grid:
-            x_coords, y_coords = np.meshgrid(xs, ys[::-1])
-            # Reshape to 1D
-            x_coords = x_coords.flatten()
-            y_coords = y_coords.flatten()
-            dx = self.grid.dx
-            dy = self.grid.dy
-            coords = np.array(
-                [
-                    [x, y]
-                    for x, y in zip(
-                        [x_coords, x_coords, x_coords + dx, x_coords + dx],
-                        [y_coords, y_coords + dy, y_coords + dy, y_coords],
-                    )
-                ]
-            )
-            coords = np.rollaxis(coords, -1, 0)
+        # Special case: Raster categories eipkv and eipzm (point source emissions)
+        # Can add to above loop later on
+
+        df_ps = {}
+        df_ps["eipkv"] = pd.DataFrame(columns=self._substances)
+        df_ps["eipzm"] = pd.DataFrame(columns=self._substances)
+        for raster_file, cat in zip(self.all_raster_files, self.raster_categories):
+            if cat in ["eipkv", "eipzm"]:
+                ra = self.load_raster(raster_file).reshape(-1)
+                idx = np.nonzero(ra)[0]
+                points = []
+                for i in idx:
+                    lst_row = []
+                    #   Location of point source
+                    nx = np.remainder(i,3600)
+                    ny = np.floor_divide(i,3600)
+                    x = self.grid.xmin + nx * self.grid.dx
+                    ymax = self.grid.ymin + (2400-1) * self.grid.dy
+                    y = ymax - ny * self.grid.dy
+                    points.append(Point(x, y))
+                    for sub in self._substances:
+                        factor = mapping[(cat,sub)][i] 
+                        lst_row.append(factor)
+                    df_ps[cat].loc[len(df_ps[cat])] = lst_row
+                # Store as GeoDataFrame
+                df_ps[cat] = gpd.GeoDataFrame(df_ps[cat], geometry=points, crs=LV95)
+                  
+
         self.gdf = gpd.GeoDataFrame(
             mapping,
             crs=LV95,
             # This vector is same as raster data reshaped using reshape(-1)
             geometry=(
-                polygons(coords)
+                [
+                    Polygon(
+                        (
+                            (x, y),
+                            (x, y + self.grid.dy),
+                            (x + self.grid.dx, y + self.grid.dy),
+                            (x + self.grid.dx, y),
+                        )
+                    )
+                    for y in reversed(ys)
+                    for x in xs
+                ]
                 if self.requires_grid
                 else np.full(self.grid.nx * self.grid.ny, np.nan)
             ),
@@ -293,6 +300,8 @@ class SwissRasters(Inventory):
         # Add point sources
         self.gdfs = {}
         self.gdfs["eipwp"] = self.df_eipwp
+        self.gdfs["eipkv"] = df_ps["eipkv"]
+        self.gdfs["eipzm"] = df_ps["eipzm"]
 
     def load_raster(self, raster_file: Path) -> np.ndarray:
         # Load and save as npy fast reading format
@@ -314,5 +323,5 @@ if __name__ == "__main__":
         rasters_dir=swiss_data_path / "ekat_gridascii",
         rasters_str_dir=swiss_data_path / "ekat_str_gridascii",
         requires_grid=True,
-        year=2015,
+        year=2019,
     )
