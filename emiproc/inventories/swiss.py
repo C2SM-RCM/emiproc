@@ -46,7 +46,7 @@ class SwissRasters(Inventory):
         super().__init__()
 
         # Emission data file
-        total_emission_file = data_path / "Emissions_CH.xlsx"
+        total_emission_file = data_path / "CH_Emissions_PSI.xlsx"
 
         # Load excel sheet with the total emissions (excluding point sources)
         df_emissions = pd.read_excel(total_emission_file)
@@ -160,7 +160,7 @@ class SwissRasters(Inventory):
         for t in raster_sub:
             cat, sub = t.split("_")
             subname = sub.lower()
-            if cat == "evstr":
+            if cat in ["evstrf1", "evstrf2", "evstrf3", "evstrf4"]:
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
                 if subname == "voc":
                     subname = "nmvoc"
@@ -239,7 +239,7 @@ class SwissRasters(Inventory):
                 # change the df_emission values in the future but not the rasters
                 _normalized_raster_array = _raster_array / _raster_array.sum()
                 mapping[(cat, sub_name)] = _normalized_raster_array * factor
-            else:
+            elif category not in ["eipkv", "eipzm"]:
                 for sub in self._substances:
                     idx = category + "_" + sub
                     # transform units [t/y] -> [kg/y]
@@ -247,8 +247,8 @@ class SwissRasters(Inventory):
                     if factor > 0:
                         mapping[(category, sub)] = _raster_array * factor
 
-        # Special case: Raster categories eipkv and eipzm (point source emissions)
-        # Can add to above loop later on
+        # Special case: Raster categories eipkv and eipzm 
+        # --> encode as point sources 
 
         df_ps = {}
         df_ps["eipkv"] = pd.DataFrame(columns=self._substances)
@@ -268,13 +268,18 @@ class SwissRasters(Inventory):
                     y = ymax - ny * self.grid.dy
                     points.append(Point(x, y))
                     for sub in self._substances:
-                        factor = mapping[(cat,sub)][i] 
-                        lst_row.append(factor)
+                        cat_sub = cat + "_" + sub
+                        factor = self.df_emission[year].loc[cat_sub]
+                        if factor > 0:
+                            # [t/a] --> [kg/a]
+                            ps_emis = (ra* factor * 1000)[i] 
+                            lst_row.append(ps_emis)
+                        else:
+                            lst_row.append(0)
                     df_ps[cat].loc[len(df_ps[cat])] = lst_row
                 # Store as GeoDataFrame
                 df_ps[cat] = gpd.GeoDataFrame(df_ps[cat], geometry=points, crs=LV95)
-                  
-
+ 
         self.gdf = gpd.GeoDataFrame(
             mapping,
             crs=LV95,
