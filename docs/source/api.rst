@@ -187,7 +187,7 @@ Human Respiration
 
 .. autofunction:: emiproc.human_respiration.people_to_emissions
 
-.. autoenum:: emiproc.human_respiration.EmissionFactor
+.. autoclass:: emiproc.human_respiration.EmissionFactor
 
 
 VPRM 
