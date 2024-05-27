@@ -740,7 +740,7 @@ def create_scaling_factors_time_serie(
     end_time: datetime,
     profiles: list[AnyTimeProfile],
     apply_month_interpolation: bool = True,
-    freq: str = "H",
+    freq: str = "h",
     inclusive: str = "both",
     local_tz: str | None = None,
 ) -> pd.Series:
