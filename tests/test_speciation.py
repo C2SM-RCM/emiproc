@@ -175,6 +175,10 @@ def test_speciate_inventory_with_profiles():
         category="liku",
         substance="CO2",
     )
+    inv.set_profile(
+        VerticalProfile(ratios=np.array([0.0, 1.0]), height=np.array([1.0, 2.0])),
+        substance="NH3",
+    )
     # This is what the indexes should be after setting the profile
     assert inv.v_profiles_indexes.sel(substance="CO2", category="liku").values != -1
     assert inv.v_profiles_indexes.sel(substance="CH4", category="adf").values == -1
@@ -198,6 +202,9 @@ def test_speciate_inventory_with_profiles():
 
     # Should not be found
     assert sp_inv.v_profiles_indexes.sel(substance="12CO2", category="adf").values == -1
+
+    # NH3 should still be there 
+    assert sp_inv.v_profiles_indexes.sel(substance="NH3", category="test").values != -1
 
 
 def test_speciate_nox():

@@ -409,12 +409,11 @@ def speciate_inventory(
         indexes: xr.DataArray = getattr(inv, indexes_name)
         if indexes is None or "substance" not in indexes.dims:
             continue
-        new_data_arrays = []
+        new_data_arrays = [indexes]
+
         for cat_sub, new_species in speciation_dict.items():
             cat, sub = cat_sub
             new_species = [sub for cat, sub in new_species]
-            if not drop:
-                new_species = [sub] + new_species
             speciated_indexes = (
                 indexes.sel(substance=sub)
                 .drop_vars(["substance"])
@@ -422,6 +421,11 @@ def speciate_inventory(
             )
             new_data_arrays.append(speciated_indexes)
         new_indexes = xr.concat(new_data_arrays, dim="substance")
+        # Drop duplicates along the substance dimension
+        new_indexes = new_indexes.drop_duplicates("substance")
+        if drop:
+            # Remove the substance from the substance coordinate
+            new_indexes = new_indexes.drop_sel(substance=[sub for cat, sub in speciation_dict.keys()])
         setattr(new_inv, indexes_name, new_indexes)
 
 
