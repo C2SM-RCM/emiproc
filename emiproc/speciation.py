@@ -20,7 +20,9 @@ if TYPE_CHECKING:
     from emiproc.inventories import Category, CatSub, Inventory
 
 
-def read_speciation_table(path: PathLike, drop_zeros: bool = False) -> xr.DataArray:
+def read_speciation_table(
+    path: PathLike, drop_zeros: bool = False, **kwargs
+) -> xr.DataArray:
     """Read a speciation table from a file.
 
     Format of the file:
@@ -52,13 +54,14 @@ def read_speciation_table(path: PathLike, drop_zeros: bool = False) -> xr.DataAr
 
     :arg path: The path of the speciation table.
     :arg drop_zeros: Whether to drop the speciation ratios that sum to 0.
+    :arg kwargs: Additional arguments to pass to :py:func:`pandas.read_csv`.
 
     :returns: The speciation ratios.
         The speciation ratios are the weight fraction conversion from the
         speciated substance.
 
     """
-    df = pd.read_csv(path, comment="#")
+    df = pd.read_csv(path, comment="#", **kwargs)
 
     # Reserved columns
     columns_types = {
