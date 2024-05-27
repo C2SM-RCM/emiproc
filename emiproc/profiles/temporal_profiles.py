@@ -1,4 +1,5 @@
 """Temporal profiles."""
+
 from __future__ import annotations
 
 import logging
@@ -493,9 +494,11 @@ class CompositeTemporalProfiles:
             [
                 np.concatenate(
                     [
-                        self._profiles[pt][index].ratios.reshape(-1)
-                        if (index := self._indexes[pt][i]) != -1
-                        else np.full(pt.size, np.nan).reshape(-1)
+                        (
+                            self._profiles[pt][index].ratios.reshape(-1)
+                            if (index := self._indexes[pt][i]) != -1
+                            else np.full(pt.size, np.nan).reshape(-1)
+                        )
                         for pt in self.types
                     ]
                 )
@@ -647,7 +650,10 @@ def make_composite_profiles(
     stacked = indexes.stack(z=dims)
 
     str_array = np.array(
-        [str(array.values.reshape(-1)) for lab, array in stacked.groupby("z")]
+        [
+            str(array.values.reshape(-1))
+            for lab, array in stacked.groupby(group="z", squeeze=False)
+        ]
     )
     logger.debug(f"{str_array=}")
     u, inv = np.unique(str_array, return_inverse=True)
