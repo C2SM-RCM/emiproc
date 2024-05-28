@@ -112,7 +112,16 @@ def test_use_default_when_country_missing():
         TESTS_DIR / "speciation" / "table_africa_testcase_with_missing.csv"
     )
 
-    speciate(african_inv, substance="CO2", speciation_ratios=da_africa)
+    speciated = speciate(african_inv, substance="CO2", speciation_ratios=da_africa)
+
+    # Test that the total emissions are the same
+    pd.testing.assert_series_equal(
+        speciated.total_emissions.loc[["CO2_ANT", "CO2_BIO"], :]
+        .sum(axis="index")
+        .sort_index(),
+        african_inv.total_emissions.loc["CO2", :].sort_index(),
+        check_names=False,
+    )
 
 
 def test_speciate_simple_inventory():
