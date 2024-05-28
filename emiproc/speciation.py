@@ -205,6 +205,10 @@ def speciate(
         countries_fractions: xr.DataArray = get_country_mask(
             new_inv.grid, return_fractions=True, **country_mask_kwargs
         )
+        # Fill the fraction so that the sum is 1
+        # Ensure that a speciation defined in a cell only on some country parts will be
+        # applied to the whole cell by filling the missing values with the countries
+        countries_fractions = countries_fractions / countries_fractions.sum("country")
 
     for cat, sub in inv._gdf_columns:
         if sub != substance:
@@ -251,10 +255,6 @@ def speciate(
                 da_ratios_cells = da_ratios_cells.where(
                     ~mask_problem, other=missing_value
                 )
-            # Put ones where the sum is 0 to avoid later division by 0
-            da_ratios_cells = da_ratios_cells.where(~mask_zero_ratios, other=1.0)
-            # Correct cells to ensure that the sum is 1
-            da_ratios_cells = da_ratios_cells / da_ratios_cells.sum("substance")
 
             da_ratios = da_ratios_cells
 
