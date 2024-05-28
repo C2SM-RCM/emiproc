@@ -39,6 +39,17 @@ def test_read_speciation_table(table_path: PathLike):
     read_speciation_table(table_path)
 
 
+def test_load_wrong_table():
+    with pytest.raises(ValueError):
+        read_speciation_table(TESTS_DIR / "speciation" / "wrong_ratio_table.csv")
+
+
+def test_load_wrong_no_checks():
+    read_speciation_table(
+        TESTS_DIR / "speciation" / "wrong_ratio_table.csv", check_sum=False
+    )
+
+
 def test_speciation_african_case():
     da_africa = read_speciation_table(
         TESTS_DIR / "speciation" / "table_africa_testcase.csv"
@@ -203,7 +214,7 @@ def test_speciate_inventory_with_profiles():
     # Should not be found
     assert sp_inv.v_profiles_indexes.sel(substance="12CO2", category="adf").values == -1
 
-    # NH3 should still be there 
+    # NH3 should still be there
     assert sp_inv.v_profiles_indexes.sel(substance="NH3", category="test").values != -1
 
 

@@ -13,7 +13,6 @@ import pandas as pd
 import xarray as xr
 import numpy as np
 
-from emiproc import deprecated
 from emiproc.utilities import get_country_mask
 
 if TYPE_CHECKING:
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
 
 
 def read_speciation_table(
-    path: PathLike, drop_zeros: bool = False, **kwargs
+    path: PathLike, drop_zeros: bool = False, check_sum: bool = True, **kwargs
 ) -> xr.DataArray:
     """Read a speciation table from a file.
 
@@ -54,6 +53,8 @@ def read_speciation_table(
 
     :arg path: The path of the speciation table.
     :arg drop_zeros: Whether to drop the speciation ratios that sum to 0.
+    :arg check_consistency: Whether to check that the speciation ratios sum to 1.
+        If this is set to False, the check is not performed.
     :arg kwargs: Additional arguments to pass to :py:func:`pandas.read_csv`.
 
     :returns: The speciation ratios.
@@ -97,10 +98,11 @@ def read_speciation_table(
 
     # Check that all the speciation ratios sum to 1
     mask_close = np.isclose(da.sum("substance"), 1.0)
-    if not mask_close.all():
+    if check_sum and not mask_close.all():
         raise ValueError(
             "The speciation ratios must sum to 1, but the following rows don't:"
             f" {da[~mask_close]}"
+            "You can set `check_sum=False` to ignore this check."
         )
 
     return da
@@ -345,8 +347,6 @@ def speciate(
     return new_inv
 
 
-
-
 def speciate_inventory(
     inv: Inventory,
     speciation_dict: dict[CatSub, dict[CatSub, float]],
@@ -401,7 +401,7 @@ def speciate_inventory(
                 new_inv.gdfs[new_cat][new_sub] = inv.gdfs[cat][sub] * speciation_ratio
             if drop:
                 new_inv.gdfs[cat].drop(columns=sub, inplace=True)
-    
+
     # Profiles should also be speciated, simply apply the profile to all compounds
     for indexes_name in ["t_profiles_indexes", "v_profiles_indexes"]:
         if not hasattr(inv, indexes_name):
@@ -425,9 +425,10 @@ def speciate_inventory(
         new_indexes = new_indexes.drop_duplicates("substance")
         if drop:
             # Remove the substance from the substance coordinate
-            new_indexes = new_indexes.drop_sel(substance=[sub for cat, sub in speciation_dict.keys()])
+            new_indexes = new_indexes.drop_sel(
+                substance=[sub for cat, sub in speciation_dict.keys()]
+            )
         setattr(new_inv, indexes_name, new_indexes)
-
 
     new_inv.history.append(f"Speciated with {speciation_dict}.")
 
@@ -543,7 +544,8 @@ def merge_substances(
             if not cols_to_merge:
                 continue
             # Merge the gdf
-            new_inv.gdf[(cat, new_substance)] = new_inv.gdf.loc[:, cols_to_merge].sum(axis=1)
+            total = new_inv.gdf.loc[:, cols_to_merge].sum(axis=1)
+            new_inv.gdf[(cat, new_substance)] = total
             if drop:
                 new_inv.gdf.drop(
                     columns=[c for c in cols_to_merge if c[1] != new_substance],
