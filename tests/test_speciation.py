@@ -50,6 +50,26 @@ def test_load_wrong_no_checks():
     )
 
 
+def test_speciation_wrong_ratios():
+    da_speciation = read_speciation_table(
+        TESTS_DIR / "speciation" / "wrong_ratio_table.csv", check_sum=False
+    )
+    inv_speciated = speciate(
+        inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
+    )
+
+    # Check that the total emissions are the same
+    # Ratios for adf in the file are {CO2_ANT: 0.5, CO2_BIO: 0.4}
+    assert (
+        inv_speciated.total_emissions.loc["CO2_ANT", "adf"]
+        == 0.5 * inv_with_pnt_sources.total_emissions.loc["CO2", "adf"]
+    )
+    assert (
+        inv_speciated.total_emissions.loc["CO2_BIO", "adf"]
+        == 0.4 * inv_with_pnt_sources.total_emissions.loc["CO2", "adf"]
+    )
+
+
 def test_speciation_african_case():
     da_africa = read_speciation_table(
         TESTS_DIR / "speciation" / "table_africa_testcase.csv"
