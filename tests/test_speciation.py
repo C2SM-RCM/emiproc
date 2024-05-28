@@ -75,8 +75,17 @@ def test_speciation_african_case():
         TESTS_DIR / "speciation" / "table_africa_testcase.csv"
     )
 
-    speciate(
+    speciated = speciate(
         african_inv_emissions_only_land, substance="CO2", speciation_ratios=da_africa
+    )
+
+    # Test that the total emissions are the same
+    pd.testing.assert_series_equal(
+        speciated.total_emissions.loc[["CO2_ANT", "CO2_BIO"], :]
+        .sum(axis="index")
+        .sort_index(),
+        african_inv_emissions_only_land.total_emissions.loc["CO2", :].sort_index(),
+        check_names=False,
     )
 
 
