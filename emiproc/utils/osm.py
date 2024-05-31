@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def osm_json_to_gdf(data: dict[str, list[dict[str, any]]]) -> gpd.GeoDataFrame:
+def osm_json_to_gdf(
+    data: dict[str, list[dict[str, any]]],
+    extract_tags: list[str] = [],
+) -> gpd.GeoDataFrame:
     """Converts an OSM JSON to a GeoDataFrame.
 
     It proceeds the following way:
@@ -47,6 +50,16 @@ def osm_json_to_gdf(data: dict[str, list[dict[str, any]]]) -> gpd.GeoDataFrame:
     """
 
     data_by_id = {x["id"]: x for x in data["elements"]}
+
+    for tag in extract_tags:
+        if tag in [
+            "id",
+            "geometry",
+            "name",
+            "type",
+            "tags",
+        ]:
+            raise ValueError(f"Cannot extract tag {tag} as it is a reserved name")
 
     def geometry_from_nodes_ids(node_ids):
         nodes = [
@@ -122,7 +135,7 @@ def osm_json_to_gdf(data: dict[str, list[dict[str, any]]]) -> gpd.GeoDataFrame:
         if len(current_nodes) > 0:
             incomplete.append(geometry_from_nodes_ids(current_nodes))
 
-        # TODO: implement that we cut the inside of the polygons 
+        # TODO: implement that we cut the inside of the polygons
         outer_polys = [p for p, r in zip(polys, polys_roles) if r == "outer"]
         inner_polys = [p for p, r in zip(polys, polys_roles) if r == "inner"]
 
@@ -152,6 +165,11 @@ def osm_json_to_gdf(data: dict[str, list[dict[str, any]]]) -> gpd.GeoDataFrame:
             "name": element["tags"].get("name", None),
             "type": element["type"],
             "tags": str(element["tags"]),
+        }
+        | {
+            tag: element["tags"].get(tag, None)
+            for tag in extract_tags
+            if tag in element["tags"]
         }
         for element in data["elements"]
         if "tags" in element

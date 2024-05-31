@@ -190,7 +190,7 @@ class TemporalProfile:
             # Make sure the size is a int and the array has the correct size
             if self.size != self.ratios.shape[1]:
                 raise ValueError(
-                    f"{len(self.ratios)=} does not match profile's {self.size=}."
+                    f"{self.ratios.shape[1]=} does not match profile's {self.size=}."
                 )
 
             # Make sure the ratios sum up to 1
