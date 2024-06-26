@@ -221,6 +221,7 @@ class RegularGrid(Grid):
         if xmax is None and ymax is None:
             xmax = xmin + nx * dx
             ymax = ymin + ny * dy
+        self.xmax, self.ymax = xmax, ymax
 
         # Calculate all grid parameters
         self.nx, self.ny = nx, ny
