@@ -1,4 +1,5 @@
 """Temporal profiles."""
+
 from __future__ import annotations
 
 import logging
@@ -189,7 +190,7 @@ class TemporalProfile:
             # Make sure the size is a int and the array has the correct size
             if self.size != self.ratios.shape[1]:
                 raise ValueError(
-                    f"{len(self.ratios)=} does not match profile's {self.size=}."
+                    f"{self.ratios.shape[1]=} does not match profile's {self.size=}."
                 )
 
             # Make sure the ratios sum up to 1
@@ -493,9 +494,11 @@ class CompositeTemporalProfiles:
             [
                 np.concatenate(
                     [
-                        self._profiles[pt][index].ratios.reshape(-1)
-                        if (index := self._indexes[pt][i]) != -1
-                        else np.full(pt.size, np.nan).reshape(-1)
+                        (
+                            self._profiles[pt][index].ratios.reshape(-1)
+                            if (index := self._indexes[pt][i]) != -1
+                            else np.full(pt.size, np.nan).reshape(-1)
+                        )
                         for pt in self.types
                     ]
                 )
@@ -647,7 +650,10 @@ def make_composite_profiles(
     stacked = indexes.stack(z=dims)
 
     str_array = np.array(
-        [str(array.values.reshape(-1)) for lab, array in stacked.groupby("z")]
+        [
+            str(array.values.reshape(-1))
+            for lab, array in stacked.groupby(group="z", squeeze=False)
+        ]
     )
     logger.debug(f"{str_array=}")
     u, inv = np.unique(str_array, return_inverse=True)
@@ -740,7 +746,7 @@ def create_scaling_factors_time_serie(
     end_time: datetime,
     profiles: list[AnyTimeProfile],
     apply_month_interpolation: bool = True,
-    freq: str = "H",
+    freq: str = "h",
     inclusive: str = "both",
     local_tz: str | None = None,
 ) -> pd.Series:

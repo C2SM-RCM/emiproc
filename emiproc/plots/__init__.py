@@ -16,6 +16,7 @@ from matplotlib.colors import LogNorm, SymLogNorm
 from emiproc.plots import nclcmaps
 from emiproc.inventories import Inventory
 from emiproc.regrid import get_weights_mapping, weights_remap
+from emiproc.utilities import get_natural_earth
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
@@ -75,7 +76,8 @@ def explore_inventory(
         gdf = gpd.GeoDataFrame(
             geometry=pd.concat(
                 [inv.geometry, *(gdf.geometry for gdf in inv.gdfs.values())]
-            )
+            ),
+            crs=inv.crs,
         )
         return gdf.explore()
     elif category is not None and substance is None:
@@ -84,7 +86,8 @@ def explore_inventory(
             geometry=pd.concat(
                 ([inv.geometry] if category in inv.gdf.columns else [])
                 + ([inv.gdfs[category].geometry] if category in inv.gdfs else [])
-            )
+            ),
+            crs=inv.crs,
         )
         return gdf.explore()
     elif category is not None and substance is not None:
@@ -101,9 +104,11 @@ def explore_inventory(
                 ([inv.geometry] if on_main_grid else [])
                 + ([inv.gdfs[category].geometry] if on_others_gdfs else [])
             ),
+            crs=inv.crs,
         )
         return gdf.explore(gdf[str((category, substance))])
-    raise NotImplementedError()
+    else:
+        raise NotImplementedError()
 
 
 def plot_inventory(
@@ -117,6 +122,8 @@ def plot_inventory(
     axis_formatter: str | None = None,
     x_label="lon [°]",
     y_label="lat [°]",
+    add_country_borders: bool = False,
+    total_only: bool = False,
 ):
     """Plot an inventory.
 
@@ -133,6 +140,21 @@ def plot_inventory(
     x_max = grid.lon_range[-1]
     y_min = grid.lat_range[0]
     y_max = grid.lat_range[-1]
+
+    if add_country_borders:
+        gdf_countries = get_natural_earth(
+            resolution="10m", category="cultural", name="admin_0_countries"
+        )
+        # Crop the countries to the grid
+        gdf_countries = gdf_countries.cx[x_min:x_max, y_min:y_max].clip_by_rect(
+            x_min, y_min, x_max, y_max
+        )
+
+        def add_country_borders(ax: mpl.axes.Axes):
+            gdf_countries.boundary.plot(ax=ax, color="black", linewidth=0.5)
+
+    else:
+        add_country_borders = lambda ax: None
 
     def add_ax_info(ax: mpl.axes.Axes):
         if axis_formatter is not None:
@@ -160,7 +182,10 @@ def plot_inventory(
                 continue
             emissions = inv.gdf[(cat, sub)].copy(deep=True).to_numpy()
             if cat in inv.gdfs and sub in inv.gdfs[cat]:
-                weights_file = out_dir / f".emiproc_weights_{inv.name}_gdfs_{cat}"
+                if out_dir:
+                    weights_file = out_dir / f".emiproc_weights_{inv.name}_gdfs_{cat}"
+                else:
+                    weights_file = None
                 weights_mapping = get_weights_mapping(
                     weights_file, inv.gdfs[cat], inv.gdf, loop_over_inv_objects=True
                 )
@@ -182,6 +207,9 @@ def plot_inventory(
 
             if not np.any(emissions):
                 print(f"passsed {sub},{cat} no emissions")
+                continue
+
+            if total_only:
                 continue
 
             fig, ax = plt.subplots(
@@ -231,6 +259,8 @@ def plot_inventory(
                 # cax=cax,
             )
 
+            add_country_borders(ax)
+
             fig.tight_layout()
 
             if out_dir:
@@ -241,7 +271,7 @@ def plot_inventory(
                 fig.clear()
             else:
                 plt.show()
-            
+
             plt.close(fig)
 
         if not np.any(total_sub_emissions):
@@ -278,6 +308,7 @@ def plot_inventory(
         )
 
         add_ax_info(ax)
+        add_country_borders(ax)
         fig.tight_layout()
 
         if out_dir:
@@ -288,5 +319,5 @@ def plot_inventory(
             fig.clear()
         else:
             plt.show()
-        
+
         plt.close(fig)

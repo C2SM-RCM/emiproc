@@ -1,9 +1,15 @@
-"""Convert the mapluft inventory to gral."""
+"""Convert the mapluft inventory to gral.
+
+For this exercise we need an additional package called pygg.
+"""
 # %%
 from pathlib import Path
 from emiproc.inventories.zurich import MapLuftZurich, ZURICH_SOURCES
 from emiproc.exports.gral import export_to_gral
 from emiproc.tests_utils import TEST_OUTPUTS_DIR
+from emiproc.inventories.utils import crop_with_shape
+from emiproc.inventories.utils import group_categories, validate_group
+from emiproc.inventories.zurich.gral_groups import ZH_CO2_Groups
 # pygg module for gram gral preprocessing
 from pygg.grids import GralGrid
 import numpy as np
@@ -15,20 +21,13 @@ zh_inv = MapLuftZurich(file, ['CO2'], convert_lines_to_polygons=False)
 zh_inv.emission_infos = ZURICH_SOURCES
 zh_inv 
 #%% Read the gral grid from a generated geb
-from emiproc.exports.gral import export_to_gral
-from pygg.grids import GralGrid
 grid = GralGrid.from_gral_rundir("/scratch/snx3000/lconstan/gramm_gral2/")
 
 #%% Crop the invenotry over the gral grid 
-from emiproc.inventories.utils import crop_with_shape
-from emiproc.inventories.utils import get_total_emissions
 
 zh_cropped = crop_with_shape(zh_inv, grid.get_bounding_polygon())
 
-
 #%%
-from emiproc.inventories.utils import group_categories, validate_group
-from emiproc.inventories.zurich.gral_groups import ZH_CO2_Groups
 
 validate_group(ZH_CO2_Groups, zh_inv.categories)
 

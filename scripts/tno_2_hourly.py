@@ -1,4 +1,7 @@
-"""Convert the TNO inventory to a netcdf file on a regular raster grid."""
+"""Convert the TNO inventory to a netcdf file on a regular raster grid.
+
+By scaling the emissions with the time profiles, we export hourly emissions values.
+"""
 # %%
 %load_ext autoreload
 %autoreload 2

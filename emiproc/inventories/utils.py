@@ -679,6 +679,7 @@ def drop(
         inv: Inventory,
         substances: list[Substance] = [],
         categories: list[Category] = [],
+        keep_instead_of_drop: bool = False,
 ) -> Inventory:
     """Drop substances and categories from an inventory.
 
@@ -691,6 +692,8 @@ def drop(
     :arg inv: The inventory to drop from.
     :arg substances: The substances to drop.
     :arg categories: The categories to drop.
+    :arg keep_instead_of_drop: If True, the substances and categories will be kept
+        instead of being dropped.
     """
 
     # Check the types 
@@ -699,6 +702,13 @@ def drop(
             raise TypeError(f"{var_name=} should be a list.")
         if not all(isinstance(sub, str) for sub in var):
             raise TypeError(f"{var_name=} should be a list of strings.")
+        
+    if keep_instead_of_drop:
+        # Keep instead of drop
+        if substances:
+            substances = [sub for sub in inv.substances if sub not in substances]
+        if categories:
+            categories = [cat for cat in inv.categories if cat not in categories]
 
     # Deep copy of the inventory
     out_inv = inv.copy(no_gdfs=True)

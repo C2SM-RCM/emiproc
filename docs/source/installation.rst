@@ -25,22 +25,6 @@ the cloned code.
 
     pip install -e .
 
-Many packages will be installed as dependencies.
 
 
-On Windows 
-----------
 
-emiproc works also on windows, but many dependencies are not built for 
-windows.
-
-However you can use `pipwin` which will let you install all the dependencies
-for windows in the same way `pip` works.
-
-.. code::
-    
-    pip install pipwin 
-
-    pipwin install geos
-    pipwin install geopandas
-    pipwin install cartopy 

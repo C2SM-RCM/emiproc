@@ -366,7 +366,7 @@ def make_icon_time_profiles(
                         dt_end,
                         time_profiles[key],
                         local_tz=tz,
-                        freq="H",
+                        freq="h",
                     ).to_numpy()  # [max_shift + shift : -max_shift + shift - 1]
                     for shift, tz in zip(shifts, time_zones)
                 ]
@@ -378,7 +378,7 @@ def make_icon_time_profiles(
                 coords={
                     "datetime": (
                         ("hourofyear",),
-                        pd.date_range(dt_start, dt_end, freq="H"),
+                        pd.date_range(dt_start, dt_end, freq="h"),
                     ),
                     "timezone_of_country": (("country",), time_zones),
                 },

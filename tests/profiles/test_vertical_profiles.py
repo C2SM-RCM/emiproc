@@ -167,7 +167,7 @@ def test_combination_over_dimensions():
     # Missing data
     assert all(new_indexes.sel(dict(substance="NH3")) == -1)
     # The missing data must have been merged (not all were missing)
-    assert ~any(new_indexes.sel(dict(substance="CH4")) == -1)
+    assert not any(new_indexes.sel(dict(substance="CH4")) == -1)
     # Access the profiles we want to compare (orginal of cat 0 and 1 for CH4 )
     assert np.allclose(
         new_profiles.ratios[
