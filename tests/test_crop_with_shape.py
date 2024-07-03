@@ -40,19 +40,19 @@ inv.gdf
 inv_with_pnt_sources = inv.copy()
 inv_with_pnt_sources.gdfs["blek"] = gpd.GeoDataFrame(
     {
-        "CO2": [1, 2, 3],
+        "CO2": [1.0, 2.0, 3.0],
     },
     geometry=[Point(0.75, 0.75), Point(0.25, 0.25), Point(1.2, 1)],
 )
 inv_with_pnt_sources.gdfs["liku"] = gpd.GeoDataFrame(
     {
-        "CO2": [1, 2],
+        "CO2": [1.0, 2.0],
     },
     geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
 )
 inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
     {
-        "AITS": [i + 1 for i in range(5)],
+        "AITS": [float(i + 1) for i in range(5)],
     },
     geometry=[
         Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
@@ -83,7 +83,7 @@ def test_with_gdfs():
     assert len(cropped.gdfs["blek"]) == 2
     # Check  expected values
     assert cropped.gdfs["blek"]["CO2"].iloc[0] == 1 / 2  # At the boundary divided by 2
-    assert cropped.gdfs["blek"]["CO2"].iloc[1] == 3
+    assert cropped.gdfs["blek"]["CO2"].iloc[1] == 3.0
 
     # Check  point outside disappeared
     assert len(cropped.gdfs["liku"]) == 1
@@ -114,7 +114,7 @@ def test_different_points_and_polygons_in_gdfs():
     # outside shapes are removed
 
     assert len(cropped.gdfs["adf"]) == 5, "Did not crop expected number of shapes"
-    expected_values = [1 / 2, 1, 1 / 8, 1 / 4, 1]  # At the boundary divided by 2
+    expected_values = [1 / 2, 1.0, 1 / 8, 1 / 4, 1.0]  # At the boundary divided by 2
     # Check  expected values
     for i, val in enumerate(expected_values):
         assert cropped.gdfs["adf"]["CO2"].iloc[i] == val, f"Failed at {i}"
