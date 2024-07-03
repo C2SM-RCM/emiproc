@@ -1,6 +1,7 @@
 """Few plot functions for the emiproc package."""
 
 from __future__ import annotations
+import itertools
 from os import PathLike
 from pathlib import Path
 import geopandas as gpd
@@ -171,9 +172,11 @@ def plot_inventory(
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+    per_substances_per_sector_emissions = {}
     for sub in inv.substances:
+        per_sector_emissions = {}
+        per_substances_per_sector_emissions[sub] = per_sector_emissions
         total_sub_emissions = np.zeros(grid_shape).T
-        total_emission_all_sectors = 0
         for cat in inv.categories:
             if (cat, sub) not in inv.gdf:
                 # TODO: this will miss point sources for the total_sub_emissions
@@ -196,8 +199,7 @@ def plot_inventory(
                 # TODO: could check and plot only the point sources as well
                 emissions += gdfs_emissions
 
-            total_emissions_per_sector = np.sum(emissions)
-            total_emission_all_sectors += total_emissions_per_sector
+            per_sector_emissions[cat] = np.sum(emissions)
 
             # from ha to m2
             emissions /= inv.cell_areas
@@ -250,7 +252,7 @@ def plot_inventory(
                 extent=[x_min, x_max, y_min, y_max],
             )
             add_ax_info(ax)
-            ax.set_title(f"{sub} - {cat}: " f"{total_emissions_per_sector:.2} " f"kg/y")
+            ax.set_title(f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y")
             fig.colorbar(
                 im,
                 label="kg/y/m2",
@@ -298,7 +300,9 @@ def plot_inventory(
             cmap=cmap,
             extent=[x_min, x_max, y_min, y_max],
         )
-        ax.set_title(f"Total {sub}: " f"{total_emission_all_sectors:.2} " f"kg/y")
+        ax.set_title(
+            f"Total {sub}: " f"{sum(per_sector_emissions.values()):.2} " f"kg/y"
+        )
         fig.colorbar(
             im,
             label="kg/y/m2",
@@ -321,3 +325,34 @@ def plot_inventory(
             plt.show()
 
         plt.close(fig)
+
+    # A bar plot of the total emissions for each substances and each category
+    sorted_categories = sorted(inv.categories)
+    fig, ax = plt.subplots(
+        figsize=(len(inv.categories) * 0.5, len(inv.substances)),
+        nrows=len(inv.substances),
+        sharex=True,
+    )
+
+    color_iter = itertools.cycle(plt.rcParams["axes.prop_cycle"])
+    colors_of_categories = {cat: next(color_iter)["color"] for cat in sorted_categories}
+    for i, sub in enumerate(inv.substances):
+        for j, cat in enumerate(sorted_categories):
+            ax[i].bar(
+                j,
+                per_substances_per_sector_emissions[sub].get(cat, 0),
+                color=colors_of_categories.get(cat, "black"),
+            )
+        ax[i].set_ylabel(f"{sub} [kg/y]")
+
+    ax[-1].set_xticks(range(len(sorted_categories)))
+    ax[-1].set_xticklabels(sorted_categories, rotation=45, ha="right")
+
+    if out_dir:
+        file_name = Path(out_dir) / f"barplot_total_emissions"
+        fig.savefig(file_name.with_suffix(".png"))
+        fig.clear()
+    else:
+        plt.show()
+
+    plt.close(fig)
