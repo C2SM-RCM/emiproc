@@ -51,6 +51,9 @@ class Grid:
         """
         self.name = name
         self.crs = crs
+    
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
 
     @property
     def gdf(self) -> gpd.GeoDataFrame:
@@ -158,6 +161,10 @@ class RegularGrid(Grid):
     lon_range: np.ndarray
     lat_range: np.ndarray
 
+    # The edges of the cells
+    lat_bounds: np.ndarray
+    lon_bounds: np.ndarray
+
     xmin: float
     xmax: float
     ymin: float
@@ -214,6 +221,7 @@ class RegularGrid(Grid):
         if xmax is None and ymax is None:
             xmax = xmin + nx * dx
             ymax = ymin + ny * dy
+        self.xmax, self.ymax = xmax, ymax
 
         # Calculate all grid parameters
         self.nx, self.ny = nx, ny
@@ -222,8 +230,16 @@ class RegularGrid(Grid):
         self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
         self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
 
+        self.lon_bounds = np.concatenate([self.lon_range - self.dx / 2, [self.lon_range[-1] + self.dx / 2]])
+        self.lat_bounds = np.concatenate([self.lat_range - self.dy / 2, [self.lat_range[-1] + self.dy / 2]])
+
+        assert len(self.lon_range) == nx
+        assert len(self.lat_range) == ny
+        assert len(self.lon_bounds) == nx + 1
+        assert len(self.lat_bounds) == ny + 1
+
         if name is None:
-            name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
+            name = f"x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
     

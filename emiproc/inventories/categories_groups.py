@@ -8,9 +8,9 @@ CH_2_GNFR = {
     ],
     # Industry
     "GNFR_B": [
-        "eipro",
+        "eipro",  # Flächenquellen Industrie
         "eipwp",  # this is the weitere punktquelle (additional point sources)
-        "eipzm",
+        "eipzm",  # Punktquellen Zementwerke (point sources cement plants)
     ],
     # Other stationary combustion (services, residential, agriculture)
     "GNFR_C": [
@@ -24,10 +24,10 @@ CH_2_GNFR = {
     ],
     # Fugitives
     "GNFR_D": [
-        "eilgk", # F-Gase: Läden, Gebäude mit Klimaanlagen Refrigeration (F-gases: shops, buildings with air conditioning)
-        "eivgn", # Verluste Gasnetz (losses gas network)
-        "evklm", # F-Gase: Klimaanlagen Motorfahrzeuge (F-gases: air conditioning motor vehicles)
-        "evtrk", # F-Gase: Transporte mit Kühlung  (F-gases: transports with cooling)
+        "eilgk",  # F-Gase: Läden, Gebäude mit Klimaanlagen Refrigeration (F-gases: shops, buildings with air conditioning)
+        "eivgn",  # Verluste Gasnetz (losses gas network)
+        "evklm",  # F-Gase: Klimaanlagen Motorfahrzeuge (F-gases: air conditioning motor vehicles)
+        "evtrk",  # F-Gase: Transporte mit Kühlung  (F-gases: transports with cooling)
     ],
     # Solvents and product use
     "GNFR_E": [
@@ -44,8 +44,8 @@ CH_2_GNFR = {
         # "evstr_nmvoc",
         # "evstr_nox",
         # "evstr_so2",
-        "evstr", # Strassenverkehr (road transport)
-        "evzon", # Zonenverkehr Kaltstart/Verdampfung (zone traffic, cold start/evaporation)
+        "evstr",  # Strassenverkehr (road transport)
+        "evzon",  # Zonenverkehr Kaltstart/Verdampfung (zone traffic, cold start/evaporation)
     ],
     # Shipping
     "GNFR_G": [

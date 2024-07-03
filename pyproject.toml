@@ -29,6 +29,7 @@ dependencies = [
     "rasterio",
     "pyogrio",
     "pyyaml",
+    "fiona",
 ]
 license = {text = "BSD-3-Clause"}
 readme = "README.md"

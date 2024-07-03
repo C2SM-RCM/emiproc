@@ -44,7 +44,16 @@ for var in emiproc_generated_variables:
     if not np.any(da):
         # No emissions at all
         continue
+    
+    min_val = da.min().values
+    max_val = da.max().values
 
+    if np.isnan(min_val) or np.isnan(max_val):
+        print("skipping", var, "because of nan values in the data.")
+        continue
+    if min_val < 0:
+        print("skipping", var, "because of negative values in the data.")
+        continue
     poly_coll = PolyCollection(
         corners,
         cmap=cmap("WhViBlGrYeOrRe"),
