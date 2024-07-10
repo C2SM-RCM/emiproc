@@ -871,7 +871,6 @@ def profile_to_scaling_factors(
     return scaling_factors
 
 
-_weekdays_short = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _weekdays_long = [
     "Monday",
     "Tuesday",
@@ -913,10 +912,12 @@ _months_long = [
 
 timprofile_colnames = {
     WeeklyProfile: [
-        _weekdays_short,
+        _weekdays_short := [i[:3] for i in _weekdays_long],
         [i.lower() for i in _weekdays_short],
         _weekdays_long,
         [i.lower() for i in _weekdays_long],
+        # TNO AVENGERS Format
+        [i[:2] for i in _weekdays_short],
     ],
     MounthsProfile: [
         _months_short,
@@ -926,7 +927,9 @@ timprofile_colnames = {
     ],
     DailyProfile: [
         [str(i) for i in range(1, 25)],
-        [str(i) for i in range(24)],
+        hours := [str(i) for i in range(24)],
+        # TNO AVENGERS Format
+        [f"H{i}" for i in hours],
     ],
 }
 

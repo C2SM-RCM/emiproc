@@ -1,4 +1,5 @@
 """Utitlity functions for profiles."""
+
 from __future__ import annotations
 
 import logging
@@ -213,13 +214,17 @@ def get_profiles_indexes(
         coords=coords,
         dims=list(coords),
     )
+    logger.debug(f"Created {indexes=}")
 
     # Fill the xarray with the indexes
 
     indexing_dict = dict(zip(coords, df[list(col_of_dim.values())].values.T))
     indexing_arrays = {}
     for coord, values in indexing_dict.items():
-        indexing_arrays[coord] = xr.DataArray(values, dims=["index"])
+        expected_type = naming.type_of_dim.get(dim, str)
+        indexing_arrays[coord] = xr.DataArray(
+            values.astype(expected_type), dims=["index"]
+        )
     logger.debug(f"Indexing dataarray: {indexing_arrays=}")
     indexes.loc[indexing_arrays] = df.index
 
