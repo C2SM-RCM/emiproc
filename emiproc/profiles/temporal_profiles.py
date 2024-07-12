@@ -325,6 +325,25 @@ class HourOfLeapYearProfile(TemporalProfile):
 
     size: int = N_HOUR_LEAPYEAR
 
+@dataclass(eq=False)
+class DayOfYearProfile(TemporalProfile):
+    """Day of year profile.
+
+    Day of year profile defines how the emission is distributed over the year using days.
+    """
+
+    size: int = N_DAY_YEAR
+
+@dataclass(eq=False)
+class DayOfLeapYearProfile(TemporalProfile):
+    """Day of leap year profile.
+
+    Day of leap year profile defines how the emission is distributed over the year using days.
+    """
+
+    size: int = N_DAY_LEAPYEAR
+    
+
 
 AnyTimeProfile = Union[
     DailyProfile,
