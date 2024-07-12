@@ -3,6 +3,7 @@
 Classes handling different grids, namely the simulation grids and
 grids used in different emissions inventories.
 """
+
 from __future__ import annotations
 
 import math
@@ -51,8 +52,8 @@ class Grid:
         """
         self.name = name
         self.crs = crs
-    
-    def __str__(self) -> str:
+
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
     @property
@@ -230,8 +231,12 @@ class RegularGrid(Grid):
         self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
         self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
 
-        self.lon_bounds = np.concatenate([self.lon_range - self.dx / 2, [self.lon_range[-1] + self.dx / 2]])
-        self.lat_bounds = np.concatenate([self.lat_range - self.dy / 2, [self.lat_range[-1] + self.dy / 2]])
+        self.lon_bounds = np.concatenate(
+            [self.lon_range - self.dx / 2, [self.lon_range[-1] + self.dx / 2]]
+        )
+        self.lat_bounds = np.concatenate(
+            [self.lat_range - self.dy / 2, [self.lat_range[-1] + self.dy / 2]]
+        )
 
         assert len(self.lon_range) == nx
         assert len(self.lat_range) == ny
@@ -242,13 +247,12 @@ class RegularGrid(Grid):
             name = f"x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
-    
+
     @cached_property
     def cells_as_polylist(self) -> list[Polygon]:
 
         x_coords, y_coords = np.meshgrid(
-            self.lon_range - self.dx / 2.,
-            self.lat_range - self.dy / 2.
+            self.lon_range - self.dx / 2.0, self.lat_range - self.dy / 2.0
         )
         # Reshape to 1D (order set for backward compatibility)
         x_coords = x_coords.flatten(order="F")
