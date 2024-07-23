@@ -137,12 +137,20 @@ def plot_inventory(
 
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
-    x_min = grid.lon_range[0]
-    x_max = grid.lon_range[-1]
-    y_min = grid.lat_range[0]
-    y_max = grid.lat_range[-1]
 
-    if add_country_borders:
+    lon_range = grid.lon_range if hasattr(grid, "lon_range") else np.arange(grid.nx)
+    lat_range = grid.lat_range if hasattr(grid, "lat_range") else np.arange(grid.ny)
+
+    x_min, x_max = lon_range[0], lon_range[-1]
+    y_min, y_max = lat_range[0], lat_range[-1]
+
+    if add_country_borders and (
+        not hasattr(grid, "lat_range") or hasattr(grid, "lon_range")
+    ):
+        raise ValueError(
+            "Cannot add country borders without grid lat_range and lon_range"
+        )
+    elif add_country_borders:
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
