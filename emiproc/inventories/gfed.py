@@ -163,7 +163,9 @@ class GFED4_Inventory(Inventory):
         ds_day_of_year = ds_day_of_year / ds_day_of_year.sum(dim="day")
 
         # Stack to have on the cell dimension
-        ds_day_of_year_stacked = ds_day_of_year.stack(cell=("lon", "lat"))
+        ds_day_of_year_stacked = ds_day_of_year.stack(cell=("lon", "lat")).drop_vars(
+            ["lon", "lat"]
+        )
         ds_day_of_year_stacked = ds_day_of_year_stacked.assign_coords(
             cell=range(ds_day_of_year_stacked.sizes["cell"])
         )
