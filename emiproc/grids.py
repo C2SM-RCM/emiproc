@@ -469,13 +469,21 @@ class EDGARGrid(Grid):
 class GeoPandasGrid(Grid):
     """A grid that can be easily constructed on a geopandas dataframe."""
 
-    def __init__(self, gdf: gpd.GeoDataFrame, name: str = "gpd_grid"):
+    def __init__(
+        self,
+        gdf: gpd.GeoDataFrame,
+        name: str = "gpd_grid",
+        shape: tuple[int, int] | None = None,
+    ):
         super().__init__(name, gdf.crs)
 
         self._gdf = gdf
 
-        self.nx = len(gdf)
-        self.ny = 1
+        if shape is not None:
+            self.nx, self.ny = shape
+        else:
+            self.nx = len(gdf)
+            self.ny = 1
 
     @property
     def cells_as_polylist(self) -> list[Polygon]:
