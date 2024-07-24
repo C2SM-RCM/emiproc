@@ -19,7 +19,7 @@ def test_remap_profiles():
         inv.gdf,
         profiles_indexes,
     )
-    profiles = CompositeTemporalProfiles(temporal_profiles.three_profiles)
+    profiles = temporal_profiles.three_composite_profiles
 
     new_profiles, new_indexes = remap_profiles(
         profiles,
@@ -97,3 +97,4 @@ def test_remap_profiles():
         expected_profile,
         err_msg="The profiles should be the same",
     )
+

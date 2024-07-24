@@ -6,6 +6,7 @@ import xarray as xr
 import emiproc
 from emiproc.profiles.temporal_profiles import (
     AnyTimeProfile,
+    CompositeTemporalProfiles,
     DailyProfile,
     MounthsProfile,
     TemporalProfile,
@@ -86,6 +87,7 @@ three_profiles = [
         ),
     ],
 ]
+three_composite_profiles =  CompositeTemporalProfiles(three_profiles)
 
 
 oem_const_profile = [

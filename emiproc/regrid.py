@@ -1,4 +1,5 @@
 """Different functions for doing the weights remapping."""
+
 from __future__ import annotations
 import logging
 from pathlib import Path
@@ -10,7 +11,7 @@ from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
 from emiproc.grids import Grid
-
+from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
 
 logger = logging.getLogger("emiproc.regrid")
 
@@ -423,7 +424,7 @@ def remap_inventory(
 
     if inv.gdf is not None:
         # Remap the main data
-        w_mapping = get_weights_mapping(
+        w_mapping_grid = get_weights_mapping(
             weigths_file,
             inv.gdf.geometry,
             grid_cells,
@@ -431,20 +432,20 @@ def remap_inventory(
             method=method,
         )
         # Create the weights matrix
-        if max(w_mapping["output_indexes"]) > len(grid_cells):
+        if max(w_mapping_grid["output_indexes"]) > len(grid_cells):
             raise ValueError(
-                f"Error in weights mapping: {max(w_mapping['output_indexes'])=} >"
+                f"Error in weights mapping: {max(w_mapping_grid['output_indexes'])=} >"
                 f" {len(grid_cells)=}"
             )
-        if max(w_mapping["inv_indexes"]) > len(inv.gdf):
+        if max(w_mapping_grid["inv_indexes"]) > len(inv.gdf):
             raise ValueError(
-                f"Error in weights mapping: {max(w_mapping['inv_indexes'])=} >"
+                f"Error in weights mapping: {max(w_mapping_grid['inv_indexes'])=} >"
                 f" {len(inv.gdf)=}"
             )
         w_matrix = coo_array(
             (
-                w_mapping["weights"],
-                (w_mapping["output_indexes"], w_mapping["inv_indexes"]),
+                w_mapping_grid["weights"],
+                (w_mapping_grid["output_indexes"], w_mapping_grid["inv_indexes"]),
             ),
             shape=(len(grid_cells), len(inv.gdf)),
             dtype=float,
@@ -454,6 +455,7 @@ def remap_inventory(
             key: weights_remap_matrix(w_matrix, inv.gdf[key])
             for key in inv._gdf_columns
         }
+
     else:
         mapping_dict = {}
 
@@ -505,6 +507,29 @@ def remap_inventory(
         out_inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in inv.gdfs.items()}
     else:
         out_inv.gdfs = {}
+
+    # Remap the profiles as well
+    for index_name, profile_name in [
+        ("t_profiles_indexes", "t_profiles_groups"),
+        ("v_profiles_indexes", "v_profiles"),
+    ]:
+        if not hasattr(inv, index_name):
+            continue
+        indexes = getattr(inv, index_name)
+        if indexes is None or "cell" not in indexes.dims:
+            continue
+        profiles = getattr(inv, profile_name)
+
+        new_profiles, new_indexes = remap_profiles(
+            profiles=profiles,
+            profiles_indexes=indexes,
+            emissions_weights=get_weights_of_gdf_profiles(
+                inv.gdf, profiles_indexes=indexes
+            ),
+            weights_mapping=w_mapping_grid,
+        )
+
+        out_inv.set_profiles(new_profiles, new_indexes)
 
     out_inv.history.append(f"Remapped to grid {grid}, {keep_gdfs=}")
 
