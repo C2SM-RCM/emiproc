@@ -41,8 +41,8 @@ class WRF_Grid(Grid):
         center_lon = reshape(ds["XLONG"].isel(Time=0).values)
         center_lat = reshape(ds["XLAT"].isel(Time=0).values)
 
-        self.nx = ds.dims["west_east"]
-        self.ny = ds.dims["south_north"]
+        self.nx = ds.sizes["west_east"]
+        self.ny = ds.sizes["south_north"]
 
         # Grid vertices are given not at the vertices but at edges
         # It is the place where the wind beteween two cells is calculated (thus U and V)
