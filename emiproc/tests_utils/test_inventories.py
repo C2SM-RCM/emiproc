@@ -5,16 +5,10 @@ from shapely.geometry import Point, Polygon
 
 from emiproc.inventories import Inventory
 
-serie = gpd.GeoSeries(
-    [
-        Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
-        Polygon(((0, 1), (0, 2), (1, 2), (1, 1))),
-        Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
-        Polygon(((1, 1), (1, 2), (2, 2), (2, 1))),
-        Polygon(((2, 1), (2, 2), (3, 2), (3, 1))),
-    ]
-)
+from emiproc.tests_utils.test_grids import basic_serie
 
+
+serie = basic_serie
 
 inv = Inventory.from_gdf(
     gpd.GeoDataFrame(

@@ -325,6 +325,7 @@ class HourOfLeapYearProfile(TemporalProfile):
 
     size: int = N_HOUR_LEAPYEAR
 
+
 @dataclass(eq=False)
 class DayOfYearProfile(TemporalProfile):
     """Day of year profile.
@@ -334,6 +335,7 @@ class DayOfYearProfile(TemporalProfile):
 
     size: int = N_DAY_YEAR
 
+
 @dataclass(eq=False)
 class DayOfLeapYearProfile(TemporalProfile):
     """Day of leap year profile.
@@ -342,7 +344,6 @@ class DayOfLeapYearProfile(TemporalProfile):
     """
 
     size: int = N_DAY_LEAPYEAR
-    
 
 
 AnyTimeProfile = Union[
@@ -528,9 +529,15 @@ class CompositeTemporalProfiles:
 
     @classmethod
     def from_ratios(
-        cls, ratios: np.ndarray, types: list[type]
+        cls, ratios: np.ndarray, types: list[type], rescale: bool = False
     ) -> CompositeTemporalProfiles:
-        """Create a composite profile, directly from the ratios."""
+        """Create a composite profile, directly from the ratios.
+
+        :arg ratios: The ratios of the profiles.
+        :arg types: The types of the profiles, as a list of Temporal profiles types.
+        :arg rescale: If True, the ratios will be rescaled to sum up to 1.
+
+        """
         for t in types:
             # Check that the type is a subtype of TemporalProfile
             if not issubclass(t, TemporalProfile):
@@ -540,7 +547,7 @@ class CompositeTemporalProfiles:
         # Create the empty profiles
         profiles = [
             [
-                t(r)
+                t((r / r.sum(axis=0)) if rescale else r)
                 for i, t in enumerate(types)
                 if not np.any(
                     np.isnan(r := profile_ratios[splitters[i] : splitters[i + 1]])

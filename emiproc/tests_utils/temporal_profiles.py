@@ -147,6 +147,20 @@ indexes_inv_catsub = xr.DataArray(
         "substance": ["CH4", "CO2", "NH3"],
     },
 )
+indexes_inv_catsubcell = xr.DataArray(
+    data=np.array(
+        [
+            [[1, 1, 1, 1, 1], [-1, -1, -1, 0, 1], [-1, -1, -1, 0, 2]],
+            [[0, 0, 1, 2, -1], [2, 2, 2, 2, 2], [-1, -1, 0, 2, 1]],
+        ]
+    ),
+    dims=["category", "substance", "cell"],
+    coords={
+        "category": ["adf", "liku"],  # omit one category on purpose
+        "substance": ["CH4", "CO2", "NH3"],
+        "cell": np.arange(5),
+    },
+)
 
 # For the african test set
 african_countries_test_set = ["SEN", "MLI", "MRT", "GIN", "GNB", "LBR", "SLE", "GMB"]

@@ -96,9 +96,13 @@ Profiles
 
 .. autofunction:: emiproc.profiles.operators.group_profiles_indexes
 
+.. autofunction:: emiproc.profiles.operators.remap_profiles
+
 .. autofunction:: emiproc.profiles.utils.ratios_to_factors
 
 .. autofunction:: emiproc.profiles.utils.factors_to_ratios
+
+.. autofunction:: emiproc.profiles.utils.ratios_dataarray_to_profiles
 
 
 
