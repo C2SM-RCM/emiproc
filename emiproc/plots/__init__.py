@@ -1,21 +1,22 @@
 """Few plot functions for the emiproc package."""
 
 from __future__ import annotations
+
 import itertools
+import logging
 from os import PathLike
 from pathlib import Path
-import geopandas as gpd
 from typing import Any
-import numpy as np
-import pandas as pd
 
+import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from matplotlib.colors import LogNorm, SymLogNorm
 
-
-from emiproc.plots import nclcmaps
 from emiproc.inventories import Inventory
+from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.utilities import get_natural_earth
 
@@ -135,8 +136,14 @@ def plot_inventory(
         after the . , which is useful for swiss coordinates.
     """
 
+    logger = logging.getLogger(__name__)
+
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
+
+    if len(inv.categories) == 1:
+        logger.info("Only one category, will plot only the total emissions")
+        total_only = True
 
     lon_range = grid.lon_range if hasattr(grid, "lon_range") else np.arange(grid.nx)
     lat_range = grid.lat_range if hasattr(grid, "lat_range") else np.arange(grid.ny)
