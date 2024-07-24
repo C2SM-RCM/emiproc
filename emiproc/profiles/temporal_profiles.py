@@ -471,6 +471,9 @@ class CompositeTemporalProfiles:
                 profile = profile_type(ratios=ratios)
             self._profiles[profile_type] = profile
 
+    def __repr__(self) -> str:
+        return f"CompositeProfiles({len(self)} profiles from {[t.__name__ for t in self.types]})"
+
     def __len__(self) -> int:
         indexes_len = [len(indexes) for indexes in self._indexes.values()]
         if not indexes_len:
