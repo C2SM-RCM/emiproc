@@ -530,6 +530,27 @@ class CompositeTemporalProfiles:
             # axis=1,
         )
 
+    @property
+    def scaling_factors(self) -> np.ndarray:
+        """Return the scaling factors of the profiles."""
+        return np.stack(
+            [
+                np.concatenate(
+                    [
+                        (
+                            self._profiles[pt][index].ratios.reshape(-1)
+                            * self._profiles[pt][index].size
+                            if (index := self._indexes[pt][i]) != -1
+                            else np.ones(pt.size).reshape(-1)
+                        )
+                        for pt in self.types
+                    ]
+                )
+                for i in range(len(self))
+            ],
+            # axis=1,
+        )
+
     @classmethod
     def from_ratios(
         cls, ratios: np.ndarray, types: list[type], rescale: bool = False
@@ -646,6 +667,10 @@ class CompositeTemporalProfiles:
                     (self._profiles[t].ratios, p.ratios)
                 )
 
+    @property
+    def size(self) -> int:
+        """Return the size of the profiles."""
+        return sum(p.size for p in self._profiles.values())
 
 def make_composite_profiles(
     profiles: AnyProfiles,

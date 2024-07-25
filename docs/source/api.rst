@@ -218,4 +218,6 @@ Exporting
 .. autofunction:: emiproc.exports.rasters.export_raster_netcdf
 
 .. autofunction:: emiproc.exports.profiles.export_inventory_profiles
+
+.. autofunction:: emiproc.exports.utils.get_temporally_scaled_array
     
