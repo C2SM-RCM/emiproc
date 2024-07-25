@@ -19,6 +19,17 @@ def test_base_function():
         regular_grid,
         netcdf_attributes={},
     )
+
+def test_group_categories():
+    """Simply test that the function works with defaults"""
+
+    export_raster_netcdf(
+        raster_inv,
+        TEST_OUTPUTS_DIR / "test_raster.nc",
+        regular_grid,
+        netcdf_attributes={},
+        group_categories=True,
+    )
         
 def test_unit():
 

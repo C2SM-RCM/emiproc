@@ -12,7 +12,10 @@ from emiproc.profiles.temporal_profiles import (
     SpecificDayProfile,
     TemporalProfile,
 )
-from emiproc.profiles.utils import get_objects_of_same_type_from_list
+from emiproc.profiles.utils import (
+    get_objects_of_same_type_from_list,
+    ratios_dataarray_to_profiles,
+)
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
@@ -133,13 +136,13 @@ def weighted_combination_time(
 
 
 def combine_profiles(
-    profiles: VerticalProfiles
-    | list[list[TemporalProfile]]
-    | CompositeTemporalProfiles,
+    profiles: (
+        VerticalProfiles | list[list[TemporalProfile]] | CompositeTemporalProfiles
+    ),
     profiles_indexes: xr.DataArray,
     dimension: str,
     weights: xr.DataArray,
-) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray,]:
+) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
     """Combine profiles from multidimensional array by reducing over a specified dimension.
 
     The indexes and the weights but be of the same dimensions.
@@ -425,9 +428,9 @@ def group_profiles_indexes(
 
 
 def country_to_cells(
-    profiles: VerticalProfiles
-    | list[list[TemporalProfile]]
-    | CompositeTemporalProfiles,
+    profiles: (
+        VerticalProfiles | list[list[TemporalProfile]] | CompositeTemporalProfiles
+    ),
     profiles_indexes: xr.DataArray,
     grid: Grid,
     country_mask_kwargs: dict[str, any] = {},
@@ -538,3 +541,77 @@ def country_to_cells(
     new_indexes = xr.concat(new_indexes, dim="cell")
 
     return concatenate_profiles(new_profiles), new_indexes
+
+
+def remap_profiles(
+    profiles: VerticalProfiles | CompositeTemporalProfiles,
+    profiles_indexes: xr.DataArray,
+    emissions_weights: xr.DataArray,
+    weights_mapping: dict[str, np.ndarray],
+) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
+    """Remap the profiles on a new grid.
+
+    :arg profiles: The profiles to remap.
+    :arg profiles_indexes: The indexes of the profiles.
+    :arg emissions_weights: The weights of the emissions.
+        Can be calculated using :py:func:`get_weights_of_gdf_profiles`.
+    :arg weights_mapping: A dictionary containing the weights for the remapping.
+        This is the result of :py:func:`emiproc.utilities.get_weights_mapping`.
+
+    :return: The remapped profiles and the new indexes.
+
+    """
+    if isinstance(profiles, VerticalProfiles):
+        raise NotImplementedError("Vertical profiles remapping not implemented yet.")
+    if not isinstance(profiles, CompositeTemporalProfiles):
+        raise TypeError(
+            f"Invalid profile type {type(profiles)}, must be {CompositeTemporalProfiles}"
+        )
+
+    assert "cell" in profiles_indexes.dims, "Expected cell dimension in indexes"
+    assert "cell" in emissions_weights.dims, "Expected cell dimension in weights"
+
+    # Get the emissions weights at the remapping index
+    da_weights_of_remapping = xr.DataArray(
+        weights_mapping["weights"],
+        dims=["cell"],
+        coords={"cell": weights_mapping["inv_indexes"]},
+    )
+    da_weights = (
+        emissions_weights.sel(cell=weights_mapping["inv_indexes"])
+        * da_weights_of_remapping
+    )
+
+    # Set the profiles needed on the remapping cells
+    profiles_to_get_remapped = profiles_indexes.sel(cell=weights_mapping["inv_indexes"])
+
+    # access the profiles to get the ratios at each inpout
+    da_ratios = (
+        xr.DataArray(
+            profiles.ratios[profiles_to_get_remapped],
+            dims=[*profiles_to_get_remapped.dims, "ratio"],
+            coords={
+                **profiles_to_get_remapped.coords,
+                "ratio": range(profiles.ratios.shape[1]),
+            },
+            # Remove the profiles with no ratios (will be set to nan)
+            # This assumes that no profile = no contribution, so only the other ratios in the cell will have an impact
+        )
+        .where(profiles_to_get_remapped != -1)
+        .assign_coords(output_cell=("cell", weights_mapping["output_indexes"]))
+    )
+
+    # Do the actual remapping calculations
+    da_remapped_ratios = (
+        (da_ratios * da_weights)
+        .groupby("output_cell")
+        .mean()
+        .rename({"output_cell": "cell"})
+    )
+
+    new_ratios, new_indices = ratios_dataarray_to_profiles(da_remapped_ratios)
+    new_profiles = CompositeTemporalProfiles.from_ratios(
+        new_ratios, profiles.types, rescale=True
+    )
+
+    return new_profiles, new_indices

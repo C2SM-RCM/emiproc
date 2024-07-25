@@ -1,4 +1,5 @@
 """Temporal profiles."""
+
 from __future__ import annotations
 
 import logging
@@ -189,7 +190,7 @@ class TemporalProfile:
             # Make sure the size is a int and the array has the correct size
             if self.size != self.ratios.shape[1]:
                 raise ValueError(
-                    f"{len(self.ratios)=} does not match profile's {self.size=}."
+                    f"{self.ratios.shape[1]=} does not match profile's {self.size=}."
                 )
 
             # Make sure the ratios sum up to 1
@@ -325,6 +326,26 @@ class HourOfLeapYearProfile(TemporalProfile):
     size: int = N_HOUR_LEAPYEAR
 
 
+@dataclass(eq=False)
+class DayOfYearProfile(TemporalProfile):
+    """Day of year profile.
+
+    Day of year profile defines how the emission is distributed over the year using days.
+    """
+
+    size: int = N_DAY_YEAR
+
+
+@dataclass(eq=False)
+class DayOfLeapYearProfile(TemporalProfile):
+    """Day of leap year profile.
+
+    Day of leap year profile defines how the emission is distributed over the year using days.
+    """
+
+    size: int = N_DAY_LEAPYEAR
+
+
 AnyTimeProfile = Union[
     DailyProfile,
     SpecificDayProfile,
@@ -450,6 +471,9 @@ class CompositeTemporalProfiles:
                 profile = profile_type(ratios=ratios)
             self._profiles[profile_type] = profile
 
+    def __repr__(self) -> str:
+        return f"CompositeProfiles({len(self)} profiles from {[t.__name__ for t in self.types]})"
+
     def __len__(self) -> int:
         indexes_len = [len(indexes) for indexes in self._indexes.values()]
         if not indexes_len:
@@ -493,9 +517,11 @@ class CompositeTemporalProfiles:
             [
                 np.concatenate(
                     [
-                        self._profiles[pt][index].ratios.reshape(-1)
-                        if (index := self._indexes[pt][i]) != -1
-                        else np.full(pt.size, np.nan).reshape(-1)
+                        (
+                            self._profiles[pt][index].ratios.reshape(-1)
+                            if (index := self._indexes[pt][i]) != -1
+                            else np.full(pt.size, np.nan).reshape(-1)
+                        )
                         for pt in self.types
                     ]
                 )
@@ -506,9 +532,15 @@ class CompositeTemporalProfiles:
 
     @classmethod
     def from_ratios(
-        cls, ratios: np.ndarray, types: list[type]
+        cls, ratios: np.ndarray, types: list[type], rescale: bool = False
     ) -> CompositeTemporalProfiles:
-        """Create a composite profile, directly from the ratios."""
+        """Create a composite profile, directly from the ratios.
+
+        :arg ratios: The ratios of the profiles.
+        :arg types: The types of the profiles, as a list of Temporal profiles types.
+        :arg rescale: If True, the ratios will be rescaled to sum up to 1.
+
+        """
         for t in types:
             # Check that the type is a subtype of TemporalProfile
             if not issubclass(t, TemporalProfile):
@@ -518,7 +550,7 @@ class CompositeTemporalProfiles:
         # Create the empty profiles
         profiles = [
             [
-                t(r)
+                t((r / r.sum(axis=0)) if rescale else r)
                 for i, t in enumerate(types)
                 if not np.any(
                     np.isnan(r := profile_ratios[splitters[i] : splitters[i + 1]])
@@ -647,7 +679,10 @@ def make_composite_profiles(
     stacked = indexes.stack(z=dims)
 
     str_array = np.array(
-        [str(array.values.reshape(-1)) for lab, array in stacked.groupby("z")]
+        [
+            str(array.values.reshape(-1))
+            for lab, array in stacked.groupby(group="z", squeeze=False)
+        ]
     )
     logger.debug(f"{str_array=}")
     u, inv = np.unique(str_array, return_inverse=True)
@@ -740,7 +775,7 @@ def create_scaling_factors_time_serie(
     end_time: datetime,
     profiles: list[AnyTimeProfile],
     apply_month_interpolation: bool = True,
-    freq: str = "H",
+    freq: str = "h",
     inclusive: str = "both",
     local_tz: str | None = None,
 ) -> pd.Series:
@@ -865,7 +900,6 @@ def profile_to_scaling_factors(
     return scaling_factors
 
 
-_weekdays_short = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _weekdays_long = [
     "Monday",
     "Tuesday",
@@ -907,10 +941,12 @@ _months_long = [
 
 timprofile_colnames = {
     WeeklyProfile: [
-        _weekdays_short,
+        _weekdays_short := [i[:3] for i in _weekdays_long],
         [i.lower() for i in _weekdays_short],
         _weekdays_long,
         [i.lower() for i in _weekdays_long],
+        # TNO AVENGERS Format
+        [i[:2] for i in _weekdays_short],
     ],
     MounthsProfile: [
         _months_short,
@@ -920,7 +956,9 @@ timprofile_colnames = {
     ],
     DailyProfile: [
         [str(i) for i in range(1, 25)],
-        [str(i) for i in range(24)],
+        hours := [str(i) for i in range(24)],
+        # TNO AVENGERS Format
+        [f"H{i}" for i in hours],
     ],
 }
 

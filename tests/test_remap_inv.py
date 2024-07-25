@@ -1,8 +1,9 @@
 import pytest 
-from emiproc.inventories import  EmissionInfo
+from emiproc.inventories import  EmissionInfo, Inventory
 from emiproc.regrid import remap_inventory
-from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
+from emiproc.tests_utils.test_inventories import inv_with_pnt_sources, inv_with_gdfs_bad_indexes, inv
 from emiproc.tests_utils.test_grids import regular_grid, gpd_grid
+from emiproc.tests_utils.temporal_profiles import three_composite_profiles, indexes_inv_catsubcell
 
 from emiproc.inventories.utils import get_total_emissions
 from emiproc.utilities import total_emissions_almost_equal
@@ -62,3 +63,24 @@ def test_remap_different_grids():
         except Exception as e:
             raise AssertionError(f"Remapping failed for grid {grid.name}") from e
 
+
+
+def test_remap_with_gdf_wrong_indices():
+    """Test that the remap_inventory function works also if the indices in the gdfs are bad."""
+
+    inv = inv_with_gdfs_bad_indexes
+
+    regular_grid.crs = None
+    remapped = remap_inventory(inv, regular_grid)
+
+
+def test_remap_inv_with_profiles():
+
+    this_inv = inv.copy()
+
+    this_inv.set_profiles(three_composite_profiles, indexes_inv_catsubcell)
+
+    remapped_inv = remap_inventory(this_inv, gpd_grid)
+
+    assert len(remapped_inv.t_profiles_groups) > 1, "There should be more than one profiles"
+    assert remapped_inv.t_profiles_indexes.dims == indexes_inv_catsubcell.dims

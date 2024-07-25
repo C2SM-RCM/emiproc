@@ -3,6 +3,7 @@
 Classes handling different grids, namely the simulation grids and
 grids used in different emissions inventories.
 """
+
 from __future__ import annotations
 
 import math
@@ -51,6 +52,9 @@ class Grid:
         """
         self.name = name
         self.crs = crs
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
 
     @property
     def gdf(self) -> gpd.GeoDataFrame:
@@ -158,6 +162,10 @@ class RegularGrid(Grid):
     lon_range: np.ndarray
     lat_range: np.ndarray
 
+    # The edges of the cells
+    lat_bounds: np.ndarray
+    lon_bounds: np.ndarray
+
     xmin: float
     xmax: float
     ymin: float
@@ -214,6 +222,7 @@ class RegularGrid(Grid):
         if xmax is None and ymax is None:
             xmax = xmin + nx * dx
             ymax = ymin + ny * dy
+        self.xmax, self.ymax = xmax, ymax
 
         # Calculate all grid parameters
         self.nx, self.ny = nx, ny
@@ -222,17 +231,28 @@ class RegularGrid(Grid):
         self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
         self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
 
+        self.lon_bounds = np.concatenate(
+            [self.lon_range - self.dx / 2, [self.lon_range[-1] + self.dx / 2]]
+        )
+        self.lat_bounds = np.concatenate(
+            [self.lat_range - self.dy / 2, [self.lat_range[-1] + self.dy / 2]]
+        )
+
+        assert len(self.lon_range) == nx
+        assert len(self.lat_range) == ny
+        assert len(self.lon_bounds) == nx + 1
+        assert len(self.lat_bounds) == ny + 1
+
         if name is None:
-            name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
+            name = f"x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
 
         super().__init__(name, crs)
-    
+
     @cached_property
     def cells_as_polylist(self) -> list[Polygon]:
 
         x_coords, y_coords = np.meshgrid(
-            self.lon_range - self.dx / 2.,
-            self.lat_range - self.dy / 2.
+            self.lon_range - self.dx / 2.0, self.lat_range - self.dy / 2.0
         )
         # Reshape to 1D (order set for backward compatibility)
         x_coords = x_coords.flatten(order="F")
@@ -449,13 +469,21 @@ class EDGARGrid(Grid):
 class GeoPandasGrid(Grid):
     """A grid that can be easily constructed on a geopandas dataframe."""
 
-    def __init__(self, gdf: gpd.GeoDataFrame, name: str = "gpd_grid"):
+    def __init__(
+        self,
+        gdf: gpd.GeoDataFrame,
+        name: str = "gpd_grid",
+        shape: tuple[int, int] | None = None,
+    ):
         super().__init__(name, gdf.crs)
 
         self._gdf = gdf
 
-        self.nx = len(gdf)
-        self.ny = 1
+        if shape is not None:
+            self.nx, self.ny = shape
+        else:
+            self.nx = len(gdf)
+            self.ny = 1
 
     @property
     def cells_as_polylist(self) -> list[Polygon]:

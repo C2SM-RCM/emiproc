@@ -6,6 +6,7 @@ import xarray as xr
 import emiproc
 from emiproc.profiles.temporal_profiles import (
     AnyTimeProfile,
+    CompositeTemporalProfiles,
     DailyProfile,
     MounthsProfile,
     TemporalProfile,
@@ -86,6 +87,7 @@ three_profiles = [
         ),
     ],
 ]
+three_composite_profiles =  CompositeTemporalProfiles(three_profiles)
 
 
 oem_const_profile = [
@@ -145,6 +147,20 @@ indexes_inv_catsub = xr.DataArray(
     coords={
         "category": ["adf", "liku"],  # omit one category on purpose
         "substance": ["CH4", "CO2", "NH3"],
+    },
+)
+indexes_inv_catsubcell = xr.DataArray(
+    data=np.array(
+        [
+            [[1, 1, 1, 1, 1], [-1, -1, -1, 0, 1], [-1, -1, -1, 0, 2]],
+            [[0, 0, 1, 2, -1], [2, 2, 2, 2, 2], [-1, -1, 0, 2, 1]],
+        ]
+    ),
+    dims=["category", "substance", "cell"],
+    coords={
+        "category": ["adf", "liku"],  # omit one category on purpose
+        "substance": ["CH4", "CO2", "NH3"],
+        "cell": np.arange(5),
     },
 )
 

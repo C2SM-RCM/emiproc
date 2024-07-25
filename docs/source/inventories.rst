@@ -36,3 +36,9 @@ Available Inventory Objects
 
 .. autoclass:: emiproc.inventories.gfas.GFAS_Inventory
     :special-members: __init__
+
+.. autoclass:: emiproc.inventories.gfed.GFED4_Inventory
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.lpjguess.LPJ_GUESS_Inventory
+    :special-members: __init__

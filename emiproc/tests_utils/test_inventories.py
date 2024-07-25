@@ -5,16 +5,10 @@ from shapely.geometry import Point, Polygon
 
 from emiproc.inventories import Inventory
 
-serie = gpd.GeoSeries(
-    [
-        Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
-        Polygon(((0, 1), (0, 2), (1, 2), (1, 1))),
-        Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
-        Polygon(((1, 1), (1, 2), (2, 2), (2, 1))),
-        Polygon(((2, 1), (2, 2), (3, 2), (3, 1))),
-    ]
-)
+from emiproc.tests_utils.test_grids import basic_serie
 
+
+serie = basic_serie
 
 inv = Inventory.from_gdf(
     gpd.GeoDataFrame(
@@ -32,19 +26,19 @@ inv = Inventory.from_gdf(
 inv_with_pnt_sources = inv.copy()
 inv_with_pnt_sources.gdfs["blek"] = gpd.GeoDataFrame(
     {
-        "CO2": [1, 2, 3],
+        "CO2": [1.0, 2.0, 3.0],
     },
     geometry=[Point(0.75, 0.75), Point(0.25, 0.25), Point(1.2, 1)],
 )
 inv_with_pnt_sources.gdfs["liku"] = gpd.GeoDataFrame(
     {
-        "CO2": [1, 2],
+        "CO2": [1.0, 2.0],
     },
     geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
 )
 inv_with_pnt_sources.gdfs["other"] = gpd.GeoDataFrame(
     {
-        "AITS": [1, 2],
+        "AITS": [1.0, 2.0],
     },
     geometry=[Point(0.65, 0.75), Point(1.1, 0.8)],
 )
@@ -71,6 +65,16 @@ inv_only_one_gdfs = Inventory.from_gdf(
                 # fully inside polygon
                 Polygon(((1, 0.5), (1.5, 0.5), (1.5, 1), (1, 1))),
             ],
+        )
+    }
+)
+
+inv_with_gdfs_bad_indexes = Inventory.from_gdf(
+    gdfs={
+        "adf": gpd.GeoDataFrame(
+            {"CO2": [1.0, 2.0, 3.0]},
+            geometry=[Point(0, 0), Point(1, 1), Point(2, 2)],
+            index=[0, 1, 100000000],
         )
     }
 )

@@ -64,7 +64,12 @@ the anthropogenic and biogenic part of a CO2.
 
 .. autofunction:: emiproc.speciation.read_speciation_table
 
+.. autofunction:: emiproc.speciation.merge_substances
 
+Input/Output
+^^^^^^^^^^^^
+
+.. autofunction:: emiproc.speciation.read_speciation_table
 
 Utilities
 ---------
@@ -91,9 +96,13 @@ Profiles
 
 .. autofunction:: emiproc.profiles.operators.group_profiles_indexes
 
+.. autofunction:: emiproc.profiles.operators.remap_profiles
+
 .. autofunction:: emiproc.profiles.utils.ratios_to_factors
 
 .. autofunction:: emiproc.profiles.utils.factors_to_ratios
+
+.. autofunction:: emiproc.profiles.utils.ratios_dataarray_to_profiles
 
 
 
@@ -182,7 +191,7 @@ Human Respiration
 
 .. autofunction:: emiproc.human_respiration.people_to_emissions
 
-.. autoenum:: emiproc.human_respiration.EmissionFactor
+.. autoclass:: emiproc.human_respiration.EmissionFactor
 
 
 VPRM 

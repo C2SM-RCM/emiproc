@@ -203,7 +203,7 @@ def resample_vertical_profiles(
         # Do the remapping and add it to the results
         out_ratios.append(p.ratios.dot(weights.T))
 
-    return VerticalProfiles(np.row_stack(out_ratios), levels)
+    return VerticalProfiles(np.vstack(out_ratios), levels)
 
 
 def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalProfiles):

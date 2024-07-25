@@ -1,4 +1,5 @@
 """Utitlity functions for profiles."""
+
 from __future__ import annotations
 
 import logging
@@ -213,13 +214,17 @@ def get_profiles_indexes(
         coords=coords,
         dims=list(coords),
     )
+    logger.debug(f"Created {indexes=}")
 
     # Fill the xarray with the indexes
 
     indexing_dict = dict(zip(coords, df[list(col_of_dim.values())].values.T))
     indexing_arrays = {}
     for coord, values in indexing_dict.items():
-        indexing_arrays[coord] = xr.DataArray(values, dims=["index"])
+        expected_type = naming.type_of_dim.get(dim, str)
+        indexing_arrays[coord] = xr.DataArray(
+            values.astype(expected_type), dims=["index"]
+        )
     logger.debug(f"Indexing dataarray: {indexing_arrays=}")
     indexes.loc[indexing_arrays] = df.index
 
@@ -343,6 +348,43 @@ def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
         specifed_dims.extend(dims_to_specify)
 
     return merged_indexes
+
+
+def ratios_dataarray_to_profiles(da: xr.DataArray) -> tuple[np.ndarray, xr.DataArray]:
+    """Convert a dataarray of ratios to a profiles array and the indexes compatible for emiproc.
+
+    :arg da: DataArray with the ratios.
+        Must contain a 'ratio' dimension. Other dimensions must be the ones
+        allowed by the emiproc profiles.
+    :returns: A tuple with the profiles array and the indexes DataArray.
+        The profiles array is a 2D array which can be set at ratios in a Profile object.
+        The indexes DataArray is an array that can be set to the indexes of an inventory.
+
+    """
+    assert "ratio" in da.dims
+    other_coords = {dim: da.coords[dim] for dim in da.dims if dim != "ratio"}
+
+    # Stack the other dimensions
+    da_stacked = da.stack(profiles=other_coords.keys())
+
+    # Set the output profiles indexes
+    da_profiles_indexes = da_stacked.sum(dim="ratio")
+    mask_valid = da_profiles_indexes != 0
+    da_profiles_indexes.values = -np.ones(da_profiles_indexes.shape, dtype=int)
+
+    # Get the unique profiles to avoid duplicates
+    unique_profiles, unique_indices = np.unique(
+        # Fill the nans as the unique functions does not like them
+        da_stacked.sel(profiles=mask_valid).fillna(0.0).values,
+        axis=-1,
+        return_inverse=True,
+    )
+
+    # Set the profiles indexes
+    da_profiles_indexes.loc[mask_valid] = unique_indices
+    profiles_indexes = da_profiles_indexes.unstack()
+
+    return unique_profiles.T, profiles_indexes
 
 
 if __name__ == "__main__":
