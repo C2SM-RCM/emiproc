@@ -10,7 +10,7 @@ import numpy as np
 def test_remap_profiles():
 
     # Get the test variables required
-    inv = test_inventories.inv
+    inv = test_inventories.inv.copy()
     weights_mapping = calculate_weights_mapping(
         inv.grid.gdf, test_grids.basic_grid_2.gdf
     )
