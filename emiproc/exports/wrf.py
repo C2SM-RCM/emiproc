@@ -1,11 +1,18 @@
 """Functions related to the WRF model."""
 
+from datetime import datetime
+import itertools
 from os import PathLike
 from pathlib import Path
+
+import pandas as pd
+from emiproc.exports.utils import get_temporally_scaled_array
 from emiproc.grids import Grid, WGS84
 import xarray as xr
 import numpy as np
 from shapely.creation import polygons
+
+from emiproc.inventories import Inventory
 
 
 class WRF_Grid(Grid):
@@ -103,3 +110,66 @@ class WRF_Grid(Grid):
         polys = polygons(coords)
 
         self.cells_as_polylist = polys
+
+
+def export_wrf_hourly_emissions(
+    inv: Inventory,
+    grid: WRF_Grid,
+    time_range: tuple[datetime | str, datetime | str],
+    output_dir: PathLike,
+    variable_name: str = "E_{substance}_{category}",
+) -> Path:
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure the inventory is on the same grid as the WRF grid
+    assert inv.grid == grid, "The inventory and the grid are not the same"
+
+    # Create the time axis
+    time_range = pd.date_range(time_range[0], time_range[1], freq="h")
+
+    da = get_temporally_scaled_array(inv, time_range)
+
+    # Unstack the datarray to get on the regular 2D grid
+    shape = grid.shape
+    x_index = np.arange(shape[0])
+    y_index = np.arange(shape[1])
+    da = da.assign_coords(
+        x=("cell", np.repeat(x_index, shape[1])),
+        y=("cell", np.tile(y_index, shape[0])),
+    )
+    da = da.assign_coords(
+        cell=pd.MultiIndex.from_arrays([da.x.values, da.y.values], names=["x", "y"])
+    )
+    da = da.unstack("cell")
+    # Rename the dimensions to match the WRF grid
+    da = da.rename({"x": "west_east", "y": "south_north"})
+
+    for dt in time_range:
+        variables = []
+        for cat, sub in itertools.product(inv.categories, inv.substances):
+            this_da = (
+                da.sel(category=cat, substance=sub, time=dt)
+                # Name the variable
+                .rename(variable_name.format(substance=sub, category=cat))
+                .drop_vars(["substance", "category"])
+                # Add the time dimension as a one element dimension
+                .expand_dims("Time")
+                .expand_dims("emissions_zdim")
+            )
+
+            variables.append(this_da)
+
+        ds_at_hour = xr.merge(variables)
+
+        # Transpose to have the dims in the right order
+        ds_at_hour = ds_at_hour.transpose(
+            "Time", "emissions_zdim", "south_north", "west_east"
+        )
+
+        # Save the dataset
+        file_name = output_dir / f"wrfchemi_d01_{dt:%Y-%m-%d_%H_%M_%S}.nc"
+        ds_at_hour.to_netcdf(file_name)
+
+    return output_dir
