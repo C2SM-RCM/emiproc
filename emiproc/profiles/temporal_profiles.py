@@ -672,6 +672,30 @@ class CompositeTemporalProfiles:
         """Return the size of the profiles."""
         return sum(p.size for p in self._profiles.values())
 
+    def broadcast(self, types: list[TemporalProfile]) -> CompositeTemporalProfiles:
+        """Create a new composite profile with the given types.
+
+        The non specified profiles will be set to constant profiles.
+        """
+        all_ratios = []
+        for t in types:
+            # Get constant ratios
+            composite_ratios = np.ones((len(self), t.size)) / t.size
+            if t in self.types:
+                ratios = self._profiles[t].ratios
+                # Need to scale with the indexes
+                indexes = self._indexes[t]
+                # Fill the ratios with the existing profiles
+                mask_valid = indexes != -1
+                composite_ratios[mask_valid, :] = ratios[indexes[mask_valid], :]
+
+            all_ratios.append(composite_ratios)
+
+        return CompositeTemporalProfiles.from_ratios(
+            np.concatenate(all_ratios, axis=1), types
+        )
+
+
 def make_composite_profiles(
     profiles: AnyProfiles,
     indexes: xr.DataArray,

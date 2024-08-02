@@ -31,6 +31,13 @@ basic_serie_2 = gpd.GeoSeries(
 basic_grid = GeoPandasGrid(gpd.GeoDataFrame(geometry=basic_serie))
 basic_grid_2 = GeoPandasGrid(gpd.GeoDataFrame(geometry=basic_serie_2))
 
+basic_serie_of_size_2 = gpd.GeoSeries(
+    [
+        Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
+        Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
+    ]
+)
+
 gpd_grid = GeoPandasGrid(
     gpd.GeoDataFrame(
         geometry=[

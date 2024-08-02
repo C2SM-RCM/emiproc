@@ -1,4 +1,5 @@
 import random
+from typing import Type
 
 import numpy as np
 import xarray as xr
@@ -29,12 +30,19 @@ def read_test_copernicus() -> dict[str, list[AnyTimeProfile]]:
     }
 
 
-def get_random_profiles(num: int) -> list[list[AnyTimeProfile]]:
+def get_random_profiles(
+    num: int,
+    profile_types: list[Type[TemporalProfile]] = [
+        DailyProfile,
+        WeeklyProfile,
+        MounthsProfile,
+    ],
+) -> list[list[AnyTimeProfile]]:
     """Get random profiles for testing."""
     return [
         [
             type(ratios=((ratios := np.random.rand(type.size)) / ratios.sum()))
-            for type in [DailyProfile, WeeklyProfile, MounthsProfile]
+            for type in profile_types
             if random.choice([True, False])
         ]
         for _ in range(num)
@@ -87,7 +95,7 @@ three_profiles = [
         ),
     ],
 ]
-three_composite_profiles =  CompositeTemporalProfiles(three_profiles)
+three_composite_profiles = CompositeTemporalProfiles(three_profiles)
 
 
 oem_const_profile = [
@@ -147,6 +155,19 @@ indexes_inv_catsub = xr.DataArray(
     coords={
         "category": ["adf", "liku"],  # omit one category on purpose
         "substance": ["CH4", "CO2", "NH3"],
+    },
+)
+indexes_inv_catsub_missing = xr.DataArray(
+    data=np.array(
+        [
+            [0, 1],
+        ]
+    ),
+    dims=["category", "substance"],
+    # omit many on purpose
+    coords={
+        "category": ["adf"],
+        "substance": ["CH4", "CO2"],
     },
 )
 indexes_inv_catsubcell = xr.DataArray(

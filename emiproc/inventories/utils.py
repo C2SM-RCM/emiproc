@@ -1,4 +1,5 @@
 """Utilities for the diffenrent inventory."""
+
 from __future__ import annotations
 import collections
 import itertools
@@ -19,6 +20,7 @@ from emiproc.grids import Grid
 
 from emiproc.regrid import geoserie_intersection
 from emiproc.profiles.operators import (
+    add_profiles,
     get_weights_of_gdf_profiles,
     group_profiles_indexes,
 )
@@ -112,7 +114,7 @@ def crop_with_shape(
     """Crop the inventory with the provided shape.
 
     Keeps only the part of the emissions that is included inside the shape.
-    Emissions at the boundary with the shapes will see their values based on 
+    Emissions at the boundary with the shapes will see their values based on
     the fraction which is inside the shape.
 
     Point sources located exactly at the boundary
@@ -188,9 +190,11 @@ def crop_with_shape(
                 * weights
                 for col in inv._gdf_columns
             },
-            geometry=intersection_shapes.reset_index(drop=True)
-            if modify_grid
-            else inv.geometry,
+            geometry=(
+                intersection_shapes.reset_index(drop=True)
+                if modify_grid
+                else inv.geometry
+            ),
             crs=inv.gdf.crs,
         )
     else:
@@ -480,31 +484,18 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
         # as we want to put everything on inv.gdf later for simplicity
         return add_inventories(other_inv, inv)
 
+    # Check that the two inventories are on the same grid
+    if (
+        inv.gdf is not None
+        and other_inv.gdf is not None
+        and not np.all(
+            gpd.GeoSeries.geom_equals(inv.gdf.geometry, other_inv.gdf.geometry)
+        )
+    ):
+        raise ValueError("Grids of the two inventories are not the same.")
+
     if inv.crs != other_inv.crs:
         raise ValueError("CRS of both inventories differ.")
-
-    if other_inv.v_profiles is not None:
-        if inv.v_profiles is not None:
-            raise NotImplementedError(
-                "We can currently not add inventories with vertical profiles."
-            )
-        else:
-            logger.warn(
-                f"Vertical profiles of {other_inv} are going to be lost.Please place it"
-                " in the first position of the arguments of function"
-                " `add_inventories()`."
-            )
-
-    if other_inv.t_profiles_groups is not None:
-        if inv.t_profiles_groups is not None:
-            raise NotImplementedError(
-                "We can currently not add inventories with time profiles."
-            )
-        else:
-            logger.warn(
-                f"Time profiles of {other_inv} are going to be lost.Please place it in"
-                " the first position of the arguments of function `add_inventories()`."
-            )
 
     out_inv = inv.copy(no_gdfs=True)
 
@@ -549,6 +540,31 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
         else:
             gdfs[cat] = gdf.copy()
     out_inv.gdfs = gdfs
+
+    for profile_name, indexes_name in [
+        ("v_profiles", "v_profiles_indexes"),
+        ("t_profiles_groups", "t_profiles_indexes"),
+    ]:
+        profiles = getattr(inv, profile_name, None)
+        indexes = getattr(inv, indexes_name, None)
+        other_profiles = getattr(other_inv, profile_name, None)
+        other_indexes = getattr(other_inv, indexes_name, None)
+
+        if profiles is not None and other_profiles is not None:
+            if profile_name == "t_profiles_groups":
+                new_profiles, new_indexes = add_profiles(inv, other_inv)
+            else:
+                raise NotImplementedError(
+                    f"Adding {profile_name} is not implemented yes."
+                )
+        elif profiles is not None:
+            new_profiles, new_indexes = profiles, indexes
+        elif other_profiles is not None:
+            new_profiles, new_indexes = other_profiles, other_indexes
+        else:
+            # No profiles
+            continue
+        out_inv.set_profiles(new_profiles, new_indexes)
 
     out_inv.history.append(f"Added inventory {other_inv}")
 
@@ -607,7 +623,7 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
 
 
 def scale_inventory(
-    inv: Inventory, scaling_dict: dict[str, dict[str, float]]
+    inv: Inventory, scaling_dict: dict[str, dict[str, float]] | float
 ) -> Inventory:
     """Get the total emissions from the inventory.
 
@@ -631,10 +647,24 @@ def scale_inventory(
                 },
             }
 
+        Alternatively, a float can be given, which will scale all the emissions.
+
+        If you have a gridded inventory (no gdfs emissions), you can also scale
+        each grid cell individually by giving arrays of the same length as the
+        number of grid cells.
+
     :return: A new inventory with its emission values rescaled.
     """
     # Deep copy of the inventory
     inv = inv.copy()
+
+    # Create the scaling dict if a float was given
+    if isinstance(scaling_dict, int):
+        scaling_dict = float(scaling_dict)
+    if isinstance(scaling_dict, float):
+        scaling_dict = {
+            sub: {cat: scaling_dict for cat in inv.categories} for sub in inv.substances
+        }
 
     # Iterate over the scaling dict to multiply the values
     for sub, sub_dict in scaling_dict.items():
@@ -676,10 +706,10 @@ def combine_inventories(
 
 
 def drop(
-        inv: Inventory,
-        substances: list[Substance] = [],
-        categories: list[Category] = [],
-        keep_instead_of_drop: bool = False,
+    inv: Inventory,
+    substances: list[Substance] = [],
+    categories: list[Category] = [],
+    keep_instead_of_drop: bool = False,
 ) -> Inventory:
     """Drop substances and categories from an inventory.
 
@@ -696,13 +726,13 @@ def drop(
         instead of being dropped.
     """
 
-    # Check the types 
-    for var_name, var in [("substances", substances), ("categories", categories)]: 
+    # Check the types
+    for var_name, var in [("substances", substances), ("categories", categories)]:
         if not isinstance(var, list):
             raise TypeError(f"{var_name=} should be a list.")
         if not all(isinstance(sub, str) for sub in var):
             raise TypeError(f"{var_name=} should be a list of strings.")
-        
+
     if keep_instead_of_drop:
         # Keep instead of drop
         if substances:
@@ -713,31 +743,24 @@ def drop(
     # Deep copy of the inventory
     out_inv = inv.copy(no_gdfs=True)
 
-
     gdf_cols_to_drop = [
-        (cat, sub) for cat, sub in inv._gdf_columns
+        (cat, sub)
+        for cat, sub in inv._gdf_columns
         if cat in categories or sub in substances
-    ] 
-    
-    out_inv.gdf = inv.gdf.drop(columns=gdf_cols_to_drop) if inv.gdf is not None else None
+    ]
+
+    out_inv.gdf = (
+        inv.gdf.drop(columns=gdf_cols_to_drop) if inv.gdf is not None else None
+    )
 
     # Process the gdfs
     out_inv.gdfs = {}
     for cat, gdf in inv.gdfs.items():
         if cat in categories:
             continue
-        out_inv.gdfs[cat] = gdf.drop(columns=[sub for sub in substances if sub in gdf.columns])
+        out_inv.gdfs[cat] = gdf.drop(
+            columns=[sub for sub in substances if sub in gdf.columns]
+        )
 
     out_inv.history.append(f"Dropped {substances=} and {categories=}")
     return out_inv
-
-
-
-if __name__ == "__main__":
-    file = r"H:\ZurichEmissions\Data\mapLuft_2020_v2021\mapLuft_2020_v2021.gdb"
-    categories = list_categories(file)
-    info_mapping = {}
-    for cat in categories:
-        info_mapping[cat] = process_emission_category(file, cat).columns.to_list()
-    with open(Path(file).with_suffix(".json"), "w+") as f:
-        json.dump(info_mapping, f, indent=4)

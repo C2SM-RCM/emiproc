@@ -350,6 +350,32 @@ def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
     return merged_indexes
 
 
+def profiles_to_scalingfactors_dataarray(
+    profiles: CompositeTemporalProfiles, indexes: xr.DataArray
+) -> xr.DataArray:
+    """Convert a profiles object to a ratios DataArray.
+
+    When there is no profile for a given index, the scaling factors are set to 1.0.
+
+    :arg profiles: The profiles object.
+    :arg indexes: The indexes DataArray.
+
+    :returns: A DataArray with the scaling factors.
+    """
+
+    ratios = profiles.scaling_factors
+    return xr.DataArray(
+        ratios[indexes],
+        dims=[*indexes.dims, "scaling_factors"],
+        coords={
+            **indexes.coords,
+            "scaling_factors": range(ratios.shape[-1]),
+        },
+        # Remove the profiles with no ratios (will be set to nan)
+        # This assumes that no profile = no contribution, so only the other ratios in the cell will have an impact
+    ).where(indexes != -1, 1.0)
+
+
 def ratios_dataarray_to_profiles(da: xr.DataArray) -> tuple[np.ndarray, xr.DataArray]:
     """Convert a dataarray of ratios to a profiles array and the indexes compatible for emiproc.
 

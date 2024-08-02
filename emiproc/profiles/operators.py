@@ -14,6 +14,7 @@ from emiproc.profiles.temporal_profiles import (
 )
 from emiproc.profiles.utils import (
     get_objects_of_same_type_from_list,
+    profiles_to_scalingfactors_dataarray,
     ratios_dataarray_to_profiles,
 )
 from emiproc.profiles.vertical_profiles import (
@@ -25,6 +26,7 @@ from emiproc.utilities import get_country_mask
 
 if TYPE_CHECKING:
     from emiproc.grids import Grid
+    from emiproc.inventories import Inventory
 
 logger = logging.getLogger(__name__)
 
@@ -308,7 +310,7 @@ def get_weights_of_gdf_profiles(
 
         col_value = (
             # if depend dont get the total of the serie
-            serie
+            serie.loc[profiles_indexes.coords["cell"].values]
             if "cell" in profiles_indexes.dims
             else sum(serie)
         )
@@ -615,3 +617,68 @@ def remap_profiles(
     )
 
     return new_profiles, new_indices
+
+
+def add_profiles(
+    inv1: Inventory,
+    inv2: Inventory,
+) -> tuple[CompositeTemporalProfiles, xr.DataArray]:
+    """Add the profiles of two inventories together.
+
+    :arg inv1: The first inventory.
+    :arg inv2: The second inventory.
+
+    :return: The sum of the two profiles.
+    """
+
+    indexes_name = "t_profiles_indexes"
+    profiles_name = "t_profiles_groups"
+
+    indexes1 = getattr(inv1, indexes_name)
+    indexes2 = getattr(inv2, indexes_name)
+
+    # Aligns exisiting coordinates
+    indexes1, indexes2 = xr.broadcast(indexes1, indexes2)
+    # Add the missing and convert again to integers
+    indexes1 = indexes1.fillna(-1).astype(int)
+    indexes2 = indexes2.fillna(-1).astype(int)
+
+    weights1 = get_weights_of_gdf_profiles(inv1.gdf, profiles_indexes=indexes1)
+    weights2 = get_weights_of_gdf_profiles(inv2.gdf, profiles_indexes=indexes2)
+    weights1, weights2 = xr.broadcast(weights1, weights2)
+    # Add the missing
+    weights1 = weights1.fillna(0)
+    weights2 = weights2.fillna(0)
+
+    profiles_name = "t_profiles_groups"
+    profiles1: CompositeTemporalProfiles = getattr(inv1, profiles_name)
+    profiles2: CompositeTemporalProfiles = getattr(inv2, profiles_name)
+
+    # Make the profiles have the same sub-profiles included
+    # This will make scaling factors of 1 when a sub-profile is missing
+    all_types = set(sum([p.types for p in [profiles1, profiles2]], []))
+    # Careful here, becaue the types will change the order of position
+    profiles1 = profiles1.broadcast(all_types)
+    profiles2 = profiles2.broadcast(all_types)
+
+    # Make sure they are the same in the new profiles
+    assert (
+        profiles1.types == profiles2.types
+    ), "Profiles not same type. Please raise an issue on Github."
+
+    sf1 = profiles_to_scalingfactors_dataarray(profiles1, indexes1)
+    sf2 = profiles_to_scalingfactors_dataarray(profiles2, indexes2)
+
+    # Multiply the scaling factors by the weights
+    sf_total = sf1 * weights1 + sf2 * weights2
+
+    ratios, indexes = ratios_dataarray_to_profiles(
+        sf_total.rename({"scaling_factors": "ratio"})
+    )
+
+    # Create the new profiles object
+    profiles = CompositeTemporalProfiles.from_ratios(
+        ratios, rescale=True, types=profiles1.types
+    )
+
+    return profiles, indexes

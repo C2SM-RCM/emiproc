@@ -38,12 +38,13 @@ def get_temporally_scaled_array(
     # Acess the scaling factors
     scaling_factors_array = profiles.scaling_factors[profiles_indexes]
 
-    # The profiles are usually only given on cells with emissions
-    missing_cells = da_totals.cell.loc[~da_totals.cell.isin(profiles_indexes.cell)]
-    # Check that the profiles are given for all cells
-    assert (
-        da_totals.sel(cell=missing_cells).sum().values == 0
-    ), "Some cell or emissions with none zero values have missing profiles"
+    if "cell" in profiles_indexes.dims:
+        # The profiles are usually only given on cells with emissions
+        missing_cells = da_totals.cell.loc[~da_totals.cell.isin(profiles_indexes.cell)]
+        # Check that the profiles are given for all cells
+        assert (
+            da_totals.sel(cell=missing_cells).sum().values == 0
+        ), "Some cell or emissions with none zero values have missing profiles"
 
     da_scaling_factors = xr.DataArray(
         scaling_factors_array,
@@ -67,6 +68,13 @@ def get_temporally_scaled_array(
             indices.append(time_range.hour + size_offset)
         elif profile_type == temporal_profiles.WeeklyProfile:
             indices.append(time_range.day_of_week + size_offset)
+        elif profile_type in [
+            temporal_profiles.HourOfYearProfile,
+            temporal_profiles.HourOfLeapYearProfile,
+        ]:
+            indices.append(
+                time_range.hour + (time_range.day_of_year - 1) * 24 + size_offset
+            )
         else:
             raise ValueError(f"Profile type {profile_type} not recognized")
 
