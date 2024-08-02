@@ -147,15 +147,14 @@ def test_speciate_when_profiles_are_there():
     da_speciation = read_speciation_table(
         TESTS_DIR / "speciation" / "table_test_inv_CO2.csv"
     )
+    inv = inv_with_pnt_sources.copy()
 
-    inv_with_pnt_sources.set_profile(
+    inv.set_profile(
         VerticalProfile(ratios=np.array([1.0, 0.0]), height=np.array([1.0, 2.0])),
         category="liku",
         substance="CO2",
     )
-    inv_speciated = speciate(
-        inv_with_pnt_sources, substance="CO2", speciation_ratios=da_speciation
-    )
+    inv_speciated = speciate(inv, substance="CO2", speciation_ratios=da_speciation)
     new_subs = ["CO2_ANT", "CO2_BIO"]
     for sub in new_subs:
         assert sub in inv_speciated.substances
