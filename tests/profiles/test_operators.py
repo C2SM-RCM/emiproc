@@ -1,31 +1,29 @@
 import pytest
-
 import xarray as xr
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
-    DailyProfile,
-    WeeklyProfile,
-)
-from emiproc.tests_utils.temporal_profiles import (
-    read_test_copernicus,
-    TEST_COPENICUS_PROFILES,
-    get_random_profiles,
-    indexes_african_simple,
-    indexes_african_2d,
-)
+
 from emiproc.profiles.operators import (
+    combine_profiles,
+    country_to_cells,
     get_weights_of_gdf_profiles,
     group_profiles_indexes,
     weighted_combination,
-    country_to_cells,
-    combine_profiles,
+)
+from emiproc.profiles.temporal_profiles import (
+    DailyProfile,
+    WeeklyProfile,
+)
+from emiproc.tests_utils import temporal_profiles, vertical_profiles
+from emiproc.tests_utils.temporal_profiles import (
+    TEST_COPENICUS_PROFILES,
+    get_random_profiles,
+    indexes_african_2d,
+    indexes_african_simple,
+    read_test_copernicus,
 )
 from emiproc.tests_utils.test_grids import regular_grid_africa
 from emiproc.tests_utils.vertical_profiles import (
     get_random_profiles as get_random_profiles_vertical,
 )
-from emiproc.tests_utils import vertical_profiles
-from emiproc.tests_utils import temporal_profiles
 
 
 def test_reading_copernicus():
@@ -120,7 +118,6 @@ def test_get_random_profies_vertical():
 def test_countries_to_cells(profiles, indexes: xr.DataArray):
     grid = regular_grid_africa
 
-    print(profiles, indexes)
     new_profiles, new_indexes = country_to_cells(profiles, indexes, grid)
 
     assert "cell" in new_indexes.dims
@@ -142,7 +139,6 @@ def test_countries_to_cells(profiles, indexes: xr.DataArray):
     # assert total_fractions.sel(cell=26).values < 0.5
     # This is just ocean
     assert 0 not in new_indexes.coords["cell"].values
-    print("new profiles", len(new_profiles), "indexes", new_indexes)
     assert len(new_profiles) > new_indexes.max().values
 
 
