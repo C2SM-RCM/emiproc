@@ -629,3 +629,57 @@ def add_profiles(
     )
 
     return profiles, indexes
+
+
+def add_constant_profile_to_missing_cells(inv: Inventory) -> Inventory:
+
+    out_inv = inv.copy(profiles=False)
+
+    for profile_name, indexes_name in [
+        ("t_profiles_groups", "t_profiles_indexes"),
+        ("v_profiles", "v_profiles_indexes"),
+    ]:
+        profiles = getattr(inv, profile_name)
+        indexes = getattr(inv, indexes_name)
+
+        if profiles is None or indexes is None:
+            continue
+
+        if "cell" not in indexes.dims:
+            # No profile means constant profile
+            out_inv.set_profiles(
+                profiles,
+                indexes=indexes,
+            )
+            continue
+
+        # Append the constant profile
+        if isinstance(profiles, CompositeTemporalProfiles):
+            # new_profile = CompositeTemporalProfiles.join(
+            #    profiles, CompositeTemporalProfiles([[]])
+            # )
+            new_profile = profiles
+        else:
+            raise NotImplementedError(
+                "function `add_constant_profile_to_missing_cells` not implemented for "
+                f"{type(profiles)}"
+            )
+
+        missing_cells = set(np.arange(len(inv.grid))) - set(indexes["cell"].values)
+
+        new_indexes = xr.concat(
+            [
+                indexes,
+                xr.full_like(indexes.isel(cell=0), -1).expand_dims(
+                    {"cell": list(missing_cells)}
+                ),
+            ],
+            dim="cell",
+        )
+
+        out_inv.set_profiles(
+            new_profile,
+            indexes=new_indexes,
+        )
+
+    return out_inv
