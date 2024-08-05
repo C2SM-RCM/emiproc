@@ -62,7 +62,7 @@ def check_valid_indexes(
     if not isinstance(indexes, xr.DataArray):
         raise TypeError(f"Indexes should be an xarray.DataArray, got {type(indexes)=}")
     # Check the dtype of the indexes, should be int
-    if indexes.dtype != int:
+    if indexes.dtype not in [int, np.int64]:
         raise TypeError(f"Indexes should be of type int, got {indexes.dtype=}")
 
     # check all the dims names are valid
