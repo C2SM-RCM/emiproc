@@ -187,6 +187,10 @@ def get_profiles_indexes(
 
     The dataframe can contain any of the column matching to
     one of the dimensions allowed by the indexes.
+
+    If a column of the index has some nan values, the profiles
+    with nan values will fill other other values when no profile is 
+    given.
     """
 
     # First get the dimensions present in the columns of the dataframe
@@ -235,6 +239,19 @@ def get_profiles_indexes(
         )
     logger.debug(f"Indexing dataarray: {indexing_arrays=}")
     indexes.loc[indexing_arrays] = df.index
+
+    # Finally fill missing profiles with "common profiles" (where there was a nan value)
+
+    for dim in indexes.dims:
+        if "nan" in indexes.coords[dim].values:
+            common_values = indexes.sel(**{dim: "nan"})
+            # Drop the nan indices
+            specific_indexes = indexes.sel(
+                **{dim: [v for v in indexes.coords[dim].values if v != "nan"]}
+            )
+
+            # Get the missing indices
+            indexes = xr.where(specific_indexes == -1, common_values, specific_indexes)
 
     return indexes
 
