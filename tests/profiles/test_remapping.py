@@ -51,8 +51,9 @@ def test_remap_profiles():
     ), "no emissions should give invalid profiles"
 
     # Check that this profile is a mixture with the correct weights
-    sel_dict = dict(substance="NH3", category="adf")
+    sel_dict = dict(substance="CO2", category="liku")
     index_out = new_indexes.sel(**sel_dict, cell=0).values
+    assert index_out != -1, "The profile should be valid"
     # This one has just one input cell with a profile
     index_in = profiles_indexes.sel(**sel_dict, cell=4).values
     # Check that the profiles are the same
@@ -97,4 +98,3 @@ def test_remap_profiles():
         expected_profile,
         err_msg="The profiles should be the same",
     )
-

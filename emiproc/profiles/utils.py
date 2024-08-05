@@ -59,6 +59,12 @@ def check_valid_indexes(
     :raises ValueError: if the indexes are not valid
     """
 
+    if not isinstance(indexes, xr.DataArray):
+        raise TypeError(f"Indexes should be an xarray.DataArray, got {type(indexes)=}")
+    # Check the dtype of the indexes, should be int
+    if indexes.dtype != int:
+        raise TypeError(f"Indexes should be of type int, got {indexes.dtype=}")
+
     # check all the dims names are valid
     dims_not_allowed = set(indexes.dims) - set(naming.type_of_dim.keys())
     if len(dims_not_allowed) > 0:
@@ -67,11 +73,13 @@ def check_valid_indexes(
             f"allowed dims are {naming.type_of_dim.keys()}"
         )
     # Make sure no coords has duplicated values
-    for coord in indexes.coords:
-        if len(indexes.coords[coord]) != len(np.unique(indexes.coords[coord])):
+    for dim in indexes.coords:
+        if indexes.coords[dim].size == 0:
+            raise ValueError(f"Indexes are empty for {dim=}")
+        if len(indexes.coords[dim]) != len(np.unique(indexes.coords[dim])):
             raise ValueError(
-                f"Indexes are not valid, they contain duplicated values for {coord=}:"
-                f" {indexes.coords[coord]}"
+                f"Indexes are not valid, they contain duplicated values for {dim=}:"
+                f" {indexes.coords[dim]}"
             )
 
     if profiles is not None:
@@ -351,7 +359,7 @@ def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
 
 
 def profiles_to_scalingfactors_dataarray(
-    profiles: CompositeTemporalProfiles, indexes: xr.DataArray
+    profiles: CompositeTemporalProfiles | VerticalProfiles, indexes: xr.DataArray
 ) -> xr.DataArray:
     """Convert a profiles object to a ratios DataArray.
 
@@ -363,13 +371,13 @@ def profiles_to_scalingfactors_dataarray(
     :returns: A DataArray with the scaling factors.
     """
 
-    ratios = profiles.scaling_factors
+    sf = profiles.scaling_factors
     return xr.DataArray(
-        ratios[indexes],
+        sf[indexes],
         dims=[*indexes.dims, "scaling_factors"],
         coords={
             **indexes.coords,
-            "scaling_factors": range(ratios.shape[-1]),
+            "scaling_factors": range(sf.shape[-1]),
         },
         # Remove the profiles with no ratios (will be set to nan)
         # This assumes that no profile = no contribution, so only the other ratios in the cell will have an impact
@@ -389,6 +397,11 @@ def ratios_dataarray_to_profiles(da: xr.DataArray) -> tuple[np.ndarray, xr.DataA
     """
     assert "ratio" in da.dims
     other_coords = {dim: da.coords[dim] for dim in da.dims if dim != "ratio"}
+
+    if len(other_coords) == 0:
+        # Add a dummy dimension to allow stacking
+        da = da.expand_dims("dummy")
+        other_coords = {"dummy": da["dummy"]}
 
     # Stack the other dimensions
     da_stacked = da.stack(profiles=other_coords.keys())
@@ -410,7 +423,10 @@ def ratios_dataarray_to_profiles(da: xr.DataArray) -> tuple[np.ndarray, xr.DataA
     da_profiles_indexes.loc[mask_valid] = unique_indices
     profiles_indexes = da_profiles_indexes.unstack()
 
-    return unique_profiles.T, profiles_indexes
+    if "dummy" in profiles_indexes.dims:
+        profiles_indexes = profiles_indexes.squeeze("dummy").drop_vars("dummy")
+
+    return unique_profiles.T, profiles_indexes.fillna(-1).astype(int)
 
 
 if __name__ == "__main__":

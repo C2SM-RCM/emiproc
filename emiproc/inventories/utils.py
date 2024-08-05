@@ -335,8 +335,6 @@ def group_categories(
         profiles = getattr(inv, profiles_name)
         profiles_indexes: xr.DataArray = getattr(inv, profiles_indexes_name)
 
-        out_profiles = getattr(out_inv, profiles_name)
-
         if (
             profiles is not None
             # if they don't depend on category, we don't need to create new profiles
@@ -350,16 +348,7 @@ def group_categories(
                 groupping_dimension="category",
             )
 
-            # Offset the indexes for merging with the profiles
-            new_indices = xr.where(
-                new_indices != -1,
-                new_indices + len(profiles),
-                -1,
-            )
-            out_profiles += new_profiles
-            # Replace the old indexes by the new
-            setattr(out_inv, profiles_name, out_profiles)
-            setattr(out_inv, profiles_indexes_name, new_indices)
+            out_inv.set_profiles(new_profiles, new_indices)
             out_inv.history.append(
                 f"Generated new {profiles_indexes_name} from groupping."
             )

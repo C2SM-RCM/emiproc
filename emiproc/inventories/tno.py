@@ -1,4 +1,5 @@
 """File containing the TNO inventory functions."""
+
 import logging
 from os import PathLike
 from pathlib import Path
@@ -289,8 +290,8 @@ class TNO_Inventory(Inventory):
         if t_profiles is not None:
             if "substance" in t_profiles_indexes.dims:
                 (
-                    self.t_profiles_groups,
-                    self.t_profiles_indexes,
+                    t_profiles,
+                    t_profiles_indexes,
                 ) = group_profiles_indexes(
                     t_profiles,
                     t_profiles_indexes,
@@ -298,21 +299,17 @@ class TNO_Inventory(Inventory):
                     groupp_mapping,
                     groupping_dimension="substance",
                 )
-            else:
-                self.t_profiles_groups = t_profiles
-                self.t_profiles_indexes = t_profiles_indexes
+            self.set_profiles(t_profiles, t_profiles_indexes)
         if v_profiles is not None:
             if "substance" in v_profiles_indexes.dims:
-                self.v_profiles, self.v_profiles_indexes = group_profiles_indexes(
+                v_profiles, v_profiles_indexes = group_profiles_indexes(
                     v_profiles,
                     v_profiles_indexes,
                     weights,
                     groupp_mapping,
                     groupping_dimension="substance",
                 )
-            else:
-                self.v_profiles = v_profiles
-                self.v_profiles_indexes = v_profiles_indexes
+            self.set_profiles(v_profiles, v_profiles_indexes)
 
 
 if __name__ == "__main__":

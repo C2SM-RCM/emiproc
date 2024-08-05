@@ -170,45 +170,13 @@ def combine_profiles(
             " over it."
         )
 
+    # Aligns exisiting coordinates
+    weights = weights.broadcast_like(profiles_indexes).fillna(0)
+    profiles_indexes = profiles_indexes.broadcast_like(weights).fillna(-1).astype(int)
+
     # Make sure that where the index is -1, the weights are 0
     mask_missing_profile = profiles_indexes == -1
-    assert np.all(
-        np.logical_or(
-            weights.where(mask_missing_profile) == 0,
-            np.isnan(weights.where(mask_missing_profile)),
-        )
-    ), "Some invalid profiles (=-1) don't have 0 weights."
-
-    # Weights can be either given in the averaging dimension or in all the dimensions
-    weights_missing_dims = set(profiles_indexes.dims) - set(weights.dims)
-    if weights_missing_dims:
-        # We need to broadcast the weights to the indexes
-        weights = weights.broadcast_like(profiles_indexes)
-
-    new_coords = [c for dim, c in profiles_indexes.coords.items() if dim != dimension]
-
-    # Check that the weights have the same coords and ordering
-    # as the profiles_indexes
-    for dim in profiles_indexes.dims:
-        if dim == dimension:
-            continue
-        # Select only the coords of the given dimension
-        weights = weights.sel({dim: profiles_indexes.coords[dim]})
-        # Make sure the ordering is the same
-        weights = weights.reindex(coords={dim: profiles_indexes.coords[dim]})
-
-    # Check that weights never sum to 0
-    mask_sum_0 = weights.sum(dim=dimension) == 0
-    if np.any(mask_sum_0):
-        # We need to modify the weight for ensuring the success of the following operation
-        weights = weights.copy()
-        mask_invalid_weights = ~np.isnan(weights.where(mask_sum_0)).to_numpy()
-        # Assign a value to the weights for teh average to work
-        # at the end, we will assign invalid profiles to them
-        # weights.to_numpy()[mask_invalid_weights] = 1
-        weights = xr.where(mask_invalid_weights, 1, weights)
-        # I assum this is okay as the weight value is only used on the axis where
-        # the sum exists
+    weights = xr.where(mask_missing_profile, 0.0, weights)
 
     if isinstance(profiles, list):
         # Make it composite temporal profiles
@@ -219,58 +187,33 @@ def combine_profiles(
             f"Unknown profile type {type(profiles)}, must be VerticalProfiles or"
             " CompositeTemporalProfiles"
         )
-    # Access the profile data (this adds a new dim to the array)
-    ratios_to_average = profiles.ratios[profiles_indexes, :]
-    # Find the specified dimension of the profiles
-    axis = profiles_indexes.dims.index(dimension)
-    # Weights must be extended on the last dimension such that a weight can take care of the whole time index
-    averaging_weights = np.repeat(
-        weights.to_numpy().reshape(*weights.shape, 1),
-        ratios_to_average.shape[-1],
-        -1,
-    )
+    # Access the profiles
+    da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
+
     logger.debug(
-        f"Creating averaged profiles with {ratios_to_average=} and"
-        f" {averaging_weights=} on {axis=}"
+        f"Creating averaged profiles with {da_sf=} and" f" {weights=} on {dimension=}"
     )
     # Perform the average on the profiles
-    new_profiles = np.average(
-        ratios_to_average,
-        axis=axis,
-        weights=averaging_weights,
-    )
-    # Reduce the size of the profiles by removing duplicates
-    unique_profiles, inverse = np.unique(
-        new_profiles.reshape(-1, new_profiles.shape[-1]),
-        axis=0,
-        return_inverse=True,
+    new_scaling_factors = (da_sf * weights).sum(dimension)
+
+    # Recover the profiles and indexes from the new scaling factors
+
+    new_profiles, new_indexes = ratios_dataarray_to_profiles(
+        new_scaling_factors.rename({"scaling_factors": "ratio"})
     )
 
-    # Reshape the indexes of the new profiles
-    shape = list(profiles_indexes.shape)
-    # Remove the coord of the given dimension
-    shape.pop(profiles_indexes.dims.index(dimension))
-    # These are now the indexes of this category
-    logger.debug(f"Reshaping {inverse=} to {shape=} with {new_coords=}")
-
-    new_indexes = xr.DataArray(
-        inverse.reshape(shape),
-        # Remove the profile coord as sometimes created and empty
-        dims=[c.name for c in new_coords if c.name != "profile"],
-        coords={c.name: c.values for c in new_coords if c.name != "profile"},
-    )
     if isinstance(profiles, VerticalProfiles):
-        new_profiles = VerticalProfiles(unique_profiles, profiles.height)
+        # Rescale the unique profiles to sum to 1
+        new_profiles = new_profiles / new_profiles.sum(axis=1).reshape(-1, 1)
+        new_profiles = VerticalProfiles(new_profiles, profiles.height)
     elif isinstance(profiles, CompositeTemporalProfiles):
         new_profiles = CompositeTemporalProfiles.from_ratios(
-            ratios=unique_profiles,
+            ratios=new_profiles,
             types=profiles.types,
+            rescale=True,
         )
     else:
         raise TypeError(f"Unknown profile type {type(profiles)}")
-
-    # Set the invalid profiles back
-    new_indexes = xr.where(mask_sum_0, -1, new_indexes)
 
     return new_profiles, new_indexes
 
@@ -421,9 +364,13 @@ def group_profiles_indexes(
     else:
         merged_profiles = sum(merged_profiles, [])
 
-    new_indices = xr.concat(
-        groups_indexes_list,
-        dim=groupping_dimension,
+    new_indices = (
+        xr.concat(
+            groups_indexes_list,
+            dim=groupping_dimension,
+        )
+        .fillna(-1)
+        .astype(int)
     )
 
     return merged_profiles, new_indices
