@@ -1125,7 +1125,8 @@ def read_temporal_profiles(
         out_profiles, combined_indexes
     )
     # Drop the profile dim
-    out_indexes = out_indexes.drop_vars("profile")
+    if "profile" in out_indexes.dims:
+        out_indexes = out_indexes.drop_vars("profile")
 
     return composite_profiles, out_indexes
 
