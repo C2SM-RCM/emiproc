@@ -10,6 +10,7 @@ from emiproc.utils.translators import inv_to_xarray
 def get_temporally_scaled_array(
     inv: Inventory,
     time_range: pd.DatetimeIndex,
+    sum_over_cells: bool = True,
 ) -> xr.DataArray:
     """Transform the inventory to a temporally resolved emissions array.
 
@@ -23,6 +24,8 @@ def get_temporally_scaled_array(
 
     :param inv: the inventory to transform
     :param time_range: the time range to use for the temporal resolution.
+    :param sum_over_cells: if True the emissions are summed over the cells.
+        This can be useful to improve the performance of the plotting.
 
     :return: the temporally resolved emissions array.
         The units are the same as in the inventory. (kg/y/cell)
@@ -34,11 +37,18 @@ def get_temporally_scaled_array(
     profiles, profiles_indexes = inv.t_profiles_groups, inv.t_profiles_indexes
 
     da_totals = inv_to_xarray(inv)
+    if sum_over_cells:
+        da_totals = da_totals.sum("cell")
 
     # Acess the scaling factors
     scaling_factors_array = profiles.scaling_factors[profiles_indexes]
 
     if "cell" in profiles_indexes.dims:
+        if sum_over_cells:
+            raise ValueError(
+                "The scaling factors are defined for individual cells."
+                "You need to set sum_over_cells to False"
+            )
         # The profiles are usually only given on cells with emissions
         missing_cells = da_totals.cell.loc[~da_totals.cell.isin(profiles_indexes.cell)]
         # Check that the profiles are given for all cells
