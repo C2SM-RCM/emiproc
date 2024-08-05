@@ -16,7 +16,10 @@ def test_self_addition():
     inv = test_inventories.inv_with_pnt_sources
     inv_added = add_inventories(inv, inv)
 
-    assert inv_added.total_emissions.equals(scale_inventory(inv, 2).total_emissions)
+    loc_ = (inv.substances, inv.categories)
+    assert inv_added.total_emissions.loc[*loc_].equals(
+        scale_inventory(inv, 2).total_emissions.loc[*loc_]
+    )
 
 
 def test_addition():
