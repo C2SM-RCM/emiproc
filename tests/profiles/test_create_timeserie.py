@@ -2,7 +2,8 @@ import pytest
 from emiproc import FILES_DIR
 from datetime import datetime
 import numpy as np
-from emiproc.tests_utils.temporal_profiles import oem_const_profile
+import xarray as xr
+from emiproc.tests_utils import temporal_profiles
 from emiproc.profiles.temporal_profiles import (
     DailyProfile,
     SpecificDay,
@@ -12,12 +13,13 @@ from emiproc.profiles.temporal_profiles import (
     from_yaml,
     create_scaling_factors_time_serie,
     profile_to_scaling_factors,
+    get_profile_da,
 )
 
 
 def test_ensure_specific_days_consistency_non_specific():
-    out = ensure_specific_days_consistency(oem_const_profile)
-    assert len(out) == len(oem_const_profile)
+    out = ensure_specific_days_consistency(temporal_profiles.oem_const_profile)
+    assert len(out) == len(temporal_profiles.oem_const_profile)
 
     out = ensure_specific_days_consistency(
         [SpecificDayProfile(specific_day=SpecificDay("monday"))]
@@ -58,7 +60,7 @@ def test_ensure_specific_days_consistency_non_specific():
 @pytest.mark.parametrize(
     "profiles",
     [
-        oem_const_profile,
+        temporal_profiles.oem_const_profile,
         from_yaml(FILES_DIR / "profiles" / "yamls" / "heat.yaml"),
         from_yaml(FILES_DIR / "profiles" / "yamls" / "human_home.yaml"),
         from_yaml(FILES_DIR / "profiles" / "yamls" / "human.yaml"),
@@ -73,3 +75,17 @@ def test_create_scaling_factors_time_serie(profiles):
     ts = create_scaling_factors_time_serie(start, end, profiles)
 
     assert np.isclose(ts.mean(), 1.0, atol=0.1)
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        temporal_profiles.daily_test_profile,
+        temporal_profiles.weekly_test_profile,
+        temporal_profiles.mounths_test_profile,
+    ],
+)
+def test_profile_da(profile):
+
+    da = get_profile_da(profile, year=2018)
+    assert isinstance(da, xr.DataArray)

@@ -317,6 +317,26 @@ class HourOfYearProfile(TemporalProfile):
 
 
 @dataclass(eq=False)
+class Hour3OfDay(TemporalProfile):
+    """Each 3 hour profile.
+
+    Groups of 3 hours. (0-3, 3-6, 6-9, 9-12, 12-15, 15-18, 18-21, 21-24)
+    """
+
+    size: int = int(N_HOUR_DAY / 3)
+
+
+@dataclass(eq=False)
+class Hour3OfDayPerMonth(TemporalProfile):
+    """Each 3 hour profile given for each mounth.
+
+    Hour of year profile defines how the emission is distributed over the year using hours.
+    """
+
+    size: int = int(N_HOUR_DAY / 3) * N_MONTH_YEAR
+
+
+@dataclass(eq=False)
 class HourOfLeapYearProfile(TemporalProfile):
     """Hour of leap year profile.
 
@@ -354,6 +374,12 @@ AnyTimeProfile = Union[
     HourOfYearProfile,
     HourOfLeapYearProfile,
 ]
+
+# Maps temporal profiles to their corrected version
+leap_year_corrected: dict[TemporalProfile, TemporalProfile] = {
+    HourOfYearProfile: HourOfLeapYearProfile,
+    DayOfYearProfile: DayOfLeapYearProfile,
+}
 
 
 class AnyProfiles:
@@ -753,6 +779,90 @@ def make_composite_profiles(
     out_indexes = new_indexes.unstack("z")
 
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
+
+
+def get_profile_da(profile: TemporalProfile, year: int) -> xr.DataArray:
+    """Return the profile as a data array.
+
+    The index of the data array is exact timestamp at the middle of the period.
+    """
+
+    days_in_this_year = N_DAY_LEAPYEAR if year % 4 == 0 else N_DAY_YEAR
+
+    daterange_kwargs = {
+        "start": f"{year}-01-01",
+        "end": f"{year+1}-01-01",
+        "inclusive": "left",
+    }
+    ratios = profile.ratios
+    n_profiles = profile.n_profiles
+
+    if isinstance(profile, DailyProfile):
+        da = xr.DataArray(
+            np.tile(ratios, days_in_this_year),
+            dims=["profile", "datetime"],
+            coords={
+                "profile": range(n_profiles),
+                "datetime": pd.date_range(**daterange_kwargs, freq="h"),
+            },
+        )
+    elif isinstance(profile, HourOfYearProfile | HourOfLeapYearProfile):
+        da = xr.DataArray(
+            profile.ratios,
+            dims=["profile", "datetime"],
+            coords={
+                "profile": range(profile.n_profiles),
+                "datetime": pd.date_range(**daterange_kwargs, freq="h"),
+            },
+        )
+    elif isinstance(profile, WeeklyProfile):
+        ts = pd.date_range(**daterange_kwargs, freq="d") + pd.Timedelta("12h")
+        da = xr.DataArray(
+            ratios[:, ts.day_of_week],
+            dims=["profile", "datetime"],
+            coords={
+                "profile": range(n_profiles),
+                "datetime": ts,
+            },
+        )
+    elif isinstance(profile, MounthsProfile):
+        ts = pd.date_range(**daterange_kwargs, freq="m") + pd.Timedelta("15d")
+        da = xr.DataArray(
+            ratios,
+            dims=["profile", "datetime"],
+            coords={"profile": range(n_profiles), "datetime": ts},
+        )
+    else:
+        raise NotImplementedError(
+            f"{type(profile)=} not implemented in `get_profile_da`."
+        )
+
+    return da
+
+
+def interpolate_profiles_hour_of_year(
+    profiles: CompositeTemporalProfiles,
+    year: int,
+    interpolation_method: str = "linear",
+) -> HourOfYearProfile | HourOfLeapYearProfile:
+    """Interpolate the profiles to create a hour of year profile."""
+
+    serie = pd.date_range(
+        f"{year}-01-01", f"{year+1}-01-01", freq="h", inclusive="left"
+    )
+
+    ratios = np.ones((len(serie), profiles.n_profiles))
+
+    profiles_scaling_factors = profiles.scaling_factors
+
+    offset = 0
+    for t in profiles.types:
+        # create an array with the ratios
+        t_len = t.size
+        this_sf = profiles_scaling_factors[:, offset : offset + t_len]
+        offset += t_len
+        # Create a data array for these ratios
+        get_profile_da(t(this_sf))
 
 
 def ensure_specific_days_consistency(
