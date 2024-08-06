@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -781,61 +781,76 @@ def make_composite_profiles(
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
 
 
+def get_index_in_profile(
+    profile: Type[TemporalProfile], time_range: pd.DatetimeIndex
+) -> pd.Series:
+    """Get the index in the profile for each time in the time range.
+
+    :param profile: the profile to use
+    :param time_range: the time range to use
+    :return: the index in the profile for each time in the time range
+    """
+
+    if profile == MounthsProfile:
+        indexes = time_range.month - 1
+    elif profile == DayOfYearProfile:
+        indexes = time_range.day_of_year - 1
+    elif profile == DailyProfile:
+        indexes = time_range.hour
+    elif profile == WeeklyProfile:
+        indexes = time_range.day_of_week
+    elif profile in [HourOfYearProfile, HourOfLeapYearProfile]:
+        indexes = time_range.hour + (time_range.day_of_year - 1) * 24
+    elif profile == Hour3OfDayPerMonth:
+        indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
+    else:
+        raise ValueError(f"Profile type {profile} not recognized")
+
+    assert indexes.min() >= 0
+    assert indexes.max() < profile.size
+
+    return indexes
+
+
 def get_profile_da(profile: TemporalProfile, year: int) -> xr.DataArray:
     """Return the profile as a data array.
 
     The index of the data array is exact timestamp at the middle of the period.
     """
-
-    days_in_this_year = N_DAY_LEAPYEAR if year % 4 == 0 else N_DAY_YEAR
-
     daterange_kwargs = {
         "start": f"{year}-01-01",
         "end": f"{year+1}-01-01",
         "inclusive": "left",
     }
-    ratios = profile.ratios
-    n_profiles = profile.n_profiles
 
-    if isinstance(profile, DailyProfile):
-        da = xr.DataArray(
-            np.tile(ratios, days_in_this_year),
-            dims=["profile", "datetime"],
-            coords={
-                "profile": range(n_profiles),
-                "datetime": pd.date_range(**daterange_kwargs, freq="h"),
-            },
-        )
-    elif isinstance(profile, HourOfYearProfile | HourOfLeapYearProfile):
-        da = xr.DataArray(
-            profile.ratios,
-            dims=["profile", "datetime"],
-            coords={
-                "profile": range(profile.n_profiles),
-                "datetime": pd.date_range(**daterange_kwargs, freq="h"),
-            },
-        )
+    # The following will create correct timestamps at which the profile is true
+    # An offset is also given, which is half the period
+
+    if isinstance(profile, DailyProfile | HourOfYearProfile | HourOfLeapYearProfile):
+        ts = pd.date_range(**daterange_kwargs, freq="h")
+        offset = pd.Timedelta("30m")
     elif isinstance(profile, WeeklyProfile):
-        ts = pd.date_range(**daterange_kwargs, freq="d") + pd.Timedelta("12h")
-        da = xr.DataArray(
-            ratios[:, ts.day_of_week],
-            dims=["profile", "datetime"],
-            coords={
-                "profile": range(n_profiles),
-                "datetime": ts,
-            },
-        )
+        ts = pd.date_range(**daterange_kwargs, freq="d")
+        offset = pd.Timedelta("12h")
     elif isinstance(profile, MounthsProfile):
-        ts = pd.date_range(**daterange_kwargs, freq="m") + pd.Timedelta("15d")
-        da = xr.DataArray(
-            ratios,
-            dims=["profile", "datetime"],
-            coords={"profile": range(n_profiles), "datetime": ts},
-        )
+        ts = pd.date_range(**daterange_kwargs, freq="MS")
+        offset = pd.Timedelta("15d")
+    elif isinstance(profile, Hour3OfDayPerMonth):
+        ts = pd.date_range(**daterange_kwargs, freq="3h")
+        offset = pd.Timedelta("1h30m")
     else:
         raise NotImplementedError(
             f"{type(profile)=} not implemented in `get_profile_da`."
         )
+
+    da = xr.DataArray(
+        profile.ratios[:, get_index_in_profile(type(profile), ts)],
+        dims=["profile", "datetime"],
+        coords={
+            "profile": range(profile.n_profiles),
+            "datetime": ts + offset,
+        },
+    )
 
     return da
 
