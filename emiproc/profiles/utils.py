@@ -189,7 +189,7 @@ def get_profiles_indexes(
     one of the dimensions allowed by the indexes.
 
     If a column of the index has some nan values, the profiles
-    with nan values will fill other other values when no profile is 
+    with nan values will fill other other values when no profile is
     given.
     """
 
@@ -401,12 +401,17 @@ def profiles_to_scalingfactors_dataarray(
     ).where(indexes != -1, 1.0)
 
 
-def ratios_dataarray_to_profiles(da: xr.DataArray) -> tuple[np.ndarray, xr.DataArray]:
+def ratios_dataarray_to_profiles(
+    da: xr.DataArray, rounding_decimals: int | None = None
+) -> tuple[np.ndarray, xr.DataArray]:
     """Convert a dataarray of ratios to a profiles array and the indexes compatible for emiproc.
 
     :arg da: DataArray with the ratios.
         Must contain a 'ratio' dimension. Other dimensions must be the ones
         allowed by the emiproc profiles.
+    :arg rounding_decimals: The number of decimals to round the profiles to.
+        This can be useful to reduce the number of unique profiles.
+
     :returns: A tuple with the profiles array and the indexes DataArray.
         The profiles array is a 2D array which can be set at ratios in a Profile object.
         The indexes DataArray is an array that can be set to the indexes of an inventory.
@@ -428,10 +433,14 @@ def ratios_dataarray_to_profiles(da: xr.DataArray) -> tuple[np.ndarray, xr.DataA
     mask_valid = da_profiles_indexes != 0
     da_profiles_indexes.values = -np.ones(da_profiles_indexes.shape, dtype=int)
 
+    values = da_stacked.sel(profiles=mask_valid).fillna(0.0).values
+    if rounding_decimals is not None:
+        values = values.round(decimals=rounding_decimals)
+
     # Get the unique profiles to avoid duplicates
     unique_profiles, unique_indices = np.unique(
         # Fill the nans as the unique functions does not like them
-        da_stacked.sel(profiles=mask_valid).fillna(0.0).values,
+        values,
         axis=-1,
         return_inverse=True,
     )
