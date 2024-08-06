@@ -5,7 +5,10 @@ from datetime import date, datetime
 from emiproc.profiles.temporal_profiles import (
     CompositeTemporalProfiles,
     DayOfYearProfile,
+    MounthsProfile,
+    Hour3OfDayPerMonth,
 )
+from emiproc.profiles.utils import ratios_dataarray_to_profiles
 
 import numpy as np
 import xarray as xr
@@ -73,6 +76,9 @@ class GFED4_Inventory(Inventory):
 
     https://www.globalfiredata.org/
 
+    You can download the input data for various year at
+    https://www.geo.vu.nl/~gwerf/GFED/GFED4/
+
     This uses the area inside the GFED file to calculate the total emissions, but
     we found out that the area is not exactly the same as the one calculated by geopandas.
     See :py:class:`GFED_Grid` for the grid information.
@@ -98,97 +104,149 @@ class GFED4_Inventory(Inventory):
         # Units of C var: g C / m^2 / month
         # Units of DM var: kg DM / m^2 / month
 
-        dss = []
-        for mounth in range(1, 13):
-            ds = xr.open_dataset(self.gfed_filepath, group=f"/emissions/{mounth:02}")
-            # Rename the phony_dims to lat and lon
-            phony_dims = [dim for dim in ds.dims if dim.startswith("phony_dim")]
-            dss.append(
-                ds.rename({phony_dims[0]: "lat", phony_dims[1]: "lon"}).expand_dims(
-                    mounth=[mounth]
-                )
+        das = []
+        phony_dims = lambda ds: [dim for dim in ds.dims if dim.startswith("phony_dim")]
+        lat_lon_dims = lambda ds: {phony_dims(ds)[0]: "lat", phony_dims(ds)[1]: "lon"}
+        rename_phony_dims = lambda ds: ds.rename(lat_lon_dims(ds))
+        for month in range(1, 13):
+            da_dm = xr.open_dataset(gfed_file, group=f"/emissions/{month:02}")["DM"]
+            ds_partion = xr.open_dataset(
+                gfed_file, group=f"/emissions/{month:02}/partitioning"
             )
-        ds = xr.concat(dss, dim="mounth")
-        ds_yearly = ds.sum(dim="mounth")
-        # Convert the C units to kg
-        ds_yearly["C"] *= 1e-3
+            # Get teh phony dims and renmae them
+            ds_partion = rename_phony_dims(ds_partion)
+            da_dm = rename_phony_dims(da_dm)
+            da_partition = ds_partion.to_dataarray(dim="category")
+            das.append((da_dm * da_partition).expand_dims(month=[month]))
+        da = xr.concat(das, dim="month")
+
+        # Rename the category to remove the `DM_` prefix
+        da["category"] = [str(cat).split("_")[-1] for cat in da["category"].values]
 
         # Get the grid cell areas
-        grid_areas = xr.open_dataset(self.gfed_filepath, group="/ancill/")[
-            "grid_cell_area"
-        ]
-        phony_dims = [dim for dim in grid_areas.dims if dim.startswith("phony_dim")]
-        grid_areas = grid_areas.rename({phony_dims[0]: "lat", phony_dims[1]: "lon"})
-
+        grid_areas = xr.open_dataset(gfed_file, group="/ancill/")["grid_cell_area"]
+        grid_areas = rename_phony_dims(grid_areas)
         # Scale with the grid cell area to get kg / year / cell
-        ds_yearly_per_cell = ds_yearly * grid_areas
+        da = da * grid_areas
+
+        da_stacked = da.stack(cell=("lon", "lat")).drop_vars(["lon", "lat"])
+        cell_index = np.array(range(da_stacked.sizes["cell"]))
+        da_stacked = da_stacked.assign_coords(cell=cell_index)
+
+        da_total = da_stacked.sum(dim="month")
+
+        mask_cell = da_total.sum(dim="category") > 0
 
         columns = {}
 
-        for substance in ["C", "DM"]:
-            columns[("GFED", substance)] = ds_yearly_per_cell[
-                substance
-            ].values.T.flatten()
+        for category in da_total["category"].values:
+            columns[(category, "DM")] = da_total.sel(category=category).values
 
         self.gdf = gpd.GeoDataFrame(columns, geometry=self.grid.gdf.geometry)
         self.gdfs = {}
 
         # Now we make the profiles
 
-        dss_daily = []
+        das_daily = []
         year = 2018
-        for mounth in range(1, 13):
+        for month in range(1, 13):
             ds_daily = xr.open_dataset(
-                gfed_file, group=f"/emissions/{mounth:02}/daily_fraction"
+                gfed_file, group=f"/emissions/{month:02}/daily_fraction"
             )
-            # Rename the phony_dims to lat and lon
-            phony_dims = [dim for dim in ds_daily.dims if dim.startswith("phony_dim")]
+
             # Merge the days into a new dimension
             da_daily = xr.concat(
                 [
                     ds_daily[f"day_{i:d}"].expand_dims(
-                        day=[datetime(year=year, month=mounth, day=i)]
+                        day=[datetime(year=year, month=month, day=i)]
                     )
                     for i in range(1, 32)
                     if f"day_{i:d}" in ds_daily
                 ],
                 dim="day",
             )
-            dss_daily.append(
-                da_daily.rename({phony_dims[0]: "lat", phony_dims[1]: "lon"})
-                # Scale with the mounth
-                * ds.sel(mounth=mounth)
-            )
-        ds_day_of_year = xr.concat(dss_daily, dim="day")
-        ds_day_of_year = ds_day_of_year / ds_day_of_year.sum(dim="day")
+            da_daily = rename_phony_dims(da_daily)
+            das_daily.append(da_daily)
+
+        da_day_of_year = xr.concat(das_daily, dim="day")
+        da_day_of_year = da_day_of_year / da_day_of_year.sum(dim="day")
 
         # Stack to have on the cell dimension
-        ds_day_of_year_stacked = ds_day_of_year.stack(cell=("lon", "lat")).drop_vars(
-            ["lon", "lat"]
-        )
-        ds_day_of_year_stacked = ds_day_of_year_stacked.assign_coords(
-            cell=range(ds_day_of_year_stacked.sizes["cell"])
-        )
-
-        profile_indexes = xr.DataArray(
-            -1,
-            coords={"cell": ds_day_of_year_stacked["cell"], "substance": ["C", "DM"]},
-            dims=["cell", "substance"],
+        da_day_of_year_stacked = (
+            da_day_of_year.stack(cell=("lon", "lat"))
+            .drop_vars(["lon", "lat"])
+            .assign_coords(cell=cell_index)
         )
 
-        ds_stacked_cleaned_C = ds_day_of_year_stacked["C"].dropna("cell")
-        profiles_C = ds_stacked_cleaned_C.values.T
-        ds_stacked_cleaned_DM = ds_day_of_year_stacked["DM"].dropna("cell")
-        profiles_DM = ds_stacked_cleaned_DM.values.T
-        profile_indexes.loc[ds_stacked_cleaned_C["cell"], "C"] = range(
-            len(ds_stacked_cleaned_C["cell"])
+        dss_diurnal = []
+        for month in range(1, 13):
+            ds_diurnal = xr.open_dataset(
+                gfed_file, group=f"/emissions/{month:02}/diurnal_cycle"
+            )
+            dss_diurnal.append(rename_phony_dims(ds_diurnal).expand_dims(month=[month]))
+        ds_diurnal = xr.concat(dss_diurnal, dim="month")
+        da_diurnal = xr.concat(
+            [
+                ds_diurnal[hour_name]
+                for hour_name in [
+                    "UTC_0-3h",
+                    "UTC_3-6h",
+                    "UTC_6-9h",
+                    "UTC_9-12h",
+                    "UTC_12-15h",
+                    "UTC_15-18h",
+                    "UTC_18-21h",
+                    "UTC_21-24h",
+                ]
+            ],
+            dim="hour",
         )
-        profile_indexes.loc[ds_stacked_cleaned_DM["cell"], "DM"] = np.array(
-            range(len(ds_stacked_cleaned_DM["cell"]))
-        ) + len(ds_stacked_cleaned_C["cell"])
+        da_month_diurnal = xr.concat(
+            [
+                da_diurnal.sel(month=month).assign_coords(
+                    hour=8 * (month - 1) + np.arange(8)
+                )
+                for month in range(1, 13)
+            ],
+            dim="hour",
+        ).rename(hour="hour3_per_month")
+        da_diurnal3_stacked = (
+            da_month_diurnal.stack(cell=("lon", "lat"))
+            .drop_vars(["lon", "lat"])
+            .assign_coords(cell=cell_index)
+        )
+
+        # Below whe should use the function that generates composite profiles
+
+        profiles_arrays = {
+            Hour3OfDayPerMonth: da_diurnal3_stacked.rename(
+                {"hour3_per_month": "ratio"}
+            ).drop_vars("month"),
+            DayOfYearProfile: da_day_of_year_stacked.rename({"day": "ratio"}),
+            MounthsProfile: da_stacked.rename({"month": "ratio"}),
+        }
+
+        parsed_profiles = {
+            profile_type: (
+                # Convert to scaling factors to ease nan handling
+                da
+                / da.mean(dim="ratio")
+            )
+            .fillna(1.0)
+            .sel(cell=mask_cell)
+            # Add the category dim
+            .broadcast_like(da_stacked, exclude=["cell", "month"])
+            # Drop the ratio coordinate values, so we can concat on the ratio dimension
+            .drop_vars("ratio")
+            for profile_type, da in profiles_arrays.items()
+        }
+
+        # Set the ratios all together and build the composite profiles
+        profiles_ratios = xr.concat(parsed_profiles.values(), dim="ratio")
+        ratios, indices = ratios_dataarray_to_profiles(profiles_ratios)
 
         profiles = CompositeTemporalProfiles.from_ratios(
-            np.concatenate([profiles_C, profiles_DM]), [DayOfYearProfile]
+            ratios, list(parsed_profiles.keys()), rescale=True
         )
 
-        self.set_profiles(profiles, profile_indexes)
+        self.set_profiles(profiles, indices)
