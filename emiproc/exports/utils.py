@@ -7,6 +7,40 @@ from emiproc.profiles import temporal_profiles
 from emiproc.utils.translators import inv_to_xarray
 
 
+def get_index_in_profile(
+    profile: temporal_profiles.TemporalProfile, time_range: pd.DatetimeIndex
+) -> pd.Series:
+    """Get the index in the profile for each time in the time range.
+
+    :param profile: the profile to use
+    :param time_range: the time range to use
+    :return: the index in the profile for each time in the time range
+    """
+
+    if profile == temporal_profiles.MounthsProfile:
+        indexes = time_range.month - 1
+    elif profile == temporal_profiles.DayOfYearProfile:
+        indexes = time_range.day_of_year - 1
+    elif profile == temporal_profiles.DailyProfile:
+        indexes = time_range.hour
+    elif profile == temporal_profiles.WeeklyProfile:
+        indexes = time_range.day_of_week
+    elif profile in [
+        temporal_profiles.HourOfYearProfile,
+        temporal_profiles.HourOfLeapYearProfile,
+    ]:
+        indexes = time_range.hour + (time_range.day_of_year - 1) * 24
+    elif profile == temporal_profiles.Hour3OfDayPerMonth:
+        indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
+    else:
+        raise ValueError(f"Profile type {profile} not recognized")
+
+    assert indexes.min() >= 0
+    assert indexes.max() < profile.size
+
+    return indexes
+
+
 def get_temporally_scaled_array(
     inv: Inventory,
     time_range: pd.DatetimeIndex,
@@ -70,23 +104,7 @@ def get_temporally_scaled_array(
 
     for profile_type in profiles.types:
 
-        if profile_type == temporal_profiles.MounthsProfile:
-            indices.append(time_range.month - 1 + size_offset)
-        elif profile_type == temporal_profiles.DayOfYearProfile:
-            indices.append(time_range.day_of_year - 1 + size_offset)
-        elif profile_type == temporal_profiles.DailyProfile:
-            indices.append(time_range.hour + size_offset)
-        elif profile_type == temporal_profiles.WeeklyProfile:
-            indices.append(time_range.day_of_week + size_offset)
-        elif profile_type in [
-            temporal_profiles.HourOfYearProfile,
-            temporal_profiles.HourOfLeapYearProfile,
-        ]:
-            indices.append(
-                time_range.hour + (time_range.day_of_year - 1) * 24 + size_offset
-            )
-        else:
-            raise ValueError(f"Profile type {profile_type} not recognized")
+        indices.append(get_index_in_profile(profile_type, time_range) + size_offset)
 
         size_offset += profile_type.size
 
