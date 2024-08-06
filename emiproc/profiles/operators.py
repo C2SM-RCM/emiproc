@@ -520,6 +520,17 @@ def remap_profiles(
     assert "cell" in profiles_indexes.dims, "Expected cell dimension in indexes"
     assert "cell" in emissions_weights.dims, "Expected cell dimension in weights"
 
+    # Check that all the cells are in the profiles
+    missing_cells_in_profiles = set(weights_mapping["inv_indexes"]) - set(
+        profiles_indexes["cell"].values
+    )
+    if missing_cells_in_profiles:
+        # Get a new weights mapping without the missing cells
+        mask_missing = np.isin(
+            weights_mapping["inv_indexes"], list(missing_cells_in_profiles)
+        )
+        weights_mapping = {k: v[~mask_missing] for k, v in weights_mapping.items()}
+
     # Get the emissions weights at the remapping index
     da_weights_of_remapping = xr.DataArray(
         weights_mapping["weights"],
