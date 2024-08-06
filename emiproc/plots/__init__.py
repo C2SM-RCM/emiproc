@@ -126,6 +126,7 @@ def plot_inventory(
     y_label="lat [°]",
     add_country_borders: bool = False,
     total_only: bool = False,
+    reverse_y: bool = False,
 ):
     """Plot an inventory.
 
@@ -218,7 +219,9 @@ def plot_inventory(
 
             # from ha to m2
             emissions /= inv.cell_areas
-            emissions = emissions.reshape(grid_shape).T[::-1, :]
+
+            y_slice = slice(None, None, 1 if reverse_y else -1)
+            emissions = emissions.reshape(grid_shape).T[y_slice, :]
 
             total_sub_emissions += emissions
 
