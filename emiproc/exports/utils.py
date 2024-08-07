@@ -3,10 +3,8 @@ import pandas as pd
 import xarray as xr
 
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import  get_index_in_profile
+from emiproc.profiles.temporal_profiles import get_index_in_profile
 from emiproc.utils.translators import inv_to_xarray
-
-
 
 
 def get_temporally_scaled_array(
