@@ -15,7 +15,7 @@ def test_temporally_scaled_array_on_simple_inv():
 
     inv.set_profiles(profiles, indexes=profiles_indexes)
     time_range = pd.date_range("2017-12-30", "2018-01-02", freq="h")
-    scaled = get_temporally_scaled_array(inv, time_range)
+    scaled = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
 
     assert "time" in scaled.dims
     assert len(scaled.time) == len(time_range)
