@@ -73,7 +73,7 @@ def check_valid_indexes(
             f"allowed dims are {naming.type_of_dim.keys()}"
         )
     # Make sure no coords has duplicated values
-    for dim in indexes.coords:
+    for dim in indexes.dims:
         if indexes.coords[dim].size == 0:
             raise ValueError(f"Indexes are empty for {dim=}")
         if len(indexes.coords[dim]) != len(np.unique(indexes.coords[dim])):
@@ -447,12 +447,12 @@ def ratios_dataarray_to_profiles(
 
     # Set the profiles indexes
     da_profiles_indexes.loc[mask_valid] = unique_indices
-    profiles_indexes = da_profiles_indexes.unstack()
+    profiles_indexes = da_profiles_indexes.unstack(fill_value=-1)
 
     if "dummy" in profiles_indexes.dims:
         profiles_indexes = profiles_indexes.squeeze("dummy").drop_vars("dummy")
 
-    return unique_profiles.T, profiles_indexes.fillna(-1).astype(int)
+    return unique_profiles.T, profiles_indexes.astype(int)
 
 
 if __name__ == "__main__":
