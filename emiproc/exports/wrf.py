@@ -129,7 +129,7 @@ def export_wrf_hourly_emissions(
     # Create the time axis
     time_range = pd.date_range(time_range[0], time_range[1], freq="h")
 
-    da = get_temporally_scaled_array(inv, time_range)
+    da = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
 
     # Unstack the datarray to get on the regular 2D grid
     shape = grid.shape
