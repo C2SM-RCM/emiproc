@@ -279,10 +279,10 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
             # Simpler EVI forumalation in urban VPRM
             Pscale  = (evi - np.nanmin(evi)) / (np.nanmax(evi) - np.nanmin(evi))
         else:
-           Pscale  = (1 + lswi) / 2.0 ## bad-burst to full canopy period
+           Pscale  = (1 + lswi) / 2.0 ## bud-burst to full canopy period
            Pscale[evi >= evithr] = 1 ## full leaf expansion / full canopy period
 
-        # for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
+        # for evergreen, Pscale is 1 fixed (Mahadevan et al, 2008 paragraph [13])
         if vegetation_type == "Evergreen":
             Pscale = 1
 
