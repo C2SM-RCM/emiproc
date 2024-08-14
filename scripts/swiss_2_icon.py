@@ -9,6 +9,7 @@ So here we will do a triple nesting:
 - We put the tno inventory outside the country limits
 
 """
+
 # %% Imports
 from pathlib import Path
 from emiproc.inventories.zurich import MapLuftZurich
@@ -39,11 +40,10 @@ data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
 
 
 # %%
-tno_path = Path(r"C:\Users\coli\Documents\Data\TNO\AVENGERS_GHGs_year2021.nc")
-inv_tno = TNO_Inventory(
-    tno_path,
-    substances_mapping = { "co2": "CO2"}
+tno_path = Path(
+    r"C:\Users\coli\Documents\Data\TNO\TNO_GHGco_6x6km_v5_0_year2021\inventory\CoCO2_v5_0_emissions_year2021.nc"
 )
+inv_tno = TNO_Inventory(tno_path, substances_mapping={"co2_bf": "CO2", "co2_ff": "CO2"})
 groupping_tno = {}
 for cat in inv_tno.categories:
     # We need only the first letter for the categories
@@ -52,6 +52,7 @@ for cat in inv_tno.categories:
         groupping_tno[gnfr_cat] = []
     groupping_tno[gnfr_cat].append(cat)
 inv_tno.to_crs(LV95)
+
 # %% Create the inventory object
 inv_ch = SwissRasters(
     data_path=data_path / "CH_Emissions_2015_2020_2022_CO2_CO2biog_CH4_N2O_BC_AP.xlsx",
@@ -65,10 +66,8 @@ inv_ch = merge_substances(inv_ch, {"CO2": ["CO2", "CO2_biog"]}, inplace=True)
 inv_ch
 
 # %% load mapluft
-zh_path = Path(
-    r"C:\Users\coli\Documents\Data\mapluft\mapLuft_2022_v2024.gdb"
-)
-inv_zh = MapLuftZurich(zh_path,substances=["CO2"])
+zh_path = Path(r"C:\Users\coli\Documents\Data\mapluft\mapLuft_2022_v2024.gdb")
+inv_zh = MapLuftZurich(zh_path, substances=["CO2"])
 
 
 # %% Load the icon grid
@@ -131,8 +130,12 @@ groups = {
 # %%
 
 remaped_ch = remap_inventory(groupped_ch, icon_grid, weights_path / "remap_ch2icon")
-remaped_zh = remap_inventory(groupped_zh, icon_grid, weights_path / f"remap_zh2icon_{zh_path.stem}")
-remaped_tno = remap_inventory(groupped_tno, icon_grid, weights_path / f"remap_tno2icon_{tno_path.stem}")
+remaped_zh = remap_inventory(
+    groupped_zh, icon_grid, weights_path / f"remap_zh2icon_{zh_path.stem}"
+)
+remaped_tno = remap_inventory(
+    groupped_tno, icon_grid, weights_path / f"remap_tno2icon_{tno_path.stem}"
+)
 # %%
 combined = add_inventories(remaped_ch, remaped_zh)
 combined = add_inventories(remaped_tno, combined)
