@@ -273,12 +273,21 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
         Wscale  = (1 + lswi) / (1 + np.nanmax(lswi))
         df[(vegetation_type, 'Wscale')] = Wscale
 
+        evithr = np.nanmin(evi) + 0.55 * (np.nanmax(evi) - np.nanmin(evi))                                                                                                                                                                                    
+
         if is_urban:
             # Simpler EVI forumalation in urban VPRM
             Pscale  = (evi - np.nanmin(evi)) / (np.nanmax(evi) - np.nanmin(evi))
         else:
-            Pscale  = (1 + lswi) / 2.0
+           Pscale  = (1 + lswi) / 2.0 ## bad-burst to full canopy period
+           Pscale[evi >= evithr] = 1 ## full leaf expansion / full canopy period
+
+        # for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
+        if vegetation_type == "Evergreen":
+            Pscale = 1
+
         df[(vegetation_type, 'Pscale')] = Pscale
+
 
         gee  = (
             df_vprm.loc[vegetation_type, "lambda"]
