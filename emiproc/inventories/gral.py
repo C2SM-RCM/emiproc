@@ -130,7 +130,14 @@ class GralInventory(Inventory):
             raise ValueError(
                 f"{source_group=} not found in {self.source_group_mapping=}"
             )
-        return self.source_group_mapping[source_group]
+        sub_cat = self.source_group_mapping[source_group]
+
+        if isinstance(sub_cat, str):
+            substance = "unknown"
+            category = sub_cat
+            sub_cat = (substance, category)
+
+        return sub_cat
 
     def _add_gdf(
         self, gdf: gpd.GeoDataFrame, substance: Substance, category: Category
