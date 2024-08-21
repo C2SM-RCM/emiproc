@@ -541,7 +541,7 @@ class CompositeTemporalProfiles:
     @property
     def types(self) -> list[AnyTimeProfile]:
         """Return the types of the profiles."""
-        return list(self._profiles.keys())
+        return list(set(self._profiles.keys()))
 
     @property
     def ratios(self) -> np.ndarray:
