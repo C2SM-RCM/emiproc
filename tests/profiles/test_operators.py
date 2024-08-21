@@ -1,5 +1,6 @@
 import pytest
 import xarray as xr
+import numpy as np
 
 from emiproc.profiles.operators import (
     combine_profiles,
@@ -11,6 +12,7 @@ from emiproc.profiles.operators import (
 from emiproc.profiles.temporal_profiles import (
     DailyProfile,
     WeeklyProfile,
+    CompositeTemporalProfiles,
 )
 from emiproc.tests_utils import temporal_profiles, vertical_profiles
 from emiproc.tests_utils.temporal_profiles import (
@@ -118,28 +120,30 @@ def test_get_random_profies_vertical():
 def test_countries_to_cells(profiles, indexes: xr.DataArray):
     grid = regular_grid_africa
 
+    if isinstance(profiles, list):
+        profiles = CompositeTemporalProfiles(profiles)
+
     new_profiles, new_indexes = country_to_cells(profiles, indexes, grid)
 
     assert "cell" in new_indexes.dims
     assert "country" not in new_indexes.dims
 
+    if isinstance(profiles, CompositeTemporalProfiles):
+        assert profiles.types == new_profiles.types
     # test for some cells that we now what it should be
     # Full in MRT, profiles should be the same as the original
-    xr.testing.assert_equal(
-        new_indexes.sel(cell=78).drop_vars("cell"),
-        indexes.sel(country="MRT").drop_vars("country"),
+    np.testing.assert_almost_equal(
+        new_profiles.scaling_factors[new_indexes.sel(cell=78).drop_vars("cell")],
+        profiles.scaling_factors[indexes.sel(country="MRT").drop_vars("country")],
     )
     # THis is shared between SEN and ocean, so only in SEN for the profile
-    xr.testing.assert_equal(
-        new_indexes.sel(cell=26).drop_vars("cell"),
-        indexes.sel(country="SEN").drop_vars("country"),
+    np.testing.assert_almost_equal(
+        new_profiles.scaling_factors[new_indexes.sel(cell=26).drop_vars("cell")],
+        profiles.scaling_factors[indexes.sel(country="SEN").drop_vars("country")],
     )
-    # assert da.sel(cell=26, country="SEN").values > 0.01
-    # assert da.sel(cell=26, country="SEN").values < 0.5
-    # assert total_fractions.sel(cell=26).values < 0.5
+
     # This is just ocean
-    assert 0 not in new_indexes.coords["cell"].values
-    assert len(new_profiles) > new_indexes.max().values
+    assert np.all(new_indexes.sel(cell=0).drop_vars("cell") == -1)
 
 
 if __name__ == "__main__":
