@@ -45,8 +45,8 @@ def get_inventory():
 
 
 def get_test_file_path() -> tuple[Path, Path]:
-    output_first_file = TEST_OUTPUTS_DIR / "wrf" / "wrfchemi_d01_2018-01-01_00:00:00.nc"
-    output_last_file = TEST_OUTPUTS_DIR / "wrf" / "wrfchemi_d01_2018-01-01_23:00:00.nc"
+    output_first_file = TEST_OUTPUTS_DIR / "wrf" / "wrfchemi_d01_2018-01-01_00:00:00"
+    output_last_file = TEST_OUTPUTS_DIR / "wrf" / "wrfchemi_d01_2018-01-01_23:00:00"
 
     # Windows has no `:` in filenames
     if os.name == "nt":

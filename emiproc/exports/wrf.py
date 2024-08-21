@@ -208,7 +208,7 @@ def export_wrf_hourly_emissions(
         # If windows, we cannot have : in the file name
         if os.name == "nt":
             str_format = "%Y-%m-%d_%H-%M-%S"
-        file_name = output_dir / f"wrfchemi_d01_{dt.strftime(str_format)}.nc"
+        file_name = output_dir / f"wrfchemi_d01_{dt.strftime(str_format)}"
         ds_at_hour.to_netcdf(file_name)
 
     return output_dir
