@@ -231,7 +231,7 @@ def speciate(
                 {"speciation": "country"}
             )
             da_ratios_cells = countries_fractions.dot(
-                da_ratios_country, dim=["country"]
+                da_ratios_country, dims=["country"]
             )
             # First check that where the sum is 0, the total emissions are 0
             mask_zero_ratios = da_ratios_cells.sum("substance") == 0
