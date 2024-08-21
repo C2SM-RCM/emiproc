@@ -169,7 +169,7 @@ def export_wrf_hourly_emissions(
         )
 
         # Save the dataset
-        file_name = output_dir / f"wrfchemi_d01_{dt:%Y-%m-%d_%H_%M_%S}.nc"
+        file_name = output_dir / f"wrfchemi_d01_{dt.strftime("%Y-%m-%d_%H:%M:%S")}.nc"
         ds_at_hour.to_netcdf(file_name)
 
     return output_dir
