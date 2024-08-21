@@ -27,6 +27,8 @@ class WRF_Grid(Grid):
 
     """
 
+    attributes: dict[any, any]
+
     def __init__(self, grid_filepath: PathLike):
         """Initialize the grid.
 
@@ -40,6 +42,7 @@ class WRF_Grid(Grid):
         super().__init__(name=grid_filepath.stem, crs=WGS84)
 
         ds = xr.open_dataset(grid_filepath, engine="netcdf4")
+        self.attributes = ds.attrs
 
         # This will be necessary to reshape the arrays to a 1D array following the
         # emiproc convention
@@ -120,6 +123,26 @@ def export_wrf_hourly_emissions(
     output_dir: PathLike,
     variable_name: str = "E_{substance}_{category}",
 ) -> Path:
+    """Export the inventory to WRF chemi files.
+
+    .. note::
+        When running this function on Windows, the files will be saved with the
+        `:` replaced by `-` in the file name, because Windows does not allow `:` in
+        file names.
+
+    :param inv: the inventory to export
+    :param grid: the grid of the WRF model. The inventory must be on this grid.
+    :param time_range: the time range to export the inventory.
+    :param output_dir: the directory where to save the files.
+    :param variable_name: the name of the variable in the netcdf file.
+        You can use the following placeholders:
+        - {substance}
+        - {category}
+        example: "E_{substance}_{category}"
+
+    :return: the directory where the files are saved.
+
+    """
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -162,15 +185,26 @@ def export_wrf_hourly_emissions(
 
             variables.append(this_da)
 
-        ds_at_hour = xr.merge(variables)
-
-        # Transpose to have the dims in the right order
-        ds_at_hour = ds_at_hour.transpose(
-            "Time", "emissions_zdim", "south_north", "west_east"
+        ds_at_hour = (
+            xr.merge(variables)
+            # Transpose to have the dims in the right order
+            .transpose("Time", "emissions_zdim", "south_north", "west_east")
+            # Progagate the default attributes
+            .assign_attrs(grid.attributes)
+            # Add emiproc specific attributes
+            .assign_attrs(
+                {
+                    "emiproc": f"This file was created by emiproc on {datetime.now()}",
+                    "emiproc_history": f"Created from the inventory {inv.name} with {inv.history=}",
+                }
+            )
         )
 
         # Save the dataset
         str_format = "%Y-%m-%d_%H:%M:%S"
+
+        ds_at_hour["Times"] = ("Time", [dt.strftime(str_format).encode()])
+
         # If windows, we cannot have : in the file name
         if os.name == "nt":
             str_format = "%Y-%m-%d_%H-%M-%S"
