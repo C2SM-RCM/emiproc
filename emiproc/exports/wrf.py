@@ -1,17 +1,18 @@
 """Functions related to the WRF model."""
 
-from datetime import datetime
 import itertools
+import os
+from datetime import datetime
 from os import PathLike
 from pathlib import Path
 
-import pandas as pd
-from emiproc.exports.utils import get_temporally_scaled_array
-from emiproc.grids import Grid, WGS84
-import xarray as xr
 import numpy as np
+import pandas as pd
+import xarray as xr
 from shapely.creation import polygons
 
+from emiproc.exports.utils import get_temporally_scaled_array
+from emiproc.grids import WGS84, Grid
 from emiproc.inventories import Inventory
 
 
@@ -169,7 +170,11 @@ def export_wrf_hourly_emissions(
         )
 
         # Save the dataset
-        file_name = output_dir / f"wrfchemi_d01_{dt.strftime("%Y-%m-%d_%H:%M:%S")}.nc"
+        str_format = "%Y-%m-%d_%H:%M:%S"
+        # If windows, we cannot have : in the file name
+        if os.name == "nt":
+            str_format = "%Y-%m-%d_%H-%M-%S"
+        file_name = output_dir / f"wrfchemi_d01_{dt.strftime(str_format)}.nc"
         ds_at_hour.to_netcdf(file_name)
 
     return output_dir

@@ -36,6 +36,12 @@ def get_temporally_scaled_array(
 
     profiles, profiles_indexes = inv.t_profiles_groups, inv.t_profiles_indexes
 
+    if profiles is None or profiles_indexes is None:
+        raise ValueError(
+            "The inventory does not have temporal profiles."
+            "You need to set the profiles to get a temporally resolved emissions array."
+        )
+
     da_totals = inv_to_xarray(inv)
     if sum_over_cells:
         da_totals = da_totals.sum("cell")
