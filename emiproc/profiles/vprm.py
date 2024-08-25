@@ -80,16 +80,16 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
     """Calculate the emissions using the VPRM model.
 
     This function uses timeseries of vegetation indices, temperature and radiation 
-    to calculate the
-    respiration and photosynthesis emissions of vegetation.
+    to calculate the respiration and photosynthesis emissions of vegetation.
 
     It handles various vegetation types.
     Each vegetation type has its own parameters for the VPRM model.
 
     It also includes extensions of the VPRM model for urban areas.
 
+    There are 3 implementation of the VPRM model: standard VPRM (Mahadevan et al., 2008), urban-VPRM (Hindman et al., ), modified-VPRM (Gourdij et al., 2021)
 
-    The equations used are the following:
+    Standard VPRM:
 
     PAR (Photosynthetically Active Radiation) is calculated from the shortwave radiation:
     
@@ -113,8 +113,6 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
     .. math::
         T_{\\text{scale}} = \\frac{(T - T_{\\text{min}}) \\cdot (T - T_{\\text{max}})}{(T - T_{\\text{min}}) \\cdot (T - T_{\\text{max}}) + (T - T_{\\text{opt}})^2} \\text{if } T \\geq T_{\\text{min}} \\text{ else } 0
         
-
-
     - :math:`P_{scale}`: Photosynthesis scale
 
     .. math::
@@ -135,11 +133,10 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
 
     .. math:: 
         \\frac{\\mu mol_{\\mathrm{CO2}}}{m^2 * s}
+       
+    urban-VPRM:
 
-        
-    Urban modifications
-
-    The VPRM model can be extended to urban areas according to  [Urban_VPRM]_ .
+    The VPRM model can be extended to urban areas according to [Urban_VPRM].
     
     - A "urban temperature" is used instead of the global temperature to represent
         the urban heat island phenomenon.
@@ -157,7 +154,10 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
     
     .. warning::
         The urban VPRM model is currently not fully implemented.
-    
+
+    modified-VPRM
+
+    The modified-VPRM model follows the standard VPRM for GEE and has a different model for the estimate of respiration: for more details see Gourdij et al., JGR 2021
     
     :param df: Dataframe with the observations. It must be a multiindex dataframe with the following columns:
     
@@ -179,7 +179,16 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
         - `Tlow`: Low temperature for photosynthesis
         - `PAR0`: Photosynthetically Active Radiation parameter
         - `is_urban`: Boolean indicating if the vegetation type is urban (optional, default is False)
-   
+        - `is_modified`: Boolean indicating if respiration for that vegetation type follows the modified VPRM (optional, default is False)
+        - `alpha1`: Respiration parameter for the modified VPRM
+        - `alpha2`: Respiration parameter for the modified VPRM
+        - `gamma`: Coeff for EVI in respiration for the modified VPRM
+        - `k1`: Coeff for water respiration scaling factor in the modified VPRM
+        - `k2`: Coeff for water respiration scaling factor in the modified VPRM
+        - `k3`: Coeff for water respiration scaling factor in the modified VPRM
+        - `tcrit`: critical temperature for respiration in the modified VPRM
+        - `tnull`: value between 0-1 to weigh the difference between atm temp and tcrit in the modified VPRM
+
     :return: Dataframe with the emissions. Some columns are added
 
         - (vegetation_type, 'resp_min'): Respiration at the minimum temperature
@@ -205,20 +214,22 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
         if ('T', 'urban') not in df.columns:
             raise ValueError("Urban VPRM is activated but the urban temperature is missing in the dataframe")
 
+    if 'is_modified' not in df_vprm.columns:
+        df_vprm['is_modified'] = False
+
     for vegetation_type in df_vprm.index:
         if not all([(vegetation_type, index) in df.columns for index in ['lswi', 'evi']]):
             logger.warning(f"Missing {vegetation_type} in the observation dataframe, skipping")
             continue
 
-
         # Add to the metot the paramters from the satellite observations 
         # Use interpolation to get the values for the missing dates
         lswi = df[(vegetation_type, 'lswi')]
         evi = df[(vegetation_type, 'evi')]
-
-        
-            
+                  
         is_urban = df_vprm.loc[vegetation_type, 'is_urban']
+
+        is_modified = df_vprm.loc[vegetation_type, 'is_modified']
 
         Tmin = df_vprm.loc[vegetation_type, 'Tmin']
         Topt = df_vprm.loc[vegetation_type, 'Topt']
@@ -236,11 +247,34 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
         # Resp = alpha * T + beta
         resp  = df_vprm.loc[vegetation_type, 'alpha'] * temperature + df_vprm.loc[vegetation_type, 'beta']
 
+        # for respiration use the modified VPRM if requested
+        if is_modified:
+            beta = df_vprm.loc[vegetation_type, 'beta']
+            alpha1 = df_vprm.loc[vegetation_type, 'alpha1']
+            alpha2 = df_vprm.loc[vegetation_type, 'alpha2']
+            gamma = df_vprm.loc[vegetation_type, 'gamma']
+            k1 = df_vprm.loc[vegetation_type, 'k1']
+            k2 = df_vprm.loc[vegetation_type, 'k2']
+            k3 = df_vprm.loc[vegetation_type, 'k3']
+            tcrit = df_vprm.loc[vegetation_type, 'tcrit']
+            tnull = df_vprm.loc[vegetation_type, 'tnull']
+
+            wscale2  = (lswi - np.nanmin(lswi)) / (np.nanmax(lswi) - np.nanmin(lswi))
+            
+            temp_mod = df[('T', 'global')].copy()
+            temp_mod[temp_mod < tcrit] = tcrit - tnull * (tcrit - temp_mod)
+
+            resp =( beta
+                  + alpha1 * temp_mod + alpha2 * (temp_mod**2)
+                  + gamma * evi
+                  + k1 * wscale2
+                  + k2 * wscale2 * temp_mod
+                  + k3 * wscale2 * temp_mod**2
+            )
+            
         # Under t low, use a contsant value 
         mask_low_T = temperature <= Tlow
         resp.loc[mask_low_T] =  df_vprm.loc[vegetation_type, 'resp_min']
-
-
 
         ## Split the urban vegetation into two parts
         ## initial ecosystem respiration (authotropphic + heterotropohic)
@@ -259,12 +293,10 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
         ## Bring the two components together
         #resp  = r  + r_a
 
-
-
         # GEE
         Tscale  = (temperature - Tmin) * (temperature- Tmax)
         Tscale  = Tscale  / (Tscale  - (temperature - Topt) ** 2)
-        Tscale [temperature <= Tmin] = 0.0
+        Tscale[temperature <= Tmin] = 0.0
         df[(vegetation_type, 'Tscale')] = Tscale 
 
 
@@ -273,22 +305,28 @@ def calculate_vprm_emissions(df: pd.DataFrame, df_vprm: pd.DataFrame) -> pd.Data
         Wscale  = (1 + lswi) / (1 + np.nanmax(lswi))
         df[(vegetation_type, 'Wscale')] = Wscale
 
-        evithr = np.nanmin(evi) + 0.55 * (np.nanmax(evi) - np.nanmin(evi))                                                                                                                                                                                    
-
+        ## Pscale is 1 during phase two (Mahadevan et al, paragraph [14])
+        ## to detect phase two occurrence let's use a EVI threshold method
+        ## see WRF-GHG
+        ## https://github.com/wrf-model/WRF/blob/f34b11dbb89c002c5c0dca1195aab35daeed7349/chem/module_ghg_fluxes.F#L199
+        ## see pyVPRM
+        ## https://github.com/tglauch/pyVPRM/blob/308421b3f1ade445fef1b9edc37547db83a295cb/pyVPRM/VPRM.py#L561
+        ## since it's not simple to get vegetation dynamics on Sentinel2 (while it's available for MOD12Q2 used by Mahadevan et al., 2008), the overall max and min of EVI is used, not the EVI max/min during growing phase only (as it should be).
+        evithr = min(evi) + 0.55*( max(evi) - min(evi) )
+        
         if is_urban:
             # Simpler EVI forumalation in urban VPRM
             Pscale  = (evi - np.nanmin(evi)) / (np.nanmax(evi) - np.nanmin(evi))
         else:
-           Pscale  = (1 + lswi) / 2.0 ## bud-burst to full canopy period
-           Pscale[evi >= evithr] = 1 ## full leaf expansion / full canopy period
-
-        # for evergreen, Pscale is 1 fixed (Mahadevan et al, 2008 paragraph [13])
-        if vegetation_type == "Evergreen":
-            Pscale = 1
+            Pscale  = (1 + lswi) / 2.0 ## bud-burst to full canopy period
+            Pscale[evi >= evithr] = 1 ## full leaf expansion / full canopy period
 
         df[(vegetation_type, 'Pscale')] = Pscale
 
-
+        ## for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
+        if vegetation_type == "Evergreen":
+            df[(vegetation_type, 'Pscale')] = 1
+        
         gee  = (
             df_vprm.loc[vegetation_type, "lambda"]
             * Tscale 
