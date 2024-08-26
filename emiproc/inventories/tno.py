@@ -9,14 +9,22 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from shapely.creation import polygons
 
-from emiproc.grids import WGS84, TNOGrid
+from emiproc.grids import WGS84, Grid, TNOGrid, GeoPandasGrid
 from emiproc.inventories import Inventory, Substance
 from emiproc.profiles.operators import group_profiles_indexes
-from emiproc.profiles.temporal_profiles import read_temporal_profiles
+from emiproc.profiles.temporal_profiles import (
+    read_temporal_profiles,
+    CompositeTemporalProfiles,
+    get_leap_year_or_normal,
+    DayOfYearProfile,
+)
+from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.profiles.vertical_profiles import read_vertical_profiles
 from emiproc.profiles import naming
 from emiproc.inventories.utils import group_substances
+
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +318,85 @@ class TNO_Inventory(Inventory):
                     groupping_dimension="substance",
                 )
             self.set_profiles(v_profiles, v_profiles_indexes)
+
+
+def read_tno_gridded_profiles(
+    file_path: Path, year: int
+) -> tuple[CompositeTemporalProfiles, xr.DataArray, GeoPandasGrid]:
+    """Read the TNO gridded profiles.
+
+    :arg file_path: The path to the file.
+    :arg year: The year for which to read the profiles.
+
+    :returns: A tuple with the profiles, the indexes and the grid.
+        * Profiles: The profiles from the file
+        * Indexes: The indexes of the profiles
+        * Grid: The grid on which the profiles are defined. Usually not the same
+            as the inventory grid.
+
+    """
+
+    df = pd.read_csv(file_path, sep=",")
+    df = df.loc[df["year"] == year]
+
+    # We need to create a stacked dataset to extract the profiles and indices
+    ds_profiles = df.to_xarray()
+    da_profiles = (
+        ds_profiles.set_coords(["latitude", "longitude", "POLL", "day", "GNFR"])
+        .drop_vars(["year"])["Factor"]
+        .rename({"POLL": "substance", "GNFR": "category", "day": "day_of_year"})
+    )
+
+    coords_multi = ["category", "substance", "latitude", "longitude", "day_of_year"]
+    multi_index = pd.MultiIndex.from_arrays(
+        [da_profiles[var].values for var in coords_multi], names=coords_multi
+    )
+
+    da_profiles = da_profiles.assign_coords(index=multi_index)
+    da_profiles = da_profiles.drop_duplicates("index").unstack()
+    da_profiles_stacked_cell = da_profiles.stack(cell=["latitude", "longitude"])
+
+    # Get a grid based on the cell dimension
+    def get_delta_over_2(da, dim):
+        values = da[dim].values
+        diffs = np.diff(values)
+        # Check that the diffs are the same
+        if not np.allclose(diffs, diffs[0]):
+            raise ValueError(f"Differences in {dim} are not the same.")
+        return diffs[0] / 2.0
+
+    dx = get_delta_over_2(da_profiles, "longitude")
+    dy = get_delta_over_2(da_profiles, "latitude")
+
+    x_coords = da_profiles_stacked_cell.longitude.values
+    y_coords = da_profiles_stacked_cell.latitude.values
+
+    coords = np.array(
+        [
+            [x, y]
+            for x, y in zip(
+                [x_coords - dx, x_coords - dx, x_coords + dx, x_coords + dx],
+                [y_coords - dy, y_coords + dy, y_coords + dy, y_coords - dy],
+            )
+        ]
+    )
+
+    coords = np.rollaxis(coords, -1, 0)
+    gdf = gpd.GeoDataFrame(geometry=polygons(coords), crs="EPSG:4326")
+
+    grid = GeoPandasGrid(gdf, name="TNO_gridded_profiles")
+
+    da_scaling_factors = da_profiles_stacked_cell.drop_vars(
+        ["latitude", "longitude"]
+    ).rename(day_of_year="ratio")
+    sfs, indexes = ratios_dataarray_to_profiles(da_scaling_factors)
+
+    profiles = CompositeTemporalProfiles.from_ratios(
+        ratios=sfs / sfs.sum(axis=1).reshape(-1, 1),
+        types=[get_leap_year_or_normal(DayOfYearProfile, year=year)],
+    )
+
+    return profiles, indexes, grid
 
 
 if __name__ == "__main__":
