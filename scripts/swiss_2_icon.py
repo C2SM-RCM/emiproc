@@ -38,7 +38,7 @@ from emiproc import FILES_DIR
 # %% Select the path with my data
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
 
-
+year = 2022
 # %%
 tno_path = Path(
     r"C:\Users\coli\Documents\Data\TNO\TNO_GHGco_6x6km_v5_0_year2021\inventory\CoCO2_v5_0_emissions_year2021.nc"
@@ -55,18 +55,19 @@ inv_tno.to_crs(LV95)
 
 # %% Create the inventory object
 inv_ch = SwissRasters(
-    data_path=data_path / "CH_Emissions_2015_2020_2022_CO2_CO2biog_CH4_N2O_BC_AP.xlsx",
-    rasters_dir=data_path / "ekat_gridascii",
+    filepath_csv_totals=r"C:\Users\coli\Documents\emissions_preprocessing\output\CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_CO2.csv",
+    filepath_point_sources=r"C:\Users\coli\Documents\emissions_preprocessing\input\SwissPRTR-Daten_2007-2022.xlsx",
+    rasters_dir=data_path / "ekat_gridascii_v_swiss2icon",
     rasters_str_dir=data_path / "ekat_str_gridascii_v_swiss2icon",
     requires_grid=True,
-    year=2022,
+    year=year,
 )
-inv_ch = drop(inv_ch, substances=["CO2", "CO2_biog"], keep_instead_of_drop=True)
+inv_ch = drop(inv_ch, categories=["na"])
 inv_ch = merge_substances(inv_ch, {"CO2": ["CO2", "CO2_biog"]}, inplace=True)
 inv_ch
 
 # %% load mapluft
-zh_path = Path(r"C:\Users\coli\Documents\Data\mapluft\mapLuft_2022_v2024.gdb")
+zh_path = Path(r"C:\Users\coli\Documents\Data\mapluft") / f"mapLuft_{year}_v2024.gdb"
 inv_zh = MapLuftZurich(zh_path, substances=["CO2"])
 
 
@@ -129,7 +130,7 @@ groups = {
 
 # %%
 
-remaped_ch = remap_inventory(groupped_ch, icon_grid, weights_path / "remap_ch2icon")
+remaped_ch = remap_inventory(groupped_ch, icon_grid, weights_path / f"remap_chnew_{year}_2icon")
 remaped_zh = remap_inventory(
     groupped_zh, icon_grid, weights_path / f"remap_zh2icon_{zh_path.stem}"
 )
@@ -169,10 +170,10 @@ for profile in [TemporalProfilesTypes.HOUR_OF_YEAR, TemporalProfilesTypes.THREE_
     export_icon_oem(
         inv=combined,
         icon_grid_file=grid_file,
-        output_dir=grid_file.parent / f"{grid_file.stem}_zh_ch_tno_combined",
+        output_dir=grid_file.parent / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_v2408",
         group_dict=groups,
         substances=["CO2"],
-        year=2020,
+        year=year,
         temporal_profiles_type=profile,
     )
 
