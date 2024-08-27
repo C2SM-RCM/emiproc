@@ -73,7 +73,7 @@ inv_zh = MapLuftZurich(zh_path, substances=["CO2"])
 
 # %% Load the icon grid
 grid_file = Path(
-    r"C:\Users\coli\Documents\ZH-CH-emission\for_nikolai\icon_Zurich_R19B9_beo_DOM01_v2.nc"
+    r"C:\Users\coli\Documents\ZH-CH-emission\for_nikolai\icon_Zurich_R19B9_beo_v3_DOM01.nc"
 )
 weights_path = grid_file.with_suffix("")
 weights_path.mkdir(parents=True, exist_ok=True)
@@ -130,7 +130,9 @@ groups = {
 
 # %%
 
-remaped_ch = remap_inventory(groupped_ch, icon_grid, weights_path / f"remap_chnew_{year}_2icon")
+remaped_ch = remap_inventory(
+    groupped_ch, icon_grid, weights_path / f"remap_chnew_{year}_2icon"
+)
 remaped_zh = remap_inventory(
     groupped_zh, icon_grid, weights_path / f"remap_zh2icon_{zh_path.stem}"
 )
@@ -170,12 +172,10 @@ for profile in [TemporalProfilesTypes.HOUR_OF_YEAR, TemporalProfilesTypes.THREE_
     export_icon_oem(
         inv=combined,
         icon_grid_file=grid_file,
-        output_dir=grid_file.parent / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_v2408",
+        output_dir=grid_file.parent
+        / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_v2408",
         group_dict=groups,
         substances=["CO2"],
         year=year,
         temporal_profiles_type=profile,
     )
-
-
-# %%
