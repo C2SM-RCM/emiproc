@@ -1,5 +1,7 @@
 """Functions related to the WRF model."""
 
+from __future__ import annotations
+
 import itertools
 import os
 from datetime import datetime

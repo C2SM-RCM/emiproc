@@ -839,10 +839,10 @@ def get_profile_da(
     # The following will create correct timestamps at which the profile is true
     # An offset is also given, which is half the period
 
-    if isinstance(profile, DailyProfile | HourOfYearProfile | HourOfLeapYearProfile):
+    if isinstance(profile, (DailyProfile, HourOfYearProfile, HourOfLeapYearProfile)):
         ts = pd.date_range(**daterange_kwargs, freq="h")
         offset = pd.Timedelta("30m")
-    elif isinstance(profile, WeeklyProfile | DayOfLeapYearProfile | DayOfYearProfile):
+    elif isinstance(profile, (WeeklyProfile, DayOfLeapYearProfile, DayOfYearProfile)):
         ts = pd.date_range(**daterange_kwargs, freq="d")
         offset = pd.Timedelta("12h")
     elif isinstance(profile, MounthsProfile):

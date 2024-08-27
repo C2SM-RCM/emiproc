@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 from emiproc import FILES_DIR
 from datetime import datetime
