@@ -25,31 +25,26 @@ bibliography: paper.bib
 
 # Summary
 
-In the effort to reduce air pollution and greenhouse gases, emission inventories
-are created by countries and regions to estimate which sectors emit how much of which 
-polluant.
-Modellers use these inventories to simulate the transport of these substances in the
-athmosphere and then compare the results with measurements to control if the 
-declared emissions match the measurements, establishing the correctness of the inventories.
+In the effort to reduce air pollution and greenhouse gas concentrations, emission inventories
+are created by countries and regions to estimate the magnitude of emissions and the share of individual source sectors.
+Modellers use these inventories to simulate the transport and physical and chemical processing of the emitted substances to compute their distribution in the atmosphere. The simulations are then compared with measurements to control if the declared emissions and their trends are consistent with the observed changes in the atmosphere, establishing the correctness of the inventories.
 
-The inventories are
-often created in different formats and resolutions, which can make it difficult to compare
-and use them in air transport models.
+Inventories are created in multiple different formats and resolutions, which makes it difficult to compare
+and use them in atmospheric transport models.
+
 Figure \ref{fig:tno} an example of a gridded inventory.
 
 
 ![CO2 emissions of the for year 2015 from the TNO inventory \label{fig:tno}.](raster_total_CO2.png){ width=100% }
 
 `emiproc` is a Python package that
-provides tools for processing and harmonizing emission inventories. It includes functions
-for reading, writing, and exporting emission inventory data to various formats used 
-in air transport models. `emiproc` also provides functions for performing various 
-operations on emission inventory data, such as remapping emissions to different spatial
-resolutions, aggregating emissions by sector or pollutant, or scaling emissions based on
-projection scenarios. The package is designed to be flexible and extensible, allowing
-users to easily add new functionality, to read new inventories or export data to new formats.
+provides tools for processing and harmonizing emission inventories and for generating emission input files for different atmospheric models. It includes functions for reading, writing, and exporting emission inventory data to various formats used in atmospheric transport models. `emiproc` also provides functions for performing various 
+operations on inventory data, such as remapping emissions to different model grids including complex, semi-structured
+grids, aggregating emissions by sector or pollutant, or scaling emissions based on projection scenarios. 
 
+Emission input files can be generated in regular (e.g. hourly) intervals by applying sector-specific (and eventually country-specific) temporal and vertical emission profiles. Alternatively, a small set of input files can be generated, which describe the sectorial gridded emissions and their temporal and vertical profiles. This set of files can then be read by the online emissions module described by Jähn et al. (2020), which applied the temporal and vertical scaling online during the model simulation. 
 
+The package is designed to be flexible and extendable, allowing users to easily add new functionality, to read new inventories or export data to new formats.
 
 # Statement of need
 
