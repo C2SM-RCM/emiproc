@@ -13,12 +13,61 @@ Emissions Informations
 
 .. autoclass:: emiproc.inventories.EmissionInfo
 
+Inventories
+-----------
+
+.. autoclass:: emiproc.inventories.tno.TNO_Inventory
+    :special-members: __init__
+
+.. autofunction:: emiproc.inventories.tno.read_tno_gridded_profiles
+
+.. autoclass:: emiproc.inventories.edgar.EDGAR_Inventory
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.swiss.SwissRasters
+    :special-members: __init__
+
+.. autofunction:: emiproc.inventories.swiss.read_prtr
+
+.. autoclass:: emiproc.inventories.zurich.MapLuftZurich
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.EmiprocNetCDF
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.gfas.GFAS_Inventory
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.gfed.GFED4_Inventory
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.lpjguess.LPJ_GUESS_Inventory
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.saunois.SaunoisInventory
+    :special-members: __init__
+
+
 Grid Class
 ----------
+
+General Grids 
+^^^^^^^^^^^^^
 
 .. autoclass:: emiproc.grids.Grid
 
 .. autoclass:: emiproc.grids.RegularGrid
+
+.. autoclass:: emiproc.grids.GeoPandasGrid
+
+
+Model Grids 
+^^^^^^^^^^^
+
+.. autoclass:: emiproc.exports.wrf.WRF_Grid
+
+.. autoclass:: emiproc.grids.ICONGrid
+
 
 Inventory Operators
 -------------------
@@ -61,8 +110,6 @@ This can be used for example to split NOx in NO and NO2 or to split
 the anthropogenic and biogenic part of a CO2.
 
 .. autofunction:: emiproc.speciation.speciate
-
-.. autofunction:: emiproc.speciation.read_speciation_table
 
 .. autofunction:: emiproc.speciation.merge_substances
 
@@ -220,4 +267,5 @@ Exporting
 .. autofunction:: emiproc.exports.profiles.export_inventory_profiles
 
 .. autofunction:: emiproc.exports.utils.get_temporally_scaled_array
-    
+
+.. autofunction:: emiproc.exports.wrf.export_wrf_hourly_emissions
