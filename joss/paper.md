@@ -27,14 +27,14 @@ bibliography: paper.bib
 
 In the effort to reduce air pollution and greenhouse gases, emission inventories
 are created by countries and regions to estimate which sectors emit how much of which 
-substances.
+polluant.
 Modellers use these inventories to simulate the transport of these substances in the
 athmosphere and then compare the results with measurements to control if the 
 declared emissions match the measurements, establishing the correctness of the inventories.
 
 The inventories are
 often created in different formats and resolutions, which can make it difficult to compare
-them or use them in air transport models.
+and use them in air transport models.
 
 `emiproc` is a Python package that
 provides tools for processing and harmonizing emission inventories. It includes functions
@@ -51,9 +51,9 @@ users to easily add new functionality, to read new inventories or export data to
 # Statement of need
 
 Emission inventory data can be represented in various formats and resolutions. 
-For example, TNO provides an invenotry which is splitted with one part which is 
-regulary gridded and another part containing point sources. 
-Other inventories, such as Mapluft (the city invenotry of Zurich) are provided as 
+For example, TNO provides an inventory which contains both, a gridded map and point
+sources. 
+Other inventories, such as Mapluft (the inventory from the city of Zurich) are provided as 
 GIS data with various shapes depending on the category of the emission source. As an 
 example: 
 
@@ -83,7 +83,7 @@ inventory [@edgar_v6].
 with `emiproc` for cities of zurich and basel.
 
 * [@ponomarev2024estimation] used `emiproc` to nest the zurich city inventory
-inside the swiss national invenotry around the city boundary
+inside the swiss national inventory around the city boundary
 
 Another python software, `HERMESv3` [@hermesv3_part1], can already process emission 
 data and generate input files for athmospheric transport models. However, `HERMESv3` is
@@ -112,13 +112,14 @@ necessary to harmonize them. This is what the `emiproc` package is designed for.
 ![Design of the idea behind emiproc \label{fig:design}.](pipeline.drawio.svg)
 
 Thanks to the harmonization of the data, processing functions can be applied to the
-different inventories once loaded into emiproc.  
+different inventories once loaded into emiproc. They can later be exported to any
+of the supported formats provided by the package.
 
 The API of `emiproc` makes a great use of object-oriented programming. 
 
 `emiproc` is built on top of ,the `geopandas` package [@kelsey_jordahl_2020_3946761], 
 which allows storing the geometries of the emission maps and offers a lot of functionalities
-to geometrically process the data.
+related to geometric operations.
 In the inventory, the emission data is stored as 
 [`geopandas.GeoDataFrame`](https://geopandas.org/en/stable/docs/reference/geodataframe.html).
 
@@ -135,8 +136,11 @@ This is useful if you want to reduce the number of categories for your simulatio
 
 
 ## Grid
-As inventories and models always come on different grids, `emiproc` uses a `Grid` object. For many use cases the `RegularGrid` child class can be used, but for specific models the user can define their own grid. 
-Example: The ICON Model [@IconRelease01] is simulated over a icosahedral (triangular) grid, for which `emiproc` provides an `ICON_grid` object.
+As inventories and models always come on different grids, `emiproc` uses a `Grid` object.
+For many use cases the `RegularGrid` child class can be used,
+but for specific models the user can define their own grid. 
+Example: The ICON Model [@IconRelease01] is simulated over
+an icosahedral (triangular) grid, for which `emiproc` provides an `ICON_grid` object.
 
 Functions in emiproc can then handle this `Grid` objects.
 Example: the `remap_inventory` function can be used to remap the emissions to a different grid.
@@ -160,7 +164,7 @@ For example, it is possible to assign them to specific category/polluant/country
 
 ## Export functions
 
-Finally, the `emiproc` package contain functions to export the invenotry to various
+Finally, the `emiproc` package contain functions to export the inventory to various
 formats used in air quality models. 
 These export functions are designed in a way to make life as simple as possible for the
 modeller. However some transport model might require some specific data which is not 
@@ -170,16 +174,15 @@ guide the modeller into adding the missing data.
 
 ## Emissions generation 
 
-In some cases, the emissions are not provided in the inventory. For example, the
-emissions from human respiration are not provided in the inventory. However, 
-they can be estimated based on the population density. 
-TODO: add link 
+In some cases, some emissions are not provided in the inventory. For example, the
+human respiration is rarely provided.  However, 
+an emission map for this sector can be estimated based on the population density. 
+For this purpose, `emiproc` provides a module that helps to calculate these emissions.
 
 
 Another example is the emissions from vegetation. 
 Different models can estimate the emissions from vegetation based on satellite
-observations. `emiproc` implements the VPRM model [@vprm] with an example in 
-TODO: add link.
+observations. `emiproc` implements the VPRM model [@vprm].
 
 This topic is one for which the HERMES model is already well developed in 
 its bottom-up part [@hermesv3_part2] as they implemented many sectors and polluants.
@@ -201,7 +204,8 @@ Figure \ref{fig:tno} was created using this function.
 
 # Availability
 
-The package is availabe on [GitHub](https://github.com/C2SM-RCM/emiproc), and a documentation is available on [readthedocs](https://emiproc.readthedocs.io/en/latest/).
+The package is availabe on [GitHub](https://github.com/C2SM-RCM/emiproc)
+and the documentation is available on [readthedocs](https://emiproc.readthedocs.io/en/latest/).
 
 # Acknowledgements
 
