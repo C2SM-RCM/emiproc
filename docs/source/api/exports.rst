@@ -18,3 +18,9 @@ Exporting
 .. autofunction:: emiproc.exports.utils.get_temporally_scaled_array
 
 .. autofunction:: emiproc.exports.wrf.export_wrf_hourly_emissions
+
+
+Gral
+----
+.. automodule:: emiproc.exports.gral
+    :members:
