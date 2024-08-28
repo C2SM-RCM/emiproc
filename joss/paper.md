@@ -38,7 +38,7 @@ and use them in air transport models.
 Figure \ref{fig:tno} an example of a gridded inventory.
 
 
-![CO2 emissions of the for year 2015 from the TNO inventory. \label{fig:tno}](raster_total_CO2.png){ width=100% }. 
+![CO2 emissions of the for year 2015 from the TNO inventory \label{fig:tno}.](raster_total_CO2.png){ width=100% }
 
 `emiproc` is a Python package that
 provides tools for processing and harmonizing emission inventories. It includes functions
