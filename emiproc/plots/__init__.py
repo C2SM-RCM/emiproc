@@ -117,6 +117,8 @@ def plot_inventory(
     inv: Inventory,
     figsize=(16, 9),
     q=0.001,
+    vmin: None | float = None,
+    vmax: None | float = None,
     cmap=nclcmaps.cmap("WhViBlGrYeOrRe"),
     symcmap="RdBu_r",
     spec_lims: None | tuple[float] = None,
@@ -141,6 +143,26 @@ def plot_inventory(
 
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
+
+    def get_vmax(data: np.ndarray) -> float:
+        if vmax is not None:
+            return vmax
+        return np.quantile(data, 1 - q)
+
+    def get_vmin(data: np.ndarray) -> float:
+        if vmin is not None:
+            return vmin
+        return np.quantile(data, q)
+
+    def get_norm_and_cmap(data: np.ndarray) -> tuple[mpl.colors.Normalize, str]:
+        if np.any(data < 0):
+            abs_values = np.abs(data)
+            vmax_ = get_vmax(abs_values)
+            vmin_ = get_vmin(abs_values)
+            # Use symlog instead
+            return SymLogNorm(linthresh=vmin_, vmin=-vmax_, vmax=vmax_), symcmap
+        else:
+            return LogNorm(vmin=get_vmin(data), vmax=get_vmax(data)), cmap
 
     if len(inv.categories) == 1:
         logger.info("Only one category, will plot only the total emissions")
@@ -245,23 +267,7 @@ def plot_inventory(
                 print(f"passsed {sub},{cat} no emissions")
                 continue
 
-            if np.any(emissions < 0):
-                abs_values = np.abs(emission_non_zero_values)
-                vmax = np.quantile(abs_values, 1 - q)
-                # Use symlog instead
-                norm = SymLogNorm(
-                    linthresh=np.quantile(abs_values, q),
-                    vmin=-vmax,
-                    vmax=vmax,
-                )
-                this_cmap = symcmap
-
-            else:
-                norm = LogNorm(
-                    vmin=np.quantile(emission_non_zero_values, q),
-                    vmax=np.quantile(emission_non_zero_values, 1 - q),
-                )
-                this_cmap = cmap
+            norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
             im = ax.imshow(
                 emissions,
@@ -307,15 +313,12 @@ def plot_inventory(
             print(f"passsed {sub},total_emissions, no emissions")
             continue
 
-        norm = LogNorm(
-            vmin=np.quantile(emission_non_zero_values, q),
-            vmax=np.quantile(emission_non_zero_values, 1 - q),
-        )
+        norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
         im = ax.imshow(
             total_sub_emissions,
             norm=norm,
-            cmap=cmap,
+            cmap=this_cmap,
             extent=[x_min, x_max, y_min, y_max],
         )
         ax.set_title(
