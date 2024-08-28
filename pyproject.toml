@@ -57,5 +57,6 @@ doc = [
     "furo",
     "enum-tools",
     "sphinx_toolbox",
+    "nbsphinx",
 ]
 dev = ["black"]

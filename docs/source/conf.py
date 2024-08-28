@@ -19,6 +19,7 @@ release = datetime.now().strftime("%Y.%m.%d")
 extensions = [
     "sphinx.ext.autodoc",
     "enum_tools.autoenum",
+    "nbsphinx",
 ]
 
 templates_path = ["_templates"]
