@@ -230,7 +230,8 @@ Functions that can be used to generate some parts of inventory data.
 Heating Degree Days (HDD)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: emiproc.profiles.hdd.create_HDD_scaling_factor
+.. automodule:: emiproc.profiles.hdd
+    :members:
 
 
 Human Respiration 

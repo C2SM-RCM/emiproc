@@ -10,11 +10,11 @@ VPRM
 The VPRM simulates the vegetation respiration and photosynthesis using the following 
 inputs:
 
-    * temperature
-    * radiation
-    * satellite data
+* temperature
+* radiation
+* satellite data
 
-see :py:module:`emiproc.profiles.vprm`
+see :py:mod:`emiproc.profiles.vprm`
 
 
 Heating Degree Days (HDD)
@@ -23,4 +23,4 @@ Heating Degree Days (HDD)
 
 Calculates the demand of heating based on the temperature.
 
-see :py:module:`emiproc.profiles.hdd`
+see :py:mod:`emiproc.profiles.hdd`
