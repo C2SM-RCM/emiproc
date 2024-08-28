@@ -35,6 +35,10 @@ declared emissions match the measurements, establishing the correctness of the i
 The inventories are
 often created in different formats and resolutions, which can make it difficult to compare
 and use them in air transport models.
+Figure \ref{fig:tno} an example of a gridded inventory.
+
+
+![CO2 emissions of the for year 2015 from the TNO inventory. \label{fig:tno}](raster_total_CO2.png){ width=100% }. 
 
 `emiproc` is a Python package that
 provides tools for processing and harmonizing emission inventories. It includes functions
@@ -45,7 +49,6 @@ resolutions, aggregating emissions by sector or pollutant, or scaling emissions 
 projection scenarios. The package is designed to be flexible and extensible, allowing
 users to easily add new functionality, to read new inventories or export data to new formats.
 
-![CO2 emissions of the for year 2015 from the TNO inventory. \label{fig:tno}](raster_total_CO2.png). 
 
 
 # Statement of need
@@ -109,7 +112,7 @@ Since then the package is regularly updated with new features and bug fixes.
 To be able to use these different kind of inventories in air quality models, it is
 necessary to harmonize them. This is what the `emiproc` package is designed for.
 
-![Design of the idea behind emiproc \label{fig:design}.](pipeline.drawio.svg)
+![Design of the idea behind emiproc \label{fig:design}.](pipeline.drawio.png)
 
 Thanks to the harmonization of the data, processing functions can be applied to the
 different inventories once loaded into emiproc. They can later be exported to any
