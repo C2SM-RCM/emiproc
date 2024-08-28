@@ -49,7 +49,7 @@ Contents
    models
    emissions_generation
    profiles
-   api
+   api/index
    support
    bibliography
 
