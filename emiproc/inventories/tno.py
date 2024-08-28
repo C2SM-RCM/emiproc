@@ -4,27 +4,24 @@ import logging
 from os import PathLike
 from pathlib import Path
 
-
-import xarray as xr
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
+import xarray as xr
 from shapely.creation import polygons
 
-from emiproc.grids import WGS84, Grid, TNOGrid, GeoPandasGrid
-from emiproc.inventories import Inventory, Substance
+from emiproc.grids import WGS84, GeoPandasGrid, TNOGrid
+from emiproc.inventories import Inventory
+from emiproc.profiles import naming
 from emiproc.profiles.operators import group_profiles_indexes
 from emiproc.profiles.temporal_profiles import (
-    read_temporal_profiles,
     CompositeTemporalProfiles,
-    get_leap_year_or_normal,
     DayOfYearProfile,
+    get_leap_year_or_normal,
+    read_temporal_profiles,
 )
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.profiles.vertical_profiles import read_vertical_profiles
-from emiproc.profiles import naming
-from emiproc.inventories.utils import group_substances
-
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +40,7 @@ class TNO_Inventory(Inventory):
     Each substance is a separate variable in the netcdf file.
     This class will read the `long_name` attribute of each variable to
     determine the substance variables. The `long_name` attribute should
-    start with `emission of `.
+    start with `emission of` .
     You can then merge the substances from the file to a new set of
     substances using the `substances_mapping` argument.
     A default mapping which should work for general cases is provided.
@@ -52,7 +49,7 @@ class TNO_Inventory(Inventory):
     use the names created by the mapping, not the names in the nc file.
 
 
-    :attr tno_ds: The xarray dataset with the TNO emission data.
+    :param tno_ds: The xarray dataset with the TNO emission data.
     """
 
     grid: TNOGrid
@@ -78,11 +75,12 @@ class TNO_Inventory(Inventory):
     ) -> None:
         """Create a TNO_Inventory.
 
-        :arg nc_file: The TNO NetCDF dataset.
-        :arg substances: A list of substances to load in the inventory.
-        :arg substances_mapping: How to mapp the names from the nc files,
-            to names for empiproc. See in :py:class:`TNO_Inventory` for more
+        :arg nc_file: Path to the TNO NetCDF dataset.
+        :arg substances_mapping: How to map the names from the nc files
+            to names for emiproc. See in :py:class:`TNO_Inventory` for more
             information.
+            Specifiying the mapping is important if the names in the nc file
+            are not the same as the ones you want to use in emiproc.
         :arg profiles_dir: The directory where the profiles are stored.
             If None the same directory as the nc_file is used.
         :arg vertical_profiles_dir: The directory where the vertical profiles
@@ -329,6 +327,7 @@ def read_tno_gridded_profiles(
     :arg year: The year for which to read the profiles.
 
     :returns: A tuple with the profiles, the indexes and the grid.
+
         * Profiles: The profiles from the file
         * Indexes: The indexes of the profiles
         * Grid: The grid on which the profiles are defined. Usually not the same
@@ -397,19 +396,3 @@ def read_tno_gridded_profiles(
     )
 
     return profiles, indexes, grid
-
-
-if __name__ == "__main__":
-    # %%
-
-    tno_dir = r"C:\Users\coli\Documents\emiproc\files\TNO_6x6_GHGco_v4_0"
-
-    profiles, indexes = read_temporal_profiles(
-        tno_dir,
-        profile_csv_kwargs={
-            "cat_colname": "GNFR_Category",
-            "read_csv_kwargs": {"sep": ";", "header": 6, "encoding": "latin"},
-        },
-    )
-    profiles
-# %%
