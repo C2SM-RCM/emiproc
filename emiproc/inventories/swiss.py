@@ -345,10 +345,12 @@ activities_to_categories = {
     "3.g": "eipro",  #  Herstellung von keramischen Erzeugnissen
     # 4 - Chemische Industrie
     "4.a.1": "eipro",
+    "4.a.10": "eipro",
     "4.a.11": "eipro",
     "4.a.2": "eipro",
     "4.a.5": "eipro",
     "4.a.8": "eipro",
+    "4.b.5": "eipro",
     "4.d": "eipro",
     "4.e": "eipro",
     "4.f": "eipro",
