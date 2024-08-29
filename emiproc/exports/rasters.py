@@ -6,15 +6,15 @@ import numpy as np
 from emiproc.inventories import Inventory
 from emiproc.grids import RegularGrid
 from emiproc.regrid import remap_inventory
-from emiproc.exports.netcdf import NetcdfAttributes
+from emiproc.exports.netcdf import NetcdfAttributes, nc_cf_attributes
 from emiproc.utilities import Units, SEC_PER_YR, PER_CELL_UNITS, PER_M2_UNITS
 
 
 def export_raster_netcdf(
     inv: Inventory,
     path: PathLike,
-    grid: RegularGrid,
-    netcdf_attributes: NetcdfAttributes,
+    grid: RegularGrid | None = None,
+    netcdf_attributes: NetcdfAttributes | None = None,
     weights_path: PathLike | None = None,
     lon_name: str = "lon",
     lat_name: str = "lat",
@@ -32,6 +32,7 @@ def export_raster_netcdf(
     :param inv: the inventory to export
     :param path: the path to the output file
     :param grid: the raster grid to export to
+        If not given, assumes the inventory is already on a raster grid.
     :param netcdf_attributes: NetCDF attributes to add to the file.
         These can be generated using
         :py:func:`emiproc.exports.netcdf.nc_cf_attributes` .
@@ -59,10 +60,15 @@ def export_raster_netcdf(
         else:
             var_name_format = "{substance}_{category}"
 
-    remapped_inv = remap_inventory(inv, grid, weights_path)
+    if grid is None:
+        grid = inv.grid
+    if grid != inv.grid:
+        inv = remap_inventory(inv, grid, weights_path)
 
+    if netcdf_attributes is None:
+        netcdf_attributes = nc_cf_attributes()
     # add the history
-    netcdf_attributes["emiproc_history"] = str(remapped_inv.history)
+    netcdf_attributes["emiproc_history"] = str(inv.history)
 
     crs = grid.crs
 
@@ -78,7 +84,7 @@ def export_raster_netcdf(
         ) * 1e9
     else:
         raise NotImplementedError(f"Unknown {unit=}")
-    
+
     unit_str = str(unit.value)
     if unit in PER_CELL_UNITS:
         unit_str += " cell-1"
@@ -88,7 +94,7 @@ def export_raster_netcdf(
             {
                 var_name_format.format(substance=sub, category=cat): (
                     [lat_name, lon_name],
-                    remapped_inv.gdf[(cat, sub)].to_numpy().reshape(grid.shape).T
+                    inv.gdf[(cat, sub)].to_numpy().reshape(grid.shape).T
                     * conversion_factor,
                     {
                         "standard_name": f"{sub}_{cat}",
@@ -100,7 +106,7 @@ def export_raster_netcdf(
                 )
                 for sub in inv.substances
                 for cat in inv.categories
-                if (cat, sub) in remapped_inv.gdf
+                if (cat, sub) in inv.gdf
             }
             if not group_categories
             else {
@@ -109,11 +115,8 @@ def export_raster_netcdf(
                     np.array(
                         [
                             (
-                                remapped_inv.gdf[(cat, sub)]
-                                .to_numpy()
-                                .reshape(grid.shape)
-                                .T
-                                if (cat, sub) in remapped_inv.gdf
+                                inv.gdf[(cat, sub)].to_numpy().reshape(grid.shape).T
+                                if (cat, sub) in inv.gdf
                                 else np.zeros(grid.shape).T
                             )
                             for cat in inv.categories
@@ -183,7 +186,6 @@ def export_raster_netcdf(
                     "axis": "Y",
                 },
             ),
-
         },
         attrs=netcdf_attributes,
     )
@@ -213,9 +215,12 @@ def export_raster_netcdf(
                 total_emission = ds[var_name_format.format(substance=sub)]
             else:
                 da_of_cat = {
-                    cat: ds[var_name_format.format(substance=sub, category=cat)]
-                    if var_name_format.format(substance=sub, category=cat) in ds.data_vars
-                    else xr.zeros_like(da)
+                    cat: (
+                        ds[var_name_format.format(substance=sub, category=cat)]
+                        if var_name_format.format(substance=sub, category=cat)
+                        in ds.data_vars
+                        else xr.zeros_like(da)
+                    )
                     for cat in inv.categories
                 }
                 total_emission = xr.concat(list(da_of_cat.values()), dim="category")
@@ -244,7 +249,6 @@ def export_raster_netcdf(
                 "units": "kg yr-1",
                 "comment": "annual total emission",
             }
-
 
     # add the cell area
     ds["cell_area"] = (
