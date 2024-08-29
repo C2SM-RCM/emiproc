@@ -308,6 +308,20 @@ def test_internals():
             ],
             {0: [], 1: [], 2: [], 3: []},
         ),
+        (
+            [
+                CompositeTemporalProfiles(
+                    [
+                        [WeeklyProfile(), DailyProfile()],
+                        [WeeklyProfile()],
+                    ]
+                ),
+            ],
+            {
+                0: [WeeklyProfile(), DailyProfile()],
+                1: [WeeklyProfile()],
+            },
+        ),
     ],
 )
 def test_join_composites(profiles, expected):

@@ -11,14 +11,16 @@ transport models.
 
 It can process inventories available in different formats and on different
 grids and generate input files for models operating on any type of grid
-including complex unstructured grids. It has been designed specifically
-for the models COSMO-ART and ICON-ART but can readily be adapted for other
-models. The output of emiproc is a set of netcdf files with emissions
-mapped onto the model grid. There are two options:
+including complex unstructured grids. Originally designed 
+for the models COSMO-ART and ICON-ART, it can readily be adapted for other
+models. 
 
-* Single emission file with sector-specific annual mean emissions and additional files describing temporal and vertical profiles and, in case of reactive gases like VOCs, speciation profiles.
-* Separate emission files for each hour of a given time period.
 
+A typical workflow is shown below:
+
+* Read an inventory
+* Perform some operations on it (e.g. regridding, merging categories, upsampling, ...)
+* Export the inventory to a format that can be read by the model
 
 .. image:: diagrams/pipeline.drawio.svg
 
@@ -33,6 +35,7 @@ Features
 * Categories/Substance selection
 * Re-grouping of emission categories
 * Visualization of the output
+* Cyclic temporal profiles or time series of emissions
 
 Contents 
 --------
@@ -41,11 +44,12 @@ Contents
    :maxdepth: 2
 
    installation
-   inventories
-   grids
-   profiles
-   api
    tutos/tutorials
+   inventories
+   models
+   emissions_generation
+   profiles
+   api/index
    support
    bibliography
 

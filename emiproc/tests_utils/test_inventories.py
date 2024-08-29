@@ -5,16 +5,14 @@ from shapely.geometry import Point, Polygon
 
 from emiproc.inventories import Inventory
 
-serie = gpd.GeoSeries(
-    [
-        Polygon(((0, 0), (0, 1), (1, 1), (1, 0))),
-        Polygon(((0, 1), (0, 2), (1, 2), (1, 1))),
-        Polygon(((1, 0), (1, 1), (2, 1), (2, 0))),
-        Polygon(((1, 1), (1, 2), (2, 2), (2, 1))),
-        Polygon(((2, 1), (2, 2), (3, 2), (3, 1))),
-    ]
+from emiproc.tests_utils.test_grids import (
+    basic_serie,
+    basic_serie_2,
+    basic_serie_of_size_2,
 )
 
+
+serie = basic_serie
 
 inv = Inventory.from_gdf(
     gpd.GeoDataFrame(
@@ -83,4 +81,28 @@ inv_with_gdfs_bad_indexes = Inventory.from_gdf(
             index=[0, 1, 100000000],
         )
     }
+)
+
+inv_on_grid_serie2 = Inventory.from_gdf(
+    gpd.GeoDataFrame(
+        {
+            ("adf", "CH4"): [i + 3 for i in range(len(basic_serie_2))],
+            ("adf", "CO2"): [i for i in range(len(basic_serie_2))],
+            ("liku", "CO2"): [i for i in range(len(basic_serie_2))],
+            ("test", "NH3"): [i + 1 for i in range(len(basic_serie_2))],
+        },
+        geometry=basic_serie_2,
+    )
+)
+
+inv_on_grid_serie2_bis = Inventory.from_gdf(
+    gpd.GeoDataFrame(
+        {
+            ("adf", "CH4"): [i + 3 for i in range(len(basic_serie_of_size_2))],
+            ("adf", "CO2"): [i for i in range(len(basic_serie_of_size_2))],
+            ("liku", "CO2"): [i for i in range(len(basic_serie_of_size_2))],
+            ("test", "NH3"): [i + 1 for i in range(len(basic_serie_of_size_2))],
+        },
+        geometry=basic_serie_of_size_2,
+    )
 )

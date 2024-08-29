@@ -66,9 +66,17 @@ class VerticalProfiles:
         self.ratios = np.asarray(self.ratios)
         self.height = np.asarray(self.height)
 
+        assert self.ratios.shape[1] == len(
+            self.height
+        ), "Ratios and height must have the same length"
+
     @property
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
+
+    @property
+    def n_heights(self) -> int:
+        return self.ratios.shape[1]
 
     def copy(self):
         """Make a deep copy of the profiles."""
@@ -102,6 +110,11 @@ class VerticalProfiles:
 
     def __len__(self) -> int:
         return self.n_profiles
+
+    @property
+    def scaling_factors(self) -> np.ndarray:
+        """Get the scaling factors for the profiles."""
+        return self.ratios * self.n_heights
 
 
 class GroupingMethod(Enum):

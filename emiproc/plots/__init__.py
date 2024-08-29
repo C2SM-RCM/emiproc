@@ -1,21 +1,22 @@
 """Few plot functions for the emiproc package."""
 
 from __future__ import annotations
+
 import itertools
+import logging
 from os import PathLike
 from pathlib import Path
-import geopandas as gpd
 from typing import Any
-import numpy as np
-import pandas as pd
 
+import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from matplotlib.colors import LogNorm, SymLogNorm
 
-
-from emiproc.plots import nclcmaps
 from emiproc.inventories import Inventory
+from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.utilities import get_natural_earth
 
@@ -116,6 +117,8 @@ def plot_inventory(
     inv: Inventory,
     figsize=(16, 9),
     q=0.001,
+    vmin: None | float = None,
+    vmax: None | float = None,
     cmap=nclcmaps.cmap("WhViBlGrYeOrRe"),
     symcmap="RdBu_r",
     spec_lims: None | tuple[float] = None,
@@ -125,6 +128,7 @@ def plot_inventory(
     y_label="lat [°]",
     add_country_borders: bool = False,
     total_only: bool = False,
+    reverse_y: bool = False,
 ):
     """Plot an inventory.
 
@@ -135,14 +139,48 @@ def plot_inventory(
         after the . , which is useful for swiss coordinates.
     """
 
+    logger = logging.getLogger(__name__)
+
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
-    x_min = grid.lon_range[0]
-    x_max = grid.lon_range[-1]
-    y_min = grid.lat_range[0]
-    y_max = grid.lat_range[-1]
 
-    if add_country_borders:
+    def get_vmax(data: np.ndarray) -> float:
+        if vmax is not None:
+            return vmax
+        return np.quantile(data, 1 - q)
+
+    def get_vmin(data: np.ndarray) -> float:
+        if vmin is not None:
+            return vmin
+        return np.quantile(data, q)
+
+    def get_norm_and_cmap(data: np.ndarray) -> tuple[mpl.colors.Normalize, str]:
+        if np.any(data < 0):
+            abs_values = np.abs(data)
+            vmax_ = get_vmax(abs_values)
+            vmin_ = get_vmin(abs_values)
+            # Use symlog instead
+            return SymLogNorm(linthresh=vmin_, vmin=-vmax_, vmax=vmax_), symcmap
+        else:
+            return LogNorm(vmin=get_vmin(data), vmax=get_vmax(data)), cmap
+
+    if len(inv.categories) == 1:
+        logger.info("Only one category, will plot only the total emissions")
+        total_only = True
+
+    lon_range = grid.lon_range if hasattr(grid, "lon_range") else np.arange(grid.nx)
+    lat_range = grid.lat_range if hasattr(grid, "lat_range") else np.arange(grid.ny)
+
+    x_min, x_max = lon_range[0], lon_range[-1]
+    y_min, y_max = lat_range[0], lat_range[-1]
+
+    if add_country_borders and (
+        not hasattr(grid, "lat_range") or hasattr(grid, "lon_range")
+    ):
+        raise ValueError(
+            "Cannot add country borders without grid lat_range and lon_range"
+        )
+    elif add_country_borders:
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
@@ -203,7 +241,9 @@ def plot_inventory(
 
             # from ha to m2
             emissions /= inv.cell_areas
-            emissions = emissions.reshape(grid_shape).T[::-1, :]
+
+            y_slice = slice(None, None, 1 if reverse_y else -1)
+            emissions = emissions.reshape(grid_shape).T[y_slice, :]
 
             total_sub_emissions += emissions
 
@@ -227,23 +267,7 @@ def plot_inventory(
                 print(f"passsed {sub},{cat} no emissions")
                 continue
 
-            if np.any(emissions < 0):
-                abs_values = np.abs(emission_non_zero_values)
-                vmax = np.quantile(abs_values, 1 - q)
-                # Use symlog instead
-                norm = SymLogNorm(
-                    linthresh=np.quantile(abs_values, q),
-                    vmin=-vmax,
-                    vmax=vmax,
-                )
-                this_cmap = symcmap
-
-            else:
-                norm = LogNorm(
-                    vmin=np.quantile(emission_non_zero_values, q),
-                    vmax=np.quantile(emission_non_zero_values, 1 - q),
-                )
-                this_cmap = cmap
+            norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
             im = ax.imshow(
                 emissions,
@@ -289,15 +313,12 @@ def plot_inventory(
             print(f"passsed {sub},total_emissions, no emissions")
             continue
 
-        norm = LogNorm(
-            vmin=np.quantile(emission_non_zero_values, q),
-            vmax=np.quantile(emission_non_zero_values, 1 - q),
-        )
+        norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
         im = ax.imshow(
             total_sub_emissions,
             norm=norm,
-            cmap=cmap,
+            cmap=this_cmap,
             extent=[x_min, x_max, y_min, y_max],
         )
         ax.set_title(
@@ -328,25 +349,31 @@ def plot_inventory(
 
     # A bar plot of the total emissions for each substances and each category
     sorted_categories = sorted(inv.categories)
-    fig, ax = plt.subplots(
-        figsize=(len(inv.categories) * 0.5, len(inv.substances)),
-        nrows=len(inv.substances),
+    n_substances = len(inv.substances)
+    fig, axes = plt.subplots(
+        figsize=(len(inv.categories) * 0.5, n_substances),
+        nrows=n_substances,
         sharex=True,
     )
 
     color_iter = itertools.cycle(plt.rcParams["axes.prop_cycle"])
     colors_of_categories = {cat: next(color_iter)["color"] for cat in sorted_categories}
     for i, sub in enumerate(inv.substances):
+        if n_substances > 1:
+            ax = axes[i]
+        else:
+            ax = axes
         for j, cat in enumerate(sorted_categories):
-            ax[i].bar(
+            ax.bar(
                 j,
                 per_substances_per_sector_emissions[sub].get(cat, 0),
                 color=colors_of_categories.get(cat, "black"),
             )
-        ax[i].set_ylabel(f"{sub} [kg/y]")
+        ax.set_ylabel(f"{sub} [kg/y]")
 
-    ax[-1].set_xticks(range(len(sorted_categories)))
-    ax[-1].set_xticklabels(sorted_categories, rotation=45, ha="right")
+    # Add ticks on the last ax (the one at the bottom)
+    ax.set_xticks(range(len(sorted_categories)))
+    ax.set_xticklabels(sorted_categories, rotation=45, ha="right")
 
     if out_dir:
         file_name = Path(out_dir) / f"barplot_total_emissions"

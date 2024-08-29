@@ -1,6 +1,5 @@
 """Provides default values for how the data columns can be named."""
 
-
 from datetime import datetime
 
 
@@ -8,12 +7,15 @@ accepted_category_colnames = [
     "Category",
     "GNFR_Category",
     "TNO GNFR sectors Sept 2018",
+    "GNFR",
 ]
 substances_colnames = [
     "Substance",
+    "POLL",  # TNO
 ]
 accepted_country_colnames = [
     "Country",
+    "ISO3",  # TNO
 ]
 
 metadata_colnames = [
@@ -32,6 +34,8 @@ time_colnames = [
 
 cell_colnames = ["Cell"]
 
+daytype_colnames = ["DayType"]
+
 attributes_accepted_colnames = {
     "category": accepted_category_colnames,
     "substance": substances_colnames,
@@ -39,6 +43,7 @@ attributes_accepted_colnames = {
     "time": time_colnames,
     "country": accepted_country_colnames,
     "type": type_colnames,
+    "day_type": daytype_colnames,
 }
 
 # Add lowercase versions of the accepted colnames
@@ -52,6 +57,7 @@ type_of_dim = {
     "time": datetime,
     "country": str,
     "type": str,
+    "day_type": str,
 }
 
 all_reserved_colnames = sum(
@@ -61,6 +67,7 @@ all_reserved_colnames = sum(
         accepted_country_colnames,
         metadata_colnames,
         type_colnames,
+        daytype_colnames,
     ],
     [],
 )

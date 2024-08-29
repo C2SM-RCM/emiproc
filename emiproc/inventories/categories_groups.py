@@ -72,11 +72,11 @@ CH_2_GNFR = {
     ],
     # Waste
     "GNFR_J": [
-        "eidep",
-        "eikla",
-        "eikmp",
-        "elabf",
-        "elver",
+        "eidep",  # Deponien
+        "eikla",  # Kläranlagen
+        "eikmp",  # Kompostierung
+        "elabf",  # Abfallverbrennung Land- und Forstwirtschaft
+        "elver",  # Vergärung
     ],
     # AgriLivestock
     "GNFR_K": [
@@ -89,10 +89,10 @@ CH_2_GNFR = {
     ],
     # Others
     "GNFR_R": [
-        "ehhab",
-        "ehhaf",
-        "ehhan",
-        "enwal",  # Emissionen aus Wäldern (emissions from forests)
+        "ehhab",  # Haushalte andere brande
+        "ehhaf",  # Haushalte andere feuerwerk
+        "ehhan",  # Haushalte andere private
+        "enwal",  # Emissionen aus Waldern (emissions from forests)
     ],
 }
 

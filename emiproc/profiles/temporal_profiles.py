@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,7 @@ from emiproc.profiles.utils import (
     get_profiles_indexes,
     load_country_tz,
     merge_indexes,
+    ratios_dataarray_to_profiles,
     ratios_to_factors,
     read_profile_csv,
     read_profile_file,
@@ -317,6 +318,26 @@ class HourOfYearProfile(TemporalProfile):
 
 
 @dataclass(eq=False)
+class Hour3OfDay(TemporalProfile):
+    """Each 3 hour profile.
+
+    Groups of 3 hours. (0-3, 3-6, 6-9, 9-12, 12-15, 15-18, 18-21, 21-24)
+    """
+
+    size: int = int(N_HOUR_DAY / 3)
+
+
+@dataclass(eq=False)
+class Hour3OfDayPerMonth(TemporalProfile):
+    """Each 3 hour profile given for each mounth.
+
+    Hour of year profile defines how the emission is distributed over the year using hours.
+    """
+
+    size: int = int(N_HOUR_DAY / 3) * N_MONTH_YEAR
+
+
+@dataclass(eq=False)
 class HourOfLeapYearProfile(TemporalProfile):
     """Hour of leap year profile.
 
@@ -324,6 +345,26 @@ class HourOfLeapYearProfile(TemporalProfile):
     """
 
     size: int = N_HOUR_LEAPYEAR
+
+
+@dataclass(eq=False)
+class DayOfYearProfile(TemporalProfile):
+    """Day of year profile.
+
+    Day of year profile defines how the emission is distributed over the year using days.
+    """
+
+    size: int = N_DAY_YEAR
+
+
+@dataclass(eq=False)
+class DayOfLeapYearProfile(TemporalProfile):
+    """Day of leap year profile.
+
+    Day of leap year profile defines how the emission is distributed over the year using days.
+    """
+
+    size: int = N_DAY_LEAPYEAR
 
 
 AnyTimeProfile = Union[
@@ -334,6 +375,22 @@ AnyTimeProfile = Union[
     HourOfYearProfile,
     HourOfLeapYearProfile,
 ]
+
+# Maps temporal profiles to their corrected version
+leap_year_corrected: dict[TemporalProfile, TemporalProfile] = {
+    HourOfYearProfile: HourOfLeapYearProfile,
+    DayOfYearProfile: DayOfLeapYearProfile,
+}
+
+
+def get_leap_year_or_normal(
+    profile_type: type[TemporalProfile], year: int
+) -> type[TemporalProfile]:
+    """Return the profile type for the given year."""
+
+    if year % 4 == 0:
+        return leap_year_corrected.get(profile_type, profile_type)
+    return profile_type
 
 
 class AnyProfiles:
@@ -451,6 +508,9 @@ class CompositeTemporalProfiles:
                 profile = profile_type(ratios=ratios)
             self._profiles[profile_type] = profile
 
+    def __repr__(self) -> str:
+        return f"CompositeProfiles({len(self)} profiles from {[t.__name__ for t in self.types]})"
+
     def __len__(self) -> int:
         indexes_len = [len(indexes) for indexes in self._indexes.values()]
         if not indexes_len:
@@ -481,7 +541,7 @@ class CompositeTemporalProfiles:
     @property
     def types(self) -> list[AnyTimeProfile]:
         """Return the types of the profiles."""
-        return list(self._profiles.keys())
+        return list(set(self._profiles.keys()))
 
     @property
     def ratios(self) -> np.ndarray:
@@ -507,11 +567,38 @@ class CompositeTemporalProfiles:
             # axis=1,
         )
 
+    @property
+    def scaling_factors(self) -> np.ndarray:
+        """Return the scaling factors of the profiles."""
+        return np.stack(
+            [
+                np.concatenate(
+                    [
+                        (
+                            self._profiles[pt][index].ratios.reshape(-1)
+                            * self._profiles[pt][index].size
+                            if (index := self._indexes[pt][i]) != -1
+                            else np.ones(pt.size).reshape(-1)
+                        )
+                        for pt in self.types
+                    ]
+                )
+                for i in range(len(self))
+            ],
+            # axis=1,
+        )
+
     @classmethod
     def from_ratios(
-        cls, ratios: np.ndarray, types: list[type]
+        cls, ratios: np.ndarray, types: list[type], rescale: bool = False
     ) -> CompositeTemporalProfiles:
-        """Create a composite profile, directly from the ratios."""
+        """Create a composite profile, directly from the ratios.
+
+        :arg ratios: The ratios of the profiles.
+        :arg types: The types of the profiles, as a list of Temporal profiles types.
+        :arg rescale: If True, the ratios will be rescaled to sum up to 1.
+
+        """
         for t in types:
             # Check that the type is a subtype of TemporalProfile
             if not issubclass(t, TemporalProfile):
@@ -521,7 +608,7 @@ class CompositeTemporalProfiles:
         # Create the empty profiles
         profiles = [
             [
-                t(r)
+                t((r / r.sum(axis=0)) if rescale else r)
                 for i, t in enumerate(types)
                 if not np.any(
                     np.isnan(r := profile_ratios[splitters[i] : splitters[i + 1]])
@@ -617,6 +704,34 @@ class CompositeTemporalProfiles:
                     (self._profiles[t].ratios, p.ratios)
                 )
 
+    @property
+    def size(self) -> int:
+        """Return the size of the profiles."""
+        return sum(p.size for p in self._profiles.values())
+
+    def broadcast(self, types: list[TemporalProfile]) -> CompositeTemporalProfiles:
+        """Create a new composite profile with the given types.
+
+        The non specified profiles will be set to constant profiles.
+        """
+        all_ratios = []
+        for t in types:
+            # Get constant ratios
+            composite_ratios = np.ones((len(self), t.size)) / t.size
+            if t in self.types:
+                ratios = self._profiles[t].ratios
+                # Need to scale with the indexes
+                indexes = self._indexes[t]
+                # Fill the ratios with the existing profiles
+                mask_valid = indexes != -1
+                composite_ratios[mask_valid, :] = ratios[indexes[mask_valid], :]
+
+            all_ratios.append(composite_ratios)
+
+        return CompositeTemporalProfiles.from_ratios(
+            np.concatenate(all_ratios, axis=1), types
+        )
+
 
 def make_composite_profiles(
     profiles: AnyProfiles,
@@ -675,6 +790,230 @@ def make_composite_profiles(
     out_indexes = new_indexes.unstack("z")
 
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
+
+
+def get_index_in_profile(
+    profile: Type[TemporalProfile], time_range: pd.DatetimeIndex
+) -> pd.Series:
+    """Get the index in the profile for each time in the time range.
+
+    :param profile: the profile to use
+    :param time_range: the time range to use
+    :return: the index in the profile for each time in the time range
+    """
+
+    if profile == MounthsProfile:
+        indexes = time_range.month - 1
+    elif profile == DayOfYearProfile:
+        indexes = time_range.day_of_year - 1
+    elif profile == DailyProfile:
+        indexes = time_range.hour
+    elif profile == WeeklyProfile:
+        indexes = time_range.day_of_week
+    elif profile in [HourOfYearProfile, HourOfLeapYearProfile]:
+        indexes = time_range.hour + (time_range.day_of_year - 1) * 24
+    elif profile == Hour3OfDayPerMonth:
+        indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
+    else:
+        raise ValueError(f"Profile type {profile} not recognized")
+
+    assert indexes.min() >= 0
+    assert indexes.max() < profile.size
+
+    return indexes
+
+
+def get_profile_da(
+    profile: TemporalProfile, year: int, use_offset: bool = True
+) -> xr.DataArray:
+    """Return the profile as a data array.
+
+    The index of the data array is exact timestamp at the middle of the period.
+    """
+    daterange_kwargs = {
+        "start": f"{year}-01-01",
+        "end": f"{year+1}-01-01",
+        "inclusive": "both",
+    }
+
+    # The following will create correct timestamps at which the profile is true
+    # An offset is also given, which is half the period
+
+    if isinstance(profile, (DailyProfile, HourOfYearProfile, HourOfLeapYearProfile)):
+        ts = pd.date_range(**daterange_kwargs, freq="h")
+        offset = pd.Timedelta("30m")
+    elif isinstance(profile, (WeeklyProfile, DayOfLeapYearProfile, DayOfYearProfile)):
+        ts = pd.date_range(**daterange_kwargs, freq="d")
+        offset = pd.Timedelta("12h")
+    elif isinstance(profile, MounthsProfile):
+        ts = pd.date_range(**daterange_kwargs, freq="MS")
+        offset = pd.Timedelta("15d")
+    elif isinstance(profile, Hour3OfDayPerMonth):
+        ts = pd.date_range(**daterange_kwargs, freq="3h")
+        offset = pd.Timedelta("1h30m")
+    else:
+        raise NotImplementedError(
+            f"{type(profile)=} not implemented in `get_profile_da`."
+        )
+
+    # Add a first value at the begginning, such that we cover the whole year
+    ts = pd.DatetimeIndex([ts[0] - 2 * offset] + list(ts))
+
+    da = xr.DataArray(
+        profile.ratios[:, get_index_in_profile(type(profile), ts)],
+        dims=["profile", "datetime"],
+        coords={
+            "profile": range(profile.n_profiles),
+            "datetime": ts + offset if use_offset else ts,
+        },
+    )
+
+    return da
+
+
+def interpolate_profiles_hour_of_year(
+    profiles: CompositeTemporalProfiles,
+    year: int,
+    interpolation_method: str = "linear",
+    return_profiles: bool = False,
+) -> (
+    CompositeTemporalProfiles
+    | xr.DataArray
+    | tuple[CompositeTemporalProfiles | xr.DataArray, xr.DataArray]
+):
+    """Interpolate the profiles to create a hour of year profile."""
+
+    serie = pd.date_range(
+        f"{year}-01-01", f"{year+1}-01-01", freq="h", inclusive="left"
+    )
+
+    das_scaling_factors = []
+
+    ratios = profiles.ratios
+
+    offset = 0
+    for t in profiles.types:
+        # create an array with the ratios
+        t_len = t.size
+        this_ratios = ratios[:, offset : offset + t_len]
+        this_ratios = np.nan_to_num(this_ratios, nan=1.0 / t_len)
+        offset += t_len
+        # Create a data array for these ratios and convert to scaling factors
+        da_sf = get_profile_da(profile=t(this_ratios), year=year) * t_len
+        # Interpolate the data array
+        da_interp = da_sf.interp(
+            datetime=serie,
+            method=interpolation_method,
+            assume_sorted=True,
+        )
+
+        das_scaling_factors.append(da_interp.expand_dims("profile_type"))
+
+    # Multiply the data arrays
+    da = xr.concat(das_scaling_factors, dim="profile_type").prod(dim="profile_type")
+    da_ratios = da / da.sum(dim="datetime")
+    # Create the profile
+    if return_profiles:
+        return CompositeTemporalProfiles.from_ratios(
+            da_ratios.values, types=[get_leap_year_or_normal(HourOfYearProfile, year)]
+        )
+
+    return da_ratios
+
+
+def resolve_daytype(
+    profiles: CompositeTemporalProfiles, profiles_indexes: xr.Dataset, year: int
+) -> tuple[CompositeTemporalProfiles, xr.Dataset]:
+
+    time_range = pd.date_range(
+        f"{year}-01-01", f"{year+1}-01-01", freq="h", inclusive="left"
+    )
+
+    # Few checks on the day types given
+    assert (
+        "day_type" in profiles_indexes.dims
+    ), "The profiles indexes must have a 'day_type' dimension"
+    day_types = profiles_indexes.day_type.values
+    specific_days = [SpecificDay(day_type) for day_type in day_types]
+    days_mapping = {day: get_days_as_ints(day) for day in specific_days}
+    all_values = sum([days for days in days_mapping.values()], [])
+    if sorted(all_values) != sorted(list(range(7))):
+        raise ValueError(
+            f"Invalid {day_types=}, must cover all days of the week but they cover {all_values}."
+        )
+
+    # Check that the profile given is correct
+    expected_profile = get_leap_year_or_normal(HourOfYearProfile, year)
+    if not isinstance(profiles, CompositeTemporalProfiles | expected_profile):
+        raise TypeError(
+            f"{profiles=} must be a {CompositeTemporalProfiles} or {expected_profile}."
+        )
+    if profiles.types != [expected_profile]:
+        raise ValueError(
+            f"{profiles=} must contain only {expected_profile} for the given {year=}."
+        )
+
+    # Get only the profiles which are not the same on the day types
+    dims = list(profiles_indexes.dims)
+    dims.remove("day_type")
+    stacked_indexes = profiles_indexes.stack(ind=dims)
+    mask_differ_over_daytype = ~(
+        stacked_indexes == stacked_indexes.isel(day_type=0)
+    ).all("day_type")
+    require_merge_indexes = stacked_indexes.loc[{"ind": mask_differ_over_daytype}]
+
+    if np.any(require_merge_indexes == -1):
+        raise ValueError(
+            f"Cannot resolve {profiles_indexes=} as some profiles are missing. \n"
+            "Please fill them with constant profiles."
+        )
+
+    # Get the ratios of each datetime and time
+    da_ratios = xr.DataArray(
+        profiles.ratios[require_merge_indexes],
+        dims=["day_type", "ind", "time"],
+        coords={
+            "day_type": require_merge_indexes["day_type"],
+            "ind": require_merge_indexes["ind"],
+            "time": time_range,
+        },
+    )
+
+    # Create the output index array
+    da_indexes_out = xr.zeros_like(
+        mask_differ_over_daytype.loc[mask_differ_over_daytype], dtype=int
+    )
+
+    da_profiles_out = da_ratios.isel(day_type=0).drop_vars("day_type")
+
+    for day_type, days in days_mapping.items():
+        # Assign the values of each datetime to the correct day
+        mask = da_ratios.time.dt.dayofweek.isin(days)
+        da_profiles_out.loc[{"time": mask}] = da_ratios.sel(
+            day_type=day_type.value
+        ).loc[{"time": mask}]
+
+    new_profiles, new_indexes = ratios_dataarray_to_profiles(
+        da_profiles_out.rename({"time": "ratio"}).unstack(fill_value=-1)
+    )
+
+    new_indexes = new_indexes.stack(ind=dims)
+    # Remove the missing
+    new_indexes = new_indexes.loc[new_indexes != -1]
+    # Set them to the correct value  (as we later append at the end the new profiles)
+    new_indexes += profiles.n_profiles
+
+    out_indexes = stacked_indexes.isel(day_type=0).drop_vars("day_type").copy(deep=True)
+    out_indexes.loc[{"ind": new_indexes.ind}] = new_indexes
+
+    # Need to rescale as now the ratio might not sum up to 1 exactly
+    new_profiles /= new_profiles.sum(axis=1).reshape(-1, 1)
+
+    out_profiles = CompositeTemporalProfiles.from_ratios(
+        np.concatenate([profiles.ratios, new_profiles]), types=[expected_profile]
+    )
+
+    return out_profiles, out_indexes.unstack("ind", fill_value=-1)
 
 
 def ensure_specific_days_consistency(
@@ -871,7 +1210,6 @@ def profile_to_scaling_factors(
     return scaling_factors
 
 
-_weekdays_short = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _weekdays_long = [
     "Monday",
     "Tuesday",
@@ -913,10 +1251,12 @@ _months_long = [
 
 timprofile_colnames = {
     WeeklyProfile: [
-        _weekdays_short,
+        _weekdays_short := [i[:3] for i in _weekdays_long],
         [i.lower() for i in _weekdays_short],
         _weekdays_long,
         [i.lower() for i in _weekdays_long],
+        # TNO AVENGERS Format
+        [i[:2] for i in _weekdays_short],
     ],
     MounthsProfile: [
         _months_short,
@@ -926,7 +1266,9 @@ timprofile_colnames = {
     ],
     DailyProfile: [
         [str(i) for i in range(1, 25)],
-        [str(i) for i in range(24)],
+        hours := [str(i) for i in range(24)],
+        # TNO AVENGERS Format
+        [f"H{i}" for i in hours],
     ],
 }
 
@@ -1040,7 +1382,14 @@ def read_temporal_profiles(
 
     combined_indexes = merge_indexes(indexes_list)
 
-    return make_composite_profiles(out_profiles, combined_indexes)
+    composite_profiles, out_indexes = make_composite_profiles(
+        out_profiles, combined_indexes
+    )
+    # Drop the profile dim
+    if "profile" in out_indexes.dims:
+        out_indexes = out_indexes.drop_vars("profile")
+
+    return composite_profiles, out_indexes
 
 
 @emiproc.deprecated

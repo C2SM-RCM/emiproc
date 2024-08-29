@@ -31,3 +31,4 @@ Tutorials provide guided examples with more in depth of how to use emiproc.
 
     new_inventory
     icon_oem
+    create_grid

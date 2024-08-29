@@ -1,4 +1,5 @@
 """Test scaling of the emissions."""
+
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 
 
@@ -37,3 +38,11 @@ def test_total_emissions_values_pntsrc():
         scaled_inv_pntsrc.gdfs["liku"]["CO2"]
         == 1.42 * inv_with_pnt_sources.gdfs["liku"]["CO2"]
     )
+
+
+def test_scale_with_float():
+
+    scaling_factor = 2.42
+    scaled_inv = scale_inventory(inv, scaling_factor)
+
+    assert scaled_inv.total_emissions.equals(inv.total_emissions * scaling_factor)

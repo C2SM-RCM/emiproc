@@ -1,4 +1,5 @@
 """Test file for tno inventory"""
+
 from pathlib import Path
 
 import pytest
@@ -84,7 +85,7 @@ def test_with_t_profiles_catsub_misssing():
     assert "substance" in inv_tno.t_profiles_indexes.dims
     missing_cat = "F2"
     other_cats = ["A", "B", "F1"]
-    assert missing_cat not in inv_tno.t_profiles_indexes["category"].values
+    assert all(inv_tno.t_profiles_indexes.sel(category=missing_cat).values == -1)
     assert all(
         [cat in inv_tno.t_profiles_indexes["category"].values for cat in other_cats]
     )
