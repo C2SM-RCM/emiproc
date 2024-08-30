@@ -212,6 +212,12 @@ Figure \ref{fig:tno} was created using this function.
 The package is availabe on [GitHub](https://github.com/C2SM-RCM/emiproc)
 and the documentation is available on [readthedocs](https://emiproc.readthedocs.io/en/latest/).
 
+[Tutorials](https://emiproc.readthedocs.io/en/master/tutos/tutorials.html)
+are available to guide new users. 
+A good first start is the
+[Edgar processing tutorial](https://emiproc.readthedocs.io/en/master/tutos/edgar_processing.html)
+which shows how to process a freely available inventory and to export it.
+
 # Acknowledgements
 
 
