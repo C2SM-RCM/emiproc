@@ -290,6 +290,36 @@ class RegularGrid(Grid):
     def bounds(self) -> tuple[int, int, int, int]:
         return self.xmin, self.ymin, self.xmax, self.ymax
 
+    @classmethod
+    def from_centers(
+        cls, x_centers: np.ndarray, y_centers: np.ndarray, name=None, crs=WGS84
+    ) -> RegularGrid:
+        """Create a regular grid from the center points of the cells."""
+
+        # Calculate the dx and dy
+        dxs = np.diff(x_centers)
+        dys = np.diff(y_centers)
+
+        dx = dxs[0]
+        dy = dys[0]
+
+        if not np.allclose(dxs, dx) or not np.allclose(dys, dy):
+            raise ValueError("The centers are not equally spaced.")
+
+        nx = len(x_centers)
+        ny = len(y_centers)
+
+        return cls(
+            xmin=x_centers[0] - dx / 2,
+            ymin=y_centers[0] - dy / 2,
+            nx=nx,
+            ny=ny,
+            dx=dx,
+            dy=dy,
+            name=name,
+            crs=crs,
+        )
+
 
 class TNOGrid(RegularGrid):
     """Contains the grid from the TNO emission inventory
