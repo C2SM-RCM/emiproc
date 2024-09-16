@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
 from emiproc.grids import LV95, SwissGrid
@@ -9,6 +10,14 @@ from shapely.geometry import Polygon, Point
 from shapely.creation import polygons
 import numpy as np
 import rasterio
+
+
+class PointSourceCorrection(Enum):
+    """Enum for the point source correction method."""
+
+    KEEP_RASTER_ONLY = auto()
+    KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL = auto()
+    REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL = auto()
 
 
 class SwissRasters(Inventory):
@@ -28,6 +37,13 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
         year: int = 2015,
+        point_source_correction: dict[Category, PointSourceCorrection] = {
+            "eipro": PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL,
+            "eipzm": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
+            "eipkv": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
+            "eikla": PointSourceCorrection.KEEP_RASTER_ONLY,
+            "eidep": PointSourceCorrection.KEEP_RASTER_ONLY,
+        },
     ) -> None:
         """Create a swiss raster inventory.
 
@@ -114,12 +130,42 @@ class SwissRasters(Inventory):
             for sub in totals.index:
                 catsub = cat + "_" + sub
 
-                if emissions.loc[catsub] < totals[sub]:
+                if cat not in point_source_correction:
                     raise ValueError(
-                        f"Total emissions for {cat=} and {sub=} are negative."
-                        f" point sources: {totals[sub]}, inventory total: {emissions.loc[catsub]}"
+                        f"Category {cat} with point source emissions not in point_source_correction dictionary."
                     )
-                emissions.loc[catsub] -= totals[sub]
+
+                correction = point_source_correction[cat]
+
+                if correction == PointSourceCorrection.KEEP_RASTER_ONLY:
+                    # Remove the emissions of point sources
+                    gdf[sub] = 0.0
+                elif (
+                    correction
+                    == PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL
+                ):
+                    # Scale the point sources to match
+                    total = emissions.loc[catsub]
+                    gdf[sub] = gdf[sub] / totals[sub] * total
+                    # Remove the emissions of the raster
+                    emissions.loc[catsub] = 0.0
+                elif (
+                    correction
+                    == PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL
+                ):
+                    if emissions.loc[catsub] < totals[sub]:
+                        self.logger.warning(
+                            f"Total emissions for {cat=} and {sub=} are negative."
+                            f" point sources: {totals[sub]}, inventory total: {emissions.loc[catsub]}"
+                            " Only the point sources will be used."
+                        )
+                        # If we have more emissions in the point sources than in the inventory
+                        # We remove the rasters emissions
+                        emissions.loc[catsub] = 0.0
+                    else:
+                        emissions.loc[catsub] -= totals[sub]
+                else:
+                    raise ValueError(f"Unknown correction {correction}")
 
         # ---------------------------------------------------------------------
         # -- Grids
@@ -155,7 +201,7 @@ class SwissRasters(Inventory):
             assert len(split) > 1
             cat = split[0]
             sub = "_".join(split[1:])
-            if cat == "evstr":
+            if "evstr" in cat:
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
                 subname = sub.lower()
                 if subname == "voc":
