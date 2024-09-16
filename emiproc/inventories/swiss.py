@@ -154,11 +154,16 @@ class SwissRasters(Inventory):
                     == PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL
                 ):
                     if emissions.loc[catsub] < totals[sub]:
-                        raise ValueError(
+                        self.logger.warning(
                             f"Total emissions for {cat=} and {sub=} are negative."
                             f" point sources: {totals[sub]}, inventory total: {emissions.loc[catsub]}"
+                            " Only the point sources will be used."
                         )
-                    emissions.loc[catsub] -= totals[sub]
+                        # If we have more emissions in the point sources than in the inventory
+                        # We remove the rasters emissions
+                        emissions.loc[catsub] = 0.0
+                    else:
+                        emissions.loc[catsub] -= totals[sub]
                 else:
                     raise ValueError(f"Unknown correction {correction}")
 
