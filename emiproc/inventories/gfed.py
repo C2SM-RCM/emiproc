@@ -1,20 +1,52 @@
+import urllib.request
+from datetime import date, datetime
 from os import PathLike
 from pathlib import Path
-from emiproc.grids import RegularGrid, Grid
-from datetime import date, datetime
+
+import geopandas as gpd
+import numpy as np
+import xarray as xr
+
+from emiproc.grids import Grid, RegularGrid
+from emiproc.inventories import Inventory
 from emiproc.profiles.temporal_profiles import (
     CompositeTemporalProfiles,
     DayOfYearProfile,
-    MounthsProfile,
     Hour3OfDayPerMonth,
+    MounthsProfile,
+    get_leap_year_or_normal,
 )
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 
-import numpy as np
-import xarray as xr
-import geopandas as gpd
 
-from emiproc.inventories import Inventory
+def download_gfed5(
+    data_dir: PathLike,
+    year: int,
+    link_template: str = "https://surfdrive.surf.nl/files/index.php/s/VPMEYinPeHtWVxn/download?path=%2Fdaily&files=GFED5_Beta_daily_{year}{month}.nc",
+):
+    """Download the GFED5 files for a given year.
+
+    The files are downloaded in the data_dir folder.
+
+    :param data_dir: The directory where to download the files
+    :param year: The year to download
+    :param link_template: The template for the download link. The template should contain the year and month placeholders.
+    """
+
+    data_dir = Path(data_dir)
+
+    for month in range(1, 13):
+        link = link_template.format(year=year, month=f"{month:02d}")
+        filename = link.split("=")[-1]
+        filepath = data_dir / filename
+        try:
+            urllib.request.urlretrieve(link, filepath)
+        except urllib.error.HTTPError as e:
+            raise ValueError(
+                f"Link {link} does not exist. Maybe the inventory is not available for {year=}."
+            ) from e
+
+    print(f"Downloaded gfed5 files for {year=}.")
 
 
 class GFED_Grid(RegularGrid):
@@ -247,6 +279,73 @@ class GFED4_Inventory(Inventory):
 
         profiles = CompositeTemporalProfiles.from_ratios(
             ratios, list(parsed_profiles.keys()), rescale=True
+        )
+
+        self.set_profiles(profiles, indices)
+
+
+class GFED5(Inventory):
+    """Global Fire Emissions Database.
+
+    Global inventory based on satellite data, burned areas, fuel consumption.
+
+    https://www.globalfiredata.org/
+
+    You can download the input data for various year using :py:func:`download_gfed5`.
+    """
+
+    def __init__(self, file_dir: PathLike, year: int, substances: list[str]):
+        super().__init__()
+
+        files_dir = Path(file_dir)
+        files = [
+            files_dir / f"GFED5_Beta_daily_{year}{month:02d}.nc"
+            for month in range(1, 13)
+        ]
+
+        # Check that all files exists
+        for file in files:
+            if not file.exists():
+                raise ValueError(f"File {file} does not exist.")
+
+        ds = xr.open_mfdataset(files, combine="by_coords")
+
+        self.grid = RegularGrid.from_centers(
+            x_centers=ds["lon"].values,
+            y_centers=ds["lat"].values,
+            name="GFED5",
+        )
+
+        profiles = {}
+
+        for sub in substances:
+            if sub not in ds.data_vars:
+                raise ValueError(f"Substance {sub} not in the dataset.")
+
+            profiles[sub] = ds[sub].expand_dims(substance=[sub])
+
+        da_profiles: xr.DataArray = (
+            xr.concat(list(profiles.values()), dim="substance")
+            .stack(cell=("lon", "lat"))
+            .drop_vars(["lon", "lat"])
+            .rename({"time": "ratio"})
+        )
+
+        self.gdf = gpd.GeoDataFrame(
+            {
+                ("gfed", sub): da_profiles.sel(substance=sub).sum(dim=["ratio"]).values
+                # Convert from kg/m2 to kg/cell
+                * 1e-3 * self.grid.cell_areas
+                for sub in substances
+            },
+            geometry=self.grid.gdf.geometry,
+        )
+        self.gdfs = {}
+
+        ratios, indices = ratios_dataarray_to_profiles(da_profiles)
+
+        profiles = CompositeTemporalProfiles.from_ratios(
+            ratios, [get_leap_year_or_normal(DayOfYearProfile, year=year)], rescale=True
         )
 
         self.set_profiles(profiles, indices)
