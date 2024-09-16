@@ -201,7 +201,7 @@ class SwissRasters(Inventory):
             assert len(split) > 1
             cat = split[0]
             sub = "_".join(split[1:])
-            if cat == "evstr":
+            if "evstr" in cat:
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
                 subname = sub.lower()
                 if subname == "voc":
