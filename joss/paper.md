@@ -27,31 +27,28 @@ bibliography: paper.bib
 
 In the effort to reduce air pollution and greenhouse gas concentrations, emission inventories
 are created by countries and regions to estimate the magnitude of emissions and the share of individual source sectors.
-Modellers use these inventories to simulate the transport and physical and chemical processing of the emitted substances to compute their distribution in the atmosphere. The simulations are then compared with measurements to control if the declared emissions and their trends are consistent with the observed changes in the atmosphere, establishing the correctness of the inventories.
+Modellers use these inventories to simulate the atmospheric transport and processing of the emitted species to compute their distribution and potential impact on the environment. The simulations are often compared with measurements to control if the declared emissions and their trends are consistent with the observed changes in the atmosphere, establishing the correctness of the inventories.
 
 Inventories are created in multiple different formats and resolutions, which makes it difficult to compare
 and use them in atmospheric transport models.
 
-Figure \ref{fig:tno} an example of a gridded inventory.
+Figure \ref{fig:tno} presents an example of a gridded inventory.
 
 
-![CO2 emissions of the for year 2015 from the TNO inventory \label{fig:tno}.](raster_total_CO2.png){ width=100% }
+![CO2 emissions of the year 2015 from the TNOGHGco_v6 inventory produced by TNO, the Netherlands \label{fig:tno}.](raster_total_CO2.png){ width=100% }
 
-`emiproc` is a Python package that
-provides tools for processing and harmonizing emission inventories and for generating emission input files for different atmospheric models. It includes functions for reading, writing, and exporting emission inventory data to various formats used in atmospheric transport models. `emiproc` also provides functions for performing various 
-operations on inventory data, such as remapping emissions to different model grids including complex, semi-structured
-grids, aggregating emissions by sector or pollutant, or scaling emissions based on projection scenarios. 
+`emiproc` is a Python package that provides tools for processing and harmonizing emission inventories and for generating emission input files for atmospheric models. It includes functions for reading, writing, and exporting emission inventory data to various formats used in atmospheric transport models. `emiproc` also provides functions for performing various 
+operations on inventory data, such as remapping emissions to different model grids, aggregating emissions by sector or pollutant, or scaling emissions based on projection scenarios. 
 
-Emission input files can be generated in regular (e.g. hourly) intervals by applying sector-specific (and eventually country-specific) temporal and vertical emission profiles. Alternatively, a small set of input files can be generated, which describe the sectorial gridded emissions and their temporal and vertical profiles. This set of files can then be read by the online emissions module described by Jähn et al. (2020), which applied the temporal and vertical scaling online during the model simulation. 
+Emission input files can be generated in regular (e.g. hourly) intervals by applying sector- and country-specific temporal and vertical emission profiles. Alternatively, a small set of input files can be generated, which describe the sectorial gridded emissions and their temporal and vertical profiles. This set of files can then be read by the online emissions module (OEM) described by Jähn et al. (2020), which applies the temporal and vertical scaling online during the model simulation. 
 
 The package is designed to be flexible and extendable, allowing users to easily add new functionality, to read new inventories or export data to new formats.
 
 # Statement of need
 
 Emission inventory data can be represented in various formats and resolutions. 
-For example, TNO provides an inventory which contains both, a gridded map and point
-sources. 
-Other inventories, such as Mapluft (the inventory from the city of Zurich) are provided as 
+For example, TNO provides an inventory which contains both, a area emissions on a grid and point
+sources. Other inventories, such as the inventory from the city of Zurich, are provided as 
 GIS data with various shapes depending on the category of the emission source. As an 
 example: 
 
@@ -60,33 +57,39 @@ example:
 * Private boats on the lake are represented as polygons
 
 
-Air quality models usually require emission inventories to be in a specific format.
-This is often due to the different functionalities these models have. For example,
-ICON-ART-OEM requires emissions on the ICON triangular grid. It also requires cyclic time 
-profiles for the emissions at daily, weekly and monthly resolutions.
-On the other hand, the GRAL model can simulate, line, point or rectangular sources.
-GRAL also needs very detailed information about the emissions, such as the height,
-the temperature or the gas exit velocity of the source.
+Atmospheric models require emission inventories to be in a specific format and often 
+multiple inventories need to be combined to represent different anthropogenic and
+natural sources.
 
-Moreover, when modellers design transport simulations, they often are interested in
+The atmospheric chemistry transport model ICON-ART (Vogel et al., 20xx; Schröter et al., 20yy), 
+for example, requires emissions on 
+its complex, semi-structured triangular grid. As input for the OEM module it also requires 
+cyclic time profiles to scale the emissions with daily, weekly and monthly variability.
+As an other example, the Graz Lagrangian dispersion model (GRAL) can make direct use of emissions 
+represented in a GIS format as line, point or rectangular sources.
+GRAL needs additional detailed information such as the height, the temperature or the 
+gas exit velocity of a point source.
+
+When modellers design transport simulations, they often are interested in
 modifying the inventories. For example, they may want to scale the emissions based on
 different scenarios, or they may want to aggregate emissions by sector or pollutant.
 
-`emiproc` has already been successfully applied for different use cases.
+`emiproc` provides all this functionality and has already been successfully applied for different use cases.
 
 * [@acp-24-2759-2024] produced emission files for ICON-ART-OEM based on the EDGARv6
 inventory [@edgar_v6].
 
 * [@donmez2024urban] conducted urban climate simulation using emissions produced 
-with `emiproc` for cities of zurich and basel.
+with `emiproc` for cities of Zurich and Basel.
 
-* [@ponomarev2024estimation] used `emiproc` to nest the zurich city inventory
-inside the swiss national inventory around the city boundary
+* [@ponomarev2024estimation] used `emiproc` to nest the Zurich city inventory
+inside the Swiss national inventory and to further nest the Swiss inventory
+inside the European TNOGHGco inventory.
 
 Another python software, `HERMESv3` [@hermesv3_part1], can already process emission 
 data and generate input files for athmospheric transport models. However, `HERMESv3` is
 relying on specific configuration files. `emiproc` is much more flexible and extensible.
-It is alsow easier to use at it can by integrated directly in python scripts.
+It is also easier to use as it can by integrated directly in python scripts.
 
 
 # History
