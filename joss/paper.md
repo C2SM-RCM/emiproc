@@ -27,7 +27,7 @@ bibliography: paper.bib
 
 In the effort to reduce air pollution and greenhouse gas concentrations, emission inventories
 are created by countries and regions to estimate the magnitude of emissions and the share of individual source sectors.
-Modellers use these inventories to simulate the atmospheric transport and processing of the emitted species to compute their distribution and potential impact on the environment. The simulations are often compared with measurements to control if the declared emissions and their trends are consistent with the observed changes in the atmosphere, establishing the correctness of the inventories.
+Modellers use these inventories to simulate the atmospheric transport and processing of the emitted species to compute their distribution and potential impact on the environment. The simulations are often compared with measurements to control if the declared emissions and their trends are consistent with the observed changes in the atmosphere, improving the confidence in the inventories.
 
 Inventories are created in multiple different formats and resolutions, which makes it difficult to compare
 and use them in atmospheric transport models.
@@ -47,9 +47,9 @@ The package is designed to be flexible and extendable, allowing users to easily 
 # Statement of need
 
 Emission inventory data can be represented in various formats and resolutions. 
-For example, TNO provides an inventory which contains both, a area emissions on a grid and point
+For example, TNO (Dutch Organization for Applied Scientific Research) provides an inventory which contains both, a area emissions on a grid and point
 sources. Other inventories, such as the inventory from the city of Zurich, are provided as 
-GIS data with various shapes depending on the category of the emission source. As an 
+GIS (Geographic information system) data with various shapes depending on the category of the emission source. As an 
 example: 
 
 * Traffic emissions are represented as lines
@@ -77,7 +77,7 @@ different scenarios, or they may want to aggregate emissions by sector or pollut
 `emiproc` provides all this functionality and has already been successfully applied for different use cases.
 
 * [@acp-24-2759-2024] produced emission files for ICON-ART-OEM based on the EDGARv6
-inventory [@edgar_v6].
+inventory [@edgar_v6] (Emissions Database for Global Atmospheric Research).
 
 * [@donmez2024urban] conducted urban climate simulation using emissions produced 
 with `emiproc` for cities of Zurich and Basel.
@@ -87,7 +87,7 @@ inside the Swiss national inventory and to further nest the Swiss inventory
 inside the European TNOGHGco inventory.
 
 Another python software, `HERMESv3` [@hermesv3_part1], can already process emission 
-data and generate input files for athmospheric transport models. However, `HERMESv3` is
+data and generate input files for atmospheric transport models. However, `HERMESv3` is
 relying on specific configuration files. `emiproc` is much more flexible and extensible.
 It is also easier to use as it can by integrated directly in python scripts.
 
@@ -182,7 +182,7 @@ guide the user into adding the missing data.
 
 ## Emissions generation 
 
-Some emissions sectors are not provided in the inventory. For example, the
+Some emissions sectors are not always provided in inventories. For example, the
 human respiration is rarely provided.  However, 
 an emission map for this sector can be estimated based on the population density. 
 For this purpose, `emiproc` provides a module that helps to calculate these emissions.
@@ -192,8 +192,7 @@ Another example is the emissions from vegetation.
 Different models can estimate the emissions from vegetation based on satellite
 observations. `emiproc` implements the VPRM model [@vprm].
 
-This topic is one for which the HERMES model is already well developed in 
-its bottom-up part [@hermesv3_part2] as they implemented many sectors and polluants.
+This topic is already well-developed in the bottom-up component of the HERMES model [@hermesv3_part2], as it includes a wide range of sectors and pollutants.
 
 In the future, we hope users will contribute by adding new emission models.
 
