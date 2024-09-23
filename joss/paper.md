@@ -11,10 +11,13 @@ tags:
 authors:
   - name: Lionel Constantin
     orcid: 0009-0009-0347-4897
-    affiliation: "1" # (Multiple affiliations must be quoted)
+    affiliation: 1 
   - name: Brunner Dominik
     equal-contrib: true # (This is how you can denote equal contributions between multiple authors)
-    affiliation: 2
+    affiliation: 1
+  - name: Joel Thanwerdas
+    orcid: 0000-0003-1040-831X
+    affiliation: 1
 affiliations:
  - name: Empa, Laboratory for Air Pollution / Environmental Technology, Switzerland
    index: 1
