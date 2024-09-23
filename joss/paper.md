@@ -44,7 +44,9 @@ Figure \ref{fig:tno} presents an example of a gridded inventory.
 `emiproc` is a Python package that provides tools for processing and harmonizing emission inventories and for generating emission input files for atmospheric models. It includes functions for reading, writing, and exporting emission inventory data to various formats used in atmospheric transport models. `emiproc` also provides functions for performing various 
 operations on inventory data, such as remapping emissions to different model grids, aggregating emissions by sector or pollutant, or scaling emissions based on projection scenarios. 
 
-Emission input files can be generated in regular (e.g. hourly) intervals by applying sector- and country-specific temporal and vertical emission profiles. Alternatively, a small set of input files can be generated, which describe the sectorial gridded emissions and their temporal and vertical profiles. This set of files can then be read by the online emissions module (OEM) described by Jähn et al. (2020), which applies the temporal and vertical scaling online during the model simulation. 
+Emission input files can be generated in regular (e.g. hourly) intervals by applying sector- and country-specific temporal and vertical emission profiles.
+Alternatively, a small set of input files can be generated, which describe the sectorial gridded emissions and their temporal and vertical profiles.
+This set of files can then be read by OEM [online emissions module] described by Jähn et al. (2020), which applies the temporal and vertical scaling online during the model simulation. 
 
 The package is designed to be flexible and extendable, allowing users to easily add new functionality, to read new inventories or export data to new formats.
 
