@@ -67,7 +67,7 @@ Atmospheric models require emission inventories to be in a specific format and o
 multiple inventories need to be combined to represent different anthropogenic and
 natural sources.
 
-The atmospheric chemistry transport model ICON-ART (Vogel et al., 20xx; Schröter et al., 20yy), 
+The atmospheric chemistry transport model ICON-ART [@icon_art_2.1], 
 for example, requires emissions on 
 its complex, semi-structured triangular grid. As input for the OEM module it also requires 
 cyclic time profiles to scale the emissions with daily, weekly and monthly variability.
