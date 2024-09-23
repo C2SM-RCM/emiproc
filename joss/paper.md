@@ -13,6 +13,7 @@ authors:
     orcid: 0009-0009-0347-4897
     affiliation: 1 
   - name: Brunner Dominik
+    orcid: 0000-0002-4007-6902
     equal-contrib: true # (This is how you can denote equal contributions between multiple authors)
     affiliation: 1
   - name: Joel Thanwerdas
