@@ -43,6 +43,7 @@ class SwissRasters(Inventory):
             "eipkv": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
             "eikla": PointSourceCorrection.KEEP_RASTER_ONLY,
             "eidep": PointSourceCorrection.KEEP_RASTER_ONLY,
+            "eiprd": PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL,
         },
     ) -> None:
         """Create a swiss raster inventory.
@@ -373,9 +374,12 @@ polluant_matching = {
 
 activities_to_categories = {
     # 1 - Energiesektor
-    "1.a": "eipro",
-    "1.b": "eipro",
-    "1.c": "eipro",
+    "1.a": "eipro",  # Mineralöl- und Gasraffinerien
+    "1.b": "eipro",  # Vergasungs- und Verflüssigungsanlagen
+    # 'eiprd' = Dienstleistungen Ol und Gas
+    # Could also assign to 'eipdh' (Dienstleistungen Holz und Kohle) but we don't
+    # know the fuel type
+    "1.c": "eiprd",  # Wärmekraftwerke und andere Verbrennungsanlagen
     # 2 - Herstellung und Verarbeitung von Metallen
     "2.b": "eipro",
     "2.c.1": "eipro",
