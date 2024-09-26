@@ -18,6 +18,17 @@ class PointSourceCorrection(Enum):
     KEEP_RASTER_ONLY = auto()
     KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL = auto()
     REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL = auto()
+    IS_ONLY_POINT_SOURCE = auto()
+
+
+default_point_source_correction = {
+    "eipro": PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL,
+    "eipzm": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
+    "eipkv": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
+    "eikla": PointSourceCorrection.KEEP_RASTER_ONLY,
+    "eidep": PointSourceCorrection.KEEP_RASTER_ONLY,
+    "eiprd": PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL,
+}
 
 
 class SwissRasters(Inventory):
@@ -37,13 +48,9 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
         year: int = 2015,
-        point_source_correction: dict[Category, PointSourceCorrection] = {
-            "eipro": PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL,
-            "eipzm": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
-            "eipkv": PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL,
-            "eikla": PointSourceCorrection.KEEP_RASTER_ONLY,
-            "eidep": PointSourceCorrection.KEEP_RASTER_ONLY,
-        },
+        point_source_correction: dict[
+            Category, PointSourceCorrection
+        ] = default_point_source_correction,
     ) -> None:
         """Create a swiss raster inventory.
 
@@ -116,11 +123,18 @@ class SwissRasters(Inventory):
                 assert (
                     "CO2_biog" not in gdf.columns
                 ), "Unexpected CO2_biog in the point sources"
-                # Get the biogenic fraction in the total emissions
-                # and apply it to the pointsources
-                biog_fracton = emissions.loc[catsub_biog] / (
-                    emissions.loc[catsub_co2] + emissions.loc[catsub_biog]
-                )
+
+                if (
+                    point_source_correction[cat]
+                    == PointSourceCorrection.IS_ONLY_POINT_SOURCE
+                ):
+                    biog_fracton = 0.0
+                else:
+                    # Get the biogenic fraction in the total emissions
+                    # and apply it to the pointsources
+                    biog_fracton = emissions.loc[catsub_biog] / (
+                        emissions.loc[catsub_co2] + emissions.loc[catsub_biog]
+                    )
                 # Split the CO2 emissions in two
                 base_col = gdf["CO2"].copy()
                 gdf["CO2"] = base_col * (1.0 - biog_fracton)
@@ -140,6 +154,13 @@ class SwissRasters(Inventory):
                 if correction == PointSourceCorrection.KEEP_RASTER_ONLY:
                     # Remove the emissions of point sources
                     gdf[sub] = 0.0
+                elif correction == PointSourceCorrection.IS_ONLY_POINT_SOURCE:
+                    # Make sure the raster is empty
+                    if catsub in emissions and emissions.loc[catsub] != 0:
+                        raise ValueError(
+                            f"Raster {catsub} is not empty for {correction}."
+                        )
+                    emissions.loc[catsub] = 0.0
                 elif (
                     correction
                     == PointSourceCorrection.KEEP_POINT_SOURCE_ONLY_SCALED_TO_RASTER_TOTAL
@@ -208,6 +229,13 @@ class SwissRasters(Inventory):
                     subname = "nmvoc"
                 rasters_w_emis.append(cat + "_" + subname)
                 evstr_subname_to_subname[subname] = sub
+            elif (
+                cat in point_source_correction
+                and point_source_correction[cat]
+                == PointSourceCorrection.IS_ONLY_POINT_SOURCE
+            ):
+                # If the category is only point source, we don't need the raster
+                pass
             else:
                 rasters_w_emis.append(cat)
         # Remove duplicates
@@ -373,9 +401,9 @@ polluant_matching = {
 
 activities_to_categories = {
     # 1 - Energiesektor
-    "1.a": "eipro",
-    "1.b": "eipro",
-    "1.c": "eipro",
+    "1.a": "eipro",  # Mineralöl- und Gasraffinerien
+    "1.b": "eipro",  # Vergasungs- und Verflüssigungsanlagen
+    "1.c": "eipro",  # Wärmekraftwerke und andere Verbrennungsanlagen
     # 2 - Herstellung und Verarbeitung von Metallen
     "2.b": "eipro",
     "2.c.1": "eipro",

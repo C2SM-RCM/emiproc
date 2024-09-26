@@ -18,8 +18,8 @@ CH_2_GNFR = {
         "ehfho",
         "ehfoe",
         "ehgws",
-        "eipdh",
-        "eiprd",
+        "eipdh",  # Diensleistungen Holz und Kohle
+        "eiprd",  # Dienstleistungen Ol und Gas
         "elfeu",
     ],
     # Fugitives
