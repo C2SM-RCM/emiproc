@@ -403,10 +403,7 @@ activities_to_categories = {
     # 1 - Energiesektor
     "1.a": "eipro",  # Mineralöl- und Gasraffinerien
     "1.b": "eipro",  # Vergasungs- und Verflüssigungsanlagen
-    # 'eiprd' = Dienstleistungen Ol und Gas
-    # Could also assign to 'eipdh' (Dienstleistungen Holz und Kohle) but we don't
-    # know the fuel type
-    "1.c": "eiprd",  # Wärmekraftwerke und andere Verbrennungsanlagen
+    "1.c": "eipro",  # Wärmekraftwerke und andere Verbrennungsanlagen
     # 2 - Herstellung und Verarbeitung von Metallen
     "2.b": "eipro",
     "2.c.1": "eipro",
