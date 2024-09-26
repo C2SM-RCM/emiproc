@@ -804,7 +804,7 @@ def get_index_in_profile(
 
     if profile == MounthsProfile:
         indexes = time_range.month - 1
-    elif profile == DayOfYearProfile:
+    elif profile in [DayOfYearProfile, DayOfLeapYearProfile]:
         indexes = time_range.day_of_year - 1
     elif profile == DailyProfile:
         indexes = time_range.hour

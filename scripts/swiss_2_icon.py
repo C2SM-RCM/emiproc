@@ -14,7 +14,12 @@ So here we will do a triple nesting:
 from pathlib import Path
 from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.inventories.tno import TNO_Inventory
-from emiproc.inventories.swiss import SwissRasters
+from emiproc.inventories.swiss import (
+    SwissRasters,
+    activities_to_categories,
+    default_point_source_correction,
+    PointSourceCorrection,
+)
 from emiproc.inventories.utils import (
     add_inventories,
     crop_with_shape,
@@ -37,7 +42,7 @@ from emiproc import FILES_DIR
 
 # %% Select the path with my data
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
-
+version = "v240926"
 year = 2022
 # %%
 tno_path = Path(
@@ -54,8 +59,14 @@ for cat in inv_tno.categories:
 inv_tno.to_crs(LV95)
 
 # %% Create the inventory object
+# Change the district heating to the A category
+activities_to_categories["1.c"] = "districtheatingps"
+default_point_source_correction["districtheatingps"] = (
+    PointSourceCorrection.IS_ONLY_POINT_SOURCE
+)
+CH_2_GNFR["GNFR_A"].append("districtheatingps")
 inv_ch = SwissRasters(
-    filepath_csv_totals=r"C:\Users\coli\Documents\emissions_preprocessing\output\CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_CO2.csv",
+    filepath_csv_totals=r"C:\Users\coli\Documents\emissions_preprocessing\output\CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_CO2_biog.csv",
     filepath_point_sources=r"C:\Users\coli\Documents\emissions_preprocessing\input\SwissPRTR-Daten_2007-2022.xlsx",
     rasters_dir=data_path / "ekat_gridascii_v_swiss2icon",
     rasters_str_dir=data_path / "ekat_str_gridascii_v_swiss2icon",
@@ -173,7 +184,7 @@ for profile in [TemporalProfilesTypes.HOUR_OF_YEAR, TemporalProfilesTypes.THREE_
         inv=combined,
         icon_grid_file=grid_file,
         output_dir=grid_file.parent
-        / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_v2408",
+        / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_{version}",
         group_dict=groups,
         substances=["CO2"],
         year=year,

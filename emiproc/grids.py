@@ -29,6 +29,11 @@ WGS84_NSIDC = 6933  # Unit: meters
 R_EARTH = 6371000  # m
 
 
+# Type alias
+# minx, miny, maxx, maxy
+BoundingBox = tuple[float, float, float, float]
+
+
 class Grid:
     """Abstract base class for a grid.
     Derive your own grid implementation from this and make sure to provide
@@ -238,8 +243,8 @@ class RegularGrid(Grid):
             [self.lat_range - self.dy / 2, [self.lat_range[-1] + self.dy / 2]]
         )
 
-        assert len(self.lon_range) == nx
-        assert len(self.lat_range) == ny
+        assert len(self.lon_range) == nx, f"{len(self.lon_range)=} != {nx=}"
+        assert len(self.lat_range) == ny, f"{len(self.lat_range)=} != {ny=}"
         assert len(self.lon_bounds) == nx + 1
         assert len(self.lat_bounds) == ny + 1
 
@@ -292,9 +297,22 @@ class RegularGrid(Grid):
 
     @classmethod
     def from_centers(
-        cls, x_centers: np.ndarray, y_centers: np.ndarray, name=None, crs=WGS84
+        cls,
+        x_centers: np.ndarray,
+        y_centers: np.ndarray,
+        name=None,
+        crs=WGS84,
+        rounding: int | None = None,
     ) -> RegularGrid:
-        """Create a regular grid from the center points of the cells."""
+        """Create a regular grid from the center points of the cells.
+
+        :param x_centers: The x-coordinates of the cell centers.
+        :param y_centers: The y-coordinates of the cell centers.
+        :param name: The name of the grid.
+        :param crs: The coordinate reference system of the grid.
+        :param rounding: The number of decimal places to round the dx and dy.
+            This is useful to correct floating point errors.
+        """
 
         # Calculate the dx and dy
         dxs = np.diff(x_centers)
@@ -303,22 +321,42 @@ class RegularGrid(Grid):
         dx = dxs[0]
         dy = dys[0]
 
+        if rounding is not None:
+            dx = round(dx, rounding)
+            dy = round(dy, rounding)
+
         if not np.allclose(dxs, dx) or not np.allclose(dys, dy):
             raise ValueError("The centers are not equally spaced.")
 
         nx = len(x_centers)
         ny = len(y_centers)
 
-        return cls(
-            xmin=x_centers[0] - dx / 2,
-            ymin=y_centers[0] - dy / 2,
-            nx=nx,
-            ny=ny,
-            dx=dx,
-            dy=dy,
-            name=name,
-            crs=crs,
-        )
+        xmin = x_centers[0] - dx / 2
+        ymin = y_centers[0] - dy / 2
+
+        if rounding is not None:
+            xmin = round(xmin, rounding)
+            ymin = round(ymin, rounding)
+
+        try:
+            grid = cls(
+                xmin=x_centers[0] - dx / 2,
+                ymin=y_centers[0] - dy / 2,
+                nx=nx,
+                ny=ny,
+                dx=dx,
+                dy=dy,
+                name=name,
+                crs=crs,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not create grid from centers. "
+                "If there is a mismatch in coordinates, "
+                "try to set `rounding` to some value."
+            ) from e
+
+        return grid
 
 
 class TNOGrid(RegularGrid):
