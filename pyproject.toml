@@ -6,16 +6,18 @@ build-backend = "setuptools.build_meta"
 name = "emiproc"
 description = "Emission Processing Tool"
 authors = [
+    {name = "Lionel Constantin", email="lionel.constantin@empa.ch"},
     {name = "Michael Jähn"},
     {name = "Gerrit Kuhlmann"},
-    {name = "Q. Mu"},
-    {name = "J.M. Haussaire"},
+    {name = "Qing Mu"},
+    {name = "Jean-Matthieu Haussaire"},
     {name = "David Ochsner"},
-    {name = "K. Osterried"},
-    {name = "V. Clément"},
+    {name = "Katherine Osterried"},
+    {name = "Valentin Clément"},
     {name = "Joel Thanwerdas"},
     {name = "Corina Keller"},
-    {name = "Lionel Constantin", email="lionel.constantin@empa.ch"},
+    {name = "Erik Koene"},
+    {name = "Alessandro Bigi"},
     {name = "Dominik Brunner", email="dominik.brunner@empa.ch"},
 ]
 dependencies = [
