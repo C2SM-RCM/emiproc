@@ -182,8 +182,8 @@ class GralInventory(Inventory):
             gdf = gpd.GeoDataFrame(
                 {substance: emissions_values},
                 geometry=gpd.points_from_xy(
-                    df[mask_source_group][df.columns[PointsCols.X]],
-                    df[mask_source_group][df.columns[PointsCols.Y]],
+                    df.loc[mask_source_group, df.columns[PointsCols.X]],
+                    df.loc[mask_source_group, df.columns[PointsCols.Y]],
                 ),
                 crs=self._requested_crs,
             )
@@ -209,12 +209,12 @@ class GralInventory(Inventory):
             emission_col = df.columns[LinesCols.EMISSION]
             # Create geseries with the start points and end points
             gs_start = gpd.points_from_xy(
-                df[mask_source_group][df.columns[LinesCols.X_START]],
-                df[mask_source_group][df.columns[LinesCols.Y_START]],
+                df.loc[mask_source_group, df.columns[LinesCols.X_START]],
+                df.loc[mask_source_group, df.columns[LinesCols.Y_START]],
             )
             gs_end = gpd.points_from_xy(
-                df[mask_source_group][df.columns[LinesCols.X_END]],
-                df[mask_source_group][df.columns[LinesCols.Y_END]],
+                df.loc[mask_source_group, df.columns[LinesCols.X_END]],
+                df.loc[mask_source_group, df.columns[LinesCols.Y_END]],
             )
             # Create the linestrings
             gs_lines = gpd.GeoSeries(
@@ -260,7 +260,7 @@ class GralInventory(Inventory):
             # Create the GeoDataFrame
             emission_col = df.columns[CadastreCols.EMISSION]
             # Create geseries with the start points and end points
-            df_group = df[mask_source_group]
+            df_group = df.loc[mask_source_group]
 
             gs_sqaures = gpd.GeoSeries(
                 [Polygon(((x, y), (x + x_ext, y), (x + x_ext, y + y_ext), (x, y + y_ext), (x, y))) 
