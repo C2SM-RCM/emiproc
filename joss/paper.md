@@ -85,47 +85,44 @@ Since then the package is regularly updated with new features and bug fixes.
 
 # Design 
 
-To be able to use these different kind of inventories in air quality models, it is
+To be able to use these different kind of inventories in atmospheric models, it is
 necessary to harmonize them. This is what the `emiproc` package is designed for.
 
-![Design of the idea behind emiproc \label{fig:design}.](pipeline.drawio.png)
+![Design of the idea behind emiproc \label{fig:design}.](pipeline.drawio.png){ width=60% }
 
-Thanks to the harmonization of the data, processing functions can be applied to the
-different inventories once loaded into `emiproc`. They can later be exported to any
-of the supported formats provided by the package.
+Thanks to the harmonization of the data, functions for additional data processing
+can easily be applied to the different inventories once loaded into `emiproc`. 
+The processed inventories can finally be exported to any of the formats supported by the package.
 
-The API of `emiproc` makes a great use of object-oriented programming. 
-
-`emiproc` is built on top of ,the `geopandas` package [@kelsey_jordahl_2020_3946761], 
-which allows storing the geometries of the emission maps and offers a lot of functionalities
-related to geometric operations.
-In the inventory, the emission data is stored as 
+The API of `emiproc` leverages the advantages of object-oriented programming. 
+`emiproc` is built on top of the `geopandas` package [@kelsey_jordahl_2020_3946761], 
+which allows storing the geometries of the emission maps and offers many functionalities
+related to geometric operations. In an inventory, the emission data is stored as 
 [`geopandas.GeoDataFrame`](https://geopandas.org/en/stable/docs/reference/geodataframe.html).
 
 
 ## Inventory
-The main object
-is the `Inventory` object. Any inventory is a subclass of the `Inventory` object.
-
+The main object is the `Inventory` object. Any inventory is a subclass of the `Inventory` object.
 `emiproc` provides many utility functions to process this basic object. 
-Typically processing function take and inventory and some parameters as input and return a new Inventory object
-with the processed data.
+Typically, a processing function takes an inventory and some parameters as input 
+and returns a new Inventory object with the processed data.
 
-Example: the `group_categories` function converts an `Inventory` with some categories 
-to a new `Inventory` with another set of categories, based on a mapping provided by the user. 
-This is useful to reduce the number of categories simulated
-and use a standardized set of categories such as the GNFR sectors from [@emep_guidelines].
+Example: the `group_categories` function regroups an `Inventory` with a given set of source
+categories to a new `Inventory` with another set of categories, based on a mapping provided by the user. 
+This is useful to reduce the number of categories simulated or to use a standardized set of 
+categories such as the GNFR sectors from [@emep_guidelines].
 
 
 ## Grid
-As inventories and models always come on different grids, `emiproc` uses a `Grid` object.
-For many use cases the `RegularGrid` child class can be used,
-but for specific models the user can define their own grid. 
+As inventories and models always come on different grids, `emiproc` defines a 
+grid and projection through a `Grid` object. For many use cases, 
+the `RegularGrid` child class can be used, but for specific models the users 
+can define their own grid. 
 
-Example: The ICON Model [@IconRelease01] is simulated over
-an icosahedral (triangular) grid, for which `emiproc` provides an `ICON_grid` object.
+Example: The ICON Model [@IconRelease01] is simulated on an icosahedral grid composed of
+triangles instead of rectangles, for which `emiproc` provides an `ICON_grid` object.
 
-Functions in `emiproc` can then perform various operations on these `Grid` objects 
+Functions in `emiproc` can then perform various operations on these `Grid` objects.
 
 Example: the `remap_inventory` function can be used to remap the emissions to a different grid.
 The `remap_inventory` function takes an `Inventory` and a `Grid` as input, and returns a new
@@ -134,53 +131,55 @@ The `remap_inventory` function takes an `Inventory` and a `Grid` as input, and r
 ## Temporal and vertical profiles
 
 To handle the temporal distribution of the emissions, `emiproc` uses the
-`TemporalProfile` object which are assigned to the `Inventory`. 
-This object stores the temporal distribution of the emissions. 
-Profiles can be either defined at specific datetimes 
-or cyclic defined at different temporal resolutions (e.g. daily, weekly, monthly).
+`TemporalProfile` object, which is assigned to the `Inventory` and 
+stores the temporal distribution of the emissions. 
+Profiles can be either defined at specific datetimes or can be cyclic
+profiles at different temporal resolutions (e.g. daily, weekly, monthly).
 
-Vertical distribution of the emissions is handled in a similar manner by the 
+The vertical distribution of the emissions is handled in a similar manner by the 
 `VerticalProfile` object. 
 
-These profile objects can be assigned very specifically to certain types of emissions.
-For example, it is possible to assign them to a specific
-category / polluant / country / gridcell.
+The temporal and vertical profile objects can be assigned very specifically to 
+certain types of emissions. For example, it is possible to assign them to a specific
+category / pollutant / country / gridcell.
 
 
 ## Export functions
 
 Finally, `emiproc` contains many functions to export inventories for various
-air quality models. 
-These export functions are designed to make life of the modellers
+atmospheric models. The export produces all emission input files required by the
+model. These export functions are designed to make life of the modellers
 as simple as possible. 
 
-Some transport model might require some additional data which is not 
-given in the inventories. In this case, `emiproc` provides error messages which
+Some transport models might require additional data not included in the 
+inventories. In this case, `emiproc` provides error messages, which
 guide the user into adding the missing data.
 
 
 ## Emissions generation 
 
-Some emissions sectors are not always provided in inventories. For example, the
-human respiration is rarely provided.  However, 
-an emission map for this sector can be estimated based on the population density. 
-For this purpose, `emiproc` provides a module that helps to calculate these emissions.
+Emission inventories do not necessarily contain all data relevant for a
+simulation. For example, human respiration contributes to emissions of CO2 but
+is rarely included in an inventory.  However, an emission map for this sector can 
+be estimated based on population density. For this purpose, `emiproc` provides 
+a module that helps produce emission maps that rely on a spatial proxy
+(e.g. population density) and an emission factor.
 
+Another example is CO2 emissions from vegetation. Several different models
+are available that estimate the exchange of CO2 with vegetation based on satellite observations. 
+`emiproc` implements the VPRM model [@vprm], which (by default) makes use of 
+vegetation and soil moisture indices from the MODIS satellite.
 
-Another example is the emissions from vegetation. 
-Different models can estimate the emissions from vegetation based on satellite
-observations. `emiproc` implements the VPRM model [@vprm].
-
-This topic is already well-developed in the bottom-up component of the HERMES model [@hermesv3_part2], as it includes a wide range of sectors and pollutants.
+This topic is already well-developed in the bottom-up component of the HERMES model [@hermesv3_part2], 
+as it includes a wide range of sectors and pollutants.
 
 In the future, we hope users will contribute by adding new emission models.
 
 ## Visualizing the data
-At the end of the processing, a modeller usually wants to check the output files 
+At the end of the whole processing chain, a modeller may want to check the output files 
 to see if the processing was successful. 
 
 For some of the outputs, emiproc provides example plot scripts based on matplotlib.
-
 
 For regular grids, the `plot_inventory` function from the `emiproc.plots` module
 can be used to plot the emissions on a map.
@@ -201,10 +200,8 @@ which shows how to process a freely available inventory and to export it.
 
 # Acknowledgements
 
-
-
-We acknowledge all the previous and current contributers,
-the developpers of all models and inventories included in
-`emiproc` and the developpers of the packages used by `emiproc`.
+We acknowledge all the previous and current contributers of emiproc, 
+the developers of the models and inventories included in `emiproc`, 
+and the developers of the python packages used by `emiproc`.
 
 # References
