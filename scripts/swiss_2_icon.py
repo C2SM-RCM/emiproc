@@ -11,6 +11,7 @@ So here we will do a triple nesting:
 """
 
 # %% Imports
+from datetime import datetime
 from pathlib import Path
 from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.inventories.tno import TNO_Inventory
@@ -29,7 +30,8 @@ from emiproc.inventories.utils import (
 from emiproc.speciation import merge_substances
 from emiproc.grids import LV95, WGS84, ICONGrid
 from shapely.geometry import Polygon, Point
-from emiproc.regrid import remap_inventory
+from emiproc.regrid import remap_inventory, get_weights_mapping
+
 from emiproc.inventories.categories_groups import CH_2_GNFR, TNO_2_GNFR
 from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR
 import geopandas as gpd
@@ -38,11 +40,13 @@ from emiproc.utilities import get_natural_earth
 from emiproc.profiles.temporal_profiles import from_yaml
 from emiproc.profiles.vertical_profiles import VerticalProfile
 import numpy as np
+import xarray as xr
+
 from emiproc import FILES_DIR
 
 # %% Select the path with my data
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
-version = "v240926"
+version = f"v{datetime.now().strftime('%y%m%d')}"
 year = 2022
 # %%
 tno_path = Path(
@@ -178,15 +182,45 @@ combined.set_profile(
 
 # %%
 
+out_dir = (
+    grid_file.parent / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_{version}"
+)
 
 for profile in [TemporalProfilesTypes.HOUR_OF_YEAR, TemporalProfilesTypes.THREE_CYCLES]:
     export_icon_oem(
         inv=combined,
         icon_grid_file=grid_file,
-        output_dir=grid_file.parent
-        / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_{version}",
+        output_dir=out_dir,
         group_dict=groups,
         substances=["CO2"],
         year=year,
         temporal_profiles_type=profile,
     )
+
+
+# %% Add the fraction in zurich
+
+
+weights = get_weights_mapping(
+    weights_filepath=None,
+    # weights_filepath=weights_path / f"remap_zh_boundaries_2_{grid_file.stem}",
+    shapes_inv=icon_grid.gdf.to_crs(LV95),
+    shapes_out=[zh_poly],
+)
+
+
+ds_icon = xr.load_dataset(out_dir / "oem_gridded_emissions.nc")
+fraction = np.zeros(ds_icon["cell"].shape)
+fraction[weights["inv_indexes"]] = weights["weights"]
+ds_icon["fraction_in_zurich"] = (
+    "cell",
+    fraction,
+    {
+        "units": "-",
+        "long_name": "Fraction of the cell in Zurich boundaries",
+        "created_by_emiproc": f"{Path(__file__).name}",
+    },
+)
+ds_icon.to_netcdf(out_dir / "oem_gridded_emissions.nc")
+ds_icon
+# %%
