@@ -18,6 +18,7 @@ authors = [
     {name = "Corina Keller"},
     {name = "Erik Koene"},
     {name = "Alessandro Bigi"},
+    {name = "Michael Steiner"},
     {name = "Dominik Brunner", email="dominik.brunner@empa.ch"},
 ]
 dependencies = [
