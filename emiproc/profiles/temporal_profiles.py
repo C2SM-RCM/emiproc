@@ -817,8 +817,8 @@ def get_index_in_profile(
     else:
         raise ValueError(f"Profile type {profile} not recognized")
 
-    assert indexes.min() >= 0
-    assert indexes.max() < profile.size
+    assert indexes.min() >= 0, f"{profile=}, {time_range=}"
+    assert indexes.max() < profile.size, f"{profile=}, {time_range=}"
 
     return indexes
 
@@ -858,6 +858,18 @@ def get_profile_da(
 
     # Add a first value at the begginning, such that we cover the whole year
     ts = pd.DatetimeIndex([ts[0] - 2 * offset] + list(ts))
+
+    # Correct for non cyclic profiles (day of specific year)
+    if isinstance(
+        profile,
+        (
+            HourOfYearProfile,
+            HourOfLeapYearProfile,
+            DayOfLeapYearProfile,
+            DayOfYearProfile,
+        ),
+    ):
+        ts = ts[1:-1]
 
     da = xr.DataArray(
         profile.ratios[:, get_index_in_profile(type(profile), ts)],
