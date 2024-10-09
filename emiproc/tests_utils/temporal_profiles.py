@@ -9,6 +9,8 @@ from emiproc.profiles.temporal_profiles import (
     AnyTimeProfile,
     CompositeTemporalProfiles,
     DailyProfile,
+    DayOfLeapYearProfile,
+    DayOfYearProfile,
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
@@ -135,6 +137,10 @@ daily_test_profile = DailyProfile(
         0.05416,
         0.04166,
     ]
+)
+day_of_year_ratios = np.arange(365, dtype=float)
+day_of_year_test_profile = DayOfYearProfile(
+    day_of_year_ratios / day_of_year_ratios.sum()
 )
 oem_test_profile = [
     weekly_test_profile,

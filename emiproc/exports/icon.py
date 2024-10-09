@@ -94,7 +94,7 @@ def export_icon_oem(
 
         ! oem_nml: online emission module ---------------------------------------------
         &oemctrl_nml
-        gridded_emissions_nc        =   '${OEMDIR}/tno_combined.nc'
+        gridded_emissions_nc        =   '${OEMDIR}/oem_gridded_emissions.nc'
         vertical_profile_nc         =   '${OEMDIR}/vertical_profiles.nc'
         hour_of_day_nc              =   '${OEMDIR}/hourofday.nc'
         day_of_week_nc              =   '${OEMDIR}/dayofweek.nc'
