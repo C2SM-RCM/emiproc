@@ -1,74 +1,127 @@
 from os import PathLike
 
-import xarray as xr
-import numpy as np
 import geopandas as gpd
+import pandas as pd
+import xarray as xr
 
-from emiproc.grids import WGS84, RegularGrid
+from emiproc.grids import BoundingBox, RegularGrid
 from emiproc.inventories import Inventory
+from emiproc.profiles.temporal_profiles import (
+    CompositeTemporalProfiles,
+    DayOfYearProfile,
+    get_leap_year_or_normal,
+)
+from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utilities import SEC_PER_YR
 
 
 class GFAS_Inventory(Inventory):
+    def __init__(self, *args, **kwargs):
+        raise DeprecationWarning(
+            "GFAS_Inventory has been updated and renamed to GFAS. Please use GFAS instead."
+        )
+
+
+class GFAS(Inventory):
     """The GFAS inventory.
 
-    `CAMS global biomass burning emissions based on fire radiative power 
+    Contains gridded data of forest fires from the Copernicus Atmosphere Monitoring
+    Service (CAMS).
+
+    You can access the data at
+    `CAMS global biomass burning emissions based on fire radiative power
     <https://ads.atmosphere.copernicus.eu/cdsapp#!/dataset/cams-global-fire-emissions-gfas>`_
 
-    GFAS has only grid cell sources.
     """
 
     grid: RegularGrid
 
-    def __init__(self, nc_file: PathLike):
-        """Create a GFAS.
-        The GFAS directory contains gridded data of forest fires (co2 fluxes)
+    def __init__(
+        self,
+        nc_file: PathLike,
+        variables: list[str] = [],
+        bbox: BoundingBox | None = None,
+    ):
+        """Create a GFAS inventory.
+
+        The GFAS nc file contains gridded data of forest fires.
+        By default, all variables in the nc file are included. If you want to include
+        only a subset of the variables, you can specify them in the variables argument.
+
+        :param nc_file: The path to the netCDF file.
+            Make sure the file contains one year of data
+        :param variables: A list of variables to include in the inventory.
+        :param bbox: A bounding box to subset the data.
+            `[minx, miny, maxx, maxy]`
 
         """
         super().__init__()
         ds = xr.open_dataset(nc_file)
-        categories = ["co2fire", "mami"]
 
-        substances_mapping = {
-            "co2fire": "CO2",
+        self.year = pd.Timestamp(ds["valid_time"].values[0]).year
+
+        # Check that the file contains one year of data
+        expected_profile = get_leap_year_or_normal(DayOfYearProfile, year=self.year)
+        if expected_profile.size != ds["valid_time"].size:
+            raise ValueError(
+                f"Expected {expected_profile.size} timesteps for year {self.year}, "
+                f"but got {ds['valid_time'].size} timesteps in the file."
+                " Make sure the file contains one (and only one) full year of data."
+            )
+
+        # Apply optional bounding box to subset the data
+        if bbox:
+            lon_mask = (ds["longitude"] >= bbox[0]) & (ds["longitude"] <= bbox[2])
+            lat_mask = (ds["latitude"] >= bbox[1]) & (ds["latitude"] <= bbox[3])
+            ds = ds.sel(longitude=lon_mask, latitude=lat_mask)
+
+        if not variables:
+            variables = list(ds.data_vars.keys())
+        var_2_emiproc = {var: var.replace("fire", "").upper() for var in variables}
+
+        profiles = {
+            sub: ds[key].expand_dims(substance=[sub])
+            for key, sub in var_2_emiproc.items()
         }
 
-        # Take the mean of the fire emissions over the time period submitted
-        if "time" in ds.keys():
-            ds = ds.mean("time", keep_attrs=True)
-
-        self.grid = RegularGrid(
-            xmin=ds.longitude[0].values,
-            xmax=ds.longitude[-1].values,
-            ymin=ds.latitude[0].values,  # Sorted from high to low
-            ymax=ds.latitude[-1].values,
-            nx=len(ds.longitude),
-            ny=len(ds.latitude),
+        self.grid = RegularGrid.from_centers(
+            x_centers=ds["longitude"].values,
+            y_centers=ds["latitude"].values,
+            name="GFAS",
+            rounding=2,
+            # Custom projection, to correct for the lon range of the data
+            crs="+proj=longlat +datum=WGS84 +no_defs +type=crs +lon_wrap=180",
         )
-
-        polys = self.grid.cells_as_polylist
-
-        # Index in the polygon list (from the gdf) (index start at 1)
-        poly_ind = np.arange(self.grid.nx * self.grid.ny)
 
         self.gdfs = {}
-        mapping = {}
-        for cat_idx, cat_name in enumerate(categories):
-            for sub_in_nc, sub_emiproc in substances_mapping.items():
-                tuple_idx = (cat_name, sub_emiproc)
-                if tuple_idx not in mapping:
-                    mapping[tuple_idx] = np.zeros(len(polys))
 
-                # Add all the area sources corresponding to that category
-                np.add.at(mapping[tuple_idx], poly_ind, ds[sub_in_nc].data.T.flatten())
-
-        self.gdf = gpd.GeoDataFrame(
-            mapping,
-            geometry=polys,
-            crs=WGS84,
+        # Reshape the data to the regular grid
+        da_profiles: xr.DataArray = (
+            xr.concat(list(profiles.values()), dim="substance")
+            .stack(cell=("longitude", "latitude"))
+            .drop_vars(["longitude", "latitude"])
+            .rename({"valid_time": "ratio"})
         )
 
-        self.cell_areas = self.grid.cell_areas
+        def process_substance(sub):
+            return (
+                da_profiles.sel(substance=sub).mean("ratio")
+                # Convert from kg m-2 s-1 to kg/yr
+                * SEC_PER_YR
+                * self.cell_areas.reshape(-1)
+            )
 
-        # -- Convert to kg/yr
-        self.gdf[list(mapping)] *= SEC_PER_YR * self.cell_areas[:, np.newaxis]
+        self.gdf = gpd.GeoDataFrame(
+            {("gfas", sub): process_substance(sub) for sub in var_2_emiproc.values()},
+            geometry=self.grid.gdf.geometry,
+        )
+
+        ratios, indices = ratios_dataarray_to_profiles(da_profiles)
+
+        profiles = CompositeTemporalProfiles.from_ratios(
+            ratios,
+            [get_leap_year_or_normal(DayOfYearProfile, year=self.year)],
+            rescale=True,
+        )
+
+        self.set_profiles(profiles, indices)

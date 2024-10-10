@@ -1,6 +1,4 @@
-"""Emissions for GRAL.
-
-GRAL model: https://gral.tugraz.at/ .
+"""Emission generation for the GRAL model: https://gral.tugraz.at/ .
 
 This module contains functions to prepare emissions for GRAL.
 
@@ -18,14 +16,7 @@ To counter that issue, we make a source group for each substance/category.
 .. warning:: The current version of emiproc does not support lines and portals.
 
 
-4 types of emissions are supported:
-
-- point sources
-- line sources
-- area sources
-- tunnel sources
-
-The respective files are called:
+4 types of emissions are supported with their respective files:
 
 - point sources: point.dat
 - line sources: line.dat
@@ -47,23 +38,24 @@ The following methods are applied:
 
 
 """
+
 from __future__ import annotations
+
 import datetime
+import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
-import json
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-
-from shapely.geometry import Point, LineString, Polygon, MultiPolygon, MultiLineString
-from emiproc.inventories import Inventory, EmissionInfo
-
 from rasterio.enums import MergeAlg
 from rasterio.features import rasterize
 from rasterio.transform import from_bounds
+from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon
 
+from emiproc.inventories import EmissionInfo, Inventory
 
 if TYPE_CHECKING:
     # pygg module for gram gral processing
@@ -136,7 +128,6 @@ class EmissionWriter:
             )
             f.write(header)
 
-
         # File to save the source groups values
         self.file_source_groups = self.path / "source_groups.json"
         with open(self.file_source_groups, "w") as f:
@@ -198,7 +189,9 @@ class EmissionWriter:
 
         # Write all the points as a singl batch
         pd.concat(self.points_dfs).to_csv(
-            self.file_points, mode="a", index=False,
+            self.file_points,
+            mode="a",
+            index=False,
         )
 
     def _add_points(
@@ -229,7 +222,6 @@ class EmissionWriter:
                 }
             )
         )
-
 
     def _write_lines(
         self,
@@ -339,9 +331,14 @@ class EmissionWriter:
 
 
 def export_to_gral(
-    inventory: Inventory, grid: GralGrid, path: os.PathLike, polygon_raster_size
+    inventory: Inventory,
+    grid: GralGrid,
+    path: os.PathLike,
+    polygon_raster_size: float = 1.0,
 ) -> None:
     """Export an inventory to GRAL.
+
+    .. note:: This requires the external python package `pygg` to be installed.
 
     :param inventory: Inventory to export.
     :param path: Path where to write the emissions.
@@ -356,19 +353,21 @@ def export_to_gral(
 if __name__ == "__main__":
     # Small test inventory for saving to gral format
     import logging
+
     import geopandas as gpd
     import numpy as np
     from shapely.geometry import (
-        Point,
         LineString,
-        Polygon,
-        MultiPolygon,
         MultiLineString,
+        MultiPolygon,
+        Point,
+        Polygon,
     )
-    from emiproc.inventories import Inventory, EmissionInfo
-    from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
-    from emiproc.tests_utils import TEST_OUTPUTS_DIR
+
     from emiproc.exports.gral import export_to_gral
+    from emiproc.inventories import EmissionInfo, Inventory
+    from emiproc.tests_utils import TEST_OUTPUTS_DIR
+    from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
 
     gral_test_inv = inv_with_pnt_sources.copy()
     # Addintg some shapes that should be supported

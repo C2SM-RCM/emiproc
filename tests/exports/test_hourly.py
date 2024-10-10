@@ -1,22 +1,15 @@
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 
 from emiproc import FILES_DIR
 from emiproc.exports.hourly import export_hourly_emissions
-from emiproc.exports.netcdf import nc_cf_attributes
-from emiproc.grids import RegularGrid
-from emiproc.inventories.tno import TNO_Inventory
-from emiproc.inventories.utils import group_categories
-from emiproc.regrid import remap_inventory
 from emiproc.tests_utils.exports import test_nc_metadata
 from emiproc.tests_utils.temporal_profiles import (
     get_random_profiles,
     indexes_inv_catsub,
 )
 from emiproc.tests_utils.test_inventories import inv
-from emiproc.utilities import Units
 
 # output path and filename
 output_dir = FILES_DIR / "test/exports/test_hourly"

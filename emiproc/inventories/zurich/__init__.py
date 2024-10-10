@@ -30,11 +30,12 @@ class MapLuftZurich(Inventory):
             "N2O",
             "NH3",
             "CH4",
+            "BC",
             "VOC",
             "benzene",
         ],
         categories: list[Category] = [],
-        remove_josefstrasse_khkw: bool = True,
+        remove_josefstrasse_khkw: bool = False,
         convert_lines_to_polygons: bool = True,
     ) -> None:
         """Load the mapluft inventory.
@@ -62,6 +63,9 @@ class MapLuftZurich(Inventory):
         """
         super().__init__()
         self.mapluft_gdb = Path(mapluft_gdb)
+
+        if not self.mapluft_gdb.is_dir():
+            raise FileNotFoundError(f"{self.mapluft_gdb=} is not a existing directory.")
 
         if not categories:
             # Load all the categories

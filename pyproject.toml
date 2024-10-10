@@ -6,16 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "emiproc"
 description = "Emission Processing Tool"
 authors = [
-    {name = "M. Jähn"},
-    {name = "G. Kuhlmann"},
-    {name = "Q. Mu"},
-    {name = "J.M. Haussaire"},
-    {name = "D. Ochsner"},
-    {name = "K. Osterried"},
-    {name = "V. Clément"},
-    {name = "J. Thanwerdas"},
-    {name = "L. Constantin", email="lionel.constantin@empa.ch"},
-    {name = "D. Brunner", email="dominik.brunner@empa.ch"},
+    {name = "Lionel Constantin", email="lionel.constantin@empa.ch"},
+    {name = "Michael Jähn"},
+    {name = "Gerrit Kuhlmann"},
+    {name = "Qing Mu"},
+    {name = "Jean-Matthieu Haussaire"},
+    {name = "David Ochsner"},
+    {name = "Katherine Osterried"},
+    {name = "Valentin Clément"},
+    {name = "Joel Thanwerdas"},
+    {name = "Corina Keller"},
+    {name = "Erik Koene"},
+    {name = "Alessandro Bigi"},
+    {name = "Michael Steiner"},
+    {name = "Dominik Brunner", email="dominik.brunner@empa.ch"},
 ]
 dependencies = [
     "geos",
@@ -28,10 +32,10 @@ dependencies = [
     "xarray>=2023.10",
     "rasterio",
     "pyogrio",
-    "pygeos",
     "pyyaml",
+    "fiona",
 ]
-license = {file = "LICENSE.txt"}
+license = {text = "BSD-3-Clause"}
 readme = "README.md"
 requires-python = ">=3.9"
 keywords = ["emission", "processing", "inventory", "cosmo", "icon-art"]
@@ -57,5 +61,6 @@ doc = [
     "furo",
     "enum-tools",
     "sphinx_toolbox",
+    "nbsphinx",
 ]
 dev = ["black"]

@@ -94,7 +94,7 @@ def export_icon_oem(
 
         ! oem_nml: online emission module ---------------------------------------------
         &oemctrl_nml
-        gridded_emissions_nc        =   '${OEMDIR}/tno_combined.nc'
+        gridded_emissions_nc        =   '${OEMDIR}/oem_gridded_emissions.nc'
         vertical_profile_nc         =   '${OEMDIR}/vertical_profiles.nc'
         hour_of_day_nc              =   '${OEMDIR}/hourofday.nc'
         day_of_week_nc              =   '${OEMDIR}/dayofweek.nc'
@@ -366,7 +366,7 @@ def make_icon_time_profiles(
                         dt_end,
                         time_profiles[key],
                         local_tz=tz,
-                        freq="H",
+                        freq="h",
                     ).to_numpy()  # [max_shift + shift : -max_shift + shift - 1]
                     for shift, tz in zip(shifts, time_zones)
                 ]
@@ -378,7 +378,7 @@ def make_icon_time_profiles(
                 coords={
                     "datetime": (
                         ("hourofyear",),
-                        pd.date_range(dt_start, dt_end, freq="H"),
+                        pd.date_range(dt_start, dt_end, freq="h"),
                     ),
                     "timezone_of_country": (("country",), time_zones),
                 },

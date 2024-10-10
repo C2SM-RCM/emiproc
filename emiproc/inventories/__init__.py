@@ -2,6 +2,7 @@
 
 Contains the classes and functions to work with inventories of emissions.
 """
+
 from __future__ import annotations
 
 import logging
@@ -178,9 +179,16 @@ class Inventory:
 
         These match the geometry from the gdf.
         """
-        if hasattr(self, "_cell_area"):
-            return self._cell_area
-        raise NotImplementedError(f"implement or assign 'cell_areas' in {self.name}")
+        if not hasattr(self, "_cell_area"):
+            # Compute with the grid
+            if self.grid is None:
+                raise ValueError(
+                    "No grid set, cannot compute cell areas. "
+                    f"implement or assign 'cell_areas' in {self.name}"
+                )
+            self._cell_area = np.array(self.grid.cell_areas)
+
+        return self._cell_area
 
     @cell_areas.setter
     def cell_areas(self, cell_areas):
@@ -230,7 +238,11 @@ class Inventory:
 
     @property
     def total_emissions(self) -> pd.DataFrame:
-        """Simple accessor to the function."""
+        """Calculate the total emissions, returning a DataFrame.
+
+        Simple accessor to the function
+        :py:func:`~emiproc.inventories.utils.get_total_emissions`.
+        """
         from emiproc.inventories.utils import get_total_emissions
 
         return pd.DataFrame(get_total_emissions(self)).T
@@ -412,6 +424,29 @@ class Inventory:
             if "category" not in indexes_array.dims:
                 # Exapnd the array over the categories of the inventory
                 indexes_array = indexes_array.expand_dims({"category": self.categories})
+            if category not in indexes_array.coords["category"].values:
+                if category not in self.categories:
+                    raise ValueError(
+                        f"Category {category} is not in the inventory. "
+                        "Please add it before setting the profile."
+                    )
+                # Otherwise add it to the coords and set the values to -1 (unassigned)
+                # emtpy da with the new category being the only one in the
+                new_cat_array = xr.DataArray(
+                    -1,
+                    dims=indexes_array.dims,
+                    coords={
+                        "category": [category],
+                        **{
+                            coord: indexes_array.coords[coord]
+                            for coord in indexes_array.dims
+                            if coord != "category"
+                        },
+                    },
+                )
+                indexes_array = xr.concat(
+                    [indexes_array, new_cat_array], dim="category"
+                )
 
             sel_dict["category"] = category
         if substance is not None:
@@ -442,9 +477,9 @@ class Inventory:
 
     def set_profiles(
         self,
-        profiles: VerticalProfiles
-        | CompositeTemporalProfiles
-        | list[list[AnyTimeProfile]],
+        profiles: (
+            VerticalProfiles | CompositeTemporalProfiles | list[list[AnyTimeProfile]]
+        ),
         indexes: xr.DataArray,
     ):
         """Replace the profiles of the invenotry with the new profiles given.
@@ -474,12 +509,8 @@ class Inventory:
                 values_in_inv = self.categories
             elif coord == "substance":
                 values_in_inv = self.substances
-            elif coord == "time":
-                raise NotImplementedError(
-                    "Setting profiles with a time coord is not implemented yet"
-                )
-            elif coord == "country":
-                # Cannot really check the countries for now
+            elif coord in ["country", "day_type", "time"]:
+                # No check needed to be performed
                 continue
             else:
                 raise ValueError(f"Unknown coord {coord}")

@@ -1,31 +1,31 @@
 import pytest
-
 import xarray as xr
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
-    DailyProfile,
-    WeeklyProfile,
-)
-from emiproc.tests_utils.temporal_profiles import (
-    read_test_copernicus,
-    TEST_COPENICUS_PROFILES,
-    get_random_profiles,
-    indexes_african_simple,
-    indexes_african_2d,
-)
+import numpy as np
+
 from emiproc.profiles.operators import (
+    combine_profiles,
+    country_to_cells,
     get_weights_of_gdf_profiles,
     group_profiles_indexes,
     weighted_combination,
-    country_to_cells,
-    combine_profiles,
+)
+from emiproc.profiles.temporal_profiles import (
+    DailyProfile,
+    WeeklyProfile,
+    CompositeTemporalProfiles,
+)
+from emiproc.tests_utils import temporal_profiles, vertical_profiles
+from emiproc.tests_utils.temporal_profiles import (
+    TEST_COPENICUS_PROFILES,
+    get_random_profiles,
+    indexes_african_2d,
+    indexes_african_simple,
+    read_test_copernicus,
 )
 from emiproc.tests_utils.test_grids import regular_grid_africa
 from emiproc.tests_utils.vertical_profiles import (
     get_random_profiles as get_random_profiles_vertical,
 )
-from emiproc.tests_utils import vertical_profiles
-from emiproc.tests_utils import temporal_profiles
 
 
 def test_reading_copernicus():
@@ -120,30 +120,30 @@ def test_get_random_profies_vertical():
 def test_countries_to_cells(profiles, indexes: xr.DataArray):
     grid = regular_grid_africa
 
-    print(profiles, indexes)
+    if isinstance(profiles, list):
+        profiles = CompositeTemporalProfiles(profiles)
+
     new_profiles, new_indexes = country_to_cells(profiles, indexes, grid)
 
     assert "cell" in new_indexes.dims
     assert "country" not in new_indexes.dims
 
+    if isinstance(profiles, CompositeTemporalProfiles):
+        assert profiles.types == new_profiles.types
     # test for some cells that we now what it should be
     # Full in MRT, profiles should be the same as the original
-    xr.testing.assert_equal(
-        new_indexes.sel(cell=78).drop_vars("cell"),
-        indexes.sel(country="MRT").drop_vars("country"),
+    np.testing.assert_almost_equal(
+        new_profiles.scaling_factors[new_indexes.sel(cell=78).drop_vars("cell")],
+        profiles.scaling_factors[indexes.sel(country="MRT").drop_vars("country")],
     )
     # THis is shared between SEN and ocean, so only in SEN for the profile
-    xr.testing.assert_equal(
-        new_indexes.sel(cell=26).drop_vars("cell"),
-        indexes.sel(country="SEN").drop_vars("country"),
+    np.testing.assert_almost_equal(
+        new_profiles.scaling_factors[new_indexes.sel(cell=26).drop_vars("cell")],
+        profiles.scaling_factors[indexes.sel(country="SEN").drop_vars("country")],
     )
-    # assert da.sel(cell=26, country="SEN").values > 0.01
-    # assert da.sel(cell=26, country="SEN").values < 0.5
-    # assert total_fractions.sel(cell=26).values < 0.5
+
     # This is just ocean
-    assert 0 not in new_indexes.coords["cell"].values
-    print("new profiles", len(new_profiles), "indexes", new_indexes)
-    assert len(new_profiles) > new_indexes.max().values
+    assert np.all(new_indexes.sel(cell=0).drop_vars("cell") == -1)
 
 
 if __name__ == "__main__":

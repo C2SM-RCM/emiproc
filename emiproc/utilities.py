@@ -1,4 +1,5 @@
 """Utility functions and constants for emission processing."""
+
 from __future__ import annotations
 
 import json
@@ -36,12 +37,14 @@ HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
 class Units(Enum):
     """Units for emissions."""
 
-    KG_PER_YEAR = "kg/y"
-    KG_PER_HOUR = "kg/h"
-    KG_PER_M2_PER_S = "kg/m2/s"
+    KG_PER_YEAR = "kg y-1"
+    KG_PER_HOUR = "kg h-1"
+    KG_PER_M2_PER_S = "kg m-2 s-1"
+    MUG_PER_M2_PER_S = "µg m-2 s-1"
 
 
-PER_M2_UNITS = [Units.KG_PER_M2_PER_S]
+PER_M2_UNITS = [Units.KG_PER_M2_PER_S, Units.MUG_PER_M2_PER_S]
+PER_CELL_UNITS = [Units.KG_PER_YEAR, Units.KG_PER_HOUR]
 
 
 def grid_polygon_intersects(
@@ -287,16 +290,6 @@ def get_natural_earth(
     return gpd.read_file(shpfile)
 
 
-@overload
-def get_country_mask(return_fractions: Literal[True] = ...) -> xr.DataArray:
-    ...
-
-
-@overload
-def get_country_mask(return_fractions: Literal[False]) -> np.ndarray:
-    ...
-
-
 def get_country_mask(
     output_grid: Grid | gpd.GeoSeries,
     resolution: str = "110m",
@@ -318,10 +311,12 @@ def get_country_mask(
     :arg resolution:
         The resolution for the used shapefile, used as argument for
         :py:func:`get_natural_earth`
-    arg return_fractions:
+    :arg return_fractions:
         In case you want to know the fraction of each country in each grid cell,
         instead of just the main country, set this to True.
-        This will return a xarray DataArray with the fraction of each country.
+        If True, this will return a `xarray.DataArray` with the fraction of each country.
+        If False (default), this will return a numpy array with the main country code.
+
 
     :returns: Gridded data with the country identifier of each country (eg. BUR).
         Array of 3 char strings of the shape of the grid.
@@ -369,7 +364,7 @@ def get_country_mask(
         resolution=resolution, category="cultural", name=ne_name
     )
     if isinstance(output_grid, Grid):
-        grid_gdf = output_grid.gdf
+        grid_gdf = output_grid.gdf.copy(deep=True)
     elif isinstance(output_grid, gpd.GeoSeries):
         grid_gdf = gpd.GeoDataFrame(geometry=output_grid)
     else:
@@ -440,9 +435,9 @@ def get_country_mask(
         one_cell_df = grid_gdf.loc[number_of_intersections == 1, country_shapes.keys()]
         # Will have in col-0 the index of countries from on_cell_df and col-1 the codes
         cell_country_maps = np.argwhere(one_cell_df.to_numpy())
-        country_mask[
-            one_cell_df.index[cell_country_maps[:, 0]]
-        ] = country_corresponding_codes[cell_country_maps[:, 1]]
+        country_mask[one_cell_df.index[cell_country_maps[:, 0]]] = (
+            country_corresponding_codes[cell_country_maps[:, 1]]
+        )
         # Find indexes of cell in more than one country
         progress.step()
         mask_many_cells = number_of_intersections > 1
@@ -477,9 +472,9 @@ def get_country_mask(
         areas_matrix = np.zeros(
             (np.max(i) + 1, np.max(cell_country_duplicates[:, 1]) + 1)
         )
-        areas_matrix[
-            cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]
-        ] = intersection_areas
+        areas_matrix[cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]] = (
+            intersection_areas
+        )
         if return_fractions:
             # Get the fractions of each country in each cell
             cell_areas = grid_gdf.to_crs(WGS84_PROJECTED).area
@@ -518,6 +513,42 @@ def confirm_prompt(question: str) -> bool:
     while reply not in ("y", "n"):
         reply = input(f"{question} (y/n): ").casefold()
     return reply == "y"
+
+
+def total_emissions_almost_equal(
+    total_dict_1: dict[str, dict[str, float]],
+    total_dict_2: dict[str, dict[str, float]],
+    relative_tolerance: float = 1e-5,
+) -> bool:
+    """Test that the total emissions of two inventories are almost equal.
+
+    :arg total_dict_1: The first total emissions dictionary
+    :arg total_dict_2: The second total emissions dictionary
+    :arg relative_tolerance: The relative tolerance to use for the comparison.
+        The comparison is done as follows:
+        abs(total_dict_1 - total_dict_2) < relative_tolerance * (total_dict_1 + total_dict_2) / 2
+
+    :returns: True if the total emissions are almost equal, False otherwise
+    :raises ValueError: If the two dictionaries have different keys.
+    """
+    for sub in total_dict_1.keys() | total_dict_2.keys():
+        if sub not in total_dict_1 or sub not in total_dict_2:
+            raise ValueError(f"Subcategory {sub} is missing in one of the dictionaries")
+        for cat in total_dict_1[sub].keys() | total_dict_2[sub].keys():
+            if cat not in total_dict_1[sub] or cat not in total_dict_2[sub]:
+                raise ValueError(
+                    f"Category {cat} is missing in one of the dictionaries for substance {sub}"
+                )
+            # Get a very small proportion of the total emissions
+            err_allowed = (
+                relative_tolerance
+                * (total_dict_1[sub][cat] + total_dict_2[sub][cat])
+                / 2
+            )
+
+            if abs(total_dict_1[sub][cat] - total_dict_2[sub][cat]) > err_allowed:
+                return False
+    return True
 
 
 class ProgressIndicator:

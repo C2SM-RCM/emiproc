@@ -3,6 +3,7 @@
 The function speciate_inventory() is the main function.
 Other functions are hardcoded for several substances.
 """
+
 from __future__ import annotations
 
 from os import PathLike
@@ -12,14 +13,15 @@ import pandas as pd
 import xarray as xr
 import numpy as np
 
-from emiproc import deprecated
 from emiproc.utilities import get_country_mask
 
 if TYPE_CHECKING:
     from emiproc.inventories import Category, CatSub, Inventory
 
 
-def read_speciation_table(path: PathLike, drop_zeros: bool = False) -> xr.DataArray:
+def read_speciation_table(
+    path: PathLike, drop_zeros: bool = False, check_sum: bool = True, **kwargs
+) -> xr.DataArray:
     """Read a speciation table from a file.
 
     Format of the file:
@@ -51,13 +53,16 @@ def read_speciation_table(path: PathLike, drop_zeros: bool = False) -> xr.DataAr
 
     :arg path: The path of the speciation table.
     :arg drop_zeros: Whether to drop the speciation ratios that sum to 0.
+    :arg check_consistency: Whether to check that the speciation ratios sum to 1.
+        If this is set to False, the check is not performed.
+    :arg kwargs: Additional arguments to pass to :py:func:`pandas.read_csv`.
 
     :returns: The speciation ratios.
         The speciation ratios are the weight fraction conversion from the
         speciated substance.
 
     """
-    df = pd.read_csv(path, comment="#")
+    df = pd.read_csv(path, comment="#", **kwargs)
 
     # Reserved columns
     columns_types = {
@@ -93,13 +98,32 @@ def read_speciation_table(path: PathLike, drop_zeros: bool = False) -> xr.DataAr
 
     # Check that all the speciation ratios sum to 1
     mask_close = np.isclose(da.sum("substance"), 1.0)
-    if not mask_close.all():
+    if check_sum and not mask_close.all():
         raise ValueError(
             "The speciation ratios must sum to 1, but the following rows don't:"
             f" {da[~mask_close]}"
+            "You can set `check_sum=False` to ignore this check."
         )
 
     return da
+
+
+def ratios_of_category(
+    speciation_ratios: xr.DataArray,
+    category: Category,
+) -> xr.DataArray:
+    """Get the speciation ratios for a category.
+
+    :arg speciation_ratios: The speciation ratios.
+    :arg category: The category to get the speciation ratios for.
+
+    :returns: The speciation ratios for the category.
+    """
+    if "category" not in speciation_ratios.coords:
+        return speciation_ratios
+
+    mask = speciation_ratios["category"] == category
+    return speciation_ratios.loc[dict(speciation=mask)]
 
 
 def speciate(
@@ -118,7 +142,32 @@ def speciate(
 
     :arg inv: The inventory to speciate.
     :arg substance: The substance to speciate.
-    :arg speciation_ratios: The speciation ratios. See :py:func:`read_speciation_table`.
+    :arg speciation_ratios: The speciation ratios.
+        See :py:func:`read_speciation_table` to load them from a file.
+        The ratios must be a 2-D data array. One dimension is the substances
+        to create with the speciation, the other dimension is called 'speciation'
+        and each element is a set of ratios that sum to 1.
+        Each speciation can be specific to a category, a country, a year, or a type.
+        This is done by adding coordinates on the 'speciation' dimension.
+
+        .. code-block:: python
+
+            <xarray.DataArray (speciation: 5, substance: 2)>
+            # Speciation ratios
+            array([[0.5, 0.5],
+                [0.2, 0.8],
+                [0.3, 0.7],
+                [0.4, 0.6],
+                [0.1, 0.9]])
+            Coordinates:
+            * speciation  (speciation) int64 0 1 2 3 4
+            * substance   (substance) <U7 'CO2_ANT' 'CO2_BIO'
+            # Optional dimensions which tell which combination of parameters the ratios apply to
+                category    (speciation) <U4 'adf' 'liku' 'adf' 'liku' 'blek'
+                type        (speciation) <U7 'gridded' 'gridded' 'gridded' 'shapped' 'shapped'
+                year        (speciation) int64 2010 2010 2010 2010 2010
+
+
     :arg drop: Whether to drop the speciated substance.
     :arg country_mask_kwargs: If the speciation ratios depend on the country,
         this function is used to pass optional arguments to
@@ -127,6 +176,20 @@ def speciate(
 
     """
     new_inv = inv.copy()
+
+    # If speciation is not given it is okay
+    for dim in ["speciation", "substance"]:
+        if dim not in speciation_ratios.coords:
+            raise ValueError(
+                f"The speciation ratios must have a '{dim}' dimension."
+                f" {speciation_ratios.coords=}"
+            )
+
+    # Check that it is 2D
+    if len(speciation_ratios.dims) != 2:
+        raise ValueError(
+            f"The speciation ratios must be a 2D array, not {speciation_ratios.dims=}"
+        )
 
     if "year" in speciation_ratios.coords:
         if inv.year is None:
@@ -142,15 +205,17 @@ def speciate(
         countries_fractions: xr.DataArray = get_country_mask(
             new_inv.grid, return_fractions=True, **country_mask_kwargs
         )
+        # Fill the fraction so that the sum is 1
+        # Ensure that a speciation defined in a cell only on some country parts will be
+        # applied to the whole cell by filling the missing values with the countries
+        countries_fractions = countries_fractions / countries_fractions.sum("country")
+        countries_fractions = countries_fractions.fillna(0.0)
 
     for cat, sub in inv._gdf_columns:
         if sub != substance:
             continue
         # Check that the speciation ratios are defined for this category
-        if "category" in speciation_ratios.coords:
-            da_ratios = speciation_ratios.loc[speciation_ratios["category"] == cat]
-        else:
-            da_ratios = speciation_ratios
+        da_ratios = ratios_of_category(speciation_ratios, cat)
 
         if "type" in speciation_ratios.coords:
             da_ratios = da_ratios.loc[da_ratios["type"] == "gridded"]
@@ -191,10 +256,6 @@ def speciate(
                 da_ratios_cells = da_ratios_cells.where(
                     ~mask_problem, other=missing_value
                 )
-            # Put ones where the sum is 0 to avoid later division by 0
-            da_ratios_cells = da_ratios_cells.where(~mask_zero_ratios, other=1.0)
-            # Correct cells to ensure that the sum is 1
-            da_ratios_cells = da_ratios_cells / da_ratios_cells.sum("substance")
 
             da_ratios = da_ratios_cells
 
@@ -222,10 +283,7 @@ def speciate(
         if substance not in inv.gdfs[cat].columns:
             continue
             # Check that the speciation ratios are defined for this category
-        if "category" in speciation_ratios.coords:
-            da_ratios = speciation_ratios.loc[speciation_ratios["category"] == cat]
-        else:
-            da_ratios = speciation_ratios
+        da_ratios = ratios_of_category(speciation_ratios, cat)
 
         if "type" in speciation_ratios.coords:
             da_ratios = da_ratios.loc[da_ratios["type"] == "shapped"]
@@ -275,7 +333,7 @@ def speciate(
 
         speciated_indexes = (
             indexes.sel(substance=substance)
-            .drop("substance")
+            .drop_vars("substance")
             .expand_dims(dim={"substance": da_ratios["substance"].values})
         )
         new_indexes = xr.concat([indexes, speciated_indexes], dim="substance")
@@ -290,7 +348,6 @@ def speciate(
     return new_inv
 
 
-@deprecated(msg="Use speciate instead.")
 def speciate_inventory(
     inv: Inventory,
     speciation_dict: dict[CatSub, dict[CatSub, float]],
@@ -345,6 +402,34 @@ def speciate_inventory(
                 new_inv.gdfs[new_cat][new_sub] = inv.gdfs[cat][sub] * speciation_ratio
             if drop:
                 new_inv.gdfs[cat].drop(columns=sub, inplace=True)
+
+    # Profiles should also be speciated, simply apply the profile to all compounds
+    for indexes_name in ["t_profiles_indexes", "v_profiles_indexes"]:
+        if not hasattr(inv, indexes_name):
+            continue
+        indexes: xr.DataArray = getattr(inv, indexes_name)
+        if indexes is None or "substance" not in indexes.dims:
+            continue
+        new_data_arrays = [indexes]
+
+        for cat_sub, new_species in speciation_dict.items():
+            cat, sub = cat_sub
+            new_species = [sub for cat, sub in new_species]
+            speciated_indexes = (
+                indexes.sel(substance=sub)
+                .drop_vars(["substance"])
+                .expand_dims(dim={"substance": [new_sub for new_sub in new_species]})
+            )
+            new_data_arrays.append(speciated_indexes)
+        new_indexes = xr.concat(new_data_arrays, dim="substance")
+        # Drop duplicates along the substance dimension
+        new_indexes = new_indexes.drop_duplicates("substance")
+        if drop:
+            # Remove the substance from the substance coordinate
+            new_indexes = new_indexes.drop_sel(
+                substance=[sub for cat, sub in speciation_dict.keys()]
+            )
+        setattr(new_inv, indexes_name, new_indexes)
 
     new_inv.history.append(f"Speciated with {speciation_dict}.")
 
@@ -414,3 +499,71 @@ def speciate_nox(
         raise TypeError(f"NOX_TO_NO2 must be a float or dict, not {type(NOX_TO_NO2)}.")
 
     return speciate_inventory(inv, speciation_dict, drop=drop)
+
+
+def merge_substances(
+    inv: Inventory,
+    substances: dict[str, list[str]],
+    drop: bool = True,
+    inplace: bool = False,
+) -> Inventory:
+    """Merge substances in an inventory.
+
+    :arg inv: The inventory to merge substances.
+    :arg substances: A dict with the substances to merge.
+        The keys are the new substance names.
+        The values are the list of substances to merge.
+    :arg drop: Whether to drop the merged substances.
+    :arg inplace: Whether to modify the inventory in place.
+
+    :returns: The inventory with the merged substances.
+    """
+    if inplace:
+        new_inv = inv
+    else:
+        new_inv = inv.copy()
+    inv_subs = inv.substances
+
+    # Check that the substances merge is valid
+    # New substances should not be contained in merges of other substances
+    for new_substance, old_substances in substances.items():
+        for old_substance in old_substances:
+            if old_substance not in inv_subs:
+                raise KeyError(f"{old_substance} is not in {inv} .")
+            if old_substance in substances.keys() and new_substance != old_substance:
+                raise ValueError(
+                    f"Cannot merge {old_substance} into {new_substance} because"
+                    f" {old_substance} is merged."
+                )
+
+    for new_substance, old_substances in substances.items():
+        for cat in inv.categories:
+            cols_to_merge = []
+            for old_substance in old_substances:
+                if (cat, old_substance) in inv._gdf_columns:
+                    cols_to_merge.append((cat, old_substance))
+            if not cols_to_merge:
+                continue
+            # Merge the gdf
+            total = new_inv.gdf.loc[:, cols_to_merge].sum(axis=1)
+            new_inv.gdf[(cat, new_substance)] = total
+            if drop:
+                new_inv.gdf.drop(
+                    columns=[c for c in cols_to_merge if c[1] != new_substance],
+                    inplace=True,
+                )
+
+    # Apply the same operation to the gdfs
+    for cat, gdf in inv.gdfs.items():
+        cols_to_merge = [old_s for old_s in old_substances if old_s in gdf.columns]
+        if not cols_to_merge:
+            continue
+        new_inv.gdfs[cat][new_substance] = gdf.loc[:, cols_to_merge].sum(axis=1)
+        if drop:
+            new_inv.gdfs[cat].drop(
+                columns=[s for s in cols_to_merge if s != new_substance], inplace=True
+            )
+
+    new_inv.history.append(f"Merged substances with {substances}.")
+
+    return new_inv
