@@ -53,6 +53,8 @@ testpaths = ["tests"]
 [tool.setuptools.packages.find]
 include = ["emiproc"]  # package names should match these glob patterns (["*"] by default)
 
+[tool.setuptools_scm]
+write_to = "emiproc/_version.py"
 
 
 [project.optional-dependencies]
