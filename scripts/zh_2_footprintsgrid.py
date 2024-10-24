@@ -24,13 +24,14 @@ from emiproc.inventories.swiss import SwissRasters
 from emiproc.inventories.utils import (
     add_inventories,
     crop_with_shape,
+    drop,
     get_total_emissions,
     scale_inventory,
     group_categories,
 )
 from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.regrid import remap_inventory
-from emiproc.speciation import speciate, speciate_inventory
+from emiproc.speciation import merge_substances, speciate, speciate_inventory
 from emiproc.utilities import SEC_PER_YR
 from emiproc.exports.rasters import export_raster_netcdf
 from emiproc.exports.netcdf import nc_cf_attributes
@@ -50,7 +51,7 @@ mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
 mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 
 # edge of the raster cells
-VERSION = "v2"
+VERSION = "v2_forBetty"
 
 # Whether to split the biogenic CO2 and the antoropogenic CO2
 SPLIT_BIOGENIC_CO2 = True
@@ -72,6 +73,7 @@ SPLIT_GNRF_ROAD_TRANSPORT = True
 
 # %% Check some parameters and create the output directory
 weights_dir = footprints_dir / f"weights_files_{YEAR}_{VERSION}"
+weights_dir.mkdir(exist_ok=True)
 
 if SPLIT_GNRF_ROAD_TRANSPORT and not USE_GNRF:
     raise ValueError("Cannot split GNRF if not using GNRF")
@@ -130,13 +132,14 @@ ds = ds.assign_coords(datetime=("timestep", datetime))
 x_coords = ds.x_lv95.values
 y_coords = ds.y_lv95.values
 d2 = 5.0  # meters, half the size of the cells
+d_out = 100  # meters, size of the cells of the output grid
 grid = RegularGrid(
     xmin=x_coords.min() - d2,
     xmax=x_coords.max() + d2,
     ymin=y_coords.min() - d2,
     ymax=y_coords.max() + d2,
-    nx=x_coords.size,
-    ny=y_coords.size,
+    dx=d_out,
+    dy=d_out,
     crs="LV95",
 )
 
@@ -147,14 +150,6 @@ if SPLIT_BIOGENIC_CO2:
     from emiproc.inventories.zurich.speciation_co2_bio import ZH_CO2_BIO_RATIOS
 
     inv = speciate(inv, "CO2", ZH_CO2_BIO_RATIOS, drop=True)
-
-# %% do the actual remapping of zurich to rasters
-
-rasters_inv = remap_inventory(
-    crop_with_shape(inv, zh_shape),
-    grid,
-    weigths_file=weights_dir / f"{mapluf_file.stem}_weights",
-)
 
 
 # %% change the categories
@@ -187,27 +182,22 @@ if USE_GNRF:
         # add this to the mapping
         ZH_2_GNFR |= splitted_cats
 
-    rasters_inv = group_categories(rasters_inv, ZH_2_GNFR)
+    inv = group_categories(inv, ZH_2_GNFR)
 
 # %% add the swiss inventory when needed
 if INCLUDE_SWISS_OUTSIDE:
     inv_ch = SwissRasters(
-        data_path=swiss_data_path,
-        rasters_dir=swiss_data_path.parent / "ekat_gridascii",
-        rasters_str_dir=swiss_data_path.parent / "ekat_str_gridascii_v17",
+        filepath_csv_totals=r"C:\Users\coli\Documents\emissions_preprocessing\output\CH_emissions_EMIS-Daten_1990-2050_Submission_2024_N2O_PM25_NH3_NOx_SO2_PM10_CH4_CO2_biog_CO2_CO.csv",
+        filepath_point_sources=r"C:\Users\coli\Documents\emissions_preprocessing\input\SwissPRTR-Daten_2007-2022.xlsx",
+        rasters_dir=swiss_data_path.parent / "ekat_gridascii_v_swiss2icon",
+        rasters_str_dir=swiss_data_path.parent / "ekat_str_gridascii_v_footprints",
         requires_grid=True,
         # requires_grid=False,
         year=YEAR,
-        # Specify the compound in the inventory and how they should be named in the output
-        dict_spec={
-            "NOX": "NOx",
-            "PM2.5": "PM25",
-            "F-Gase": "F-gases",
-            "CO2": "CO2_fos",
-            "CO2_biog": "CO2_bio",
-        },
     )
-
+    inv_ch = drop(inv_ch, categories=["na"])
+    merge_substances(inv_ch, {"CO2_bio": ["CO2_biog"]}, inplace=True)
+    merge_substances(inv_ch, {"CO2_fos": ["CO2"]}, inplace=True)
     inv_ch.history.append(
         "the map of CO2 for evstr was used for BC and CO2-bio as they did not exist"
     )
@@ -215,7 +205,7 @@ if INCLUDE_SWISS_OUTSIDE:
     from emiproc.inventories.categories_groups import CH_2_GNFR
 
     # These categories are not in the invenotry here, because we don't care about them
-    missing_cats = ["eilgk", "evklm", "evtrk", "enwal"]
+    missing_cats = ["eilgk", "evklm", "evtrk", "enwal", "eipwp"]
     # Remove the missing categories
     our_CH_2_GNFR = {
         new_cat: [c for c in cats if c not in missing_cats]
@@ -225,7 +215,7 @@ if INCLUDE_SWISS_OUTSIDE:
 
     if SPLIT_GNRF_ROAD_TRANSPORT:
         # Calculate splitting ratios in zurich
-        total_emisson = get_total_emissions(rasters_inv)
+        total_emisson = get_total_emissions(inv)
         speciation_dict = {}
         for sub, cat_dic in total_emisson.items():
             # Get the categories of the GNRF-F
@@ -264,8 +254,16 @@ if INCLUDE_SWISS_OUTSIDE:
     remapped_ch_out = remap_inventory(
         ch_outside_zh,
         grid,
-        weigths_file=(weights_dir / f"swiss_around_zh"),
+        weigths_file=(weights_dir / f"swiss_around_zh_{d_out}x{d_out}"),
     )
+# %% do the actual remapping of zurich to rasters
+
+rasters_inv = remap_inventory(
+    crop_with_shape(inv, zh_shape),
+    grid,
+    weigths_file=weights_dir / f"{mapluf_file.stem}_weights_{d_out}x{d_out}",
+)
+
 # %% Rescale the swiss and add it, the scaling is made such that the
 # mapluft inventory is not changed and the total swiss inventory is also not changed
 # so we only scale the region outside of zurich to compensate
@@ -337,7 +335,8 @@ if ADD_HUMAN_RESPIRATION:
     remapped_resp = remap_inventory(
         resp_inv,
         grid,
-        weigths_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}",
+        weigths_file=weights_dir
+        / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}_{d_out}x{d_out}",
     )
 
     rasters_inv = add_inventories(rasters_inv, remapped_resp)
@@ -351,7 +350,7 @@ export_raster_netcdf(
     netcdf_attributes=nc_cf_attributes(
         author="Lionel Constantin",
         contact="lionel.constantin@empa.ch",
-        title="Zurich 2022 inventory combined for footprint analysis",
+        title=f"Zurich {YEAR} inventory combined for footprint analysis",
         source="MapLuft and Swiss inventory",
         additional_attributes={"version": VERSION},
     ),
@@ -361,7 +360,7 @@ export_raster_netcdf(
 # %%
 plot_inventory(
     rasters_inv,
-    out_dir=footprints_dir / "plots",
+    # out_dir=footprints_dir / "plots",
     total_only=True,
 )
 # %%
