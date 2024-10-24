@@ -10,6 +10,13 @@ dedicated to the previous releases.
 
 The full documentation is hosted at https://emiproc.readthedocs.io .
 
+## Installation 
+
+`emiproc` can be installed with pip:
+
+```
+pip install emiproc
+```
 
 ## License
 
