@@ -58,9 +58,6 @@ Inventories are created in multiple different formats and resolutions, which mak
 The package provides functions for performing various 
 operations on inventory data, such as remapping to different model grids, aggregating emissions by sector or pollutant, or scaling emissions based on future scenarios. 
 
-Emission input files can be generated in regular (e.g. hourly) intervals by applying sector- and country-specific temporal and vertical emission profiles. Alternatively, a small set of input files can be generated, which describe the sectorial gridded emissions and their temporal and vertical profiles.
-This set of files can then be read by an OEM (online emissions module) described in [@gmd-13-2379-2020], which applies the temporal and vertical scaling online during the model simulation. OEM is integrated into the atmospheric chemistry and transport models COSMO-ART and ICON-ART.
-
 `emiproc` is designed to be flexible and extendable, allowing users to easily add custom functionality, to read new inventories or export data to other formats.
 
 # Statement of need
@@ -109,96 +106,40 @@ necessary to harmonize them. This is what the `emiproc` package is designed for.
 
 ![Design emiproc. \label{fig:design}](pipeline.drawio.png){ width=60% }
 
-Thanks to the harmonization of the data, functions for additional data processing
-can easily be applied to the different inventories once loaded into `emiproc`. 
-The processed inventories can be exported to any of the formats supported by the package.
+
+
 
 The API of `emiproc` leverages the advantages of object-oriented programming. 
+The main class is `Inventory`. It provides a common data structure
+to represent emission inventories.
+The `Grid` object represent the spatial distribution of the emission.
+It is flexible enough to implement all kinds of grids, from regular latitude-longitude grids
+to the icosahedral grid  from the ICON Model [@IconRelease01].
+Finally `TemporalProfile` / `VerticalProfile` are used for the distribution of emissions 
+in time and height.
+
+Thanks to the harmonization of the data, functions for additional data processing
+can easily be applied to the different inventories once loaded into `emiproc`. 
+These functions are listed in the [API documentation](https://emiproc.readthedocs.io/en/master/api/index.html) 
+For example `remap_inventory()` set an inventory to a different grid.
+
+
+`emiproc` also allows for generation of additional emission sectors not always present in the inventories.
+For example, the vegetation emissions can be modelled through VPRM (Vegetation Photosynthesis and Respiration Model) [@vprm].
+A module for human respiration and for heating emissions have also been implemented.
+
+The export of inventories for various
+atmospheric models is done through custom functions that producs all emission input files required by the
+model. 
+
+For data vizualisation `emiproc` provides custom functions based on `matplotlib` [@matplotlib].
+Figure \ref{fig:tno} was created using this function.
+
 `emiproc` is built on top of the `geopandas` package [@kelsey_jordahl_2020_3946761], 
 which allows storing the geometries of the emission maps and offers many functionalities
 related to geometric operations.
 Within emiproc, the emission data of the inventory is stored as a
 [`geopandas.GeoDataFrame`](https://geopandas.org/en/stable/docs/reference/geodataframe.html).
-
-
-## Inventory
-The main object is the `Inventory` object. Any inventory is a subclass of the base `Inventory`.
-`emiproc` provides many utility functions to process them. 
-Typically, a processing function takes an inventory and some parameters as input 
-and returns a new inventory with the processed data.
-
-Example: the `group_categories` function regroups an inventory with a given set of source
-categories to a new inventory with another set of categories, based on a mapping provided by the user. 
-This is useful to reduce the number of sources simulated or to use a standardized set of 
-categories such as the GNFR (Gridded Nomenclature For Reporting) sectors from [@emep_guidelines].
-
-
-## Grid
-As inventories and models use different grids, `emiproc` defines a 
-grid and projection through the `Grid` object.
-Many use cases are covered by the `RegularGrid` child class, which represents a standard latitude-longitude grid. 
-On the other hand, users of models with more complex geometries can define their own grid. 
-
-Example: The ICON Model [@IconRelease01] uses an icosahedral grid composed of
-triangular grid cells instead of rectangular ones. For this model, `emiproc` provides an `ICON_grid` object.
-
-Functions in `emiproc` can then perform various operations on these `Grid` objects.
-
-Example: the `remap_inventory` function remaps the emissions to a different grid.
-It takes an `Inventory` and a `Grid` as input, and returns a new
-`Inventory` containing emissions remapped to the new grid.
-
-## Temporal and vertical profiles
-
-To handle the temporal variation of the emissions, `emiproc` uses the
-`TemporalProfile` object, which is assigned to the `Inventory` and 
-contains the temporal distribution of the emissions. 
-Profiles can be either defined at specific datetimes or can be cyclic
-profiles at different temporal resolutions (e.g. daily, weekly, monthly).
-
-The vertical distribution of the emissions is handled in a similar manner by the 
-`VerticalProfile` object. 
-
-The temporal and vertical profile objects can be assigned specifically to 
-certain types of emissions. For example, it is possible to assign them to a specific
-category / pollutant / country / gridcell.
-
-
-## Export functions
-
-`emiproc` contains many functions to export inventories for various
-atmospheric models. The export produces all emission input files required by the
-model. These export functions are designed to make life of the modellers
-as simple as possible. 
-
-Some transport models might require additional data not included in the 
-inventories. In this case, `emiproc` provides error messages, which
-guide the user into adding the missing data.
-
-
-## Emissions generation 
-
-Emission inventories do not necessarily contain all data relevant for a
-simulation. For example, human respiration contributes to emissions of CO2 but
-is rarely included in an inventory.  However, an emission map for this sector can 
-be estimated based on population density. For this purpose, `emiproc` provides 
-a module that helps produce emission maps that rely on a spatial proxy
-(e.g. population density) and an emission factor.
-
-Another example is CO2 emissions from vegetation. Several different models
-are available that estimate the exchange of CO2 with vegetation. 
-`emiproc` implements VPRM (Vegetation Photosynthesis and Respiration Model) [@vprm], which (by default) makes use of 
-vegetation and soil moisture indices, extracted from satellite observations.
-
-This topic is already well-developed in the bottom-up component of `HERMESv3` [@hermesv3_part2], 
-as it includes emission modules for a wide range of sectors and pollutants.
-
-## Visualizing the data
-At the end of the processing, a modeller may want to check the output files 
-to see if the processing was successful. 
-For some of the outputs, `emiproc` provides example plot scripts based on `matplotlib` [@matplotlib].
-Inventories on regular grids can be plotted using the `plot_inventory` function from the `emiproc.plots` module.
-Figure \ref{fig:tno} was created using this function.
 
 
 
