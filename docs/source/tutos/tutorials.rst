@@ -26,8 +26,13 @@ Tutorials
 
 Tutorials provide guided examples with more in depth of how to use emiproc.
 
+The first tutorial to understand how emiproc works is the edgar_processing tutorial.
+
 .. toctree::
     :maxdepth: 2
 
+    edgar_processing
+    gfed
     new_inventory
     icon_oem
+    create_grid

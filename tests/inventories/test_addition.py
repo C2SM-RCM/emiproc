@@ -1,12 +1,11 @@
 """Test the addition of two inventories."""
 
+from __future__ import annotations
+
 import pytest
 
 from emiproc.inventories.utils import add_inventories, scale_inventory
-from emiproc.profiles.temporal_profiles import (
-    HourOfYearProfile,
-    WeeklyProfile,
-)
+from emiproc.profiles.temporal_profiles import HourOfYearProfile, WeeklyProfile
 from emiproc.tests_utils import temporal_profiles, test_inventories
 
 
@@ -16,9 +15,8 @@ def test_self_addition():
     inv = test_inventories.inv_with_pnt_sources
     inv_added = add_inventories(inv, inv)
 
-    loc_ = (inv.substances, inv.categories)
-    assert inv_added.total_emissions.loc[*loc_].equals(
-        scale_inventory(inv, 2).total_emissions.loc[*loc_]
+    assert inv_added.total_emissions.loc[(inv.substances, inv.categories)].equals(
+        scale_inventory(inv, 2).total_emissions.loc[(inv.substances, inv.categories)]
     )
 
 

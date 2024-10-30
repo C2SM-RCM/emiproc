@@ -383,6 +383,7 @@ def country_to_cells(
     profiles_indexes: xr.DataArray,
     grid: Grid,
     country_mask_kwargs: dict[str, any] = {},
+    ignore_missing_countries: bool = False,
 ) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
     """Takes profiles given for countries and transform them to cells.
 
@@ -435,61 +436,33 @@ def country_to_cells(
         profiles_indexes.coords["country"].values
     )
 
-    if missing_countries:
+    if missing_countries and not ignore_missing_countries:
         raise ValueError(
-            f"Missing countries {missing_countries=} in {profiles_indexes=}"
+            f"Missing countries {missing_countries=} in {profiles_indexes=}. "
+            "Please check the profiles or set `ignore_missing_countries=False` ."
         )
 
-    current_profile_index = len(profiles)
-    new_indexes = []
-    new_profiles = []
-    new_profiles.append(profiles)
-    # Now what we want to do is similar to groupping the indexes, but we want to
-    # change the new dimension to cells instead of countries
-    for cell in countries_fractions.coords["cell"]:
-        # Get the indexes of the countries that are in this cell
-        cell_fractions = countries_fractions.sel(cell=cell)
-        # Get the indexes of the countries that are in this cell (non zero fracs)
-        mask_non_zero = cell_fractions > 0
-        cell_countries = cell_fractions.coords["country"].loc[mask_non_zero]
-        if len(cell_countries) == 0:
-            # No countries in this cell
-            continue
-        if len(cell_countries) == 1:
-            # Only one country, no need to group, simply convert country to cell
-            new_indexes.append(
-                profiles_indexes.sel(country=cell_countries)
-                .squeeze("country")
-                .expand_dims({"cell": [cell]})
-                .drop_vars("country")
-                .copy()
-            )
-            continue
-        # Combine the profiles according to the weights
-        logger.debug(
-            f"Combining {profiles_indexes.sel(country=cell_countries)=} on country"
-            f" with {cell_fractions.sel(country=cell_countries)=}"
-        )
-        merged_profiles, merged_indexes = combine_profiles(
-            profiles=profiles,
-            profiles_indexes=profiles_indexes.sel(country=cell_countries).drop_vars(
-                ["cell"]
-            ),
-            dimension="country",
-            weights=cell_fractions.sel(country=cell_countries).drop_vars(["cell"]),
-        )
-        assert len(merged_profiles) == merged_indexes.max() + 1, (
-            f"Expected {len(merged_profiles)=} to be equal to"
-            f" {merged_indexes.max() + 1=}"
-        )
-        merged_indexes += current_profile_index
-        current_profile_index += len(merged_profiles)
-        new_profiles.append(merged_profiles)
-        new_indexes.append(merged_indexes.expand_dims({"cell": [cell]}))
+    da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
 
-    new_indexes = xr.concat(new_indexes, dim="cell")
+    sf_on_cell = da_sf.dot(countries_fractions, dims=["country"])
 
-    return concatenate_profiles(new_profiles), new_indexes
+    profiles_array, new_indexes = ratios_dataarray_to_profiles(
+        sf_on_cell.rename({"scaling_factors": "ratio"})
+    )
+
+    if isinstance(profiles, VerticalProfiles):
+        new_profiles = VerticalProfiles(
+            profiles_array / profiles_array.sum(axis=1).reshape((-1, 1)),
+            profiles.height,
+        )
+    elif isinstance(profiles, CompositeTemporalProfiles):
+        new_profiles = CompositeTemporalProfiles.from_ratios(
+            profiles_array, types=profiles.types, rescale=True
+        )
+    else:
+        raise TypeError(f"Unknown profile type {type(profiles)}")
+
+    return new_profiles, new_indexes
 
 
 def remap_profiles(

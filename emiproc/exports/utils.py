@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -9,7 +10,7 @@ from emiproc.utils.translators import inv_to_xarray
 
 def get_temporally_scaled_array(
     inv: Inventory,
-    time_range: pd.DatetimeIndex,
+    time_range: pd.DatetimeIndex | int,
     sum_over_cells: bool = True,
 ) -> xr.DataArray:
     """Transform the inventory to a temporally resolved emissions array.
@@ -24,6 +25,7 @@ def get_temporally_scaled_array(
 
     :param inv: the inventory to transform
     :param time_range: the time range to use for the temporal resolution.
+        If an integer is given the time range will a daily range of the given year.
     :param sum_over_cells: if True the emissions are summed over the cells.
         This can be useful to improve the performance of the plotting.
 
@@ -35,6 +37,20 @@ def get_temporally_scaled_array(
     """
 
     profiles, profiles_indexes = inv.t_profiles_groups, inv.t_profiles_indexes
+
+    if profiles is None or profiles_indexes is None:
+        raise ValueError(
+            "The inventory does not have temporal profiles."
+            "You need to set the profiles to get a temporally resolved emissions array."
+        )
+
+    if isinstance(time_range, int):
+        time_range = pd.date_range(
+            start=f"{time_range}-01-01",
+            end=f"{time_range}-12-31",
+            freq="D",
+            inclusive="both",
+        )
 
     da_totals = inv_to_xarray(inv)
     if sum_over_cells:

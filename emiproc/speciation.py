@@ -209,6 +209,7 @@ def speciate(
         # Ensure that a speciation defined in a cell only on some country parts will be
         # applied to the whole cell by filling the missing values with the countries
         countries_fractions = countries_fractions / countries_fractions.sum("country")
+        countries_fractions = countries_fractions.fillna(0.0)
 
     for cat, sub in inv._gdf_columns:
         if sub != substance:
@@ -231,7 +232,7 @@ def speciate(
                 {"speciation": "country"}
             )
             da_ratios_cells = countries_fractions.dot(
-                da_ratios_country, dim=["country"]
+                da_ratios_country, dims=["country"]
             )
             # First check that where the sum is 0, the total emissions are 0
             mask_zero_ratios = da_ratios_cells.sum("substance") == 0

@@ -9,11 +9,18 @@ So here we will do a triple nesting:
 - We put the tno inventory outside the country limits
 
 """
+
 # %% Imports
+from datetime import datetime
 from pathlib import Path
 from emiproc.inventories.zurich import MapLuftZurich
 from emiproc.inventories.tno import TNO_Inventory
-from emiproc.inventories.swiss import SwissRasters
+from emiproc.inventories.swiss import (
+    SwissRasters,
+    activities_to_categories,
+    default_point_source_correction,
+    PointSourceCorrection,
+)
 from emiproc.inventories.utils import (
     add_inventories,
     crop_with_shape,
@@ -23,7 +30,8 @@ from emiproc.inventories.utils import (
 from emiproc.speciation import merge_substances
 from emiproc.grids import LV95, WGS84, ICONGrid
 from shapely.geometry import Polygon, Point
-from emiproc.regrid import remap_inventory
+from emiproc.regrid import remap_inventory, get_weights_mapping
+
 from emiproc.inventories.categories_groups import CH_2_GNFR, TNO_2_GNFR
 from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR
 import geopandas as gpd
@@ -32,18 +40,19 @@ from emiproc.utilities import get_natural_earth
 from emiproc.profiles.temporal_profiles import from_yaml
 from emiproc.profiles.vertical_profiles import VerticalProfile
 import numpy as np
+import xarray as xr
+
 from emiproc import FILES_DIR
 
 # %% Select the path with my data
 data_path = Path(r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen")
-
-
+version = f"v{datetime.now().strftime('%y%m%d')}"
+year = 2022
 # %%
-tno_path = Path(r"C:\Users\coli\Documents\Data\TNO\AVENGERS_GHGs_year2021.nc")
-inv_tno = TNO_Inventory(
-    tno_path,
-    substances_mapping = { "co2": "CO2"}
+tno_path = Path(
+    r"C:\Users\coli\Documents\Data\TNO\TNO_GHGco_6x6km_v5_0_year2021\inventory\CoCO2_v5_0_emissions_year2021.nc"
 )
+inv_tno = TNO_Inventory(tno_path, substances_mapping={"co2_bf": "CO2", "co2_ff": "CO2"})
 groupping_tno = {}
 for cat in inv_tno.categories:
     # We need only the first letter for the categories
@@ -52,28 +61,34 @@ for cat in inv_tno.categories:
         groupping_tno[gnfr_cat] = []
     groupping_tno[gnfr_cat].append(cat)
 inv_tno.to_crs(LV95)
+
 # %% Create the inventory object
+# Change the district heating to the A category
+activities_to_categories["1.c"] = "districtheatingps"
+default_point_source_correction["districtheatingps"] = (
+    PointSourceCorrection.IS_ONLY_POINT_SOURCE
+)
+CH_2_GNFR["GNFR_A"].append("districtheatingps")
 inv_ch = SwissRasters(
-    data_path=data_path / "CH_Emissions_2015_2020_2022_CO2_CO2biog_CH4_N2O_BC_AP.xlsx",
-    rasters_dir=data_path / "ekat_gridascii",
+    filepath_csv_totals=r"C:\Users\coli\Documents\emissions_preprocessing\output\CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_CO2_biog.csv",
+    filepath_point_sources=r"C:\Users\coli\Documents\emissions_preprocessing\input\SwissPRTR-Daten_2007-2022.xlsx",
+    rasters_dir=data_path / "ekat_gridascii_v_swiss2icon",
     rasters_str_dir=data_path / "ekat_str_gridascii_v_swiss2icon",
     requires_grid=True,
-    year=2022,
+    year=year,
 )
-inv_ch = drop(inv_ch, substances=["CO2", "CO2_biog"], keep_instead_of_drop=True)
+inv_ch = drop(inv_ch, categories=["na"])
 inv_ch = merge_substances(inv_ch, {"CO2": ["CO2", "CO2_biog"]}, inplace=True)
 inv_ch
 
 # %% load mapluft
-zh_path = Path(
-    r"C:\Users\coli\Documents\Data\mapluft\mapLuft_2022_v2024.gdb"
-)
-inv_zh = MapLuftZurich(zh_path,substances=["CO2"])
+zh_path = Path(r"C:\Users\coli\Documents\Data\mapluft") / f"mapLuft_{year}_v2024.gdb"
+inv_zh = MapLuftZurich(zh_path, substances=["CO2"])
 
 
 # %% Load the icon grid
 grid_file = Path(
-    r"C:\Users\coli\Documents\ZH-CH-emission\for_nikolai\icon_Zurich_R19B9_beo_DOM01_v2.nc"
+    r"C:\Users\coli\Documents\ZH-CH-emission\for_nikolai\icon_Zurich_R19B9_beo_v3_DOM01.nc"
 )
 weights_path = grid_file.with_suffix("")
 weights_path.mkdir(parents=True, exist_ok=True)
@@ -130,9 +145,15 @@ groups = {
 
 # %%
 
-remaped_ch = remap_inventory(groupped_ch, icon_grid, weights_path / "remap_ch2icon")
-remaped_zh = remap_inventory(groupped_zh, icon_grid, weights_path / f"remap_zh2icon_{zh_path.stem}")
-remaped_tno = remap_inventory(groupped_tno, icon_grid, weights_path / f"remap_tno2icon_{tno_path.stem}")
+remaped_ch = remap_inventory(
+    groupped_ch, icon_grid, weights_path / f"remap_chnew_{year}_2icon"
+)
+remaped_zh = remap_inventory(
+    groupped_zh, icon_grid, weights_path / f"remap_zh2icon_{zh_path.stem}"
+)
+remaped_tno = remap_inventory(
+    groupped_tno, icon_grid, weights_path / f"remap_tno2icon_{tno_path.stem}"
+)
 # %%
 combined = add_inventories(remaped_ch, remaped_zh)
 combined = add_inventories(remaped_tno, combined)
@@ -161,17 +182,45 @@ combined.set_profile(
 
 # %%
 
+out_dir = (
+    grid_file.parent / f"{grid_file.stem}_zh_ch_tno_combined_year_{year}_{version}"
+)
 
 for profile in [TemporalProfilesTypes.HOUR_OF_YEAR, TemporalProfilesTypes.THREE_CYCLES]:
     export_icon_oem(
         inv=combined,
         icon_grid_file=grid_file,
-        output_dir=grid_file.parent / f"{grid_file.stem}_zh_ch_tno_combined",
+        output_dir=out_dir,
         group_dict=groups,
         substances=["CO2"],
-        year=2020,
+        year=year,
         temporal_profiles_type=profile,
     )
 
 
+# %% Add the fraction in zurich
+
+
+weights = get_weights_mapping(
+    weights_filepath=None,
+    # weights_filepath=weights_path / f"remap_zh_boundaries_2_{grid_file.stem}",
+    shapes_inv=icon_grid.gdf.to_crs(LV95),
+    shapes_out=[zh_poly],
+)
+
+
+ds_icon = xr.load_dataset(out_dir / "oem_gridded_emissions.nc")
+fraction = np.zeros(ds_icon["cell"].shape)
+fraction[weights["inv_indexes"]] = weights["weights"]
+ds_icon["fraction_in_zurich"] = (
+    "cell",
+    fraction,
+    {
+        "units": "-",
+        "long_name": "Fraction of the cell in Zurich boundaries",
+        "created_by_emiproc": f"{Path(__file__).name}",
+    },
+)
+ds_icon.to_netcdf(out_dir / "oem_gridded_emissions.nc")
+ds_icon
 # %%

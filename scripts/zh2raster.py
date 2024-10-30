@@ -60,7 +60,8 @@ SPLIT_BIOGENIC_CO2 = True
 # Whether to add the human respiration
 ADD_HUMAN_RESPIRATION = True
 # File with the data required for the human respiration
-quartier_anlyse_file = r"C:\Users\coli\Documents\emiproc\cases\parks_polygons\Quartieranalyse_-OGD\Quartieranalyse_-OGD.gpkg"
+quartier_anlyse_dir = Path(r"C:\Users\coli\Documents\Data\Quartieranalyse_zurich") / str(YEAR)
+quartier_anlyse_file = quartier_anlyse_dir / "Quartieranalyse_-OGD.gpkg"
 
 
 # Make a Enum class for output unit choices
