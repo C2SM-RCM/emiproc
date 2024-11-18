@@ -325,6 +325,9 @@ class RegularGrid(Grid):
             dx = round(dx, rounding)
             dy = round(dy, rounding)
 
+            dxs = [round(dxi, rounding) for dxi in dxs]
+            dys = [round(dyi, rounding) for dyi in dys]
+
         if not np.allclose(dxs, dx) or not np.allclose(dys, dy):
             raise ValueError("The centers are not equally spaced.")
 
