@@ -91,7 +91,16 @@ class CAMS_REG_AQ(Inventory):
                 raise FileNotFoundError(
                     f"Profiles directory {nc_dir} is not a directory."
                 )
-        nc_files = [f for f in nc_dir.iterdir() if f.is_file()]
+        nc_files = [f for f in nc_dir.iterdir() 
+                    if f.is_file() 
+                    and f.suffix == '.nc'
+                    and re.match(filename_pattern, f.name)
+                    ]
+        
+        if not nc_files:
+            raise FileNotFoundError(
+                f"No .nc files found matching the pattern '{filename_pattern}' in {nc_dir}"
+                )
 
         if profiles_dir is None:
             profiles_dir = Path(nc_dir)
@@ -129,35 +138,29 @@ class CAMS_REG_AQ(Inventory):
         inv_data = {}
 
         for nc_file in nc_files:
-            if nc_file.suffix == '.nc' and re.match(filename_pattern, nc_file.name):
-        
-                ds = xr.open_dataset(nc_file)
-
-                match = re.match(filename_pattern, nc_file.name)
-                sub_cams = match.group('substance')
-                sub_name = substances_mapping.get(sub_cams, None)
-                if sub_name is None: 
-                    raise ValueError(f"No substance mapping fround for {sub_cams}")
+            ds = xr.open_dataset(nc_file)
             
-                file_vars = ds.data_vars.keys()
-
-                for var, cat in categories_mapping.items():
-                    if var in file_vars:
-                        col_index = (cat, sub_name)
-                        inv_data[col_index] = ds[var].expand_dims(cat_sub=[col_index])
-                    else:
-                        raise ValueError(f"Category {var} not found in the file {nc_file}.")
-
-                # Extract grid information
-                if not hasattr(self, 'grid'):
-                    self.grid = RegularGrid.from_centers(
-                        x_centers=ds["lon"].values,
-                        y_centers=ds["lat"].values,
-                        name="CAMS_REG_AQ",
-                        rounding=2,
-                    )
-            else:
-                print(f"Skipping file: {nc_file} (does not match the expected pattern or not a .nc file)")
+            match = re.match(filename_pattern, nc_file.name)
+            sub_cams = match.group('substance')
+            sub_name = substances_mapping.get(sub_cams, None)
+            if sub_name is None: 
+                raise ValueError(f"No substance mapping fround for {sub_cams}")
+        
+            file_vars = ds.data_vars.keys()
+            for var, cat in categories_mapping.items():
+                if var in file_vars:
+                    col_index = (cat, sub_name)
+                    inv_data[col_index] = ds[var].expand_dims(cat_sub=[col_index])
+                else:
+                    raise ValueError(f"Category {var} not found in the file {nc_file}.")
+            # Extract grid information
+            if not hasattr(self, 'grid'):
+                self.grid = RegularGrid.from_centers(
+                    x_centers=ds["lon"].values,
+                    y_centers=ds["lat"].values,
+                    name="CAMS_REG_AQ",
+                    rounding=2,
+                )
 
         # List of pairs (emis cat, sub)
         cat_sub_pairs = [(cat, sub) for cat in categories_mapping.values() for sub in substances_mapping.values()]
