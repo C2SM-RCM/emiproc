@@ -95,6 +95,7 @@ class CAMS_REG_AQ(Inventory):
             for f in nc_dir.iterdir()
             if f.is_file() and f.suffix == ".nc" and re.match(filename_pattern, f.name)
         ]
+        self.logger.debug(f"{nc_files=}")
 
         if not nc_files:
             raise FileNotFoundError(
@@ -138,6 +139,8 @@ class CAMS_REG_AQ(Inventory):
         # Read in emission data
         inv_data = {}
 
+        substances_available = []
+
         for nc_file in nc_files:
             ds = xr.open_dataset(nc_file)
 
@@ -146,6 +149,7 @@ class CAMS_REG_AQ(Inventory):
             sub_name = substances_mapping.get(sub_cams, None)
             if sub_name is None:
                 raise ValueError(f"No substance mapping fround for {sub_cams}")
+            substances_available.append(sub_name)
 
             file_vars = ds.data_vars.keys()
             for var, cat in categories_mapping.items():
@@ -167,7 +171,7 @@ class CAMS_REG_AQ(Inventory):
         cat_sub_pairs = [
             (cat, sub)
             for cat in categories_mapping.values()
-            for sub in substances_mapping.values()
+            for sub in substances_available
         ]
 
         # Reshape data to regular grid
