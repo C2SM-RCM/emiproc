@@ -20,7 +20,7 @@ class CAMS_REG_AQ(Inventory):
 
     You can access the data at
     `CAMS-REG-ANT v6.1-Ref2
-    <https://eccad.sedoo.fr/#/metadata/608>`_
+    <https://permalink.aeris-data.fr/CAMS-REG-ANT>`_
 
     """
 
