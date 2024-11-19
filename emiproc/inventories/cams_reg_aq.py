@@ -12,6 +12,7 @@ from emiproc.profiles.vertical_profiles import read_vertical_profiles
 
 UNIT_CONVERSION_FACTOR = 1e9  # Tg -> kg
 
+
 class CAMS_REG_AQ(Inventory):
     """The CAMS regional air quality inventory.
 
@@ -39,7 +40,7 @@ class CAMS_REG_AQ(Inventory):
             "sox": "SO2",
             "nh3": "NH3",
             "pm2_5": "PM25",
-            "pm10":"PM10"
+            "pm10": "PM10",
         },
         categories_mapping: dict[str, str] = {
             "A_PublicPower": "A",
@@ -53,7 +54,7 @@ class CAMS_REG_AQ(Inventory):
             "I_OffRoad": "I",
             "J_Waste": "J",
             "K_AgriLivestock": "K",
-            "L_AgriOther": "L"
+            "L_AgriOther": "L",
         },
         substances_mapping_profiles: dict[str, str] = {
             "nox": "NOx",
@@ -63,44 +64,42 @@ class CAMS_REG_AQ(Inventory):
             "so2": "SO2",
             "nh3": "NH3",
             "pm2_5": "PM25",
-            "pm10":"PM10"
+            "pm10": "PM10",
         },
     ):
         """Create a CAMS_REG_ANT-inventory.
 
         :arg nc_dir: The directory containing the NetCDF emission datasets. One file
             per air pollutant.
-        :arg profiles_dir: The directory where the vertical and temporal profiles 
+        :arg profiles_dir: The directory where the vertical and temporal profiles
             are stored. If None the directory nc_dir is used.
         :arg year: Year of the inventory.
-        :arg substances_mapping: How to map the names of air pollutants from the 
-            names of the NetCDF files to names for emiproc. 
+        :arg substances_mapping: How to map the names of air pollutants from the
+            names of the NetCDF files to names for emiproc.
         :arg categories_mapping: How to map the names of the emission categories from
             the NetCDF files to names for emiproc.
         :arg substances_mapping_profiles: How to map the names of air pollutants from
-            the vertical and/or temporal profiles to names for emiproc. Make sure this 
+            the vertical and/or temporal profiles to names for emiproc. Make sure this
             mapping is consistent with the substances_mapping.
         """
-        
+
         super().__init__()
 
-        filename_pattern = fr"CAMS-REG-ANT_EUR_0\.05x0\.1_anthro_(?P<substance>\w+)_v6\.1-Ref2_yearly_{year}\.nc"
+        filename_pattern = rf"CAMS-REG-ANT_EUR_0\.05x0\.1_anthro_(?P<substance>\w+)_v6\.1-Ref2_yearly_{year}\.nc"
 
         nc_dir = Path(nc_dir)
         if not nc_dir.is_dir():
-                raise FileNotFoundError(
-                    f"Profiles directory {nc_dir} is not a directory."
-                )
-        nc_files = [f for f in nc_dir.iterdir() 
-                    if f.is_file() 
-                    and f.suffix == '.nc'
-                    and re.match(filename_pattern, f.name)
-                    ]
-        
+            raise FileNotFoundError(f"Profiles directory {nc_dir} is not a directory.")
+        nc_files = [
+            f
+            for f in nc_dir.iterdir()
+            if f.is_file() and f.suffix == ".nc" and re.match(filename_pattern, f.name)
+        ]
+
         if not nc_files:
             raise FileNotFoundError(
                 f"No .nc files found matching the pattern '{filename_pattern}' in {nc_dir}"
-                )
+            )
 
         if profiles_dir is None:
             profiles_dir = Path(nc_dir)
@@ -110,7 +109,7 @@ class CAMS_REG_AQ(Inventory):
                 raise FileNotFoundError(
                     f"Profiles directory {profiles_dir} is not a directory."
                 )
-        
+
         # Read the vertical and temporal profile files
         v_profiles, v_profiles_indexes = read_vertical_profiles(profiles_dir)
 
@@ -124,13 +123,15 @@ class CAMS_REG_AQ(Inventory):
         if "substance" in t_profiles_indexes.dims:
             t_profiles_indexes = t_profiles_indexes.assign_coords(
                 substance=[
-                    substances_mapping_profiles[name] for name in t_profiles_indexes['substance'].values
+                    substances_mapping_profiles[name]
+                    for name in t_profiles_indexes["substance"].values
                 ]
             )
         if "substance" in v_profiles_indexes.dims:
             v_profiles_indexes = v_profiles_indexes.assign_coords(
                 substance=[
-                    substances_mapping_profiles[name] for name in v_profiles_indexes['substance'].values
+                    substances_mapping_profiles[name]
+                    for name in v_profiles_indexes["substance"].values
                 ]
             )
 
@@ -139,13 +140,13 @@ class CAMS_REG_AQ(Inventory):
 
         for nc_file in nc_files:
             ds = xr.open_dataset(nc_file)
-            
+
             match = re.match(filename_pattern, nc_file.name)
-            sub_cams = match.group('substance')
+            sub_cams = match.group("substance")
             sub_name = substances_mapping.get(sub_cams, None)
-            if sub_name is None: 
+            if sub_name is None:
                 raise ValueError(f"No substance mapping fround for {sub_cams}")
-        
+
             file_vars = ds.data_vars.keys()
             for var, cat in categories_mapping.items():
                 if var in file_vars:
@@ -154,7 +155,7 @@ class CAMS_REG_AQ(Inventory):
                 else:
                     raise ValueError(f"Category {var} not found in the file {nc_file}.")
             # Extract grid information
-            if not hasattr(self, 'grid'):
+            if not hasattr(self, "grid"):
                 self.grid = RegularGrid.from_centers(
                     x_centers=ds["lon"].values,
                     y_centers=ds["lat"].values,
@@ -163,8 +164,12 @@ class CAMS_REG_AQ(Inventory):
                 )
 
         # List of pairs (emis cat, sub)
-        cat_sub_pairs = [(cat, sub) for cat in categories_mapping.values() for sub in substances_mapping.values()]
-        
+        cat_sub_pairs = [
+            (cat, sub)
+            for cat in categories_mapping.values()
+            for sub in substances_mapping.values()
+        ]
+
         # Reshape data to regular grid
         da_inventory: xr.DataArray = (
             xr.concat(list(inv_data.values()), dim="cat_sub")
@@ -174,16 +179,15 @@ class CAMS_REG_AQ(Inventory):
 
         def process_cat_sub(cs):
             return (
-                da_inventory.sel(cat_sub=cs).values.flatten() 
-                * UNIT_CONVERSION_FACTOR 
+                da_inventory.sel(cat_sub=cs).values.flatten() * UNIT_CONVERSION_FACTOR
             )
 
         self.gdf = gpd.GeoDataFrame(
             {cs: process_cat_sub(cs) for cs in cat_sub_pairs},
-            geometry=self.grid.gdf.geometry
-            )
-        
-        self.gdfs = {} 
-        
+            geometry=self.grid.gdf.geometry,
+        )
+
+        self.gdfs = {}
+
         self.set_profiles(t_profiles, t_profiles_indexes)
         self.set_profiles(v_profiles, v_profiles_indexes)
