@@ -105,6 +105,10 @@ class CAMS_REG_AQ(Inventory):
             for var, cat in categories_mapping.items():
                 if var in file_vars:
                     col_index = (cat, sub_name)
+                    if ds[var].attrs["units"] != "Tg":
+                        raise ValueError(
+                            f"Units are {ds[var].attrs['units']}, expected Tg"
+                        )
                     inv_data[col_index] = ds[var].expand_dims(cat_sub=[col_index])
                 else:
                     raise ValueError(f"Category {var} not found in the file {nc_file}.")
