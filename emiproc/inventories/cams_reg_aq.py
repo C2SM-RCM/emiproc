@@ -30,7 +30,6 @@ class CAMS_REG_AQ(Inventory):
     def __init__(
         self,
         nc_dir: PathLike,
-        profiles_dir: PathLike = None,
         year: int = 2022,
         substances_mapping: dict[str, str] = {
             "nox": "NOx",
@@ -56,31 +55,16 @@ class CAMS_REG_AQ(Inventory):
             "K_AgriLivestock": "K",
             "L_AgriOther": "L",
         },
-        substances_mapping_profiles: dict[str, str] = {
-            "nox": "NOx",
-            "co": "CO",
-            "ch4": "CH4",
-            "nmvoc": "VOC",
-            "so2": "SO2",
-            "nh3": "NH3",
-            "pm2_5": "PM25",
-            "pm10": "PM10",
-        },
     ):
         """Create a CAMS_REG_ANT-inventory.
 
         :arg nc_dir: The directory containing the NetCDF emission datasets. One file
             per air pollutant.
-        :arg profiles_dir: The directory where the vertical and temporal profiles
-            are stored. If None the directory nc_dir is used.
         :arg year: Year of the inventory.
         :arg substances_mapping: How to map the names of air pollutants from the
             names of the NetCDF files to names for emiproc.
         :arg categories_mapping: How to map the names of the emission categories from
             the NetCDF files to names for emiproc.
-        :arg substances_mapping_profiles: How to map the names of air pollutants from
-            the vertical and/or temporal profiles to names for emiproc. Make sure this
-            mapping is consistent with the substances_mapping.
         """
 
         super().__init__()
@@ -100,40 +84,6 @@ class CAMS_REG_AQ(Inventory):
         if not nc_files:
             raise FileNotFoundError(
                 f"No .nc files found matching the pattern '{filename_pattern}' in {nc_dir}"
-            )
-
-        if profiles_dir is None:
-            profiles_dir = Path(nc_dir)
-        else:
-            profiles_dir = Path(profiles_dir)
-            if not profiles_dir.is_dir():
-                raise FileNotFoundError(
-                    f"Profiles directory {profiles_dir} is not a directory."
-                )
-
-        # Read the vertical and temporal profile files
-        v_profiles, v_profiles_indexes = read_vertical_profiles(profiles_dir)
-
-        t_profiles, t_profiles_indexes = read_temporal_profiles(
-            profiles_dir,
-            profile_csv_kwargs={
-                "encoding": "latin",
-            },
-        )
-        # Rename substances in profiles according to dictionary
-        if "substance" in t_profiles_indexes.dims:
-            t_profiles_indexes = t_profiles_indexes.assign_coords(
-                substance=[
-                    substances_mapping_profiles[name]
-                    for name in t_profiles_indexes["substance"].values
-                ]
-            )
-        if "substance" in v_profiles_indexes.dims:
-            v_profiles_indexes = v_profiles_indexes.assign_coords(
-                substance=[
-                    substances_mapping_profiles[name]
-                    for name in v_profiles_indexes["substance"].values
-                ]
             )
 
         # Read in emission data
@@ -192,6 +142,3 @@ class CAMS_REG_AQ(Inventory):
         )
 
         self.gdfs = {}
-
-        self.set_profiles(t_profiles, t_profiles_indexes)
-        self.set_profiles(v_profiles, v_profiles_indexes)
