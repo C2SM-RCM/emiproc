@@ -136,7 +136,7 @@ def plot_inventory(
         "linewidth": 0.04,
         # AA will help show the line when set to true
         "antialiased": True,
-        "alpha": 0.6,
+        # "alpha": 0.6,
     },
 ):
     """Plot an inventory.
