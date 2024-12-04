@@ -444,7 +444,7 @@ def country_to_cells(
 
     da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
 
-    sf_on_cell = da_sf.dot(countries_fractions, dims=["country"])
+    sf_on_cell = da_sf.dot(countries_fractions, dim=["country"])
 
     profiles_array, new_indexes = ratios_dataarray_to_profiles(
         sf_on_cell.rename({"scaling_factors": "ratio"})
