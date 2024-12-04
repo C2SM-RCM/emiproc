@@ -49,7 +49,9 @@ dynamic = ["version"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
+markers = [
+    "incremental: mark a test as part of an incremental test suite"
+]
 
 [tool.setuptools.packages.find]
 include = ["emiproc"]  # package names should match these glob patterns (["*"] by default)
@@ -66,4 +68,4 @@ doc = [
     "sphinx_toolbox",
     "nbsphinx",
 ]
-dev = ["black"]
+dev = ["black", "pytest"]
