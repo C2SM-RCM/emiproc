@@ -7,6 +7,7 @@ grids used in different emissions inventories.
 from __future__ import annotations
 
 import math
+from pathlib import Path
 import warnings
 from functools import cache, cached_property
 from typing import Iterable
@@ -47,6 +48,9 @@ class Grid:
     # The crs value as an integer
     crs: int | str
     gdf: gpd.GeoDataFrame
+
+    # Optional corners of the cells (used for irregular grids)
+    corners: np.ndarray | None = None
 
     def __init__(self, name: str, crs: int | str = WGS84):
         """
@@ -646,7 +650,7 @@ class ICONGrid(Grid):
     The grid file contains variables like midpoint coordinates etc as a fct of the index.
     """
 
-    def __init__(self, dataset_path, name="ICON"):
+    def __init__(self, dataset_path, name: str = None):
         """Open the netcdf-dataset and read the relevant grid information.
 
         Parameters
@@ -654,7 +658,11 @@ class ICONGrid(Grid):
         dataset_path : str
         name : str, optional
         """
-        self.dataset_path = dataset_path
+
+        self.dataset_path = Path(dataset_path)
+
+        if name is None:
+            name = self.dataset_path.stem
 
         with Dataset(dataset_path) as dataset:
             self.clon_var = np.rad2deg(dataset["clon"][:])
@@ -665,13 +673,16 @@ class ICONGrid(Grid):
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
             self.cell_of_vertex = np.array(dataset["cells_of_vertex"][:])
 
-        self.ncell = len(self.clat_var)
+            self.ncell = len(self.clat_var)
+
+            corners = np.zeros((self.ncell, 3, 2))
+            corners[:, :, 0] = self.vlon[self.vertex_of_cell - 1].T
+            corners[:, :, 1] = self.vlat[self.vertex_of_cell - 1].T
+            self.corners = corners
 
         # Initiate a list of polygons, which is updated whenever the polygon of a cell
         # is called for the first time
-        self.polygons = [
-            Polygon(zip(*self._cell_corners(i))) for i in range(self.ncell)
-        ]
+        self.polygons = polygons(self.corners)
 
         # Create a geopandas df
         # ICON_FILE_CRS = 6422
