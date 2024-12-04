@@ -44,12 +44,13 @@ Contents
    :maxdepth: 2
 
    installation
-   tutos/tutorials
    inventories
    models
+   tutos/tutorials
    emissions_generation
    profiles
    api/index
+   contrib/contribute
    support
    bibliography
 
