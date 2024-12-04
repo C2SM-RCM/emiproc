@@ -165,9 +165,10 @@ def export_wrf_hourly_emissions(
         x=("cell", np.repeat(x_index, shape[1])),
         y=("cell", np.tile(y_index, shape[0])),
     )
-    da = da.assign_coords(
-        cell=pd.MultiIndex.from_arrays([da.x.values, da.y.values], names=["x", "y"])
+    mindex_coords = xr.Coordinates.from_pandas_multiindex(
+        pd.MultiIndex.from_arrays([da.x.values, da.y.values], names=["x", "y"]), "cell"
     )
+    da = da.assign_coords(mindex_coords)
     da = da.unstack("cell")
     # Rename the dimensions to match the WRF grid
     da = da.rename({"x": "west_east", "y": "south_north"})
