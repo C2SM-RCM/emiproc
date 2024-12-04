@@ -10,11 +10,13 @@ from typing import Any
 
 import geopandas as gpd
 import matplotlib as mpl
+from matplotlib.collections import PolyCollection
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.colors import LogNorm, SymLogNorm
 
+from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
@@ -129,6 +131,13 @@ def plot_inventory(
     add_country_borders: bool = False,
     total_only: bool = False,
     reverse_y: bool = False,
+    poly_collection_kwargs: dict[str, Any] = {
+        "edgecolors": "black",
+        "linewidth": 0.04,
+        # AA will help show the line when set to true
+        "antialiased": True,
+        "alpha": 0.6,
+    },
 ):
     """Plot an inventory.
 
@@ -143,6 +152,7 @@ def plot_inventory(
 
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
+    is_regular = issubclass(type(grid), RegularGrid)
 
     def get_vmax(data: np.ndarray) -> float:
         if vmax is not None:
@@ -168,11 +178,10 @@ def plot_inventory(
         logger.info("Only one category, will plot only the total emissions")
         total_only = True
 
-    lon_range = grid.lon_range if hasattr(grid, "lon_range") else np.arange(grid.nx)
-    lat_range = grid.lat_range if hasattr(grid, "lat_range") else np.arange(grid.ny)
+    x_min, y_min, x_max, y_max = grid.gdf.total_bounds
 
-    x_min, x_max = lon_range[0], lon_range[-1]
-    y_min, y_max = lat_range[0], lat_range[-1]
+    if not spec_lims:
+        spec_lims = (x_min, x_max, y_min, y_max)
 
     if add_country_borders and (
         not hasattr(grid, "lat_range") or hasattr(grid, "lon_range")
@@ -201,9 +210,9 @@ def plot_inventory(
             ax.yaxis.set_major_formatter(axis_formatter)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
-        if spec_lims:
-            ax.set_xlim(spec_lims[0], spec_lims[1])
-            ax.set_ylim(spec_lims[2], spec_lims[3])
+
+        ax.set_xlim(spec_lims[0], spec_lims[1])
+        ax.set_ylim(spec_lims[2], spec_lims[3])
 
     if out_dir is not None:
         plt.ioff()
@@ -219,7 +228,7 @@ def plot_inventory(
             if (cat, sub) not in inv.gdf:
                 # TODO: this will miss point sources for the total_sub_emissions
                 # And also miss point sources for that category
-                print(f"passsed {sub},{cat} no data")
+                logger.info(f"passsed {sub},{cat} no data")
                 continue
             emissions = inv.gdf[(cat, sub)].copy(deep=True).to_numpy()
             if cat in inv.gdfs and sub in inv.gdfs[cat]:
@@ -248,7 +257,7 @@ def plot_inventory(
             total_sub_emissions += emissions
 
             if not np.any(emissions):
-                print(f"passsed {sub},{cat} no emissions")
+                logger.info(f"passsed {sub},{cat} no emissions")
                 continue
 
             if total_only:
@@ -264,17 +273,26 @@ def plot_inventory(
                 (emissions != 0) & (~np.isnan(emissions))
             ]
             if len(emission_non_zero_values) == 0:
-                print(f"passsed {sub},{cat} no emissions")
+                logger.info(f"passsed {sub},{cat} no emissions")
                 continue
 
             norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
-
-            im = ax.imshow(
-                emissions,
-                norm=norm,
-                cmap=this_cmap,
-                extent=[x_min, x_max, y_min, y_max],
-            )
+            if is_regular:
+                im = ax.imshow(
+                    emissions,
+                    norm=norm,
+                    cmap=this_cmap,
+                    extent=[x_min, x_max, y_min, y_max],
+                )
+            else:
+                im = PolyCollection(
+                    grid.corners,
+                    cmap=this_cmap,
+                    norm=norm,
+                    **poly_collection_kwargs,
+                )
+                im.set_array(emissions.flatten())
+                ax.add_collection(im)
             add_ax_info(ax)
             ax.set_title(f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y")
             fig.colorbar(
@@ -301,7 +319,7 @@ def plot_inventory(
             plt.close(fig)
 
         if not np.any(total_sub_emissions):
-            print(f"passsed {sub},total_emissions, no emissions")
+            logger.info(f"passsed {sub},total_emissions, no emissions")
             continue
 
         fig, ax = plt.subplots(figsize=figsize)
@@ -310,17 +328,28 @@ def plot_inventory(
             (total_sub_emissions > 0) & (~np.isnan(total_sub_emissions))
         ]
         if len(emission_non_zero_values) == 0:
-            print(f"passsed {sub},total_emissions, no emissions")
+            logger.info(f"passsed {sub},total_emissions, no emissions")
             continue
 
         norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
-        im = ax.imshow(
-            total_sub_emissions,
-            norm=norm,
-            cmap=this_cmap,
-            extent=[x_min, x_max, y_min, y_max],
-        )
+        if is_regular:
+            im = ax.imshow(
+                total_sub_emissions,
+                norm=norm,
+                cmap=this_cmap,
+                extent=[x_min, x_max, y_min, y_max],
+            )
+        else:
+            im = PolyCollection(
+                grid.corners,
+                cmap=this_cmap,
+                norm=norm,
+                **poly_collection_kwargs,
+            )
+            im.set_array(total_sub_emissions.flatten())
+            ax.add_collection(im)
+
         ax.set_title(
             f"Total {sub}: " f"{sum(per_sector_emissions.values()):.2} " f"kg/y"
         )
