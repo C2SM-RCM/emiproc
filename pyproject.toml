@@ -27,6 +27,7 @@ dependencies = [
     "pandas",
     "geopandas",
     "netCDF4",
+    "dask",
     "scipy",
     "shapely",
     "xarray>=2023.10",
