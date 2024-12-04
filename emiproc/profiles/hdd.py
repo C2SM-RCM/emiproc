@@ -22,7 +22,7 @@ def create_HDD_scaling_factor(
     Where :math:`T_{inside}` is the inside temperature
     and :math:`T_{mean}` is the mean temperature of the day.
 
-    If :math:`T_{mean} < T_{min}` then the heating is not activated and
+    If :math:`T_{mean} > T_{min}` then the heating is not activated and
     :math:`HDD = 0`.
 
     A day of year profile can then be calculated using 
@@ -77,8 +77,10 @@ def create_HDD_scaling_factor(
         .reindex(hdd_ts.index)
     )
 
-    heating_ts = create_scaling_factors_time_serie(start, end, heating_profile)
-    dhw_ts = create_scaling_factors_time_serie(start, end, dhw_profile)
+    heating_ts = create_scaling_factors_time_serie(start, end, heating_profile, local_tz = "Europe/Zurich")
+    dhw_ts = create_scaling_factors_time_serie(start, end, dhw_profile, local_tz = "Europe/Zurich")
+
+
 
     return (1. - dhw_scaling) * a_HDD_hourly * heating_ts + dhw_ts * dhw_scaling
 
