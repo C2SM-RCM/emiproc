@@ -30,7 +30,7 @@ class GFAS(Inventory):
 
     You can access the data at
     `CAMS global biomass burning emissions based on fire radiative power
-    <https://ads.atmosphere.copernicus.eu/cdsapp#!/dataset/cams-global-fire-emissions-gfas>`_
+    <https://ads.atmosphere.copernicus.eu/datasets/cams-global-fire-emissions-gfas?tab=overview>`_
 
     """
 
