@@ -15,7 +15,7 @@ From source
 -----------
 
 
-First create a folder for emiproc and go into it 
+First create a folder for emiproc and go into it.
 
 .. code:: bash
 
@@ -30,9 +30,7 @@ Clone the repository
     git clone https://github.com/C2SM-RCM/emiproc.git .
 
 
-Then install using pip.
-Installing as an editable (`-e` options) allows you to directly modify 
-the cloned code.
+Then install using pip, with the editable (`-e` option) to allow you to directly modify the cloned code.
 
 .. code:: bash
 
