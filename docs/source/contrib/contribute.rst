@@ -23,6 +23,50 @@ You can follow the tutorials below to understand how emiproc works and how to
 expand it.
 
 
+Installation and testing
+------------------------
+
+To install emiproc for developpement, we recomment that you run 
+
+.. code-block:: bash
+    
+    pip install -e .[dev]
+
+
+You can then run the tests with the command, which you should run 
+in the main directory of the repository (where the pyproject.toml file is located):
+
+.. code-block:: bash
+
+    pytest
+
+
+Also, emiproc uses `black <black.readthedocs.io>`_ for code formatting. You can run it with the command:
+
+.. code-block:: bash
+
+    black .
+
+
+
+
+For bulding the documentation, you can run:
+
+.. code-block:: bash
+
+    cd docs
+    make html
+
+
+or on Windows:
+
+.. code-block:: bash
+
+    cd docs
+    .\make.bat html
+
+
+
 Tutorials for developpers
 -------------------------
 
