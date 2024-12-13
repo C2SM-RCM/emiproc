@@ -6,6 +6,7 @@ grids used in different emissions inventories.
 
 from __future__ import annotations
 
+import logging
 import math
 from pathlib import Path
 import warnings
@@ -29,6 +30,8 @@ WGS84_NSIDC = 6933  # Unit: meters
 # Radius of the earth
 R_EARTH = 6371000  # m
 
+
+logger = logging.getLogger(__name__)
 
 # Type alias
 # minx, miny, maxx, maxy
@@ -364,6 +367,141 @@ class RegularGrid(Grid):
             ) from e
 
         return grid
+
+
+class HexGrid(Grid):
+    """A grid with hexagonal cells.
+
+    The grid is similar to a regular grid, but the cells are hexagons.
+    This implies that the lines of the grid are not all parallel.
+
+    For the arguments, look at :py:class:`RegularGrid`.
+    Note that `dx and dy` have been replaced by `spacing` parameter,
+
+    :arg spacing: The distance between the centers of two adjacent hexagons
+        on a row. This is also the diameter of the circle inscribed in the hexagon.
+    :arg oriented_north: If True, the hexagons are oriented with the top
+        and bottom sides parallel on the y-axis. If False, the hexagons
+        are oriented with the left and right sides parallel on the x-axis.
+
+    """
+
+    def __init__(
+        self,
+        xmin: float,
+        ymin: float,
+        xmax: float | None = None,
+        ymax: float | None = None,
+        nx: int | None = None,
+        ny: int | None = None,
+        spacing: float | None = None,
+        oriented_north: bool = True,
+        name: str | None = None,
+        crs: int | str = WGS84,
+    ):
+
+        # Correct the delta in case the orientation is on the other ax
+        correct = lambda x: x * np.sqrt(3) / 2
+
+        self.xmin, self.ymin = xmin, ymin
+
+        # Check if they did not specify all the optional parameters
+        if all((p is not None for p in [xmax, ymax, nx, ny, spacing])):
+            raise ValueError(
+                "Specified too many parameters. "
+                "Specify only 2 of the following: "
+                "(xmax, ymax), (nx, ny), (spacing)"
+            )
+
+        if spacing is None and xmax is None and ymax is None:
+            raise ValueError(
+                "Cannot create grid with only nx and ny. "
+                "Specify at least spacing or xmax, ymax."
+            )
+
+        if spacing is not None:
+            # Guess the nx and ny values, override the max
+            dx = spacing if oriented_north else correct(spacing)
+            dy = correct(spacing) if oriented_north else spacing
+
+        # Calclate the number of cells if not specified
+        if nx is None and ny is None:
+            if spacing is None:
+                raise ValueError(
+                    "Either nx and ny or dx and dy must be specified. "
+                    f"Received: {nx=}, {ny=}, {spacing=}"
+                )
+            if xmax is None or ymax is None:
+                raise ValueError(
+                    "When using only dx dy, xmax and ymax must be specified. "
+                    f"Received: {xmax=}, {ymax=}"
+                )
+
+            nx = math.ceil((xmax - xmin) / dx)
+            ny = math.ceil((ymax - ymin) / dy)
+
+        if xmax is None and ymax is None:
+            xmax = xmin + nx * dx
+            ymax = ymin + ny * dy
+        self.xmax, self.ymax = xmax, ymax
+
+        # Calculate all grid parameters
+        self.nx, self.ny = nx, ny
+        self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
+
+        self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
+        self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
+
+        assert len(self.lon_range) == nx, f"{len(self.lon_range)=} != {nx=}"
+        assert len(self.lat_range) == ny, f"{len(self.lat_range)=} != {ny=}"
+
+        if name is None:
+            name = f"HexGrid x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
+
+        self.oriented_north = oriented_north
+
+        super().__init__(name, crs)
+
+    @cached_property
+    def cells_as_polylist(self) -> list[Polygon]:
+        """Return all the cells as a list of polygons."""
+
+        x_centers, y_centers = np.meshgrid(self.lon_range, self.lat_range)
+        # Shift the odd rows
+        if self.oriented_north:
+            x_centers[1::2] += self.dx / 2
+        else:
+            y_centers[:, 1::2] += self.dy / 2
+
+        # Calculat the corners of the hexagons
+        corners = []
+        flatten = lambda x: x.flatten(order="F")
+        x_centers = flatten(x_centers)
+        y_centers = flatten(y_centers)
+
+        # half_offset = np.sqrt(3) / 2
+        # half_offset = np.sqrt(3) / 8
+        half_offset = 1 / (np.sqrt(3))
+        offsets_x = [0, 1, 1, 0, -1, -1]
+        offsets_y = [
+            2 - half_offset,
+            half_offset,
+            -half_offset,
+            -2 + half_offset,
+            -half_offset,
+            half_offset,
+        ]
+        if not self.oriented_north:
+            offsets_x, offsets_y = offsets_y, offsets_x
+
+        for off_x, off_y in zip(offsets_x, offsets_y):
+            x = x_centers + self.dx / 2 * off_x
+            y = y_centers + self.dy / 2 * off_y
+            corners.append(np.stack([x, y], axis=-1))
+        # Reshape to 1D (order set for backward compatibility)
+
+        coords = np.stack(corners, axis=1)
+        return polygons(coords)
 
 
 class TNOGrid(RegularGrid):
