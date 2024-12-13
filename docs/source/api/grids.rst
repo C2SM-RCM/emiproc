@@ -8,6 +8,8 @@ General Grids
 
 .. autoclass:: emiproc.grids.RegularGrid
 
+.. autoclass:: emiproc.grids.HexGrid
+
 .. autoclass:: emiproc.grids.GeoPandasGrid
 
 
