@@ -2,7 +2,7 @@ import geopandas as gpd
 
 from shapely.geometry import Point, Polygon
 
-from emiproc.grids import RegularGrid, GeoPandasGrid
+from emiproc.grids import HexGrid, RegularGrid, GeoPandasGrid
 
 # Regular grid for testing
 # Note that this grid is big enough to include the inventories from the
@@ -10,6 +10,8 @@ from emiproc.grids import RegularGrid, GeoPandasGrid
 regular_grid = RegularGrid(
     xmin=-1, xmax=5, ymin=-2, ymax=3, nx=10, ny=15, name="Test Regular Grid"
 )
+
+hex_grid = HexGrid(xmin=-1, xmax=5, ymin=-2, ymax=3, nx=10, ny=15, name="Test Hex Grid")
 
 basic_serie = gpd.GeoSeries(
     [
