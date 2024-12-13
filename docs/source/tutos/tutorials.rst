@@ -34,4 +34,5 @@ The first tutorial to understand how emiproc works is the edgar_processing tutor
     edgar_processing
     gfed
     icon_oem
+    grids
     regridding
