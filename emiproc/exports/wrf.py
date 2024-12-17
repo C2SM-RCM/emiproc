@@ -16,7 +16,7 @@ from shapely.creation import polygons
 from emiproc.exports.utils import get_temporally_scaled_array
 from emiproc.grids import WGS84, Grid, RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.utilities import HOUR_PER_YR
+from emiproc.utilities import HOUR_PER_DAY, get_day_per_year
 from emiproc.utils.constants import get_molar_mass
 
 
@@ -167,7 +167,7 @@ def export_wrf_hourly_emissions(
         * 1e-3
     )
     # year / hour
-    temporal_conversion = 1 / HOUR_PER_YR
+    temporal_conversion = 1 / float(get_day_per_year(inv.year) * HOUR_PER_DAY)
     # km2 / cell (km2/m2 * m2/cell)
     spatial_conversion = xr.DataArray(1e-6 / grid.cell_areas, dims="cell")
 
@@ -215,6 +215,7 @@ def export_wrf_hourly_emissions(
                 {
                     "emiproc": f"This file was created by emiproc on {datetime.now()}",
                     "emiproc_history": f"Created from the inventory {inv.name} with {inv.history=}",
+                    "unit": "moles/km2/h",
                 }
             )
         )

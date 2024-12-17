@@ -34,6 +34,17 @@ SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
 
 
+def get_day_per_year(year: int | None) -> int | float:
+    """Get the number of days in a year accounting for leap years."""
+    if year is None:
+        logger = logging.getLogger("emiproc.get_day_per_year")
+        logger.warning("Year is None, using 365.25")
+        return DAY_PER_YR
+    if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+        return 366
+    return 365
+
+
 class Units(Enum):
     """Units for emissions."""
 

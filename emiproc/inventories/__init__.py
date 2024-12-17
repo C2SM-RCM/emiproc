@@ -256,6 +256,7 @@ class Inventory:
         inv = Inventory()
         inv.__class__ = self.__class__
         inv.history = deepcopy(self.history)
+        inv.year = self.year
         if hasattr(self, "grid"):
             inv.grid = self.grid
 
