@@ -14,11 +14,13 @@ import xarray as xr
 from shapely.creation import polygons
 
 from emiproc.exports.utils import get_temporally_scaled_array
-from emiproc.grids import WGS84, Grid
+from emiproc.grids import WGS84, Grid, RegularGrid
 from emiproc.inventories import Inventory
+from emiproc.utilities import HOUR_PER_YR
+from emiproc.utils.constants import get_molar_mass
 
 
-class WRF_Grid(Grid):
+class WRF_Grid(RegularGrid):
     """Grid of the wrf model.
 
     The grid is a pseudo regular grid, in the sense that the grid is regular
@@ -41,7 +43,7 @@ class WRF_Grid(Grid):
         """
 
         grid_filepath = Path(grid_filepath)
-        super().__init__(name=grid_filepath.stem, crs=WGS84)
+        Grid.__init__(self, name=grid_filepath.stem, crs=WGS84)
 
         ds = xr.open_dataset(grid_filepath, engine="netcdf4")
         self.attributes = ds.attrs
@@ -127,6 +129,8 @@ def export_wrf_hourly_emissions(
 ) -> Path:
     """Export the inventory to WRF chemi files.
 
+    Output units are in mole/km2/hour.
+
     .. note::
         When running this function on Windows, the files will be saved with the
         `:` replaced by `-` in the file name, because Windows does not allow `:` in
@@ -156,6 +160,18 @@ def export_wrf_hourly_emissions(
     time_range = pd.date_range(time_range[0], time_range[1], freq="h")
 
     da = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+
+    # Molar mass conversion mol / kg
+    mm_factor = 1 / (
+        xr.DataArray([get_molar_mass(sub) for sub in inv.substances], dims="substance")
+        * 1e-3
+    )
+    # year / hour
+    temporal_conversion = 1 / HOUR_PER_YR
+    # km2 / cell (km2/m2 * m2/cell)
+    spatial_conversion = xr.DataArray(1e-6 / grid.cell_areas, dims="cell")
+
+    da = da * mm_factor * temporal_conversion * spatial_conversion
 
     # Unstack the datarray to get on the regular 2D grid
     shape = grid.shape
