@@ -67,5 +67,6 @@ doc = [
     "enum-tools",
     "sphinx_toolbox",
     "nbsphinx",
+    "ipython",
 ]
 dev = ["black", "pytest"]
