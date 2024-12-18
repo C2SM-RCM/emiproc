@@ -17,7 +17,6 @@ https://github.com/C2SM-RCM/emiproc/tree/master/examples
 Scripts 
 -------
 
-Scripts were create on some dedicated cases. They are not well documented
 Scripts were created for some dedicated cases. They are not well documented, but there are many scripts for different cases.
 https://github.com/C2SM-RCM/emiproc/tree/master/scripts
 
