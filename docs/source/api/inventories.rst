@@ -45,3 +45,6 @@ Available Inventories
 
 .. autoclass:: emiproc.inventories.gral.GralInventory
     :special-members: __init__
+
+.. autoclass:: emiproc.inventories.cams_reg_aq.CAMS_REG_AQ
+    :special-members: __init__
