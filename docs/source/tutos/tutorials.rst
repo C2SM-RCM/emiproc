@@ -4,8 +4,8 @@ Tutorials
 If you want to start using emiproc, we recommend beginning with the tutorials below.
 They will guide you through the main features of emiproc.
 
-Additionally many examples of using emiproc can be found
 Additionally, many examples of using emiproc can be found in the GitHub repository.
+
 Examples 
 --------
 
