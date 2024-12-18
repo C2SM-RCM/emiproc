@@ -32,4 +32,4 @@ Human Respiration
 Human respirations can be generated using maps of population density and 
 emission factors per person.
 
-see :py:mod:`emiproc.human_respiration
+see :py:mod:`emiproc.human_respiration`
