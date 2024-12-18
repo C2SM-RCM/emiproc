@@ -48,10 +48,10 @@ An emission inventory is a spatial dataset that reports the yearly amount of pol
 Atmospheric modellers use such inventories to simulate the transport of emitted species in order to compute their distribution and assess their potential impact on the environment.
 The simulations are often compared with measurements to verify if the declared emissions and their trends are consistent with the observed changes in the atmosphere, thereby enhancing confidence in the inventories.
 
-Figure \ref{fig:tno} presents an example of a gridded inventory.
+Figure \ref{fig:edgar} presents an example of a gridded inventory.
 
 
-![CO2 emissions of the year 2015 from the inventory produced by TNO \label{fig:tno}.](raster_total_CO2.png){ width=100% }
+![Anthropogenic CO2 emissions of the year 2022 from the EDGARv6 inventory \label{fig:edgar}.](raster_total_CO2.png){ width=100% }
 
 Inventories are created in multiple different formats and resolutions, which makes it difficult to compare and use them in atmospheric transport models.
 For example, TNO (Dutch Organization for Applied Scientific Research) provides inventories which contains both, area emissions on a regular grid and point
@@ -130,7 +130,7 @@ atmospheric models is done through custom functions that produce all emission in
 model. 
 
 For data vizualisation `emiproc` provides custom functions based on `matplotlib` [@matplotlib].
-Figure \ref{fig:tno} was created using such a function.
+Figure \ref{fig:edgar} was created using such a function.
 
 `emiproc` is built on top of `geopandas` [@kelsey_jordahl_2020_3946761], 
 which allows storing the geometries of the emission maps and offers many functionalities
