@@ -148,7 +148,7 @@ and the documentation is available on [readthedocs](https://emiproc.readthedocs.
 [Tutorials](https://emiproc.readthedocs.io/en/master/tutos/tutorials.html)
 are available to guide new users. 
 A good first start is the
-[Edgar processing tutorial](https://emiproc.readthedocs.io/en/master/tutos/edgar_processing.html)
+[EDGAR processing tutorial](https://emiproc.readthedocs.io/en/master/tutos/edgar_processing.html)
 which shows how `emiproc` can be used to load, process and export a freely available inventory.
 
 # Acknowledgements
