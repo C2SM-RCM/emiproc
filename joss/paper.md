@@ -114,7 +114,7 @@ in time and height.
 
 Thanks to the harmonization of the data, functions for additional data processing
 can easily be applied to the different inventories once loaded into `emiproc`. 
-These functions are listed in the [API documentation](https://emiproc.readthedocs.io/en/master/api/index.html) . 
+These functions are listed in the [API documentation](https://emiproc.readthedocs.io/en/master/api/index.html). 
 Examples of operations on inventory data are among others:
 
 * remapping to different model grids
