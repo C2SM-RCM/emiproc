@@ -24,9 +24,11 @@ authors:
     equal-contrib: true
     affiliation: 1
   - name: Keller Corina
+    orcid: 0009-0000-7128-2584
     equal-contrib: true
     affiliation: 1
   - name: Steiner Michael
+    orcid: 0009-0001-5425-4570
     equal-contrib: true
     affiliation: 1
   - name: Koene Erik
