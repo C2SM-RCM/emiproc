@@ -117,8 +117,8 @@ def explore_inventory(
 
 def plot_inventory(
     inv: Inventory,
-    figsize=(16, 9),
-    q=0.001,
+    figsize: tuple[int, int] = (16, 9),
+    q: float = 0.001,
     vmin: None | float = None,
     vmax: None | float = None,
     cmap=nclcmaps.cmap("WhViBlGrYeOrRe"),
@@ -126,8 +126,8 @@ def plot_inventory(
     spec_lims: None | tuple[float] = None,
     out_dir: PathLike | None = None,
     axis_formatter: str | None = None,
-    x_label="lon [°]",
-    y_label="lat [°]",
+    x_label: str = "lon [°]",
+    y_label: str = "lat [°]",
     add_country_borders: bool = False,
     total_only: bool = False,
     reverse_y: bool = False,
@@ -144,8 +144,24 @@ def plot_inventory(
     Will plot all the combination of substnaces/category of the inventory.
     Will also plot the total emission for each substance.
 
+    :arg inv: the inventory to plot
+    :arg figsize: the size of the figure. As in matplotlib.
+    :arg q: the quantile to use for the vmax and vmin.
+        Will be used to remove the outliers.
+    :arg vmin: the minimum value to use for the colorbar.
+        Will override the q parameter.
+    :arg vmax: Same as vmin but for the maximum value.
+    :arg cmap: the colormap to use. As in matplotlib.
+    :arg symcmap: the symetric colormap to use when:str  there are negative values.
+        As in matplotlib.
+    :arg spec_lims: the limits of the plot. As in matplotlib.
+    :arg out_dir: the directory where to save the plots. If None, will show the plots.
     :arg axis_formatter: for example "{x:6.0f}" will show 6 number and 0
         after the . , which is useful for swiss coordinates.
+    :arg add_country_borders: if True, will add country borders to the plot.
+    :arg total_only: if True, will plot only the total emissions.
+    :arg reverse_y: if True, will reverse the y-axis.
+    :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     """
 
     logger = logging.getLogger(__name__)
@@ -153,6 +169,7 @@ def plot_inventory(
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
     is_regular = issubclass(type(grid), RegularGrid)
+    logger.info(f"Grid is regular: {is_regular}")
 
     def get_vmax(data: np.ndarray) -> float:
         if vmax is not None:
