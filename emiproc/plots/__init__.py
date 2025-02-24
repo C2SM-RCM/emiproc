@@ -138,6 +138,7 @@ def plot_inventory(
         "antialiased": True,
         # "alpha": 0.6,
     },
+    country_borders_kwargs: dict[str, Any] = {},
 ):
     """Plot an inventory.
 
@@ -162,6 +163,8 @@ def plot_inventory(
     :arg total_only: if True, will plot only the total emissions.
     :arg reverse_y: if True, will reverse the y-axis.
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
+    :arg country_borders_kwargs: additional keyword arguments for the country borders.
+        See `geopandas.Geoseries.plot` for more information. 
     """
 
     logger = logging.getLogger(__name__)
@@ -201,7 +204,7 @@ def plot_inventory(
         spec_lims = (x_min, x_max, y_min, y_max)
 
     if add_country_borders and (
-        not hasattr(grid, "lat_range") or hasattr(grid, "lon_range")
+        not (hasattr(grid, "lat_range") and hasattr(grid, "lon_range"))
     ):
         raise ValueError(
             "Cannot add country borders without grid lat_range and lon_range"
@@ -216,7 +219,9 @@ def plot_inventory(
         )
 
         def add_country_borders(ax: mpl.axes.Axes):
-            gdf_countries.boundary.plot(ax=ax, color="black", linewidth=0.5)
+            country_borders_kwargs.setdefault("color", "black")
+            country_borders_kwargs.setdefault("linewidth", 0.5)
+            gdf_countries.boundary.plot(ax=ax, **country_borders_kwargs)
 
     else:
         add_country_borders = lambda ax: None
