@@ -228,8 +228,17 @@ class RegularGrid(Grid):
                     f"Received: {xmax=}, {ymax=}"
                 )
             # Guess the nx and ny values, override the max
-            nx = math.ceil((xmax - xmin) / dx)
-            ny = math.ceil((ymax - ymin) / dy)
+            nx = (xmax - xmin) / dx
+            ny = (ymax - ymin) / dy
+
+            # Round to avoid decimal errors
+            # Get the decimals in the dx and dy
+            get_rounding = lambda x: len(str(x).split(".")[1]) or None
+            clean = lambda n, d: math.ceil(
+                round(n, get_rounding(d)) if get_rounding(d) is not None else n
+            )
+            nx = clean(nx, dx)
+            ny = clean(ny, dy)
 
         if xmax is None and ymax is None:
             xmax = xmin + nx * dx
