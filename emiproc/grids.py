@@ -233,7 +233,10 @@ class RegularGrid(Grid):
 
             # Round to avoid decimal errors
             # Get the decimals in the dx and dy
-            get_rounding = lambda x: len(str(x).split(".")[1]) or None
+            get_rounding = (
+                lambda x: (len(str(x).split(".")[1]) if isinstance(x, float) else 0)
+                or None
+            )
             clean = lambda n, d: math.ceil(
                 round(n, get_rounding(d)) if get_rounding(d) is not None else n
             )
