@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-description: Report a bug or issue with emiprog.
+description: Report a bug or issue with emiproc.
 title: "[Bug]: "
 body:
   - type: textarea
