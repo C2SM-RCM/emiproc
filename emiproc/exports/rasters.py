@@ -3,6 +3,7 @@ from os import PathLike
 from pathlib import Path
 import xarray as xr
 import numpy as np
+from datetime import date
 from emiproc.inventories import Inventory
 from emiproc.grids import RegularGrid
 from emiproc.regrid import remap_inventory
@@ -189,6 +190,22 @@ def export_raster_netcdf(
         },
         attrs=netcdf_attributes,
     )
+
+    if inv.year is not None:
+        ds["time"] = (
+            "time",
+            np.array([date(inv.year, 7, 1)], dtype="datetime64"),
+            {
+                "axis": "T",
+                "standard_name": "time",
+                "long_name": "Inventory year",
+                "comment": "Midpoint of the year",
+            },
+        )
+
+        ds.attrs["year"] = inv.year
+    else:
+        ds.attrs["year"] = "not specified in inventory.year"
 
     if add_totals:
         for sub in inv.substances:
