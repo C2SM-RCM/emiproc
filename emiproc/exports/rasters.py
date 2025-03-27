@@ -23,6 +23,7 @@ def export_raster_netcdf(
     unit: Units = Units.KG_PER_YEAR,
     group_categories: bool = False,
     add_totals: bool = True,
+    categories_description: dict[str, str] | None = None,
 ) -> Path:
     """Export the inventory to a netcdf file as a raster.
 
@@ -52,6 +53,9 @@ def export_raster_netcdf(
         as new variables to the file.
         One will be the raster sum of all categories and the other will be the total sum
         over all cells.
+    :param categories_description: A dictionary with a detailed description
+        of each categories.
+
 
     """
 
@@ -60,6 +64,15 @@ def export_raster_netcdf(
             var_name_format = "{substance}"
         else:
             var_name_format = "{substance}_{category}"
+
+    if categories_description is not None:
+        # Check that all categories are described
+        missing_categories = set(inv.categories) - set(categories_description.keys())
+        if missing_categories:
+            raise ValueError(
+                "Categories are missing in `categories_description`: "
+                f"{missing_categories}"
+            )
 
     if grid is None:
         grid = inv.grid
@@ -101,7 +114,11 @@ def export_raster_netcdf(
                         "standard_name": f"{sub}_{cat}",
                         "long_name": f"{sub}_{cat}",
                         "units": unit_str,
-                        "comment": f"emissions of {sub} in {cat}",
+                        "comment": (
+                            categories_description[cat]
+                            if categories_description
+                            else f"emissions of {sub} from {cat}"
+                        ),
                         "projection": f"{crs}",
                     },
                 )
@@ -206,6 +223,17 @@ def export_raster_netcdf(
         ds.attrs["year"] = inv.year
     else:
         ds.attrs["year"] = "not specified in inventory.year"
+
+    if categories_description is not None:
+        # Add a variable for the description of the categories
+        ds["categories_description"] = (
+            "category",
+            [categories_description[cat] for cat in inv.categories],
+            {
+                "long_name": "Description of the categories",
+                "comment": "Description of the categories",
+            },
+        )
 
     if add_totals:
         for sub in inv.substances:

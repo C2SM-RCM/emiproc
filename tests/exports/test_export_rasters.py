@@ -3,6 +3,7 @@ from datetime import date
 import xarray as xr
 import numpy as np
 
+from emiproc.inventories import Inventory
 from emiproc.tests_utils.test_grids import regular_grid
 from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
 from emiproc.tests_utils import TEST_OUTPUTS_DIR
@@ -36,6 +37,45 @@ def test_group_categories():
         netcdf_attributes={},
         group_categories=True,
     )
+
+
+def _test_categories_in_file(file, inv: Inventory):
+    with xr.open_dataset(file) as ds:
+        assert "categories_description" in ds.variables
+        assert ds["categories_description"].shape == (len(inv.categories),)
+
+
+def test_categories_description():
+    """Test that the categories description functionality."""
+
+    inv_file = TEST_OUTPUTS_DIR / "test_raster_with_desc.nc"
+    export_raster_netcdf(
+        raster_inv,
+        inv_file,
+        regular_grid,
+        categories_description={
+            cat: f"Description of {cat}" for cat in raster_inv.categories
+        },
+    )
+
+    _test_categories_in_file(inv_file, raster_inv)
+
+
+def test_group_categories_and_description():
+    """Test description works also when groupping categories"""
+
+    inv_file = TEST_OUTPUTS_DIR / "test_raster_with_desc_and_group.nc"
+    export_raster_netcdf(
+        raster_inv,
+        inv_file,
+        regular_grid,
+        group_categories=True,
+        categories_description={
+            cat: f"Description of {cat}" for cat in raster_inv.categories
+        },
+    )
+
+    _test_categories_in_file(inv_file, raster_inv)
 
 
 def test_unit():
