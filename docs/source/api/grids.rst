@@ -7,6 +7,7 @@ General Grids
 .. autoclass:: emiproc.grids.Grid
 
 .. autoclass:: emiproc.grids.RegularGrid
+    :members: from_centers
 
 .. autoclass:: emiproc.grids.HexGrid
 

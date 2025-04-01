@@ -16,6 +16,7 @@ All the code of emiproc is there.
     profiles
     models
     exports
+    visualization
     utilities
 
     

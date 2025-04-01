@@ -51,7 +51,7 @@ mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
 mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 
 # edge of the raster cells
-VERSION = "v2_forBetty"
+VERSION = "v3"
 
 # Whether to split the biogenic CO2 and the antoropogenic CO2
 SPLIT_BIOGENIC_CO2 = True
@@ -132,7 +132,7 @@ ds = ds.assign_coords(datetime=("timestep", datetime))
 x_coords = ds.x_lv95.values
 y_coords = ds.y_lv95.values
 d2 = 5.0  # meters, half the size of the cells
-d_out = 100  # meters, size of the cells of the output grid
+d_out = 10.0  # meters, size of the cells of the output grid
 grid = RegularGrid(
     xmin=x_coords.min() - d2,
     xmax=x_coords.max() + d2,

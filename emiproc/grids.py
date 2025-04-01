@@ -45,6 +45,8 @@ class Grid:
     As an example you can look at TNOGrid.
     """
 
+    name: str
+
     nx: int
     ny: int
 
@@ -55,13 +57,15 @@ class Grid:
     # Optional corners of the cells (used for irregular grids)
     corners: np.ndarray | None = None
 
-    def __init__(self, name: str, crs: int | str = WGS84):
+    def __init__(self, name: str | None, crs: int | str = WGS84):
         """
         Parameters
         ----------
         name : Name of the grid.
         crs : The coordinate reference system of the grid.
         """
+        if name is None:
+            name = "unnamed"
         self.name = name
         self.crs = crs
 
@@ -228,20 +232,39 @@ class RegularGrid(Grid):
                     f"Received: {xmax=}, {ymax=}"
                 )
             # Guess the nx and ny values, override the max
-            nx = math.ceil((xmax - xmin) / dx)
-            ny = math.ceil((ymax - ymin) / dy)
+            nx = (xmax - xmin) / dx
+            ny = (ymax - ymin) / dy
 
-        if xmax is None and ymax is None:
-            xmax = xmin + nx * dx
-            ymax = ymin + ny * dy
+            # Round to avoid decimal errors
+            # Get the decimals in the dx and dy
+            get_rounding = (
+                lambda x: (len(str(x).split(".")[1]) if isinstance(x, float) else 0)
+                or None
+            )
+            clean = lambda n, d: math.ceil(
+                round(n, get_rounding(d)) if get_rounding(d) is not None else n
+            )
+            nx = clean(nx, dx)
+            ny = clean(ny, dy)
+
+        elif dx is None and dy is None:
+            dx = (xmax - xmin) / nx
+            dy = (ymax - ymin) / ny
+
+        # Set maxs or correct maxs to ensure consistency with ns and ds
+        xmax = xmin + nx * dx
+        ymax = ymin + ny * dy
+
         self.xmax, self.ymax = xmax, ymax
 
         # Calculate all grid parameters
         self.nx, self.ny = nx, ny
-        self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
+        self.dx, self.dy = dx, dy
 
-        self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
-        self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
+        # Build arrays
+        build_range = lambda min_, n_, d_: min_ + np.arange(n_) * d_ + d_ / 2
+        self.lon_range = build_range(self.xmin, self.nx, self.dx)
+        self.lat_range = build_range(self.ymin, self.ny, self.dy)
 
         self.lon_bounds = np.concatenate(
             [self.lon_range - self.dx / 2, [self.lon_range[-1] + self.dx / 2]]
@@ -255,10 +278,16 @@ class RegularGrid(Grid):
         assert len(self.lon_bounds) == nx + 1
         assert len(self.lat_bounds) == ny + 1
 
-        if name is None:
-            name = f"x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
-
         super().__init__(name, crs)
+
+    def __repr__(self) -> str:
+        return (
+            f"{super().__repr__()}_"
+            f"nx({self.nx})_ny({self.ny})_"
+            f"dx({self.dx})_dy({self.dy})_"
+            f"x({self.xmin},{self.xmax})_"
+            f"y({self.ymin},{self.ymax})_"
+        )
 
     @cached_property
     def cells_as_polylist(self) -> list[Polygon]:
