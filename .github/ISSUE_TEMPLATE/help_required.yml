@@ -1,0 +1,22 @@
+---
+name: Help Required
+description: Request some help for your data or your use case
+title: "[HELP]: "
+labels: [Help required]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        If you want to do something specific with emiproc but you dont know how to do it, this is the right place.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Briefly describe the situation you face and what you would like to achieve with emiproc 
+      placeholder: |
+        * I would like to load inventory [...] data in emiproc
+        * I would like to export emiproc to model [...]
+        * I would like to implement this operation [...] to my script but I don't know how to do.
+        * ...
+    validations:
+      required: true
