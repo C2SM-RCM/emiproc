@@ -15,7 +15,7 @@ import emiproc
 from emiproc.profiles import naming
 
 if TYPE_CHECKING:
-    from emiproc.profiles.temporal_profiles import CompositeTemporalProfiles
+    from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
     from emiproc.profiles.vertical_profiles import VerticalProfiles
 
 logger = logging.getLogger(__name__)
@@ -256,25 +256,6 @@ def get_profiles_indexes(
     return indexes
 
 
-def load_country_tz(file: Path | None = None) -> pd.DataFrame:
-    """Load the dataframe with the country timezones."""
-
-    if file is None:
-        file = Path(*emiproc.__path__).parent / "files" / "country_tz.csv"
-
-    if not file.is_file():
-        raise FileNotFoundError(f"Cannot find country_tz {file=}")
-
-    return pd.read_csv(
-        file,
-        # File start with comment lines starting with '#'
-        comment="#",
-        # Index column must be 'iso3', the first one
-        index_col=0,
-        sep=";",
-    )
-
-
 def read_profile_file(file: PathLike, **kwargs: Any) -> pd.DataFrame:
     """Read any kind of profile file and return the dataframe."""
     default_kwargs = {
@@ -453,7 +434,3 @@ def ratios_dataarray_to_profiles(
         profiles_indexes = profiles_indexes.squeeze("dummy").drop_vars("dummy")
 
     return unique_profiles.T, profiles_indexes.astype(int)
-
-
-if __name__ == "__main__":
-    print(load_country_tz())
