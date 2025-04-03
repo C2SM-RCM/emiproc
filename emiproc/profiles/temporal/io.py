@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import logging
 from os import PathLike
 from pathlib import Path
 from typing import Any
+
 import numpy as np
 import xarray as xr
 import yaml
+
 import emiproc
 from emiproc.profiles.temporal.composite import make_composite_profiles
 from emiproc.profiles.temporal.profiles import (
@@ -22,7 +26,6 @@ from emiproc.profiles.utils import (
     read_profile_csv,
     read_profile_file,
 )
-
 
 _weekdays_long = [
     "Monday",
