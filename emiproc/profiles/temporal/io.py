@@ -97,19 +97,19 @@ def read_temporal_profiles(
     The files for the time profiles are csv and must be all in the same directory
     named according to the argument `time_profiles_files_format`.
 
-    Extra arguments depending on the file format can be passed to
-    the function :py:func:`temporal_profiles.from_csv`
-    that reads the csv files using: `profile_csv_kwargs`
-
-    This returns the time profiles read, and and index xarray matching
-    each substance and category to the desired profiles.
-
     If no files are found, this returns a warning.
 
     The format of the file will influence the name of the columns.
     Use the day of the weeks or the month names or the hour of the day to define the profile.
 
-    :
+    :arg profiles_dir: The directory where the time profiles are stored.
+    :arg time_profiles_files_format: The format of the filenames to read.
+    :arg profile_csv_kwargs: Extra arguments to pass to the function
+        :py:func:`emiproc.profiles.utils.read_profile_file` that reads the csv files.
+    :arg rtol: The relative tolerance to use when checking if the ratios sum to 1.
+
+    :return: A tuple of the profiles and the indexes, following the
+        emiproc inventory profiles format.
 
     """
 

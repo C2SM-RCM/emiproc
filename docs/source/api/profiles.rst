@@ -46,45 +46,72 @@ input/output
 Temporal Profiles
 =================
 
-.. autoclass:: emiproc.profiles.temporal_profiles.TemporalProfile
+.. autoclass:: emiproc.profiles.temporal.profiles.TemporalProfile
+
 
 Cyclic Profiles 
 ^^^^^^^^^^^^^^^
 
-.. autoclass:: emiproc.profiles.temporal_profiles.DailyProfile
+Profiles that can be repeated and applied at any time.
 
-.. autoclass:: emiproc.profiles.temporal_profiles.SpecificDayProfile
+.. autoclass:: emiproc.profiles.temporal.profiles.DailyProfile
 
-.. autoclass:: emiproc.profiles.temporal_profiles.WeeklyProfile
+.. autoclass:: emiproc.profiles.temporal.profiles.SpecificDayProfile
 
-.. autoclass:: emiproc.profiles.temporal_profiles.MounthsProfile
+.. autoclass:: emiproc.profiles.temporal.profiles.WeeklyProfile
 
-.. autoclass:: emiproc.profiles.temporal_profiles.HourOfWeekProfile
+.. autoclass:: emiproc.profiles.temporal.profiles.MounthsProfile
 
-.. autoclass:: emiproc.profiles.temporal_profiles.HourOfYearProfile
+.. autoclass:: emiproc.profiles.temporal.profiles.HourOfWeekProfile
 
-.. autoclass:: emiproc.profiles.temporal_profiles.HourOfLeapYearProfile
+Year Covering Profiles 
+^^^^^^^^^^^^^^^^^^^^^^
 
+Profiles that cannot be repeated, but apply specifically to a given time.
+
+.. autoclass:: emiproc.profiles.temporal.profiles.HourOfYearProfile
+
+.. autoclass:: emiproc.profiles.temporal.profiles.HourOfLeapYearProfile
+
+
+Composite Profiles
+^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: emiproc.profiles.temporal.composite.CompositeTemporalProfiles
+
+.. autofunction:: emiproc.profiles.temporal.composite.make_composite_profiles
 
 
 Utilities
 ^^^^^^^^^
 
-.. autofunction:: emiproc.profiles.temporal_profiles.create_scaling_factors_time_serie
+.. autofunction:: emiproc.profiles.temporal.operators.interpolate_profiles_hour_of_year
 
-.. autofunction:: emiproc.profiles.temporal_profiles.profile_to_scaling_factors
+.. autofunction:: emiproc.profiles.temporal.operators.create_scaling_factors_time_serie
 
-.. autoclass:: emiproc.profiles.temporal_profiles.SpecificDay
+.. autofunction:: emiproc.profiles.temporal.operators.profile_to_scaling_factors
+
+
+Specific days 
+^^^^^^^^^^^^^^^
+
+Utilites to create profiles for specific days of the week.
+
+.. autoclass:: emiproc.profiles.temporal.specific_days.SpecificDay
+
+.. autofunction:: emiproc.profiles.temporal.specific_days.days_of_specific_day
+
+.. autofunction:: emiproc.profiles.temporal.specific_days.get_days_as_ints
 
 .. autofunction:: emiproc.exports.icon.get_constant_time_profile
 
 input/output
 ^^^^^^^^^^^^
 
-.. autofunction:: emiproc.profiles.temporal_profiles.read_temporal_profiles
+.. autofunction:: emiproc.profiles.temporal.io.read_temporal_profiles
 
-.. autofunction:: emiproc.profiles.temporal_profiles.from_csv
+.. autofunction:: emiproc.profiles.temporal.io.from_csv
 
-.. autofunction:: emiproc.profiles.temporal_profiles.from_yaml
+.. autofunction:: emiproc.profiles.temporal.io.from_yaml
 
-.. autofunction:: emiproc.profiles.temporal_profiles.to_yaml
+.. autofunction:: emiproc.profiles.temporal.io.to_yaml
