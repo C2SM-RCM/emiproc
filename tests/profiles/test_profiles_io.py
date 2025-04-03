@@ -2,11 +2,13 @@ import pytest
 import numpy as np
 import json
 import emiproc
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.profiles import (
     TemporalProfile,
     DailyProfile,
     WeeklyProfile,
     MounthsProfile,
+)
+from emiproc.profiles.temporal.io import (
     from_csv,
     from_yaml,
     read_temporal_profiles,

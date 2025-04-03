@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from emiproc.inventories.utils import add_inventories, scale_inventory
-from emiproc.profiles.temporal_profiles import HourOfYearProfile, WeeklyProfile
+from emiproc.profiles.temporal.profiles import HourOfYearProfile, WeeklyProfile
 from emiproc.tests_utils import temporal_profiles, test_inventories
 
 

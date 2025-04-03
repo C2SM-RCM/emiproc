@@ -1,6 +1,6 @@
+import numpy as np
 import pytest
 import xarray as xr
-import numpy as np
 
 from emiproc.profiles.operators import (
     combine_profiles,
@@ -9,11 +9,8 @@ from emiproc.profiles.operators import (
     group_profiles_indexes,
     weighted_combination,
 )
-from emiproc.profiles.temporal_profiles import (
-    DailyProfile,
-    WeeklyProfile,
-    CompositeTemporalProfiles,
-)
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.profiles import DailyProfile, WeeklyProfile
 from emiproc.tests_utils import temporal_profiles, vertical_profiles
 from emiproc.tests_utils.temporal_profiles import (
     TEST_COPENICUS_PROFILES,

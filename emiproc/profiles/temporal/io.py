@@ -154,7 +154,7 @@ def read_temporal_profiles(
                 f" {df.columns}."
                 "Please check the file format."
                 "See more about time profiles file at "
-                "https://emiproc.rtfd.io/en/latest/api.html#emiproc.profiles.temporal_profiles.read_temporal_profiles"
+                "https://emiproc.rtfd.io/en/latest/api.html#emiproc.profiles.temporal.io.read_temporal_profiles"
             )
         logger.info(f"{possible_matching=}")
         # Generate the profiles objects

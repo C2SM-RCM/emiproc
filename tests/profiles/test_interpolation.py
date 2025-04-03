@@ -1,9 +1,6 @@
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
-    HourOfLeapYearProfile,
-    HourOfYearProfile,
-    interpolate_profiles_hour_of_year,
-)
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.operators import interpolate_profiles_hour_of_year
+from emiproc.profiles.temporal.profiles import HourOfLeapYearProfile, HourOfYearProfile
 from emiproc.tests_utils import temporal_profiles
 
 

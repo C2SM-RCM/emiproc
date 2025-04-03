@@ -5,7 +5,7 @@ from emiproc.tests_utils.profiles import (
 )
 
 from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.profiles.temporal_profiles import SpecificDay, days_of_specific_day
+from emiproc.profiles.temporal.specific_days import SpecificDay, days_of_specific_day
 
 
 @pytest.mark.parametrize(

@@ -5,18 +5,17 @@ import numpy as np
 import xarray as xr
 
 import emiproc
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
-    CompositeTemporalProfiles,
     DailyProfile,
     DayOfLeapYearProfile,
     DayOfYearProfile,
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
-    from_csv,
-    read_temporal_profiles,
 )
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.io import from_csv
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
 

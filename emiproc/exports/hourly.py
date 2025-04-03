@@ -13,7 +13,7 @@ from emiproc import PROCESS
 from emiproc.exports.netcdf import NetcdfAttributes
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import create_scaling_factors_time_serie
+from emiproc.profiles.temporal.operators import create_scaling_factors_time_serie
 from emiproc.profiles.utils import get_desired_profile_index
 from emiproc.regrid import remap_inventory
 from emiproc.utilities import HOUR_PER_YR, PER_M2_UNITS, SEC_PER_YR, Units

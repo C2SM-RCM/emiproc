@@ -7,8 +7,6 @@ from pathlib import Path
 
 from emiproc.grids import WGS84, RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import read_temporal_profiles
-from emiproc.profiles.vertical_profiles import read_vertical_profiles
 
 UNIT_CONVERSION_FACTOR = 1e9  # Tg -> kg
 

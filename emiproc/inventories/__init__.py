@@ -18,11 +18,11 @@ import xarray as xr
 
 from emiproc.grids import GeoPandasGrid, Grid
 from emiproc.profiles import naming
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
-    CompositeTemporalProfiles,
     TemporalProfile,
 )
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.utils import check_valid_indexes
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,

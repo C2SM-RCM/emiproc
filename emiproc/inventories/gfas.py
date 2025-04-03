@@ -6,11 +6,11 @@ import xarray as xr
 
 from emiproc.grids import BoundingBox, RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
+from emiproc.profiles.temporal.profiles import (
     DayOfYearProfile,
     get_leap_year_or_normal,
 )
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utilities import SEC_PER_YR
 
