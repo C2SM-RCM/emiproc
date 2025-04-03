@@ -35,3 +35,5 @@ The first tutorial to understand how emiproc works is the edgar_processing tutor
     icon_oem
     grids
     regridding
+    profiles
+    temporal_profiles_from_traffic_counter
