@@ -34,9 +34,6 @@ from emiproc.profiles.utils import (
 logger = logging.getLogger(__name__)
 
 
-
-
-
 def get_index_in_profile(
     profile: Type[TemporalProfile], time_range: pd.DatetimeIndex
 ) -> pd.Series:
@@ -138,7 +135,18 @@ def interpolate_profiles_hour_of_year(
     | xr.DataArray
     | tuple[CompositeTemporalProfiles | xr.DataArray, xr.DataArray]
 ):
-    """Interpolate the profiles to create a hour of year profile."""
+    """Interpolate the profiles to create a hour of year profile.
+    
+    :arg profiles: The profiles to use.
+    :arg year: The year to use.
+    :arg interpolation_method: The interpolation method to use.
+        See `xarray <https://docs.xarray.dev/en/stable/user-guide/interpolation.html>`_
+        for more details.
+    :arg return_profiles: If True, return the profiles instead of the ratios.
+
+    :return: The interpolated profiles or the ratios based on the 
+        `return_profiles` argument.
+    """
 
     serie = pd.date_range(
         f"{year}-01-01", f"{year+1}-01-01", freq="h", inclusive="left"
