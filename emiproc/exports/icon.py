@@ -11,15 +11,15 @@ import numpy as np
 from emiproc.exports.netcdf import DEFAULT_NC_ATTRIBUTES
 from emiproc.grids import ICONGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.profiles import (
     DailyProfile,
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
     HourOfYearProfile,
     HourOfLeapYearProfile,
-    create_scaling_factors_time_serie,
 )
+from emiproc.profiles.temporal.operators import create_scaling_factors_time_serie
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,

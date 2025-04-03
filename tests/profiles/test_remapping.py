@@ -2,7 +2,6 @@ from emiproc.tests_utils import test_inventories, test_grids, temporal_profiles
 import pandas as pd
 from emiproc.regrid import calculate_weights_mapping
 from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
-from emiproc.profiles.temporal_profiles import CompositeTemporalProfiles
 import xarray as xr
 import numpy as np
 

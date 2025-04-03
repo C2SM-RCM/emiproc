@@ -3,9 +3,8 @@ import pytest
 import xarray as xr
 
 from emiproc.profiles.operators import concatenate_profiles, weighted_combination
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.profiles import (
     AnyProfiles,
-    CompositeTemporalProfiles,
     DailyProfile,
     HourOfLeapYearProfile,
     HourOfYearProfile,
@@ -14,6 +13,9 @@ from emiproc.profiles.temporal_profiles import (
     SpecificDayProfile,
     TemporalProfile,
     WeeklyProfile,
+)
+from emiproc.profiles.temporal.composite import (
+    CompositeTemporalProfiles,
     make_composite_profiles,
 )
 from emiproc.profiles.utils import merge_indexes

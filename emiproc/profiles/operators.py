@@ -7,11 +7,12 @@ import geopandas as gpd
 import numpy as np
 import xarray as xr
 
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
+from emiproc.profiles.temporal.profiles import (
     SpecificDayProfile,
     TemporalProfile,
 )
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+
 from emiproc.profiles.utils import (
     get_objects_of_same_type_from_list,
     profiles_to_scalingfactors_dataarray,

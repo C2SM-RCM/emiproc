@@ -14,12 +14,13 @@ from emiproc.grids import WGS84, GeoPandasGrid, TNOGrid
 from emiproc.inventories import Inventory
 from emiproc.profiles import naming
 from emiproc.profiles.operators import group_profiles_indexes
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
+from emiproc.profiles.temporal.profiles import (
     DayOfYearProfile,
     get_leap_year_or_normal,
-    read_temporal_profiles,
 )
+from emiproc.profiles.temporal.io import read_temporal_profiles
+
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.profiles.vertical_profiles import read_vertical_profiles
 

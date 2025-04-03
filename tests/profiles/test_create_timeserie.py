@@ -1,22 +1,25 @@
 from __future__ import annotations
 
-import pytest
-from emiproc import FILES_DIR
 from datetime import datetime
+
 import numpy as np
+import pytest
 import xarray as xr
-from emiproc.tests_utils import temporal_profiles
-from emiproc.profiles.temporal_profiles import (
+
+from emiproc import FILES_DIR
+from emiproc.profiles.temporal.io import from_yaml
+from emiproc.profiles.temporal.operators import (
+    create_scaling_factors_time_serie,
+    get_profile_da,
+)
+from emiproc.profiles.temporal.profiles import (
     DailyProfile,
     SpecificDay,
     SpecificDayProfile,
-    days_of_specific_day,
-    ensure_specific_days_consistency,
-    from_yaml,
-    create_scaling_factors_time_serie,
-    profile_to_scaling_factors,
-    get_profile_da,
 )
+from emiproc.profiles.temporal.specific_days import days_of_specific_day
+from emiproc.profiles.temporal.utils import ensure_specific_days_consistency
+from emiproc.tests_utils import temporal_profiles
 
 
 def test_ensure_specific_days_consistency_non_specific():

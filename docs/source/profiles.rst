@@ -129,7 +129,7 @@ In the inventory, the profiles will be stored as a
 :py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles` for vertical profiles.
 This class is assigned to the `v_profiles` attribute of the inventory.
 
-The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal_profiles.TemporalProfile`.
+The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal.profiles.TemporalProfile`.
 They are assinged to the `t_profiles_groups` attribute of the inventory.
 
 Each element of the main list is a list containing different types of 

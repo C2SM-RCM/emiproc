@@ -8,11 +8,8 @@ from shapely.creation import polygons
 
 from emiproc.grids import WGS84_PROJECTED, GeoPandasGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
-    DayOfYearProfile,
-    HourOfYearProfile,
-)
+from emiproc.profiles.temporal.profiles import DayOfYearProfile
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 
 
 class LPJ_GUESS_Inventory(Inventory):
