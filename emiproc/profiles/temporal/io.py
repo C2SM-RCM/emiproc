@@ -363,12 +363,7 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
     # Create possible aliases for the names
     profiles_mapping: dict[AnyTimeProfile, list[str]] = {
         DailyProfile: ["diurn", "daily", "day"],
-        SpecificDayProfile: [
-            "diurn_weekday",
-            "diurn_weekend",
-            "diurn_saturday",
-            "diurn_sunday",
-        ],
+        SpecificDayProfile: [f"diurn_{day.value}" for day in SpecificDay],
         WeeklyProfile: ["weekly", "week"],
         MounthsProfile: ["season", "year", "monthly", "month"],
     }
@@ -400,8 +395,8 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
         # Add additional information on the profiles if requried
         kwargs = {}
         if profile_class is SpecificDayProfile:
-            # get the type of the profile
-            profile_type = key.split("_")[-1]
+            # get the type of the profile (remove the diurn_ prefix)
+            profile_type = '_'.join(key.split("_")[1:])
             # Add the selected day
             kwargs["specific_day"] = SpecificDay(profile_type)
 
