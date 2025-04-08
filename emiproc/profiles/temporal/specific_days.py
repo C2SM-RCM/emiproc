@@ -20,6 +20,9 @@ class SpecificDay(Enum):
     # One of the 5 first days
     WEEKDAY = auto()
 
+    # Only the 4 first weekdays 
+    WEEKDAY_4 = auto()
+
     # One of the 2 last days
     WEEKEND = auto()
 
@@ -81,6 +84,8 @@ def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
         return [6]
     elif specific_day == SpecificDay.WEEKDAY:
         return [0, 1, 2, 3, 4]
+    elif specific_day == SpecificDay.WEEKDAY_4:
+        return [0, 1, 2, 3]
     elif specific_day == SpecificDay.WEEKEND:
         return [5, 6]
     else:
