@@ -119,6 +119,9 @@ class WRF_Grid(RegularGrid):
 
         self.cells_as_polylist = polys
 
+    def __repr__(self) -> str:
+        return f"WRF_grid({self.name})_nx({self.nx})_ny({self.ny})"
+
 
 def export_wrf_hourly_emissions(
     inv: Inventory,
