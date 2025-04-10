@@ -254,7 +254,9 @@ class GFED4_Inventory(Inventory):
             Hour3OfDayPerMonth: da_diurnal3_stacked.rename(
                 {"hour3_per_month": "ratio"}
             ).drop_vars("month"),
-            DayOfYearProfile: da_day_of_year_stacked.rename({"day": "ratio"}),
+            get_leap_year_or_normal(
+                DayOfYearProfile, year=year
+            ): da_day_of_year_stacked.rename({"day": "ratio"}),
             MounthsProfile: da_stacked.rename({"month": "ratio"}),
         }
 
