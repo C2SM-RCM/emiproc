@@ -1,10 +1,13 @@
 import random
+from dataclasses import dataclass, field
 from typing import Type
 
 import numpy as np
 import xarray as xr
 
 import emiproc
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.io import from_csv
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
@@ -14,8 +17,6 @@ from emiproc.profiles.temporal.profiles import (
     TemporalProfile,
     WeeklyProfile,
 )
-from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.io import from_csv
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
 
@@ -207,3 +208,17 @@ indexes_african_2d = xr.DataArray(
         "category": ["liku", "blek", "test"],
     },
 )
+
+
+@dataclass(eq=False)
+class TestProfile2(TemporalProfile):
+    """Test profile of size 2."""
+
+    size: int = field(default=2, init=False)
+
+
+@dataclass(eq=False)
+class TestProfile3(TemporalProfile):
+    """Test profile of size 3."""
+
+    size: int = field(default=3, init=False)
