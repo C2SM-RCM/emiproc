@@ -180,7 +180,7 @@ class GFED4_Inventory(Inventory):
         # Now we make the profiles
 
         das_daily = []
-        year = 2018
+
         for month in range(1, 13):
             ds_daily = xr.open_dataset(
                 gfed_file, group=f"/emissions/{month:02}/daily_fraction"
