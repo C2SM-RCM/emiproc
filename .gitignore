@@ -10,6 +10,7 @@ emiproc.egg-info
 docs/build/
 *.npz
 *.nc
+*.html
 files/TNO_6x6_GHGco_v4_0/
 files/natural_earth/
 files/timezones/
@@ -19,3 +20,4 @@ docs/source/diagrams/.$pipeline.drawio.svg.bkp
 docs/source/diagrams/.$pipeline.drawio.bkp
 
 docs/source/tutos/traffic_counters
+files/test/profiles/specific_day_yaml/
