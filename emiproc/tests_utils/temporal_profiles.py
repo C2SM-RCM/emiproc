@@ -211,14 +211,14 @@ indexes_african_2d = xr.DataArray(
 
 
 @dataclass(eq=False)
-class TestProfile2(TemporalProfile):
+class Profile2(TemporalProfile):
     """Test profile of size 2."""
 
     size: int = field(default=2, init=False)
 
 
 @dataclass(eq=False)
-class TestProfile3(TemporalProfile):
+class Profile3(TemporalProfile):
     """Test profile of size 3."""
 
     size: int = field(default=3, init=False)

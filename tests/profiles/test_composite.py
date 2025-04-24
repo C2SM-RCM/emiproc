@@ -12,7 +12,7 @@ from emiproc.profiles.temporal.profiles import (
     TemporalProfile,
     WeeklyProfile,
 )
-from emiproc.tests_utils.temporal_profiles import TestProfile2, TestProfile3
+from emiproc.tests_utils.temporal_profiles import Profile2, Profile3
 
 
 def test_composite_copy():
@@ -350,7 +350,7 @@ def test_from_ratios():
 
     profile = CompositeTemporalProfiles.from_ratios(
         ratios=np.array([[0.1, 0.9, 0.3, 0.5, 0.2]]),
-        types=[TestProfile2, TestProfile3],
+        types=[Profile2, Profile3],
     )
 
 
@@ -358,7 +358,7 @@ def test_from_rescale():
 
     profile = CompositeTemporalProfiles.from_ratios(
         ratios=np.array([[0.1, 0.2, 0.3, 0.5, 0.2]]),
-        types=[TestProfile2, TestProfile3],
+        types=[Profile2, Profile3],
         rescale=True,
     )
 
@@ -367,7 +367,7 @@ def test_with_zero():
     """Test when one of the profile is zero."""
     profile = CompositeTemporalProfiles.from_ratios(
         ratios=np.array([[0.0, 0.0, 0.3, 0.5, 0.2]]),
-        types=[TestProfile2, TestProfile3],
+        types=[Profile2, Profile3],
         rescale=True,
     )
 
@@ -375,8 +375,8 @@ def test_with_zero():
     # Test both, because it might be reversed
     assert (
         np.array_equal(profile.ratios, np.array([[0.5, 0.5, 0.3, 0.5, 0.2]]))
-        and profile.types == [TestProfile2, TestProfile3]
+        and profile.types == [Profile2, Profile3]
     ) or (
         np.array_equal(profile.ratios, np.array([[0.3, 0.5, 0.2, 0.5, 0.5]]))
-        and profile.types == [TestProfile3, TestProfile2]
+        and profile.types == [Profile3, Profile2]
     )
