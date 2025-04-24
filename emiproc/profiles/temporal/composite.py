@@ -17,12 +17,32 @@ from emiproc.profiles.temporal.specific_days import SpecificDay
 logger = logging.getLogger(__name__)
 
 
+
 def _get_type(
     t: tuple[type[SpecificDayProfile], SpecificDay] | AnyTimeProfile,
 ) -> type[SpecificDayProfile]:
     if isinstance(t, tuple):
         return t[0]
     return t
+
+  
+def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
+    """Rescale the ratios to sum up to 1.
+
+    Profiles with ratios of only zeros will be set to constant profiles.
+
+    :arg ratios: The ratios to rescale.
+    """
+
+    sums = ratios.sum(axis=0)
+
+    mask_zero = sums == 0
+
+    return_ = ratios / sums
+    return_[:, mask_zero] = 1.0 / ratios.shape[0]
+
+    return return_
+
 
 
 class CompositeTemporalProfiles:
@@ -220,7 +240,7 @@ class CompositeTemporalProfiles:
         # Create the empty profiles
         profiles = [
             [
-                t((r / r.sum(axis=0)) if rescale else r)
+                t(rescale_ratios(r) if rescale else r)
                 for i, t in enumerate(types)
                 if not np.any(
                     np.isnan(r := profile_ratios[splitters[i] : splitters[i + 1]])

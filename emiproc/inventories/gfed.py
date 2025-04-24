@@ -180,7 +180,7 @@ class GFED4_Inventory(Inventory):
         # Now we make the profiles
 
         das_daily = []
-        year = 2018
+
         for month in range(1, 13):
             ds_daily = xr.open_dataset(
                 gfed_file, group=f"/emissions/{month:02}/daily_fraction"
@@ -254,7 +254,9 @@ class GFED4_Inventory(Inventory):
             Hour3OfDayPerMonth: da_diurnal3_stacked.rename(
                 {"hour3_per_month": "ratio"}
             ).drop_vars("month"),
-            DayOfYearProfile: da_day_of_year_stacked.rename({"day": "ratio"}),
+            get_leap_year_or_normal(
+                DayOfYearProfile, year=year
+            ): da_day_of_year_stacked.rename({"day": "ratio"}),
             MounthsProfile: da_stacked.rename({"month": "ratio"}),
         }
 
