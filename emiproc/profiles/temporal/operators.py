@@ -8,7 +8,7 @@ import pandas as pd
 import xarray as xr
 
 
-from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles, _get_type
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
@@ -35,21 +35,32 @@ logger = logging.getLogger(__name__)
 
 
 def get_index_in_profile(
-    profile: Type[TemporalProfile], time_range: pd.DatetimeIndex
+    profile: Type[TemporalProfile] | tuple[Type[TemporalProfile], SpecificDay],
+    time_range: pd.DatetimeIndex,
 ) -> pd.Series:
     """Get the index in the profile for each time in the time range.
+
+    Careful, if using some profiles which don't apply at all times
+    (eg. `SpecificDayProfile`), the index will be -1 for these times.
 
     :param profile: the profile to use
     :param time_range: the time range to use
     :return: the index in the profile for each time in the time range
     """
 
+    if isinstance(profile, tuple):
+        profile, specific_day = profile
+
     if profile == MounthsProfile:
         indexes = time_range.month - 1
     elif profile in [DayOfYearProfile, DayOfLeapYearProfile]:
         indexes = time_range.day_of_year - 1
-    elif profile == DailyProfile:
+    elif profile in [DailyProfile, SpecificDayProfile]:
         indexes = time_range.hour
+        if profile == SpecificDayProfile:
+            # Filter the correct days
+            days = get_days_as_ints(specific_day)
+            indexes = indexes.where(time_range.day_of_week.isin(days), -1)
     elif profile == WeeklyProfile:
         indexes = time_range.day_of_week
     elif profile in [HourOfYearProfile, HourOfLeapYearProfile]:
@@ -57,16 +68,18 @@ def get_index_in_profile(
     elif profile == Hour3OfDayPerMonth:
         indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
     else:
-        raise ValueError(f"Profile type {profile} not recognized")
+        raise NotImplementedError(f"Profile type {profile} not recognized")
 
-    assert indexes.min() >= 0, f"{profile=}, {time_range=}"
+    assert indexes.min() >= -1, f"{profile=}, {time_range=}"
     assert indexes.max() < profile.size, f"{profile=}, {time_range=}"
 
     return indexes
 
 
 def get_profile_da(
-    profile: TemporalProfile, year: int, use_offset: bool = True
+    profile: TemporalProfile,
+    year: int,
+    use_offset: bool = True,
 ) -> xr.DataArray:
     """Return the profile as a data array.
 
@@ -81,7 +94,10 @@ def get_profile_da(
     # The following will create correct timestamps at which the profile is true
     # An offset is also given, which is half the period
 
-    if isinstance(profile, (DailyProfile, HourOfYearProfile, HourOfLeapYearProfile)):
+    if isinstance(
+        profile,
+        (DailyProfile, HourOfYearProfile, HourOfLeapYearProfile, SpecificDayProfile),
+    ):
         ts = pd.date_range(**daterange_kwargs, freq="h")
         offset = pd.Timedelta("30m")
     elif isinstance(profile, (WeeklyProfile, DayOfLeapYearProfile, DayOfYearProfile)):
@@ -113,8 +129,23 @@ def get_profile_da(
     ):
         ts = ts[1:-1]
 
+    indices = get_index_in_profile(
+        (
+            (type(profile), profile.specific_day)
+            if isinstance(profile, SpecificDayProfile)
+            else type(profile)
+        ),
+        ts,
+    )
+
+    # Drop the -1 values
+    mask_valid = indices != -1
+
+    indices = indices[mask_valid]
+    ts = ts[mask_valid]
+
     da = xr.DataArray(
-        profile.ratios[:, get_index_in_profile(type(profile), ts)],
+        profile.ratios[:, indices],
         dims=["profile", "datetime"],
         coords={
             "profile": range(profile.n_profiles),
@@ -136,7 +167,7 @@ def interpolate_profiles_hour_of_year(
     | tuple[CompositeTemporalProfiles | xr.DataArray, xr.DataArray]
 ):
     """Interpolate the profiles to create a hour of year profile.
-    
+
     :arg profiles: The profiles to use.
     :arg year: The year to use.
     :arg interpolation_method: The interpolation method to use.
@@ -144,7 +175,7 @@ def interpolate_profiles_hour_of_year(
         for more details.
     :arg return_profiles: If True, return the profiles instead of the ratios.
 
-    :return: The interpolated profiles or the ratios based on the 
+    :return: The interpolated profiles or the ratios based on the
         `return_profiles` argument.
     """
 
@@ -158,6 +189,10 @@ def interpolate_profiles_hour_of_year(
 
     offset = 0
     for t in profiles.types:
+        if _get_type(t) == SpecificDayProfile:
+            raise ValueError(
+                f"Cannot interpolate {t=}, it is a specific day profile."
+            )
         # create an array with the ratios
         t_len = t.size
         this_ratios = ratios[:, offset : offset + t_len]

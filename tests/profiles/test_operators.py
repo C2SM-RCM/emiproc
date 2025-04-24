@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import xarray as xr
+import pandas as pd
 
 from emiproc.profiles.operators import (
     combine_profiles,
@@ -10,7 +11,16 @@ from emiproc.profiles.operators import (
     weighted_combination,
 )
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.profiles import DailyProfile, WeeklyProfile
+from emiproc.profiles.temporal.operators import get_index_in_profile
+from emiproc.profiles.temporal.profiles import (
+    DailyProfile,
+    Hour3OfDayPerMonth,
+    HourOfLeapYearProfile,
+    HourOfYearProfile,
+    SpecificDayProfile,
+    WeeklyProfile,
+)
+from emiproc.profiles.temporal.specific_days import SpecificDay
 from emiproc.tests_utils import temporal_profiles, vertical_profiles
 from emiproc.tests_utils.temporal_profiles import (
     TEST_COPENICUS_PROFILES,
@@ -141,6 +151,34 @@ def test_countries_to_cells(profiles, indexes: xr.DataArray):
 
     # This is just ocean
     assert np.all(new_indexes.sel(cell=0).drop_vars("cell") == -1)
+
+
+test_data_index_in_profles = pd.DatetimeIndex(
+    [
+        # With hours
+        pd.Timestamp("2020-01-01 00:00:00"),  # Wednesday
+        pd.Timestamp("2020-01-02 17:00:00"),  # Thursday
+        pd.Timestamp("2020-05-25 12:00:00"),  # Monday
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "profile_type, expected",
+    [
+        (DailyProfile, [0, 17, 12]),
+        (WeeklyProfile, [2, 3, 0]),
+        ((SpecificDayProfile, SpecificDay.MONDAY), [-1, -1, 12]),
+        ((SpecificDayProfile, SpecificDay.WEEKDAY), [0, 17, 12]),
+        ((SpecificDayProfile, SpecificDay.WEEKEND), [-1, -1, -1]),
+        (HourOfLeapYearProfile, [0, 41, 3492]),
+        (Hour3OfDayPerMonth, [0, 5, 36]),
+    ],
+)
+def test_index_in_profile(profile_type, expected):
+
+    indices = get_index_in_profile(profile_type, test_data_index_in_profles)
+    pd.testing.assert_index_equal(indices, pd.Index(expected, dtype="int"))
 
 
 if __name__ == "__main__":

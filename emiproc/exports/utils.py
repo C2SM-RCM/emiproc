@@ -4,7 +4,9 @@ import pandas as pd
 import xarray as xr
 
 from emiproc.inventories import Inventory
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles, _get_type
 from emiproc.profiles.temporal.operators import get_index_in_profile
+from emiproc.profiles.temporal.specific_days import get_days_as_ints
 from emiproc.utils.translators import inv_to_xarray
 
 
@@ -22,6 +24,13 @@ def get_temporally_scaled_array(
     ```
     da.sum("cell").stack(catsub=["category", "substance"]).plot.line(x="time")
     ```
+
+    .. warning::
+        If you use this function and specify a time frequency larger than the 
+        temporal resolution of the profiles, you might perform undersampling.
+        This means for example that if you sample with a daily frequency and 
+        you have hour of day profiles, you will use the same value in the the
+        profile, which will lead to a wrong result.
 
     :param inv: the inventory to transform
     :param time_range: the time range to use for the temporal resolution.
@@ -51,10 +60,17 @@ def get_temporally_scaled_array(
             freq="D",
             inclusive="both",
         )
+    elif not isinstance(time_range, pd.DatetimeIndex):
+        raise TypeError(
+            f"Expected a pd.DatetimeIndex or int for `time_range`, got {type(time_range)}."
+        )
 
     da_totals = inv_to_xarray(inv)
     if sum_over_cells:
         da_totals = da_totals.sum("cell")
+
+    if not isinstance(profiles, CompositeTemporalProfiles):
+        profiles = CompositeTemporalProfiles(profiles)
 
     # Acess the scaling factors
     scaling_factors_array = profiles.scaling_factors[profiles_indexes]
@@ -86,9 +102,14 @@ def get_temporally_scaled_array(
 
     for profile_type in profiles.types:
 
-        indices.append(get_index_in_profile(profile_type, time_range) + size_offset)
+        this_index = get_index_in_profile(profile_type, time_range)
 
-        size_offset += profile_type.size
+        out_index = this_index + size_offset
+        out_index = out_index.where(this_index != -1, -1)
+
+        indices.append(out_index)
+
+        size_offset += _get_type(profile_type).size
 
     indices_to_use = xr.DataArray(
         np.array(indices).T,
@@ -99,10 +120,21 @@ def get_temporally_scaled_array(
         dims=["time", "profile"],
     )
 
+    # Remove the -1 values
+    indices_to_use_cleaned = indices_to_use.where(
+        indices_to_use != -1, 0
+    ) 
+
     # Get the proper scaling factors for each index
     scaling_factors_at_times = da_scaling_factors.loc[
-        dict(profile_index=indices_to_use)
+        dict(profile_index=indices_to_use_cleaned)
     ]
+
+    # Set the missing indices to 1.0
+    scaling_factor_at_times = scaling_factors_at_times.where(
+        indices_to_use != -1, 1.0
+    )  
+
     # Merge all the time factors together
     scaling_factor_at_times = scaling_factors_at_times.prod("profile")
     # Set the scaling factors on the missing cells
