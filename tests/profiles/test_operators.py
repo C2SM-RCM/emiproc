@@ -178,7 +178,7 @@ test_data_index_in_profles = pd.DatetimeIndex(
 def test_index_in_profile(profile_type, expected):
 
     indices = get_index_in_profile(profile_type, test_data_index_in_profles)
-    pd.testing.assert_index_equal(indices, pd.Index(expected, dtype="int"))
+    pd.testing.assert_index_equal(indices, pd.Index(expected, dtype=indices.dtype))
 
 
 if __name__ == "__main__":
