@@ -1,23 +1,18 @@
+"""Test for composite temporal profiles."""
 from __future__ import annotations
 
 import numpy as np
-
-
 import pytest
-import numpy as np
-from emiproc.tests_utils.temporal_profiles import TestProfile2, TestProfile3
+
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.temporal.profiles import (
-    AnyProfiles,
     DailyProfile,
-    HourOfLeapYearProfile,
-    HourOfYearProfile,
-    MounthsProfile,
     SpecificDay,
     SpecificDayProfile,
     TemporalProfile,
     WeeklyProfile,
 )
+from emiproc.tests_utils.temporal_profiles import TestProfile2, TestProfile3
 
 
 def test_composite_copy():
@@ -351,9 +346,6 @@ def test_internals():
     assert len(p._profiles[DailyProfile]) == 1
 
 
-
-
-
 def test_from_ratios():
 
     profile = CompositeTemporalProfiles.from_ratios(
@@ -388,4 +380,3 @@ def test_with_zero():
         np.array_equal(profile.ratios, np.array([[0.3, 0.5, 0.2, 0.5, 0.5]]))
         and profile.types == [TestProfile3, TestProfile2]
     )
-
