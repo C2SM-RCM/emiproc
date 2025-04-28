@@ -63,7 +63,10 @@ def days_of_specific_day(specific_day: SpecificDay) -> list[SpecificDay]:
 
 
 def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
-    """Return the days corresponding for a specific day."""
+    """Return the days corresponding for a specific day.
+    
+    This agrees with the pandas convention where Monday is 0 and Sunday is 6.
+    """
 
     if not isinstance(specific_day, SpecificDay):
         raise TypeError(f"{specific_day=} must be a {SpecificDay}.")

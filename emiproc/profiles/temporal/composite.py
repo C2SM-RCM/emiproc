@@ -17,6 +17,15 @@ from emiproc.profiles.temporal.specific_days import SpecificDay
 logger = logging.getLogger(__name__)
 
 
+
+def _get_type(
+    t: tuple[type[SpecificDayProfile], SpecificDay] | AnyTimeProfile,
+) -> type[SpecificDayProfile]:
+    if isinstance(t, tuple):
+        return t[0]
+    return t
+
+  
 def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     """Rescale the ratios to sum up to 1.
 
@@ -33,6 +42,7 @@ def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     return_[:, mask_zero] = 1.0 / ratios.shape[0]
 
     return return_
+
 
 
 class CompositeTemporalProfiles:
@@ -117,7 +127,13 @@ class CompositeTemporalProfiles:
             self._profiles[profile_type] = profile
 
     def __repr__(self) -> str:
-        return f"CompositeProfiles({len(self)} profiles from {[t.__name__ for t in self.types]})"
+        profile_name = lambda p: (
+            f"{p[0].__name__}({p[1]})" if isinstance(p, tuple) else p.__name__
+        )
+        out = f"CompositeProfiles({len(self)} profiles "
+        if len(self) < 10:
+            out += f"from {[profile_name(t) for t in self.types]})"
+        return out
 
     def __len__(self) -> int:
         indexes_len = [len(indexes) for indexes in self._indexes.values()]
@@ -158,6 +174,10 @@ class CompositeTemporalProfiles:
         Idea is that we concatenate the ratio of each profile.
         nan values can be used when a profile is not defined for a given index.
         """
+        # Case no profile given or only empty profiles
+        if len(self.types) == 0:
+            return np.empty((len(self), 0))
+
         return np.stack(
             [
                 np.concatenate(
@@ -165,7 +185,7 @@ class CompositeTemporalProfiles:
                         (
                             self._profiles[pt][index].ratios.reshape(-1)
                             if (index := self._indexes[pt][i]) != -1
-                            else np.full(pt.size, np.nan).reshape(-1)
+                            else np.full(_get_type(pt).size, np.nan).reshape(-1)
                         )
                         for pt in self.types
                     ]
@@ -178,6 +198,10 @@ class CompositeTemporalProfiles:
     @property
     def scaling_factors(self) -> np.ndarray:
         """Return the scaling factors of the profiles."""
+        # Case no profile given or only empty profiles
+        if len(self.types) == 0:
+            return np.empty((len(self), 0))
+
         return np.stack(
             [
                 np.concatenate(
@@ -186,7 +210,7 @@ class CompositeTemporalProfiles:
                             self._profiles[pt][index].ratios.reshape(-1)
                             * self._profiles[pt][index].size
                             if (index := self._indexes[pt][i]) != -1
-                            else np.ones(pt.size).reshape(-1)
+                            else np.ones(_get_type(pt).size).reshape(-1)
                         )
                         for pt in self.types
                     ]
