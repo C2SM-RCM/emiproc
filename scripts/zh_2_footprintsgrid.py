@@ -51,7 +51,7 @@ mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
 mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 
 # edge of the raster cells
-VERSION = "v3"
+VERSION = "v4"
 
 # Whether to split the biogenic CO2 and the antoropogenic CO2
 SPLIT_BIOGENIC_CO2 = True
@@ -107,7 +107,7 @@ x_min, y_min, x_max, y_max = zh_shape.bounds
 
 # %% load the grid
 
-footprint_file = footprints_dir / "zurich_footprint_220715.nc"
+footprint_file = footprints_dir / "zurich_footprint_220808_correct.nc"
 ds = xr.open_dataset(footprint_file)
 
 measurement_coordinates = 2680911.322, 1248390.798
@@ -254,14 +254,14 @@ if INCLUDE_SWISS_OUTSIDE:
     remapped_ch_out = remap_inventory(
         ch_outside_zh,
         grid,
-        weigths_file=(weights_dir / f"swiss_around_zh_{d_out}x{d_out}"),
+        weights_file=(weights_dir / f"swiss_around_zh_{d_out}x{d_out}"),
     )
 # %% do the actual remapping of zurich to rasters
 
 rasters_inv = remap_inventory(
     crop_with_shape(inv, zh_shape),
     grid,
-    weigths_file=weights_dir / f"{mapluf_file.stem}_weights_{d_out}x{d_out}",
+    weights_file=weights_dir / f"{mapluf_file.stem}_weights_{d_out}x{d_out}",
 )
 
 # %% Rescale the swiss and add it, the scaling is made such that the
@@ -335,7 +335,7 @@ if ADD_HUMAN_RESPIRATION:
     remapped_resp = remap_inventory(
         resp_inv,
         grid,
-        weigths_file=weights_dir
+        weights_file=weights_dir
         / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}_{d_out}x{d_out}",
     )
 
