@@ -28,6 +28,11 @@ def export_fluxy(
     Fluxy is a python plotting tool for comparing inverse modeling results.
     As part of fluxy, it is possible to plot prior emissions.
 
+    The following is required on inventories to be exported to fluxy:
+    * The inventory must have a :py:class:`~emiproc.grids.RegularGrid`.
+    * The inventory must have a year value given. (not None).
+    * The inventory must have temporal profiles. .
+
     Fluxy files must have a specifc format
     `<inversionModel>_<transportModel>_<domain>_<prior>_<optional_tags>_<species>_<inversionFrequency>(_concentration).nc`.
 
@@ -148,6 +153,20 @@ def export_fluxy(
             ),
         },
     )
+
+    # Check that all inventories have year not equal to None
+    invs_years = [inv.year for inv in invs]
+    if None in invs_years:
+        raise ValueError(
+            "All inventories must have a year. "
+            f"Got {invs_years=}."
+        )
+    # Make sure the years are all different
+    if len(set(invs_years)) != len(invs_years):
+        raise ValueError(
+            "All inventories must have different years. "
+            f"Got {invs_years=}."
+        )
 
     dss = [
         get_temporally_scaled_array(
