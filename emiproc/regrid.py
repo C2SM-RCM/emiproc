@@ -94,7 +94,7 @@ def calculate_weights_mapping(
     to which shape in the output and the weight value is the proportion
     of the inventory weight present in the output.
 
-    The output contains the weigths mapping.
+    The output contains the weights mapping.
 
     Point source ending in more than one cell will be splitt among the cells.
 
@@ -345,13 +345,13 @@ def geoserie_intersection(
     shapes_boundary_intersect = geometry.loc[mask_boundary_intersect].intersection(
         shape
     )
-    weigths_boundary_intersect = (
+    weights_boundary_intersect = (
         shapes_boundary_intersect.area / geometry.loc[mask_boundary_intersect].area
     )
 
     weights = np.zeros(len(geometry))
     weights[mask_within] = 1.0
-    weights[mask_boundary_intersect] = weigths_boundary_intersect
+    weights[mask_boundary_intersect] = weights_boundary_intersect
     intersection_shapes = geometry.copy()
 
     if keep_outside:
@@ -377,9 +377,10 @@ def geoserie_intersection(
 def remap_inventory(
     inv: Inventory,
     grid: Grid | gpd.GeoSeries,
-    weigths_file: PathLike | None = None,
+    weights_file: PathLike | None = None,
     method: str = "new",
     keep_gdfs: bool = False,
+    weigths_file: PathLike | None = None,
 ) -> Inventory:
     """Remap any inventory on the desired grid.
 
@@ -388,7 +389,7 @@ def remap_inventory(
 
     :arg inv: The inventory from which to remap.
     :arg grid: The grid to remap to.
-    :arg weigths_file: The file storing the weights.
+    :arg weights_file: The file storing the weights.
     :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
     :arg keep_gdfs: Whether to keep the additional gdfs (shapped emissions) of the inventory.
 
@@ -401,7 +402,19 @@ def remap_inventory(
 
     """
     if weigths_file is not None:
-        weigths_file = Path(weigths_file)
+        logger.warning(
+            "The argument 'weigths_file' is deprecated because of a typo. "
+            "Use 'weights_file' instead."
+        )
+        if weights_file is not None:
+            raise ValueError(
+                "You cannot use both 'weights_file' and 'weigths_file' at the same time. "
+                "Please use only 'weights_file'."
+            )
+        weights_file = weigths_file
+
+    if weights_file is not None:
+        weights_file = Path(weights_file)
 
     if isinstance(grid, Grid) or issubclass(type(grid), Grid):
         grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
@@ -425,7 +438,7 @@ def remap_inventory(
     if inv.gdf is not None:
         # Remap the main data
         w_mapping_grid = get_weights_mapping(
-            weigths_file,
+            weights_file,
             inv.gdf.geometry,
             grid_cells,
             loop_over_inv_objects=False,
@@ -463,10 +476,10 @@ def remap_inventory(
     if not keep_gdfs:
         for category, gdf in inv.gdfs.items():
             # Get the weights of that gdf
-            if weigths_file is None:
+            if weights_file is None:
                 w_file = None
             else:
-                w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+                w_file = weights_file.with_stem(weights_file.stem + f"_gdfs_{category}")
             w_mapping = get_weights_mapping(
                 w_file,
                 gdf.geometry.reset_index(drop=True),

@@ -184,7 +184,7 @@ zh_cropped.to_crs(OUTPUT_CRS)
 rasters_inv = remap_inventory(
     zh_cropped,
     grid,
-    weigths_file=weights_dir / f"{mapluf_file.stem}_weights",
+    weights_file=weights_dir / f"{mapluf_file.stem}_weights",
 )
 
 
@@ -296,7 +296,7 @@ if INCLUDE_SWISS_OUTSIDE:
     remapped_ch_out = remap_inventory(
         ch_outside_zh,
         grid,
-        # weigths_file=(weights_dir / f"swiss_around_zh_2_{RASTER_EDGE}x{RASTER_EDGE}"),
+        # weights_file=(weights_dir / f"swiss_around_zh_2_{RASTER_EDGE}x{RASTER_EDGE}"),
     )
 # %% Rescale the swiss and add it, the scaling is made such that the
 # mapluft inventory is not changed and the total swiss inventory is also not changed
@@ -365,7 +365,7 @@ if ADD_HUMAN_RESPIRATION:
     remapped_resp = remap_inventory(
         resp_inv,
         grid,
-        weigths_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}",
+        weights_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}",
     )
 
     rasters_inv = add_inventories(rasters_inv, remapped_resp)
