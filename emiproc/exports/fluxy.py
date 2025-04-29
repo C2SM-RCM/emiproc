@@ -1,15 +1,17 @@
+from __future__ import annotations
+
 import logging
 from os import PathLike
 from pathlib import Path
+
+import numpy as np
+import xarray as xr
+from pyproj import CRS
+
 from emiproc.exports.utils import get_temporally_scaled_array
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
-import xarray as xr
-import numpy as np
 from emiproc.utilities import get_country_mask
-
-from pyproj import CRS
-
 
 logger = logging.getLogger(__name__)
 
@@ -150,15 +152,11 @@ def export_fluxy(
     # Check that all inventories have year not equal to None
     invs_years = [inv.year for inv in invs]
     if None in invs_years:
-        raise ValueError(
-            "All inventories must have a year. "
-            f"Got {invs_years=}."
-        )
+        raise ValueError("All inventories must have a year. " f"Got {invs_years=}.")
     # Make sure the years are all different
     if len(set(invs_years)) != len(invs_years):
         raise ValueError(
-            "All inventories must have different years. "
-            f"Got {invs_years=}."
+            "All inventories must have different years. " f"Got {invs_years=}."
         )
 
     dss = [
@@ -186,17 +184,15 @@ def export_fluxy(
                 frequency,
             ]
         )
-        da_this = (
-            ds.sel(substance=sub)
-            .drop_vars("substance")
-            .assign_attrs(units)
-        )
+        da_this = ds.sel(substance=sub).drop_vars("substance").assign_attrs(units)
         ds_this = ds_template.assign({"flux_total_prior": da_this})
         # Calculate the country flux
         ds_this = ds_this.assign(
             country_flux_total_prior=(
                 ds_this["flux_total_prior"] * ds_this["country_fraction"]
-            ).sum(dim=["latitude", "longitude"]).assign_attrs(units),
+            )
+            .sum(dim=["latitude", "longitude"])
+            .assign_attrs(units),
         )
         ds_this = ds_this.assign(
             percentile_flux_total_prior=xr.concat(
