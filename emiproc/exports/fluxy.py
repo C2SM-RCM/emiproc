@@ -29,23 +29,16 @@ def export_fluxy(
     As part of fluxy, it is possible to plot prior emissions.
 
     The following is required on inventories to be exported to fluxy:
+
     * The inventory must have a :py:class:`~emiproc.grids.RegularGrid`.
     * The inventory must have a year value given. (not None).
     * The inventory must have temporal profiles. .
 
-    Fluxy files must have a specifc format
-    `<inversionModel>_<transportModel>_<domain>_<prior>_<optional_tags>_<species>_<inversionFrequency>(_concentration).nc`.
+    Fluxy files must have a specifc format.
+    The files are generated in the following way:
 
-    To handle this, this function uses the following parameters:
+    * <transport_model>_<substance>_<frequency>.nc
 
-    - `inversionModel`: The name of the directory in which the files are stored.
-    - `transportModel`: The `inversion_model` parameter.
-    - `domain`: The name of the grid. This is the name of the grid in the inventory.
-    - `prior`: The name of the inventory. This is the name of the inventory in the inventory.
-    - `optional_tags`: The tags of the inventory. Nothing for now.
-    - `species`: The name of the substance. This is the name of the substances in the inventory.
-    - `inversionFrequency`: The frequency of the inventory.
-        Currently only yearly is implemented.
 
     :param invs: Inventory or list of inventories to export.
         A list of inventory assumes that you want to plot the emissions over multiple years.
