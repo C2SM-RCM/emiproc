@@ -1,10 +1,11 @@
-from emiproc.exports.fluxy import export_fluxy
-from emiproc import TESTS_DIR
-from emiproc.tests_utils.test_inventories import inv
-from emiproc.tests_utils.test_grids import regular_grid
-from emiproc.tests_utils.temporal_profiles import three_profiles
-from emiproc.regrid import remap_inventory
 import pytest
+
+from emiproc import TESTS_DIR
+from emiproc.exports.fluxy import export_fluxy
+from emiproc.regrid import remap_inventory
+from emiproc.tests_utils.temporal_profiles import three_profiles
+from emiproc.tests_utils.test_grids import regular_grid
+from emiproc.tests_utils.test_inventories import inv
 
 
 def test_export_fluxy_fails_on_non_regular_grid():
