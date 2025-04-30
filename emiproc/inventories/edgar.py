@@ -1,15 +1,16 @@
+from __future__ import annotations
+
 import logging
+import re
+import urllib.request
+import zipfile
 from os import PathLike
 from pathlib import Path
 from urllib.error import HTTPError
-import xarray as xr
-import numpy as np
-import re
-import geopandas as gpd
-import pyogrio
 
-import urllib.request
-import zipfile
+import geopandas as gpd
+import numpy as np
+import xarray as xr
 
 from emiproc.grids import WGS84, EDGARGrid, RegularGrid
 from emiproc.inventories import Inventory
