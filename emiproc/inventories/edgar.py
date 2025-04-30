@@ -68,12 +68,18 @@ def download_edgar_files(
         "CO2bio",
         "GWP_100_AR5_GHG",
     ],
-    link_template: str = link_templates[latest_edgar_version],
+    version: str = latest_edgar_version,
+    link_template: str | None = None,
 ):
 
-    if link_template in link_templates.keys():
+    if link_template is None:
+        if version not in link_templates:
+            raise ValueError(
+                f"Version {version} not available in {link_templates.keys()}. "
+                "Please provide a valid version or 'link_template' ."
+            )
         # Get the link associated with the version
-        link_template = link_templates[link_template]
+        link_template = link_templates[version]
 
     download_links = [
         link_template.format(substance=substance, category=category, year=year)
