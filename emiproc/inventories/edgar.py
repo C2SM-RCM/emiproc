@@ -15,6 +15,18 @@ from emiproc.grids import WGS84, EDGARGrid, RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.utilities import SEC_PER_YR
 
+ds_domain = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/"
+link_templates = {
+    "v8.0": ds_domain
+    + "v80_FT2022_GHG/{substance}/{category}/emi_nc/v8.0_FT2022_GHG_{substance}_{year}_{category}_emi_nc.zip",
+    "AP_v8.1": ds_domain
+    + "v81_FT2022_AP_new/{substance}/{category}/emi_nc/v8.1_FT2022_AP_{substance}_{year}_{category}_emi_nc.zip",
+    "v2024": ds_domain
+    + "EDGAR_2024_GHG/{substance}/{category}/emi_nc/EDGAR_2024_GHG_{substance}_{year}_{category}_emi_nc.zip",
+}
+
+latest_edgar_version = "v2024"
+
 
 def download_edgar_files(
     data_dir: PathLike,
@@ -56,8 +68,13 @@ def download_edgar_files(
         "CO2bio",
         "GWP_100_AR5_GHG",
     ],
-    link_template: str = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/v80_FT2022_GHG/{substance}/{category}/emi_nc/v8.0_FT2022_GHG_{substance}_{year}_{category}_emi_nc.zip",
+    link_template: str = link_templates[latest_edgar_version],
 ):
+
+    if link_template in link_templates.keys():
+        # Get the link associated with the version
+        link_template = link_templates[link_template]
+
     download_links = [
         link_template.format(substance=substance, category=category, year=year)
         for substance in substances
