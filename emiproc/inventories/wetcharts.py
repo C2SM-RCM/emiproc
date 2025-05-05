@@ -26,6 +26,7 @@ class WetCHARTs(Inventory):
     :param model: Model number to select from the dataset.
         Few keys are available. To see the available models, please check
         the data specification in the link above.
+        If None, a mean of all models is used.
     :param category: Category name to use in the inventory.
     :param substance: Substance name to use in the inventory.
 
@@ -34,19 +35,24 @@ class WetCHARTs(Inventory):
     def __init__(
         self,
         wetcharts_file: PathLike,
-        model: int = 2924,
+        model: int | None = None,
         category: str = "wetcharts",
         substance: str = "CH4",
     ) -> None:
         super().__init__()
 
         with xr.open_dataset(wetcharts_file) as ds:
-            if model not in ds.model.values:
-                raise ValueError(
-                    f"Model {model} not found in the dataset. Available models: {ds.model.values}"
-                )
-            ds = ds.sel(model=model)
-
+            if model is None:
+                ds = ds.mean(dim="model", keep_attrs=True)
+            elif isinstance(model, int):
+                if model not in ds.model.values:
+                    raise ValueError(
+                        f"Model {model} not found in the dataset. Available models: {ds.model.values}"
+                    )
+                ds = ds.sel(model=model)
+            else:
+                raise TypeError(f"Model {model} is not an integer or None.")
+            print(ds)
             self.grid = RegularGrid.from_centers(
                 x_centers=ds.lon.values,
                 y_centers=ds.lat.values,
