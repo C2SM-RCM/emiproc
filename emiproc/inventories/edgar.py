@@ -72,6 +72,25 @@ def download_edgar_files(
     version: str = latest_edgar_version,
     link_template: str | None = None,
 ):
+    """Download EDGAR files.
+
+    The files are downloaded from the EDGAR website.
+    Using version or link_template, defines what is the link to download.
+
+    EDGAR has different links for greenhouse gases and air pollutants.
+    If you want to donwload both, you will have to do it call this function
+    twice, once for the GHGs and once for the APs.
+
+    :param data_dir: Directory to download the files to.
+    :param year: Year of the inventory.
+    :param categories: List of categories to download.
+    :param substances: List of substances to download.
+    :param version: Version of the inventory.
+        Versions that starts with "AP" are for air pollutants.
+        Others are for greenhouse gases.
+        Versions available: ["v8.0", "AP_v8.1", "v2024"]
+    :param link_template: Link template to use instead of the version.
+    """
 
     if link_template is None:
         if version not in link_templates:
@@ -129,6 +148,9 @@ class EDGARv8(Inventory):
     Download the files you want to include and provide the path to the directory
     containing the files.
 
+    For more information about the edgar files, see
+    :py:func:`~emiproc.inventories.edgar.download_edgar_files`.
+
     EDGAR has only grid cell sources.
     """
 
@@ -140,7 +162,7 @@ class EDGARv8(Inventory):
         year: int | None = None,
         use_short_category_names: bool = False,
     ) -> None:
-        """Create a EDGAR_Inventory.
+        """Create an EDGAR Inventory from the given data files.
 
         :arg nc_file_pattern_or_dir: Pattern or directory of files.
         :arg year: Year of the inventory.
@@ -213,6 +235,11 @@ class EDGAR_Inventory(Inventory):
     """The EDGAR inventory.
 
     `Emissions Database for Global Atmospheric Research <https://edgar.jrc.ec.europa.eu/>`_
+
+    .. deprecated::
+
+        This class was used for older versions.
+        Please use :py:class:`~emiproc.inventories.edgar.EDGARv8` instead.
 
     EDGAR has only grid cell sources.
     """
