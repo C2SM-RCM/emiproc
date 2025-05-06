@@ -187,11 +187,16 @@ def export_hourly_emissions(
             )
             mindex_coords = xr.Coordinates.from_pandas_multiindex(
                 pd.MultiIndex.from_arrays(
-                    [da.lon.values, da.lat.values], names=["x", "y"]
+                    [da.lon.values, da.lat.values], names=["lat", "lon"]
                 ),
                 "cell",
             )
-            da = da.assign_coords(mindex_coords).unstack("cell")
+            da = (
+                da.assign_coords(mindex_coords).unstack("cell")
+                # Reorder the dimensions to match (lat, lon, time)
+                .transpose("lat", "lon", "time", "substance", "category")
+            )
+
         for dt in sub_time_range:
             dt: pd.Timestamp
 
