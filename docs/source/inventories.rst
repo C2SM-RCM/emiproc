@@ -64,6 +64,11 @@ CAMS Regional Air Quality
 :py:class:`emiproc.inventories.cams_reg_aq.CAMS_REG_AQ`
 
 
+WetCHARTs
+^^^^^^^^^
+
+:py:class:`emiproc.inventories.wetcharts.WetCHARTs`
+
 
 Grids 
 -----
