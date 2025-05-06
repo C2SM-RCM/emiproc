@@ -222,7 +222,6 @@ def export_hourly_emissions(
                         name=name,
                     )
             # Add to the dataset
-            print(vars)
             ds.update(vars)
 
             ds.to_netcdf(path / f"{dt.strftime(filename_format)}")
