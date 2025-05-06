@@ -89,9 +89,6 @@ def export_hourly_emissions(
     else:
         raise NotImplementedError(f"Unknown {unit=}")
 
-    # Create the scaling factors for all the time profiles
-    reqired_profiles_indexes = np.unique(inv.t_profiles_indexes)
-
     if start_time is None:
         if inv.year is None:
             raise ValueError(
@@ -187,7 +184,7 @@ def export_hourly_emissions(
             )
             mindex_coords = xr.Coordinates.from_pandas_multiindex(
                 pd.MultiIndex.from_arrays(
-                    [da.lon.values, da.lat.values], names=["lat", "lon"]
+                    [da.lon.values, da.lat.values], names=["lon", "lat"]
                 ),
                 "cell",
             )
