@@ -1,19 +1,32 @@
+from __future__ import annotations
+
 import logging
+import re
+import urllib.request
+import zipfile
 from os import PathLike
 from pathlib import Path
 from urllib.error import HTTPError
-import xarray as xr
-import numpy as np
-import re
-import geopandas as gpd
-import pyogrio
 
-import urllib.request
-import zipfile
+import geopandas as gpd
+import numpy as np
+import xarray as xr
 
 from emiproc.grids import WGS84, EDGARGrid, RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.utilities import SEC_PER_YR
+
+ds_domain = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/"
+link_templates = {
+    "v8.0": ds_domain
+    + "v80_FT2022_GHG/{substance}/{category}/emi_nc/v8.0_FT2022_GHG_{substance}_{year}_{category}_emi_nc.zip",
+    "AP_v8.1": ds_domain
+    + "v81_FT2022_AP_new/{substance}/{category}/emi_nc/v8.1_FT2022_AP_{substance}_{year}_{category}_emi_nc.zip",
+    "v2024": ds_domain
+    + "EDGAR_2024_GHG/{substance}/{category}/emi_nc/EDGAR_2024_GHG_{substance}_{year}_{category}_emi_nc.zip",
+}
+
+latest_edgar_version = "v2024"
 
 
 def download_edgar_files(
@@ -56,8 +69,38 @@ def download_edgar_files(
         "CO2bio",
         "GWP_100_AR5_GHG",
     ],
-    link_template: str = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/EDGAR/datasets/v80_FT2022_GHG/{substance}/{category}/emi_nc/v8.0_FT2022_GHG_{substance}_{year}_{category}_emi_nc.zip",
+    version: str = latest_edgar_version,
+    link_template: str | None = None,
 ):
+    """Download EDGAR files.
+
+    The files are downloaded from the EDGAR website.
+    Using version or link_template, defines what is the link to download.
+
+    EDGAR has different links for greenhouse gases and air pollutants.
+    If you want to donwload both, you will have to do it call this function
+    twice, once for the GHGs and once for the APs.
+
+    :param data_dir: Directory to download the files to.
+    :param year: Year of the inventory.
+    :param categories: List of categories to download.
+    :param substances: List of substances to download.
+    :param version: Version of the inventory.
+        Versions that starts with "AP" are for air pollutants.
+        Others are for greenhouse gases.
+        Versions available: ["v8.0", "AP_v8.1", "v2024"]
+    :param link_template: Link template to use instead of the version.
+    """
+
+    if link_template is None:
+        if version not in link_templates:
+            raise ValueError(
+                f"Version {version} not available in {link_templates.keys()}. "
+                "Please provide a valid version or 'link_template' ."
+            )
+        # Get the link associated with the version
+        link_template = link_templates[version]
+
     download_links = [
         link_template.format(substance=substance, category=category, year=year)
         for substance in substances
@@ -105,6 +148,9 @@ class EDGARv8(Inventory):
     Download the files you want to include and provide the path to the directory
     containing the files.
 
+    For more information about the edgar files, see
+    :py:func:`~emiproc.inventories.edgar.download_edgar_files`.
+
     EDGAR has only grid cell sources.
     """
 
@@ -116,7 +162,7 @@ class EDGARv8(Inventory):
         year: int | None = None,
         use_short_category_names: bool = False,
     ) -> None:
-        """Create a EDGAR_Inventory.
+        """Create an EDGAR Inventory from the given data files.
 
         :arg nc_file_pattern_or_dir: Pattern or directory of files.
         :arg year: Year of the inventory.
@@ -189,6 +235,11 @@ class EDGAR_Inventory(Inventory):
     """The EDGAR inventory.
 
     `Emissions Database for Global Atmospheric Research <https://edgar.jrc.ec.europa.eu/>`_
+
+    .. deprecated::
+
+        This class was used for older versions.
+        Please use :py:class:`~emiproc.inventories.edgar.EDGARv8` instead.
 
     EDGAR has only grid cell sources.
     """

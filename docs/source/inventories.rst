@@ -22,7 +22,7 @@ TNO
 EDGAR
 ^^^^^
 
-:py:class:`emiproc.inventories.edgar.EDGAR_Inventory`
+:py:class:`emiproc.inventories.edgar.EDGARv8`
 
 Swiss Rasterized Inventory 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
