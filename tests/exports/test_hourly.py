@@ -57,16 +57,17 @@ def test_export_simple():
 
 def test_export_monthly():
     # Export the temporal profiles of TNO
+    monthly_dir = output_dir / "monthly"
+    monthly_dir.mkdir(parents=True, exist_ok=True)
+
     output_files = [
-        output_dir / stem for stem in ["20180101T000000Z.nc", "20180601T000000Z.nc"]
+        monthly_dir / stem for stem in ["20180101T000000Z.nc", "20180601T000000Z.nc"]
     ]
     inv_profiled = inv.copy()
     inv_profiled.set_profiles(
         get_random_profiles(indexes_inv_catsub.max().values + 1),
         indexes=indexes_inv_catsub,
     )
-    monthly_dir = output_dir / "monthly"
-    monthly_dir.mkdir(parents=True, exist_ok=True)
     export_hourly_emissions(
         inv=inv_profiled,
         path=monthly_dir,
