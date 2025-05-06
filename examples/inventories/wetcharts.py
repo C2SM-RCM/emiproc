@@ -5,7 +5,8 @@ from emiproc.plots import plot_inventory
 from emiproc import FILES_DIR
 
 
-# Download the file and change the path here or anywhere you want.
+# Go to the website and download the file
+# Change the path here to where you downloaded the file
 file_path = FILES_DIR / "wetcharts" / "WetCHARTs_v1_3_3_2021.nc"
 
 inv = WetCHARTs(
