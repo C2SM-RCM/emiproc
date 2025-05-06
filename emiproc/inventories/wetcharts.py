@@ -52,7 +52,7 @@ class WetCHARTs(Inventory):
                 ds = ds.sel(model=model)
             else:
                 raise TypeError(f"Model {model} is not an integer or None.")
-            print(ds)
+
             self.grid = RegularGrid.from_centers(
                 x_centers=ds.lon.values,
                 y_centers=ds.lat.values,
