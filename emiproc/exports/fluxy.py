@@ -52,13 +52,6 @@ def export_fluxy(
 
     """
 
-    if "_" in transport_model:
-        logger.warning(
-            "The transport model name should not contain underscores. "
-            f"Got {transport_model}. "
-            "You might have issues with fluxy later on because of this."
-        )
-
     output_dir = Path(output_dir) / transport_model
     output_dir.mkdir(parents=True, exist_ok=True)
 
