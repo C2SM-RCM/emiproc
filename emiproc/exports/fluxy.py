@@ -164,7 +164,7 @@ def export_fluxy(
     ds = xr.concat(dss, dim="time").sum(dim="category")
 
     ds = cell_to_lat_lon(ds)
-    units = {"units": "kg year-1"}
+    units = {"units": "kg yr-1"}
 
     for sub in substances:
         sub_dir = output_dir / sub
