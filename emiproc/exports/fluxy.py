@@ -163,8 +163,12 @@ def export_fluxy(
     # Put all together and sum over the categories to have total emissions
     ds = xr.concat(dss, dim="time").sum(dim="category")
 
+    # Convert to fluxes (kg yr-1 -> kg m-2 yr-1)
+    ds /= xr.DataArray(grid.cell_areas, coords={"cell": ds["cell"]})  
+
     ds = cell_to_lat_lon(ds)
-    units = {"units": "kg yr-1"}
+
+    units = {"units": "kg m-2 yr-1"}
 
     for sub in substances:
         sub_dir = output_dir / sub
