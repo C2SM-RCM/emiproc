@@ -109,6 +109,9 @@ def download_edgar_files(
 
     downloaded = []
 
+    data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     # Download the files
     for link in download_links:
         filename = link.split("/")[-1]
@@ -170,6 +173,8 @@ class EDGARv8(Inventory):
 
         """
         super().__init__()
+
+        self.year = year
 
         nc_file_pattern = Path(nc_file_pattern_or_dir)
         logger = logging.getLogger(__name__)
