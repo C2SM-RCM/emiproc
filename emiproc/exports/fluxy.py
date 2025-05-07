@@ -21,7 +21,6 @@ def export_fluxy(
     output_dir: PathLike,
     transport_model: str = "emiproc",
     frequency: str = "yearly",
-    percentiles: list[float] = [0.159, 0.841],
 ) -> None:
     """Export emissions to Fluxy format.
 
@@ -197,8 +196,6 @@ def export_fluxy(
                 for var_prior in [
                     "flux_total_prior",
                     "country_flux_total_prior",
-                    "percentile_flux_total_prior",
-                    "percentile_country_flux_total_prior",
                 ]
             }
         )
