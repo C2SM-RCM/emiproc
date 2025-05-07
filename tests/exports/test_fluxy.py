@@ -47,7 +47,8 @@ def test_export_fluxy_no_year_raises():
         )
 
 
-def test_export_flux():
+def test_export_fluxy():
+    """Main test where it works."""
 
     inventory = inv.copy()
     inventory.set_crs(regular_grid.crs)
@@ -66,3 +67,5 @@ def test_export_flux():
         invs=remap_inventory(inventory, grid=regular_grid),
         output_dir=TESTS_DIR / "fluxy",
     )
+
+    assert (TESTS_DIR / "fluxy" / "emiproc" / 'CH4' / "emiproc_CH4_yearly.nc").is_file()
