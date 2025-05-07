@@ -189,28 +189,6 @@ def export_fluxy(
             .sum(dim=["latitude", "longitude"])
             .assign_attrs(units),
         )
-        ds_this = ds_this.assign(
-            percentile_flux_total_prior=xr.concat(
-                [
-                    ds_this["flux_total_prior"]
-                    / ds_this["flux_total_prior"]
-                    .sum(dim=["latitude", "longitude"])
-                    .assign_coords(percentiles=p)
-                    for p in percentiles
-                ],
-                dim="percentile",
-            ),
-            percentile_country_flux_total_prior=xr.concat(
-                [
-                    ds_this["country_flux_total_prior"]
-                    / ds_this["country_flux_total_prior"]
-                    .sum(dim=["country"])
-                    .assign_coords(percentiles=p)
-                    for p in percentiles
-                ],
-                dim="percentile",
-            ),
-        )
 
         ds_this = ds_this.assign(
             **{
