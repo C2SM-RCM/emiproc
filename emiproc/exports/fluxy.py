@@ -70,7 +70,6 @@ def export_fluxy(
     if len(invs) == 0:
         raise ValueError("Expected at least one inventory.")
 
-
     # Check that the grids are all the same
     grids = [inv.grid for inv in invs]
     if len(set(grids)) != 1:
@@ -164,7 +163,7 @@ def export_fluxy(
     ds = xr.concat(dss, dim="time").sum(dim="category")
 
     # Convert to fluxes (kg yr-1 -> kg m-2 yr-1)
-    ds /= xr.DataArray(grid.cell_areas, coords={"cell": ds["cell"]})  
+    ds /= xr.DataArray(grid.cell_areas, coords={"cell": ds["cell"]})
 
     ds = cell_to_lat_lon(ds)
 
@@ -181,7 +180,7 @@ def export_fluxy(
             ]
         )
         da_this = ds.sel(substance=sub).drop_vars("substance").assign_attrs(units)
-        ds_this = ds_template.assign({"flux_total_prior": da_this})
+        ds_this = ds_template.assign(flux_total_prior=da_this)
         # Calculate the country flux
         ds_this = ds_this.assign(
             country_flux_total_prior=(
