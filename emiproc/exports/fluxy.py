@@ -70,12 +70,6 @@ def export_fluxy(
     if len(invs) == 0:
         raise ValueError("Expected at least one inventory.")
 
-    names = [inv.name for inv in invs]
-    # Check that all names are the same
-    if len(set(names)) != 1:
-        raise ValueError("All inventories must have the same name. " f"Got {names}.")
-    inventory_name = names[0]
-    inversion_model = output_dir.name
 
     # Check that the grids are all the same
     grids = [inv.grid for inv in invs]
@@ -103,8 +97,6 @@ def export_fluxy(
 
     da_fractions = get_country_mask(grid, return_fractions=True)
     da_fractions = cell_to_lat_lon(da_fractions)
-
-    domain_name = grid.name
 
     substances = set(sum((inv.substances for inv in invs), []))
 
