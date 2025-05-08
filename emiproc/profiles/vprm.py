@@ -324,8 +324,8 @@ def calculate_vprm_emissions(
         # resp  = r  + r_a
 
         # GEE
-        Tscale = (temperature - Tmin) * (temperature - Tmax)
-        Tscale = Tscale / (Tscale - (temperature - Topt) ** 2)
+        Tprod = (temperature - Tmin) * (temperature - Tmax)
+        Tscale = Tprod / (Tprod - (temperature - Topt) ** 2)
         Tscale[temperature <= Tmin] = 0.0
         df[(vegetation_type, "Tscale")] = Tscale
 
