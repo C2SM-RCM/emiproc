@@ -1,4 +1,5 @@
 """Utitlity functions for profiles."""
+
 from __future__ import annotations
 
 import logging
@@ -14,7 +15,7 @@ import emiproc
 from emiproc.profiles import naming
 
 if TYPE_CHECKING:
-    from emiproc.profiles.temporal_profiles import CompositeTemporalProfiles
+    from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
     from emiproc.profiles.vertical_profiles import VerticalProfiles
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,12 @@ def check_valid_indexes(
     :raises ValueError: if the indexes are not valid
     """
 
+    if not isinstance(indexes, xr.DataArray):
+        raise TypeError(f"Indexes should be an xarray.DataArray, got {type(indexes)=}")
+    # Check the dtype of the indexes, should be int
+    if indexes.dtype not in [int, np.int64]:
+        raise TypeError(f"Indexes should be of type int, got {indexes.dtype=}")
+
     # check all the dims names are valid
     dims_not_allowed = set(indexes.dims) - set(naming.type_of_dim.keys())
     if len(dims_not_allowed) > 0:
@@ -66,11 +73,13 @@ def check_valid_indexes(
             f"allowed dims are {naming.type_of_dim.keys()}"
         )
     # Make sure no coords has duplicated values
-    for coord in indexes.coords:
-        if len(indexes.coords[coord]) != len(np.unique(indexes.coords[coord])):
+    for dim in indexes.dims:
+        if indexes.coords[dim].size == 0:
+            raise ValueError(f"Indexes are empty for {dim=}")
+        if len(indexes.coords[dim]) != len(np.unique(indexes.coords[dim])):
             raise ValueError(
-                f"Indexes are not valid, they contain duplicated values for {coord=}:"
-                f" {indexes.coords[coord]}"
+                f"Indexes are not valid, they contain duplicated values for {dim=}:"
+                f" {indexes.coords[dim]}"
             )
 
     if profiles is not None:
@@ -178,6 +187,10 @@ def get_profiles_indexes(
 
     The dataframe can contain any of the column matching to
     one of the dimensions allowed by the indexes.
+
+    If a column of the index has some nan values, the profiles
+    with nan values will fill other other values when no profile is
+    given.
     """
 
     # First get the dimensions present in the columns of the dataframe
@@ -213,36 +226,34 @@ def get_profiles_indexes(
         coords=coords,
         dims=list(coords),
     )
+    logger.debug(f"Created {indexes=}")
 
     # Fill the xarray with the indexes
 
     indexing_dict = dict(zip(coords, df[list(col_of_dim.values())].values.T))
     indexing_arrays = {}
     for coord, values in indexing_dict.items():
-        indexing_arrays[coord] = xr.DataArray(values, dims=["index"])
+        expected_type = naming.type_of_dim.get(dim, str)
+        indexing_arrays[coord] = xr.DataArray(
+            values.astype(expected_type), dims=["index"]
+        )
     logger.debug(f"Indexing dataarray: {indexing_arrays=}")
     indexes.loc[indexing_arrays] = df.index
 
+    # Finally fill missing profiles with "common profiles" (where there was a nan value)
+
+    for dim in indexes.dims:
+        if "nan" in indexes.coords[dim].values:
+            common_values = indexes.sel(**{dim: "nan"})
+            # Drop the nan indices
+            specific_indexes = indexes.sel(
+                **{dim: [v for v in indexes.coords[dim].values if v != "nan"]}
+            )
+
+            # Get the missing indices
+            indexes = xr.where(specific_indexes == -1, common_values, specific_indexes)
+
     return indexes
-
-
-def load_country_tz(file: Path | None = None) -> pd.DataFrame:
-    """Load the dataframe with the country timezones."""
-
-    if file is None:
-        file = Path(*emiproc.__path__).parent / "files" / "country_tz.csv"
-
-    if not file.is_file():
-        raise FileNotFoundError(f"Cannot find country_tz {file=}")
-
-    return pd.read_csv(
-        file,
-        # File start with comment lines starting with '#'
-        comment="#",
-        # Index column must be 'iso3', the first one
-        index_col=0,
-        sep=";",
-    )
 
 
 def read_profile_file(file: PathLike, **kwargs: Any) -> pd.DataFrame:
@@ -345,5 +356,81 @@ def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
     return merged_indexes
 
 
-if __name__ == "__main__":
-    print(load_country_tz())
+def profiles_to_scalingfactors_dataarray(
+    profiles: CompositeTemporalProfiles | VerticalProfiles, indexes: xr.DataArray
+) -> xr.DataArray:
+    """Convert a profiles object to a ratios DataArray.
+
+    When there is no profile for a given index, the scaling factors are set to 1.0.
+
+    :arg profiles: The profiles object.
+    :arg indexes: The indexes DataArray.
+
+    :returns: A DataArray with the scaling factors.
+    """
+
+    sf = profiles.scaling_factors
+    return xr.DataArray(
+        sf[indexes],
+        dims=[*indexes.dims, "scaling_factors"],
+        coords={
+            **indexes.coords,
+            "scaling_factors": range(sf.shape[-1]),
+        },
+        # Remove the profiles with no ratios (will be set to nan)
+        # This assumes that no profile = no contribution, so only the other ratios in the cell will have an impact
+    ).where(indexes != -1, 1.0)
+
+
+def ratios_dataarray_to_profiles(
+    da: xr.DataArray, rounding_decimals: int | None = None
+) -> tuple[np.ndarray, xr.DataArray]:
+    """Convert a dataarray of ratios to a profiles array and the indexes compatible for emiproc.
+
+    :arg da: DataArray with the ratios.
+        Must contain a 'ratio' dimension. Other dimensions must be the ones
+        allowed by the emiproc profiles.
+    :arg rounding_decimals: The number of decimals to round the profiles to.
+        This can be useful to reduce the number of unique profiles.
+
+    :returns: A tuple with the profiles array and the indexes DataArray.
+        The profiles array is a 2D array which can be set at ratios in a Profile object.
+        The indexes DataArray is an array that can be set to the indexes of an inventory.
+
+    """
+    assert "ratio" in da.dims
+    other_coords = {dim: da.coords[dim] for dim in da.dims if dim != "ratio"}
+
+    if len(other_coords) == 0:
+        # Add a dummy dimension to allow stacking
+        da = da.expand_dims("dummy")
+        other_coords = {"dummy": da["dummy"]}
+
+    # Stack the other dimensions
+    da_stacked = da.stack(profiles=other_coords.keys())
+
+    # Set the output profiles indexes
+    da_profiles_indexes = da_stacked.sum(dim="ratio")
+    mask_valid = da_profiles_indexes != 0
+    da_profiles_indexes.values = -np.ones(da_profiles_indexes.shape, dtype=int)
+
+    values = da_stacked.sel(profiles=mask_valid).fillna(0.0).values
+    if rounding_decimals is not None:
+        values = values.round(decimals=rounding_decimals)
+
+    # Get the unique profiles to avoid duplicates
+    unique_profiles, unique_indices = np.unique(
+        # Fill the nans as the unique functions does not like them
+        values,
+        axis=-1,
+        return_inverse=True,
+    )
+
+    # Set the profiles indexes
+    da_profiles_indexes.loc[mask_valid] = unique_indices
+    profiles_indexes = da_profiles_indexes.unstack(fill_value=-1)
+
+    if "dummy" in profiles_indexes.dims:
+        profiles_indexes = profiles_indexes.squeeze("dummy").drop_vars("dummy")
+
+    return unique_profiles.T, profiles_indexes.astype(int)

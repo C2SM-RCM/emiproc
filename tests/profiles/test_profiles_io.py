@@ -2,11 +2,15 @@ import pytest
 import numpy as np
 import json
 import emiproc
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.profiles import (
     TemporalProfile,
     DailyProfile,
     WeeklyProfile,
     MounthsProfile,
+    SpecificDayProfile,
+    SpecificDay,
+)
+from emiproc.profiles.temporal.io import (
     from_csv,
     from_yaml,
     read_temporal_profiles,
@@ -29,6 +33,31 @@ def test_saving_and_loading_yamls_temporal_profiles():
         # Make sure we can load these yamls
         loaded[categorie] = from_yaml(yaml_file)
         # TODO: check that the loaded yaml is the same as the original one
+
+
+@pytest.mark.parametrize(
+    "name, profile",
+    [
+        ("daily", DailyProfile([1 / 24] * 24)),
+        ("friday", SpecificDayProfile([1 / 24] * 24, specific_day=SpecificDay.FRIDAY)),
+        (
+            "weekend",
+            SpecificDayProfile([1 / 24] * 24, specific_day=SpecificDay.WEEKEND),
+        ),
+        (
+            "weekday4",
+            SpecificDayProfile([1 / 24] * 24, specific_day=SpecificDay.WEEKDAY_4),
+        ),
+    ],
+)
+def test_saving_and_loading_yamls_specific_days(name, profile):
+
+    yaml_dir = emiproc.TESTS_DIR / "profiles" / "specific_day_yaml"
+    yaml_dir.mkdir(parents=True, exist_ok=True)
+    yaml_file = yaml_dir / f"{name}.yaml"
+    to_yaml([profile], yaml_file)
+    loaded = from_yaml(yaml_file)
+    assert loaded[0] == profile
 
 
 def test_load_csv_profiles():

@@ -3,9 +3,12 @@
 Classes handling different grids, namely the simulation grids and
 grids used in different emissions inventories.
 """
+
 from __future__ import annotations
 
+import logging
 import math
+from pathlib import Path
 import warnings
 from functools import cache, cached_property
 from typing import Iterable
@@ -28,12 +31,21 @@ WGS84_NSIDC = 6933  # Unit: meters
 R_EARTH = 6371000  # m
 
 
+logger = logging.getLogger(__name__)
+
+# Type alias
+# minx, miny, maxx, maxy
+BoundingBox = tuple[float, float, float, float]
+
+
 class Grid:
     """Abstract base class for a grid.
     Derive your own grid implementation from this and make sure to provide
     an appropriate implementation of the required methods.
     As an example you can look at TNOGrid.
     """
+
+    name: str
 
     nx: int
     ny: int
@@ -42,15 +54,23 @@ class Grid:
     crs: int | str
     gdf: gpd.GeoDataFrame
 
-    def __init__(self, name: str, crs: int | str = WGS84):
+    # Optional corners of the cells (used for irregular grids)
+    corners: np.ndarray | None = None
+
+    def __init__(self, name: str | None, crs: int | str = WGS84):
         """
         Parameters
         ----------
         name : Name of the grid.
         crs : The coordinate reference system of the grid.
         """
+        if name is None:
+            name = "unnamed"
         self.name = name
         self.crs = crs
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
 
     @property
     def gdf(self) -> gpd.GeoDataFrame:
@@ -158,6 +178,10 @@ class RegularGrid(Grid):
     lon_range: np.ndarray
     lat_range: np.ndarray
 
+    # The edges of the cells
+    lat_bounds: np.ndarray
+    lon_bounds: np.ndarray
+
     xmin: float
     xmax: float
     ymin: float
@@ -208,31 +232,68 @@ class RegularGrid(Grid):
                     f"Received: {xmax=}, {ymax=}"
                 )
             # Guess the nx and ny values, override the max
-            nx = math.ceil((xmax - xmin) / dx)
-            ny = math.ceil((ymax - ymin) / dy)
+            nx = (xmax - xmin) / dx
+            ny = (ymax - ymin) / dy
 
-        if xmax is None and ymax is None:
-            xmax = xmin + nx * dx
-            ymax = ymin + ny * dy
+            # Round to avoid decimal errors
+            # Get the decimals in the dx and dy
+            get_rounding = (
+                lambda x: (len(str(x).split(".")[1]) if isinstance(x, float) else 0)
+                or None
+            )
+            clean = lambda n, d: math.ceil(
+                round(n, get_rounding(d)) if get_rounding(d) is not None else n
+            )
+            nx = clean(nx, dx)
+            ny = clean(ny, dy)
+
+        elif dx is None and dy is None:
+            dx = (xmax - xmin) / nx
+            dy = (ymax - ymin) / ny
+
+        # Set maxs or correct maxs to ensure consistency with ns and ds
+        xmax = xmin + nx * dx
+        ymax = ymin + ny * dy
+
+        self.xmax, self.ymax = xmax, ymax
 
         # Calculate all grid parameters
         self.nx, self.ny = nx, ny
-        self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
+        self.dx, self.dy = dx, dy
 
-        self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
-        self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
+        # Build arrays
+        build_range = lambda min_, n_, d_: min_ + np.arange(n_) * d_ + d_ / 2
+        self.lon_range = build_range(self.xmin, self.nx, self.dx)
+        self.lat_range = build_range(self.ymin, self.ny, self.dy)
 
-        if name is None:
-            name = f"RegularGrid_x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
+        self.lon_bounds = np.concatenate(
+            [self.lon_range - self.dx / 2, [self.lon_range[-1] + self.dx / 2]]
+        )
+        self.lat_bounds = np.concatenate(
+            [self.lat_range - self.dy / 2, [self.lat_range[-1] + self.dy / 2]]
+        )
+
+        assert len(self.lon_range) == nx, f"{len(self.lon_range)=} != {nx=}"
+        assert len(self.lat_range) == ny, f"{len(self.lat_range)=} != {ny=}"
+        assert len(self.lon_bounds) == nx + 1
+        assert len(self.lat_bounds) == ny + 1
 
         super().__init__(name, crs)
-    
+
+    def __repr__(self) -> str:
+        return (
+            f"{super().__repr__()}_"
+            f"nx({self.nx})_ny({self.ny})_"
+            f"dx({self.dx})_dy({self.dy})_"
+            f"x({self.xmin},{self.xmax})_"
+            f"y({self.ymin},{self.ymax})_"
+        )
+
     @cached_property
     def cells_as_polylist(self) -> list[Polygon]:
 
         x_coords, y_coords = np.meshgrid(
-            self.lon_range - self.dx / 2.,
-            self.lat_range - self.dy / 2.
+            self.lon_range - self.dx / 2.0, self.lat_range - self.dy / 2.0
         )
         # Reshape to 1D (order set for backward compatibility)
         x_coords = x_coords.flatten(order="F")
@@ -269,6 +330,207 @@ class RegularGrid(Grid):
     @cached_property
     def bounds(self) -> tuple[int, int, int, int]:
         return self.xmin, self.ymin, self.xmax, self.ymax
+
+    @classmethod
+    def from_centers(
+        cls,
+        x_centers: np.ndarray,
+        y_centers: np.ndarray,
+        name=None,
+        crs=WGS84,
+        rounding: int | None = None,
+    ) -> RegularGrid:
+        """Create a regular grid from the center points of the cells.
+
+        :param x_centers: The x-coordinates of the cell centers.
+        :param y_centers: The y-coordinates of the cell centers.
+        :param name: The name of the grid.
+        :param crs: The coordinate reference system of the grid.
+        :param rounding: The number of decimal places to round the dx and dy.
+            This is useful to correct floating point errors.
+        """
+
+        # Calculate the dx and dy
+        dxs = np.diff(x_centers)
+        dys = np.diff(y_centers)
+
+        dx = dxs[0]
+        dy = dys[0]
+
+        if rounding is not None:
+            dx = round(dx, rounding)
+            dy = round(dy, rounding)
+
+            dxs = np.round(dxs, decimals=rounding)
+            dys = np.round(dys, decimals=rounding)
+
+        if not np.allclose(dxs, dx) or not np.allclose(dys, dy):
+            raise ValueError("The centers are not equally spaced.")
+
+        nx = len(x_centers)
+        ny = len(y_centers)
+
+        xmin = x_centers[0] - dx / 2
+        ymin = y_centers[0] - dy / 2
+
+        if rounding is not None:
+            xmin = round(xmin, rounding)
+            ymin = round(ymin, rounding)
+
+        try:
+            grid = cls(
+                xmin=x_centers[0] - dx / 2,
+                ymin=y_centers[0] - dy / 2,
+                nx=nx,
+                ny=ny,
+                dx=dx,
+                dy=dy,
+                name=name,
+                crs=crs,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not create grid from centers. "
+                "If there is a mismatch in coordinates, "
+                "try to set `rounding` to some value."
+            ) from e
+
+        return grid
+
+
+class HexGrid(Grid):
+    """A grid with hexagonal cells.
+
+    The grid is similar to a regular grid, but the cells are hexagons.
+    This implies that the lines of the grid are not all parallel.
+
+    For the arguments, look at :py:class:`RegularGrid`.
+    Note that `dx and dy` have been replaced by `spacing` parameter,
+
+    :arg spacing: The distance between the centers of two adjacent hexagons
+        on a row. This is also the diameter of the circle inscribed in the hexagon.
+    :arg oriented_north: If True, the hexagons are oriented with the top
+        and bottom sides parallel on the y-axis. If False, the hexagons
+        are oriented with the left and right sides parallel on the x-axis.
+
+    """
+
+    def __init__(
+        self,
+        xmin: float,
+        ymin: float,
+        xmax: float | None = None,
+        ymax: float | None = None,
+        nx: int | None = None,
+        ny: int | None = None,
+        spacing: float | None = None,
+        oriented_north: bool = True,
+        name: str | None = None,
+        crs: int | str = WGS84,
+    ):
+
+        # Correct the delta in case the orientation is on the other ax
+        correct = lambda x: x * np.sqrt(3) / 2
+
+        self.xmin, self.ymin = xmin, ymin
+
+        # Check if they did not specify all the optional parameters
+        if all((p is not None for p in [xmax, ymax, nx, ny, spacing])):
+            raise ValueError(
+                "Specified too many parameters. "
+                "Specify only 2 of the following: "
+                "(xmax, ymax), (nx, ny), (spacing)"
+            )
+
+        if spacing is None and xmax is None and ymax is None:
+            raise ValueError(
+                "Cannot create grid with only nx and ny. "
+                "Specify at least spacing or xmax, ymax."
+            )
+
+        if spacing is not None:
+            # Guess the nx and ny values, override the max
+            dx = spacing if oriented_north else correct(spacing)
+            dy = correct(spacing) if oriented_north else spacing
+
+        # Calclate the number of cells if not specified
+        if nx is None and ny is None:
+            if spacing is None:
+                raise ValueError(
+                    "Either nx and ny or dx and dy must be specified. "
+                    f"Received: {nx=}, {ny=}, {spacing=}"
+                )
+            if xmax is None or ymax is None:
+                raise ValueError(
+                    "When using only dx dy, xmax and ymax must be specified. "
+                    f"Received: {xmax=}, {ymax=}"
+                )
+
+            nx = math.ceil((xmax - xmin) / dx)
+            ny = math.ceil((ymax - ymin) / dy)
+
+        if xmax is None and ymax is None:
+            xmax = xmin + nx * dx
+            ymax = ymin + ny * dy
+        self.xmax, self.ymax = xmax, ymax
+
+        # Calculate all grid parameters
+        self.nx, self.ny = nx, ny
+        self.dx, self.dy = (xmax - xmin) / nx, (ymax - ymin) / ny
+
+        self.lon_range = np.arange(xmin, xmax, self.dx) + self.dx / 2
+        self.lat_range = np.arange(ymin, ymax, self.dy) + self.dy / 2
+
+        assert len(self.lon_range) == nx, f"{len(self.lon_range)=} != {nx=}"
+        assert len(self.lat_range) == ny, f"{len(self.lat_range)=} != {ny=}"
+
+        if name is None:
+            name = f"HexGrid x({xmin},{xmax})_y({ymin},{ymax})_nx({nx})_ny({ny})"
+
+        self.oriented_north = oriented_north
+
+        super().__init__(name, crs)
+
+    @cached_property
+    def cells_as_polylist(self) -> list[Polygon]:
+        """Return all the cells as a list of polygons."""
+
+        x_centers, y_centers = np.meshgrid(self.lon_range, self.lat_range)
+        # Shift the odd rows
+        if self.oriented_north:
+            x_centers[1::2] += self.dx / 2
+        else:
+            y_centers[:, 1::2] += self.dy / 2
+
+        # Calculat the corners of the hexagons
+        corners = []
+        flatten = lambda x: x.flatten(order="F")
+        x_centers = flatten(x_centers)
+        y_centers = flatten(y_centers)
+
+        # half_offset = np.sqrt(3) / 2
+        # half_offset = np.sqrt(3) / 8
+        half_offset = 1 / (np.sqrt(3))
+        offsets_x = [0, 1, 1, 0, -1, -1]
+        offsets_y = [
+            2 - half_offset,
+            half_offset,
+            -half_offset,
+            -2 + half_offset,
+            -half_offset,
+            half_offset,
+        ]
+        if not self.oriented_north:
+            offsets_x, offsets_y = offsets_y, offsets_x
+
+        for off_x, off_y in zip(offsets_x, offsets_y):
+            x = x_centers + self.dx / 2 * off_x
+            y = y_centers + self.dy / 2 * off_y
+            corners.append(np.stack([x, y], axis=-1))
+        # Reshape to 1D (order set for backward compatibility)
+
+        coords = np.stack(corners, axis=1)
+        return polygons(coords)
 
 
 class TNOGrid(RegularGrid):
@@ -449,128 +711,26 @@ class EDGARGrid(Grid):
 class GeoPandasGrid(Grid):
     """A grid that can be easily constructed on a geopandas dataframe."""
 
-    def __init__(self, gdf: gpd.GeoDataFrame, name: str = "gpd_grid"):
+    def __init__(
+        self,
+        gdf: gpd.GeoDataFrame,
+        name: str = "gpd_grid",
+        shape: tuple[int, int] | None = None,
+    ):
         super().__init__(name, gdf.crs)
 
         self._gdf = gdf
 
-        self.nx = len(gdf)
-        self.ny = 1
+        if shape is not None:
+            self.nx, self.ny = shape
+        else:
+            self.nx = len(gdf)
+            self.ny = 1
 
     @property
     def cells_as_polylist(self) -> list[Polygon]:
         """Return all the cells as a list of polygons."""
         return self.gdf.geometry.tolist()
-
-
-class VPRMGrid(Grid):
-    """Contains the grid from the VPRM emission inventory.
-
-    The grid projection is LambertConformal with a nonstandard globe.
-    This means to generate the gridcell-corners a bit of work is
-    required, as well as that the gridcell-sizes can't easily be read
-    from a dataset.
-
-    Be careful, the lon/lat_range methods return the gridpoint coordinates
-    in the grid-projection (and likely have to be transformed to be usable).
-
-    .. warning::
-
-        This is not usable in emiproc v2.
-        Please fix it before using it again.
-
-    """
-
-    def __init__(self, dataset_path, dx, dy, name):
-        """Store the grid information.
-
-        Parameters
-        ----------
-        dataset_path : str
-            Is used to read the gridcell coordinates
-        dx : float
-            Longitudinal size of a gridcell in meters
-        dy : float
-            Latitudinal size of a gridcell in meters
-        name : str, optional
-        """
-        self.dx = dx
-        self.dy = dy
-
-        # TODO: FIX THIS GRID
-        # projection = ccrs.LambertConformal(
-        #     central_longitude=12.5,
-        #     central_latitude=51.604,
-        #     standard_parallels=[51.604],
-        #     globe=ccrs.Globe(
-        #         ellipse=None, semimajor_axis=6370000, semiminor_axis=6370000
-        #     ),
-        # )
-
-        # Read grid-values in lat/lon, which are distorted, then
-        # project them to LambertConformal where the grid is
-        # regular and rectangular.
-        with Dataset(dataset_path) as dataset:
-            proj_lon = np.array(dataset["lon"][:])
-            proj_lat = np.array(dataset["lat"][:])
-
-        # self.lon_vals = projection.transform_points(
-        #     ccrs.PlateCarree(), proj_lon[0, :], proj_lat[0, :]
-        # )[:, 0]
-        # self.lat_vals = projection.transform_points(
-        #     ccrs.PlateCarree(), proj_lon[:, 0], proj_lat[:, 0]
-        # )[:, 1]
-
-        # Cell corners
-        x = self.lon_vals
-        y = self.lat_vals
-        dx2 = self.dx / 2
-        dy2 = self.dy / 2
-
-        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
-        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
-
-        super().__init__(
-            name,
-        )
-
-    def cell_corners(self, i, j):
-        """Return the corners of the cell with indices (i,j).
-
-        See also the docstring of Grid.cell_corners.
-
-        Parameters
-        ----------
-        i : int
-        j : int
-
-        Returns
-        -------
-        tuple(np.array(shape=(4,), dtype=float),
-              np.array(shape=(4,), dtype=float))
-            Arrays containing the x and y coordinates of the corners
-        """
-        return self.cell_x[:, i], self.cell_y[:, j]
-
-    @property
-    def lon_range(self):
-        """Return an array containing all the longitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(nx,), dtype=float)
-        """
-        return self.lon_vals
-
-    @property
-    def lat_range(self):
-        """Return an array containing all the latitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(ny,), dtype=float)
-        """
-        return self.lat_vals
 
 
 class SwissGrid(RegularGrid):
@@ -652,155 +812,6 @@ class SwissGrid(RegularGrid):
         return np.array([self.ymin + j * self.dy for j in range(self.ny + 1)])
 
 
-class COSMOGrid(Grid):
-    """Class to manage a COSMO-domain
-    This grid is defined as a rotated pole coordinate system.
-    The gridpoints are at the center of the cell.
-
-    .. warning::
-
-        This is not usable in emiproc v2.
-        Please fix it before using it again.
-
-    """
-
-    nx: int
-    ny: int
-    dx: float
-    dy: float
-    xmin: float
-    ymin: float
-    pollon: float
-    pollat: float
-
-    def __init__(self, nx, ny, dx, dy, xmin, ymin, pollon=180, pollat=90):
-        """Store the grid information.
-
-        Parameters
-        ----------
-        nx : int
-            Number of cells in longitudinal direction
-        ny : int
-            Number of cells in latitudinal direction
-        dx : float
-            Longitudinal size of a gridcell in degrees
-        dy : float
-            Latitudinal size of a gridcell in degrees
-        xmin : float
-            Longitude of bottom left gridpoint in degrees
-        ymin : float
-            Latitude of bottom left gridpoint in degrees
-        pollon : float
-            Longitude of the rotated pole
-        pollat : float
-            Latitude of the rotated pole
-        """
-        self.nx = nx
-        self.ny = ny
-        self.dx = dx
-        self.dy = dy
-        self.xmin = xmin
-        self.ymin = ymin
-        self.pollon = pollon
-        self.pollat = pollat
-
-        # cell corners
-        x = self.xmin + np.arange(self.nx) * self.dx
-        y = self.ymin + np.arange(self.ny) * self.dy
-        dx2 = self.dx / 2
-        dy2 = self.dy / 2
-
-        self.cell_x = np.array([x + dx2, x + dx2, x - dx2, x - dx2])
-        self.cell_y = np.array([y + dy2, y - dy2, y - dy2, y + dy2])
-
-        super().__init__(
-            "COSMO",
-            # fix projecction
-            # ccrs.RotatedPole(pole_longitude=pollon, pole_latitude=pollat),
-        )
-
-    def gridcell_areas(self):
-        """Calculate 2D array of the areas (m^2) of a regular rectangular grid
-        on earth.
-
-        Returns
-        -------
-        np.array
-            2D array containing the areas of the gridcells in m^2
-            shape: (nx, ny)
-        """
-        radius = 6375000.0  # the earth radius in meters
-        dlon = np.deg2rad(self.dx)
-        dlat = np.deg2rad(self.dy)
-
-        # Cell area at equator
-        dd = 2.0 * pow(radius, 2) * dlon * np.sin(0.5 * dlat)
-
-        # Cell areas in y-direction
-        areas = dd * np.cos(np.deg2rad(self.ymin) + np.arange(self.ny) * dlat)
-
-        return np.broadcast_to(areas, (self.nx, self.ny))
-
-    @property
-    def lon_range(self):
-        """Return an array containing all the longitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(nx,), dtype=float)
-        """
-        # Because of floating point math the original arange is not guaranteed
-        # to contain the expected number of points.
-        # This way we are sure that we generate at least the required number of
-        # points and discard the possibly generated superfluous one.
-        # Compared to linspace this method generates more exact steps at
-        # the cost of a less accurate endpoint.
-        try:
-            lon_vals = self.lon_vals
-        except AttributeError:
-            self.lon_vals = np.arange(
-                self.xmin, self.xmin + (self.nx + 0.5) * self.dx, self.dx
-            )[: self.nx]
-            lon_vals = self.lon_vals
-        return lon_vals
-
-    @property
-    def lat_range(self):
-        """Return an array containing all the latitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(ny,), dtype=float)
-        """
-        # See the comment in lon_range
-        try:
-            lat_vals = self.lat_vals
-        except AttributeError:
-            self.lat_vals = np.arange(
-                self.ymin, self.ymin + (self.ny + 0.5) * self.dy, self.dy
-            )[: self.ny]
-            lat_vals = self.lat_vals
-        return lat_vals
-
-    def cell_corners(self, i, j):
-        """Return the corners of the cell with indices (i,j).
-
-        See also the docstring of Grid.cell_corners.
-
-        Parameters
-        ----------
-        i : int
-        j : int
-
-        Returns
-        -------
-        tuple(np.array(shape=(4,), dtype=float),
-              np.array(shape=(4,), dtype=float))
-            Arrays containing the x and y coordinates of the corners
-        """
-        return self.cell_x[:, i], self.cell_y[:, j]
-
-
 class ICONGrid(Grid):
     """Class to manage an ICON-domain
 
@@ -809,7 +820,7 @@ class ICONGrid(Grid):
     The grid file contains variables like midpoint coordinates etc as a fct of the index.
     """
 
-    def __init__(self, dataset_path, name="ICON"):
+    def __init__(self, dataset_path, name: str = None):
         """Open the netcdf-dataset and read the relevant grid information.
 
         Parameters
@@ -817,7 +828,11 @@ class ICONGrid(Grid):
         dataset_path : str
         name : str, optional
         """
-        self.dataset_path = dataset_path
+
+        self.dataset_path = Path(dataset_path)
+
+        if name is None:
+            name = self.dataset_path.stem
 
         with Dataset(dataset_path) as dataset:
             self.clon_var = np.rad2deg(dataset["clon"][:])
@@ -828,13 +843,16 @@ class ICONGrid(Grid):
             self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
             self.cell_of_vertex = np.array(dataset["cells_of_vertex"][:])
 
-        self.ncell = len(self.clat_var)
+            self.ncell = len(self.clat_var)
+
+            corners = np.zeros((self.ncell, 3, 2))
+            corners[:, :, 0] = self.vlon[self.vertex_of_cell - 1].T
+            corners[:, :, 1] = self.vlat[self.vertex_of_cell - 1].T
+            self.corners = corners
 
         # Initiate a list of polygons, which is updated whenever the polygon of a cell
         # is called for the first time
-        self.polygons = [
-            Polygon(zip(*self._cell_corners(i))) for i in range(self.ncell)
-        ]
+        self.polygons = polygons(self.corners)
 
         # Create a geopandas df
         # ICON_FILE_CRS = 6422

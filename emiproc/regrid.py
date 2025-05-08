@@ -1,4 +1,5 @@
 """Different functions for doing the weights remapping."""
+
 from __future__ import annotations
 import logging
 from pathlib import Path
@@ -10,7 +11,7 @@ from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
 from emiproc.grids import Grid
-
+from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
 
 logger = logging.getLogger("emiproc.regrid")
 
@@ -93,7 +94,7 @@ def calculate_weights_mapping(
     to which shape in the output and the weight value is the proportion
     of the inventory weight present in the output.
 
-    The output contains the weigths mapping.
+    The output contains the weights mapping.
 
     Point source ending in more than one cell will be splitt among the cells.
 
@@ -344,13 +345,13 @@ def geoserie_intersection(
     shapes_boundary_intersect = geometry.loc[mask_boundary_intersect].intersection(
         shape
     )
-    weigths_boundary_intersect = (
+    weights_boundary_intersect = (
         shapes_boundary_intersect.area / geometry.loc[mask_boundary_intersect].area
     )
 
     weights = np.zeros(len(geometry))
     weights[mask_within] = 1.0
-    weights[mask_boundary_intersect] = weigths_boundary_intersect
+    weights[mask_boundary_intersect] = weights_boundary_intersect
     intersection_shapes = geometry.copy()
 
     if keep_outside:
@@ -376,9 +377,10 @@ def geoserie_intersection(
 def remap_inventory(
     inv: Inventory,
     grid: Grid | gpd.GeoSeries,
-    weigths_file: PathLike | None = None,
+    weights_file: PathLike | None = None,
     method: str = "new",
     keep_gdfs: bool = False,
+    weigths_file: PathLike | None = None,
 ) -> Inventory:
     """Remap any inventory on the desired grid.
 
@@ -387,7 +389,7 @@ def remap_inventory(
 
     :arg inv: The inventory from which to remap.
     :arg grid: The grid to remap to.
-    :arg weigths_file: The file storing the weights.
+    :arg weights_file: The file storing the weights.
     :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
     :arg keep_gdfs: Whether to keep the additional gdfs (shapped emissions) of the inventory.
 
@@ -400,7 +402,19 @@ def remap_inventory(
 
     """
     if weigths_file is not None:
-        weigths_file = Path(weigths_file)
+        logger.warning(
+            "The argument 'weigths_file' is deprecated because of a typo. "
+            "Use 'weights_file' instead."
+        )
+        if weights_file is not None:
+            raise ValueError(
+                "You cannot use both 'weights_file' and 'weigths_file' at the same time. "
+                "Please use only 'weights_file'."
+            )
+        weights_file = weigths_file
+
+    if weights_file is not None:
+        weights_file = Path(weights_file)
 
     if isinstance(grid, Grid) or issubclass(type(grid), Grid):
         grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
@@ -423,28 +437,28 @@ def remap_inventory(
 
     if inv.gdf is not None:
         # Remap the main data
-        w_mapping = get_weights_mapping(
-            weigths_file,
+        w_mapping_grid = get_weights_mapping(
+            weights_file,
             inv.gdf.geometry,
             grid_cells,
             loop_over_inv_objects=False,
             method=method,
         )
         # Create the weights matrix
-        if max(w_mapping["output_indexes"]) > len(grid_cells):
+        if max(w_mapping_grid["output_indexes"]) > len(grid_cells):
             raise ValueError(
-                f"Error in weights mapping: {max(w_mapping['output_indexes'])=} >"
+                f"Error in weights mapping: {max(w_mapping_grid['output_indexes'])=} >"
                 f" {len(grid_cells)=}"
             )
-        if max(w_mapping["inv_indexes"]) > len(inv.gdf):
+        if max(w_mapping_grid["inv_indexes"]) > len(inv.gdf):
             raise ValueError(
-                f"Error in weights mapping: {max(w_mapping['inv_indexes'])=} >"
+                f"Error in weights mapping: {max(w_mapping_grid['inv_indexes'])=} >"
                 f" {len(inv.gdf)=}"
             )
         w_matrix = coo_array(
             (
-                w_mapping["weights"],
-                (w_mapping["output_indexes"], w_mapping["inv_indexes"]),
+                w_mapping_grid["weights"],
+                (w_mapping_grid["output_indexes"], w_mapping_grid["inv_indexes"]),
             ),
             shape=(len(grid_cells), len(inv.gdf)),
             dtype=float,
@@ -454,6 +468,7 @@ def remap_inventory(
             key: weights_remap_matrix(w_matrix, inv.gdf[key])
             for key in inv._gdf_columns
         }
+
     else:
         mapping_dict = {}
 
@@ -461,10 +476,10 @@ def remap_inventory(
     if not keep_gdfs:
         for category, gdf in inv.gdfs.items():
             # Get the weights of that gdf
-            if weigths_file is None:
+            if weights_file is None:
                 w_file = None
             else:
-                w_file = weigths_file.with_stem(weigths_file.stem + f"_gdfs_{category}")
+                w_file = weights_file.with_stem(weights_file.stem + f"_gdfs_{category}")
             w_mapping = get_weights_mapping(
                 w_file,
                 gdf.geometry.reset_index(drop=True),
@@ -505,6 +520,29 @@ def remap_inventory(
         out_inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in inv.gdfs.items()}
     else:
         out_inv.gdfs = {}
+
+    # Remap the profiles as well
+    for index_name, profile_name in [
+        ("t_profiles_indexes", "t_profiles_groups"),
+        ("v_profiles_indexes", "v_profiles"),
+    ]:
+        if not hasattr(inv, index_name):
+            continue
+        indexes = getattr(inv, index_name)
+        if indexes is None or "cell" not in indexes.dims:
+            continue
+        profiles = getattr(inv, profile_name)
+
+        new_profiles, new_indexes = remap_profiles(
+            profiles=profiles,
+            profiles_indexes=indexes,
+            emissions_weights=get_weights_of_gdf_profiles(
+                inv.gdf, profiles_indexes=indexes
+            ),
+            weights_mapping=w_mapping_grid,
+        )
+
+        out_inv.set_profiles(new_profiles, new_indexes)
 
     out_inv.history.append(f"Remapped to grid {grid}, {keep_gdfs=}")
 

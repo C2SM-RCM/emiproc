@@ -1,17 +1,21 @@
 import random
+from dataclasses import dataclass, field
+from typing import Type
 
 import numpy as np
 import xarray as xr
 
 import emiproc
-from emiproc.profiles.temporal_profiles import (
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.io import from_csv
+from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
+    DayOfLeapYearProfile,
+    DayOfYearProfile,
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
-    from_csv,
-    read_temporal_profiles,
 )
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
@@ -28,12 +32,19 @@ def read_test_copernicus() -> dict[str, list[AnyTimeProfile]]:
     }
 
 
-def get_random_profiles(num: int) -> list[list[AnyTimeProfile]]:
+def get_random_profiles(
+    num: int,
+    profile_types: list[Type[TemporalProfile]] = [
+        DailyProfile,
+        WeeklyProfile,
+        MounthsProfile,
+    ],
+) -> list[list[AnyTimeProfile]]:
     """Get random profiles for testing."""
     return [
         [
             type(ratios=((ratios := np.random.rand(type.size)) / ratios.sum()))
-            for type in [DailyProfile, WeeklyProfile, MounthsProfile]
+            for type in profile_types
             if random.choice([True, False])
         ]
         for _ in range(num)
@@ -86,6 +97,7 @@ three_profiles = [
         ),
     ],
 ]
+three_composite_profiles = CompositeTemporalProfiles(three_profiles)
 
 
 oem_const_profile = [
@@ -126,6 +138,10 @@ daily_test_profile = DailyProfile(
         0.04166,
     ]
 )
+day_of_year_ratios = np.arange(365, dtype=float)
+day_of_year_test_profile = DayOfYearProfile(
+    day_of_year_ratios / day_of_year_ratios.sum()
+)
 oem_test_profile = [
     weekly_test_profile,
     mounths_test_profile,
@@ -147,6 +163,33 @@ indexes_inv_catsub = xr.DataArray(
         "substance": ["CH4", "CO2", "NH3"],
     },
 )
+indexes_inv_catsub_missing = xr.DataArray(
+    data=np.array(
+        [
+            [0, 1],
+        ]
+    ),
+    dims=["category", "substance"],
+    # omit many on purpose
+    coords={
+        "category": ["adf"],
+        "substance": ["CH4", "CO2"],
+    },
+)
+indexes_inv_catsubcell = xr.DataArray(
+    data=np.array(
+        [
+            [[1, 1, 1, 1, 1], [-1, -1, -1, 0, 1], [-1, -1, -1, 0, 2]],
+            [[0, 0, 1, 2, -1], [2, 2, 2, 2, 2], [-1, -1, 0, 2, 1]],
+        ]
+    ),
+    dims=["category", "substance", "cell"],
+    coords={
+        "category": ["adf", "liku"],  # omit one category on purpose
+        "substance": ["CH4", "CO2", "NH3"],
+        "cell": np.arange(5),
+    },
+)
 
 # For the african test set
 african_countries_test_set = ["SEN", "MLI", "MRT", "GIN", "GNB", "LBR", "SLE", "GMB"]
@@ -165,3 +208,17 @@ indexes_african_2d = xr.DataArray(
         "category": ["liku", "blek", "test"],
     },
 )
+
+
+@dataclass(eq=False)
+class Profile2(TemporalProfile):
+    """Test profile of size 2."""
+
+    size: int = field(default=2, init=False)
+
+
+@dataclass(eq=False)
+class Profile3(TemporalProfile):
+    """Test profile of size 3."""
+
+    size: int = field(default=3, init=False)

@@ -1,31 +1,38 @@
+import numpy as np
 import pytest
-
 import xarray as xr
-from emiproc.profiles.temporal_profiles import (
-    CompositeTemporalProfiles,
-    DailyProfile,
-    WeeklyProfile,
-)
-from emiproc.tests_utils.temporal_profiles import (
-    read_test_copernicus,
-    TEST_COPENICUS_PROFILES,
-    get_random_profiles,
-    indexes_african_simple,
-    indexes_african_2d,
-)
+import pandas as pd
+
 from emiproc.profiles.operators import (
+    combine_profiles,
+    country_to_cells,
     get_weights_of_gdf_profiles,
     group_profiles_indexes,
     weighted_combination,
-    country_to_cells,
-    combine_profiles,
+)
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.operators import get_index_in_profile
+from emiproc.profiles.temporal.profiles import (
+    DailyProfile,
+    Hour3OfDayPerMonth,
+    HourOfLeapYearProfile,
+    HourOfYearProfile,
+    SpecificDayProfile,
+    WeeklyProfile,
+)
+from emiproc.profiles.temporal.specific_days import SpecificDay
+from emiproc.tests_utils import temporal_profiles, vertical_profiles
+from emiproc.tests_utils.temporal_profiles import (
+    TEST_COPENICUS_PROFILES,
+    get_random_profiles,
+    indexes_african_2d,
+    indexes_african_simple,
+    read_test_copernicus,
 )
 from emiproc.tests_utils.test_grids import regular_grid_africa
 from emiproc.tests_utils.vertical_profiles import (
     get_random_profiles as get_random_profiles_vertical,
 )
-from emiproc.tests_utils import vertical_profiles
-from emiproc.tests_utils import temporal_profiles
 
 
 def test_reading_copernicus():
@@ -120,30 +127,58 @@ def test_get_random_profies_vertical():
 def test_countries_to_cells(profiles, indexes: xr.DataArray):
     grid = regular_grid_africa
 
-    print(profiles, indexes)
+    if isinstance(profiles, list):
+        profiles = CompositeTemporalProfiles(profiles)
+
     new_profiles, new_indexes = country_to_cells(profiles, indexes, grid)
 
     assert "cell" in new_indexes.dims
     assert "country" not in new_indexes.dims
 
+    if isinstance(profiles, CompositeTemporalProfiles):
+        assert profiles.types == new_profiles.types
     # test for some cells that we now what it should be
     # Full in MRT, profiles should be the same as the original
-    xr.testing.assert_equal(
-        new_indexes.sel(cell=78).drop_vars("cell"),
-        indexes.sel(country="MRT").drop_vars("country"),
+    np.testing.assert_almost_equal(
+        new_profiles.scaling_factors[new_indexes.sel(cell=78).drop_vars("cell")],
+        profiles.scaling_factors[indexes.sel(country="MRT").drop_vars("country")],
     )
     # THis is shared between SEN and ocean, so only in SEN for the profile
-    xr.testing.assert_equal(
-        new_indexes.sel(cell=26).drop_vars("cell"),
-        indexes.sel(country="SEN").drop_vars("country"),
+    np.testing.assert_almost_equal(
+        new_profiles.scaling_factors[new_indexes.sel(cell=26).drop_vars("cell")],
+        profiles.scaling_factors[indexes.sel(country="SEN").drop_vars("country")],
     )
-    # assert da.sel(cell=26, country="SEN").values > 0.01
-    # assert da.sel(cell=26, country="SEN").values < 0.5
-    # assert total_fractions.sel(cell=26).values < 0.5
+
     # This is just ocean
-    assert 0 not in new_indexes.coords["cell"].values
-    print("new profiles", len(new_profiles), "indexes", new_indexes)
-    assert len(new_profiles) > new_indexes.max().values
+    assert np.all(new_indexes.sel(cell=0).drop_vars("cell") == -1)
+
+
+test_data_index_in_profles = pd.DatetimeIndex(
+    [
+        # With hours
+        pd.Timestamp("2020-01-01 00:00:00"),  # Wednesday
+        pd.Timestamp("2020-01-02 17:00:00"),  # Thursday
+        pd.Timestamp("2020-05-25 12:00:00"),  # Monday
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "profile_type, expected",
+    [
+        (DailyProfile, [0, 17, 12]),
+        (WeeklyProfile, [2, 3, 0]),
+        ((SpecificDayProfile, SpecificDay.MONDAY), [-1, -1, 12]),
+        ((SpecificDayProfile, SpecificDay.WEEKDAY), [0, 17, 12]),
+        ((SpecificDayProfile, SpecificDay.WEEKEND), [-1, -1, -1]),
+        (HourOfLeapYearProfile, [0, 41, 3492]),
+        (Hour3OfDayPerMonth, [0, 5, 36]),
+    ],
+)
+def test_index_in_profile(profile_type, expected):
+
+    indices = get_index_in_profile(profile_type, test_data_index_in_profles)
+    pd.testing.assert_index_equal(indices, pd.Index(expected, dtype=indices.dtype))
 
 
 if __name__ == "__main__":

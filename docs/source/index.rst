@@ -3,36 +3,39 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-emiproc documentation
-=====================
+emiproc
+=======
 
-emiproc is a python package to generate emission input files for atmospheric 
+`emiproc` is a python package to generate emission input files for atmospheric 
 transport models.
 
 It can process inventories available in different formats and on different
 grids and generate input files for models operating on any type of grid
-including complex unstructured grids. It has been designed specifically
-for the models COSMO-ART and ICON-ART but can readily be adapted for other
-models. The output of emiproc is a set of netcdf files with emissions
-mapped onto the model grid. There are two options:
+including complex unstructured grids. Originally designed 
+for the models COSMO-ART and ICON-ART, it can readily be adapted for other
+models. 
 
-* Single emission file with sector-specific annual mean emissions and additional files describing temporal and vertical profiles and, in case of reactive gases like VOCs, speciation profiles.
-* Separate emission files for each hour of a given time period.
 
+A typical workflow is shown below:
+
+* Read an inventory
+* Perform some operations on it (for example: regridding, groupping categories, upsampling, ...)
+* Export the inventory to a format that can be read by the model
 
 .. image:: diagrams/pipeline.drawio.svg
 
 Features 
 --------
 
-* Support of multiple inventories like EDGAR, TNO-CAMS
+* Support multiple inventories such as EDGAR and TNO-CAMS
 * Conservative spatial regridding
-* Exporting to different formats (icon-art, cosmo-art, netcdf rasters)
-* Spatially merging inventories around a region
+* Export to different formats (ICON-ART, COSMO-ART, NetCDF rasters)
+* Merge inventories spatially around a region
 * Separate handling of point sources if desired
-* Categories/Substance selection
-* Re-grouping of emission categories
+* Group emission categories
+* Speciation of emissions
 * Visualization of the output
+* Cyclic temporal profiles or time series of emissions
 
 Contents 
 --------
@@ -42,10 +45,12 @@ Contents
 
    installation
    inventories
-   grids
-   profiles
-   api
+   models
    tutos/tutorials
+   emissions_generation
+   profiles
+   api/index
+   contrib/contribute
    support
    bibliography
 

@@ -10,12 +10,10 @@ import pandas as pd
 import xarray as xr
 
 from emiproc import PROCESS
-from emiproc.exports.netcdf import NetcdfAttributes
+from emiproc.exports.netcdf import NetcdfAttributes, nc_cf_attributes
+from emiproc.exports.utils import get_temporally_scaled_array
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal_profiles import create_scaling_factors_time_serie
-from emiproc.profiles.utils import get_desired_profile_index
-from emiproc.regrid import remap_inventory
 from emiproc.utilities import HOUR_PER_YR, PER_M2_UNITS, SEC_PER_YR, Units
 
 logger = logging.getLogger(__name__)
@@ -24,12 +22,15 @@ logger = logging.getLogger(__name__)
 def export_hourly_emissions(
     inv: Inventory,
     path: PathLike,
-    start_time: datetime,
-    end_time: datetime,
-    netcdf_attributes: NetcdfAttributes,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    netcdf_attributes: NetcdfAttributes = nc_cf_attributes(),
     var_name_format: str = "{substance}_{category}",
     filename_format: str = "%Y%m%dT%H%M%SZ.nc",
     unit: Units = Units.KG_PER_HOUR,
+    freq: str = "h",
+    inclusive: str = "both",
+    chunk_size: int = 168,
 ) -> Path:
     """Export the inventory to hourly netcdf files.
 
@@ -52,6 +53,10 @@ def export_hourly_emissions(
     :param filename_format: The format string to use for the file names.
         The format string should contain fields for date and time.
     :param unit: The unit of the emissions.
+    :param start_time: The start time of the output.
+    :param end_time: The end time of the output.
+    :param freq: The frequency of the output.
+
 
     """
     # Check if the inventory is gridded
@@ -84,18 +89,19 @@ def export_hourly_emissions(
     else:
         raise NotImplementedError(f"Unknown {unit=}")
 
-    # Create the scaling factors for all the time profiles
-    reqired_profiles_indexes = np.unique(inv.t_profiles_indexes)
-    df_scaling_factors = pd.DataFrame(
-        {
-            index: create_scaling_factors_time_serie(
-                start_time=start_time,
-                end_time=end_time,
-                profiles=inv.t_profiles_groups[index],
+    if start_time is None:
+        if inv.year is None:
+            raise ValueError(
+                "The inventory does not have a year. You need to set the start_time"
+                " and end_time."
             )
-            for index in reqired_profiles_indexes
-            if index >= -1
-        }
+        start_time = pd.Timestamp(f"{inv.year}-01-01 00:00:00")
+    if end_time is None:
+        assert inv.year is not None, "The inventory does not have a year."
+        end_time = pd.Timestamp(f"{inv.year+1}-01-01 00:00:00")
+
+    time_range = pd.date_range(
+        start=start_time, end=end_time, freq=freq, inclusive=inclusive
     )
 
     coords = {
@@ -157,54 +163,62 @@ def export_hourly_emissions(
     path = Path(path)
     logger.log(PROCESS, f"Exporting hourly emissions to {path}")
 
+    # split the time range into chunks
+    time_chunks = [
+        time_range[i : i + chunk_size] for i in range(0, len(time_range), chunk_size)
+    ]
     # Iterrate over time
-    for dt, row in df_scaling_factors.iterrows():
-        ds = base_ds.copy()
-        ds["time"] = dt
-        vars = {}
-        for cat in inv.categories:
-            for sub in inv.substances:
-                # Get the scaling factor
-                try:
-                    index = get_desired_profile_index(
-                        inv.t_profiles_indexes, cat=cat, sub=sub
+    for sub_time_range in time_chunks:
+        da = get_temporally_scaled_array(
+            inv=inv, time_range=sub_time_range, sum_over_cells=False
+        )
+
+        # Multiply by the conversion factor
+        da *= conversion_factor
+
+        if is_regular_grid:
+            shape = grid.shape
+            da = da.assign_coords(
+                lon=("cell", np.repeat(grid.lon_range, shape[1])),
+                lat=("cell", np.tile(grid.lat_range, shape[0])),
+            )
+            mindex_coords = xr.Coordinates.from_pandas_multiindex(
+                pd.MultiIndex.from_arrays(
+                    [da.lon.values, da.lat.values], names=["lon", "lat"]
+                ),
+                "cell",
+            )
+            da = (
+                da.assign_coords(mindex_coords).unstack("cell")
+                # Reorder the dimensions to match (lat, lon, time)
+                .transpose("lat", "lon", "time", "substance", "category")
+            )
+
+        for dt in sub_time_range:
+            dt: pd.Timestamp
+
+            ds = base_ds.copy()
+            ds["time"] = [dt]
+            vars = {}
+            for cat in inv.categories:
+                for sub in inv.substances:
+
+                    name = var_name_format.format(substance=sub, category=cat)
+
+                    emissions = da.sel(category=cat, substance=sub, time=[dt])
+
+                    vars[name] = xr.DataArray(
+                        emissions,
+                        dims=data_dim + ["time"],
+                        attrs={
+                            "standard_name": f"{sub}_{cat}",
+                            "long_name": f"{sub}_{cat}",
+                            "units": str(unit.value),
+                            "comment": f"emissions of {sub} from {cat}",
+                        },
+                        name=name,
                     )
-                except ValueError as ve:
-                    logger.warning(
-                        f"Could not find profile for {cat=} {sub=}: {ve} \n Assuming"
-                        " constant profile"
-                    )
-                    index = -1
+            # Add to the dataset
+            ds.update(vars)
 
-                if index == -1:
-                    scaling_factor = 1.0
-                else:
-                    scaling_factor = row[index]
-                if (cat, sub) not in inv.gdf.columns:
-                    # Ignore non present cat-sub
-                    continue
-                # Get the emissions
-                emissions = inv.gdf[(cat, sub)].to_numpy().astype(float)
-                # Multiply by the scaling factor
-                emissions *= scaling_factor * conversion_factor
-                name = var_name_format.format(substance=sub, category=cat)
-
-                if is_regular_grid:
-                    emissions = emissions.reshape(grid.shape).T
-
-                vars[name] = xr.DataArray(
-                    emissions,
-                    dims=data_dim,
-                    attrs={
-                        "standard_name": f"{sub}_{cat}",
-                        "long_name": f"{sub}_{cat}",
-                        "units": str(unit.value),
-                        "comment": f"emissions of {sub} in {cat}",
-                    },
-                    name=name,
-                )
-        # Add to the dataset
-        ds.update(vars)
-        dt: pd.Timestamp
-
-        ds.to_netcdf(path / f"{dt.strftime(filename_format)}")
+            ds.to_netcdf(path / f"{dt.strftime(filename_format)}")

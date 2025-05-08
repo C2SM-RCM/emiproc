@@ -1,4 +1,5 @@
 """Utility functions and constants for emission processing."""
+
 from __future__ import annotations
 
 import json
@@ -33,16 +34,28 @@ SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
 HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
 
 
+def get_day_per_year(year: int | None) -> int | float:
+    """Get the number of days in a year accounting for leap years."""
+    if year is None:
+        logger = logging.getLogger("emiproc.get_day_per_year")
+        logger.warning("Year is None, using 365.25")
+        return DAY_PER_YR
+    if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+        return 366
+    return 365
+
+
 class Units(Enum):
     """Units for emissions."""
 
-    KG_PER_YEAR = "kg/y"
-    KG_PER_HOUR = "kg/h"
-    KG_PER_M2_PER_S = "kg/m2/s"
-    MUG_PER_M2_PER_S = "µg/m2/s"
+    KG_PER_YEAR = "kg y-1"
+    KG_PER_HOUR = "kg h-1"
+    KG_PER_M2_PER_S = "kg m-2 s-1"
+    MUG_PER_M2_PER_S = "µg m-2 s-1"
 
 
-PER_M2_UNITS = [Units.KG_PER_M2_PER_S]
+PER_M2_UNITS = [Units.KG_PER_M2_PER_S, Units.MUG_PER_M2_PER_S]
+PER_CELL_UNITS = [Units.KG_PER_YEAR, Units.KG_PER_HOUR]
 
 
 def grid_polygon_intersects(
@@ -287,7 +300,7 @@ def get_natural_earth(
     shpfile = str(path_to_save / f"ne_{resolution}_{name}.shp")
     return gpd.read_file(shpfile)
 
-    
+
 def get_country_mask(
     output_grid: Grid | gpd.GeoSeries,
     resolution: str = "110m",
@@ -362,7 +375,7 @@ def get_country_mask(
         resolution=resolution, category="cultural", name=ne_name
     )
     if isinstance(output_grid, Grid):
-        grid_gdf = output_grid.gdf
+        grid_gdf = output_grid.gdf.copy(deep=True)
     elif isinstance(output_grid, gpd.GeoSeries):
         grid_gdf = gpd.GeoDataFrame(geometry=output_grid)
     else:
@@ -433,9 +446,9 @@ def get_country_mask(
         one_cell_df = grid_gdf.loc[number_of_intersections == 1, country_shapes.keys()]
         # Will have in col-0 the index of countries from on_cell_df and col-1 the codes
         cell_country_maps = np.argwhere(one_cell_df.to_numpy())
-        country_mask[
-            one_cell_df.index[cell_country_maps[:, 0]]
-        ] = country_corresponding_codes[cell_country_maps[:, 1]]
+        country_mask[one_cell_df.index[cell_country_maps[:, 0]]] = (
+            country_corresponding_codes[cell_country_maps[:, 1]]
+        )
         # Find indexes of cell in more than one country
         progress.step()
         mask_many_cells = number_of_intersections > 1
@@ -470,9 +483,9 @@ def get_country_mask(
         areas_matrix = np.zeros(
             (np.max(i) + 1, np.max(cell_country_duplicates[:, 1]) + 1)
         )
-        areas_matrix[
-            cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]
-        ] = intersection_areas
+        areas_matrix[cell_country_duplicates[:, 0], cell_country_duplicates[:, 1]] = (
+            intersection_areas
+        )
         if return_fractions:
             # Get the fractions of each country in each cell
             cell_areas = grid_gdf.to_crs(WGS84_PROJECTED).area
@@ -519,21 +532,19 @@ def total_emissions_almost_equal(
     relative_tolerance: float = 1e-5,
 ) -> bool:
     """Test that the total emissions of two inventories are almost equal.
-    
+
     :arg total_dict_1: The first total emissions dictionary
     :arg total_dict_2: The second total emissions dictionary
     :arg relative_tolerance: The relative tolerance to use for the comparison.
         The comparison is done as follows:
         abs(total_dict_1 - total_dict_2) < relative_tolerance * (total_dict_1 + total_dict_2) / 2
-        
+
     :returns: True if the total emissions are almost equal, False otherwise
     :raises ValueError: If the two dictionaries have different keys.
     """
     for sub in total_dict_1.keys() | total_dict_2.keys():
         if sub not in total_dict_1 or sub not in total_dict_2:
-            raise ValueError(
-                f"Subcategory {sub} is missing in one of the dictionaries"
-            )
+            raise ValueError(f"Subcategory {sub} is missing in one of the dictionaries")
         for cat in total_dict_1[sub].keys() | total_dict_2[sub].keys():
             if cat not in total_dict_1[sub] or cat not in total_dict_2[sub]:
                 raise ValueError(

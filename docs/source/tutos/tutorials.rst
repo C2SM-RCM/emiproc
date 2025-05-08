@@ -1,8 +1,10 @@
 Tutorials
 =========
 
-Many examples of using emiproc can be found in the folder 
-examples from the github repository:
+If you want to start using emiproc, we recommend beginning with the tutorials below.
+They will guide you through the main features of emiproc.
+
+Additionally, many examples of using emiproc can be found in the GitHub repository.
 
 Examples 
 --------
@@ -15,19 +17,23 @@ https://github.com/C2SM-RCM/emiproc/tree/master/examples
 Scripts 
 -------
 
-Scripts were create on some dedicated cases. They are not well documented
-but there exist many for different cases. 
-
+Scripts were created for some dedicated cases. They are not well documented, but there are many scripts for different cases.
 https://github.com/C2SM-RCM/emiproc/tree/master/scripts
 
 
 Tutorials 
 ---------
 
-Tutorials provide guided examples with more in depth of how to use emiproc.
+Tutorials provide guided examples with more in-depth instructions on how to use emiproc.
+The first tutorial to understand how emiproc works is the edgar_processing tutorial.
 
 .. toctree::
     :maxdepth: 2
 
-    new_inventory
+    edgar_processing
+    gfed
     icon_oem
+    grids
+    regridding
+    profiles
+    temporal_profiles_from_traffic_counter

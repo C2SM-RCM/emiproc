@@ -129,7 +129,7 @@ In the inventory, the profiles will be stored as a
 :py:class:`~emiproc.profiles.vertical_profiles.VerticalProfiles` for vertical profiles.
 This class is assigned to the `v_profiles` attribute of the inventory.
 
-The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal_profiles.TemporalProfile`.
+The temporal profiles are stored as a list of list of :py:class:`~emiproc.profiles.temporal.profiles.TemporalProfile`.
 They are assinged to the `t_profiles_groups` attribute of the inventory.
 
 Each element of the main list is a list containing different types of 
@@ -188,6 +188,7 @@ to use for any combination of the following coordinates :
 * `time` : a datetime object matching the time of the emission (not implemented yet)
 * `country` : the 3 letter code of a country
 * `type` : ['gridded', 'shapped'] depending if applies to gridded or shapped emissions
+* `day_type` : depending on the day of the week that the profile applies to
 
 The coordinates don't need to all be present in the file, one could simply
 put one of them, and emiproc assumes the vertical profiles are the same 

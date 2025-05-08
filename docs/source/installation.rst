@@ -1,46 +1,41 @@
 Installation
 ============
 
+With pip
+--------
 
-Installing emiproc can be done as a standard python package.
+The easiest way to install emiproc is to use pip. This will install the latest
+release from PyPI.
 
-First create a folder for emiproc and go into it 
+.. code:: bash
 
-.. code::
+    pip install emiproc
+
+From source
+-----------
+
+
+First create a folder for emiproc and go into it.
+
+.. code:: bash
 
     mkdir emiproc 
     cd emiproc
 
 
-Clone the repository::
+Clone the repository
+
+.. code:: bash
 
     git clone https://github.com/C2SM-RCM/emiproc.git .
 
 
-Then install using pip.
-Installing as an editable (`-e` options) allows you to directly modify 
-the cloned code.
+Then install using pip, with the editable (`-e` option) to allow you to directly modify the cloned code.
 
-.. code::
+.. code:: bash
 
     pip install -e .
 
-Many packages will be installed as dependencies.
 
 
-On Windows 
-----------
 
-emiproc works also on windows, but many dependencies are not built for 
-windows.
-
-However you can use `pipwin` which will let you install all the dependencies
-for windows in the same way `pip` works.
-
-.. code::
-    
-    pip install pipwin 
-
-    pipwin install geos
-    pipwin install geopandas
-    pipwin install cartopy 

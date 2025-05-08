@@ -1,21 +1,28 @@
 """File containing the TNO inventory functions."""
+
 import logging
 from os import PathLike
 from pathlib import Path
 
-
-import xarray as xr
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
+import xarray as xr
+from shapely.creation import polygons
 
-from emiproc.grids import WGS84, TNOGrid
-from emiproc.inventories import Inventory, Substance
-from emiproc.profiles.operators import group_profiles_indexes
-from emiproc.profiles.temporal_profiles import read_temporal_profiles
-from emiproc.profiles.vertical_profiles import read_vertical_profiles
+from emiproc.grids import WGS84, GeoPandasGrid, TNOGrid
+from emiproc.inventories import Inventory
 from emiproc.profiles import naming
-from emiproc.inventories.utils import group_substances
+from emiproc.profiles.operators import group_profiles_indexes
+from emiproc.profiles.temporal.profiles import (
+    DayOfYearProfile,
+    get_leap_year_or_normal,
+)
+from emiproc.profiles.temporal.io import read_temporal_profiles
+
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.utils import ratios_dataarray_to_profiles
+from emiproc.profiles.vertical_profiles import read_vertical_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +41,7 @@ class TNO_Inventory(Inventory):
     Each substance is a separate variable in the netcdf file.
     This class will read the `long_name` attribute of each variable to
     determine the substance variables. The `long_name` attribute should
-    start with `emission of `.
+    start with `emission of` .
     You can then merge the substances from the file to a new set of
     substances using the `substances_mapping` argument.
     A default mapping which should work for general cases is provided.
@@ -43,7 +50,7 @@ class TNO_Inventory(Inventory):
     use the names created by the mapping, not the names in the nc file.
 
 
-    :attr tno_ds: The xarray dataset with the TNO emission data.
+    :param tno_ds: The xarray dataset with the TNO emission data.
     """
 
     grid: TNOGrid
@@ -69,11 +76,12 @@ class TNO_Inventory(Inventory):
     ) -> None:
         """Create a TNO_Inventory.
 
-        :arg nc_file: The TNO NetCDF dataset.
-        :arg substances: A list of substances to load in the inventory.
-        :arg substances_mapping: How to mapp the names from the nc files,
-            to names for empiproc. See in :py:class:`TNO_Inventory` for more
+        :arg nc_file: Path to the TNO NetCDF dataset.
+        :arg substances_mapping: How to map the names from the nc files
+            to names for emiproc. See in :py:class:`TNO_Inventory` for more
             information.
+            Specifiying the mapping is important if the names in the nc file
+            are not the same as the ones you want to use in emiproc.
         :arg profiles_dir: The directory where the profiles are stored.
             If None the same directory as the nc_file is used.
         :arg vertical_profiles_dir: The directory where the vertical profiles
@@ -289,8 +297,8 @@ class TNO_Inventory(Inventory):
         if t_profiles is not None:
             if "substance" in t_profiles_indexes.dims:
                 (
-                    self.t_profiles_groups,
-                    self.t_profiles_indexes,
+                    t_profiles,
+                    t_profiles_indexes,
                 ) = group_profiles_indexes(
                     t_profiles,
                     t_profiles_indexes,
@@ -298,34 +306,94 @@ class TNO_Inventory(Inventory):
                     groupp_mapping,
                     groupping_dimension="substance",
                 )
-            else:
-                self.t_profiles_groups = t_profiles
-                self.t_profiles_indexes = t_profiles_indexes
+            self.set_profiles(t_profiles, t_profiles_indexes)
         if v_profiles is not None:
             if "substance" in v_profiles_indexes.dims:
-                self.v_profiles, self.v_profiles_indexes = group_profiles_indexes(
+                v_profiles, v_profiles_indexes = group_profiles_indexes(
                     v_profiles,
                     v_profiles_indexes,
                     weights,
                     groupp_mapping,
                     groupping_dimension="substance",
                 )
-            else:
-                self.v_profiles = v_profiles
-                self.v_profiles_indexes = v_profiles_indexes
+            self.set_profiles(v_profiles, v_profiles_indexes)
 
 
-if __name__ == "__main__":
-    # %%
+def read_tno_gridded_profiles(
+    file_path: Path, year: int
+) -> tuple[CompositeTemporalProfiles, xr.DataArray, GeoPandasGrid]:
+    """Read the TNO gridded profiles.
 
-    tno_dir = r"C:\Users\coli\Documents\emiproc\files\TNO_6x6_GHGco_v4_0"
+    :arg file_path: The path to the file.
+    :arg year: The year for which to read the profiles.
 
-    profiles, indexes = read_temporal_profiles(
-        tno_dir,
-        profile_csv_kwargs={
-            "cat_colname": "GNFR_Category",
-            "read_csv_kwargs": {"sep": ";", "header": 6, "encoding": "latin"},
-        },
+    :returns: A tuple with the profiles, the indexes and the grid.
+
+        * Profiles: The profiles from the file
+        * Indexes: The indexes of the profiles
+        * Grid: The grid on which the profiles are defined. Usually not the same
+            as the inventory grid.
+
+    """
+
+    df = pd.read_csv(file_path, sep=",")
+    df = df.loc[df["year"] == year]
+
+    # We need to create a stacked dataset to extract the profiles and indices
+    ds_profiles = df.to_xarray()
+    da_profiles = (
+        ds_profiles.set_coords(["latitude", "longitude", "POLL", "day", "GNFR"])
+        .drop_vars(["year"])["Factor"]
+        .rename({"POLL": "substance", "GNFR": "category", "day": "day_of_year"})
     )
-    profiles
-# %%
+
+    coords_multi = ["category", "substance", "latitude", "longitude", "day_of_year"]
+    multi_index = pd.MultiIndex.from_arrays(
+        [da_profiles[var].values for var in coords_multi], names=coords_multi
+    )
+
+    da_profiles = da_profiles.assign_coords(index=multi_index)
+    da_profiles = da_profiles.drop_duplicates("index").unstack()
+    da_profiles_stacked_cell = da_profiles.stack(cell=["latitude", "longitude"])
+
+    # Get a grid based on the cell dimension
+    def get_delta_over_2(da, dim):
+        values = da[dim].values
+        diffs = np.diff(values)
+        # Check that the diffs are the same
+        if not np.allclose(diffs, diffs[0]):
+            raise ValueError(f"Differences in {dim} are not the same.")
+        return diffs[0] / 2.0
+
+    dx = get_delta_over_2(da_profiles, "longitude")
+    dy = get_delta_over_2(da_profiles, "latitude")
+
+    x_coords = da_profiles_stacked_cell.longitude.values
+    y_coords = da_profiles_stacked_cell.latitude.values
+
+    coords = np.array(
+        [
+            [x, y]
+            for x, y in zip(
+                [x_coords - dx, x_coords - dx, x_coords + dx, x_coords + dx],
+                [y_coords - dy, y_coords + dy, y_coords + dy, y_coords - dy],
+            )
+        ]
+    )
+
+    coords = np.rollaxis(coords, -1, 0)
+    gdf = gpd.GeoDataFrame(geometry=polygons(coords), crs="EPSG:4326")
+
+    grid = GeoPandasGrid(gdf, name="TNO_gridded_profiles")
+
+    da_scaling_factors = da_profiles_stacked_cell.drop_vars(
+        ["latitude", "longitude"]
+    ).rename(day_of_year="ratio")
+    sfs, indexes = ratios_dataarray_to_profiles(da_scaling_factors)
+
+    profiles = CompositeTemporalProfiles.from_ratios(
+        ratios=sfs / sfs.sum(axis=1).reshape(-1, 1),
+        types=[get_leap_year_or_normal(DayOfYearProfile, year=year)],
+    )
+
+    return profiles, indexes, grid

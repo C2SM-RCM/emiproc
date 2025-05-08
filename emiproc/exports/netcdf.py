@@ -2,17 +2,18 @@ from datetime import datetime
 
 NetcdfAttributes = dict[str, str]
 
+
 def nc_cf_attributes(
-    author: str,
-    contact: str,
-    title: str,
-    source: str,
+    author: str = "emiproc",
+    contact: str = "https://emiproc.readthedocs.io/en/master/support.html#contact",
+    title: str = "emiproc generated file",
+    source: str = "",
     comment: str = "",
     institution: str = "Empa, Swiss Federal Laboratories for Materials Science and Technology",
     history: str = "",
     references: str = "Produced by emiproc.",
     additional_attributes: NetcdfAttributes = {},
-) ->  NetcdfAttributes :
+) -> NetcdfAttributes:
     """Create attributes for a nc file based on cf conventions.
 
 
@@ -49,7 +50,7 @@ def nc_cf_attributes(
         "title": title,
         "comment": comment,
         "source": source,
-        "history": dt + ': created by emiproc ;\n' + history,
+        "history": dt + ": created by emiproc ;\n" + history,
         "references": references,
         "institution": institution,
         "author": author,
