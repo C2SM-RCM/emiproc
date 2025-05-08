@@ -240,8 +240,9 @@ def calculate_vprm_emissions(
     if model in urban_vprm_models:
         # Ensure that the urban temperature is present
         if ("T", "urban") not in df.columns:
-            raise ValueError(
-                "Urban VPRM is activated but the urban temperature is missing in the dataframe"
+            raise KeyError(
+                "Urban VPRM is activated but the urban temperature is missing in the dataframe. "
+                "Please add the ('T', 'urban') column to the dataframe."
             )
 
     for vegetation_type in df_vprm.index:
