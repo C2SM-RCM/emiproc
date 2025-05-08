@@ -1,65 +1,34 @@
-# Online emission processing
+# Emiproc
 
-Preprocessing of the emissions for the online emission module for COSMO-ART, COSMO-GHG
-and ICON-ART (Jähn et al., Geosci. Model Dev., 13, 2379–2392, 2020, 
-https://doi.org/10.5194/gmd-13-2379-2020).
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.07509/status.svg)](https://doi.org/10.21105/joss.07509)
+[![ReadTheDocs](https://readthedocs.org/projects/emiproc/badge/?version=master)](emiproc.readthedocs.io)
 
-Produces gridded annual emissions per sector as well as temporal and vertical profiles.
 
-## Installation
-To use the code, just download or clone the repository. The package can be installed with
+Python package for processing emission datasets and converting them
+into netcdf rasters or inputs for transport models (ICON-ART, COSMO-ART, ...).
+
+If interested in previous versions, please check the branches
+dedicated to the previous releases.
+
+## Documentation
+
+The full documentation is hosted at https://emiproc.readthedocs.io .
+
+## Installation 
+
+`emiproc` can be installed with pip:
+
 ```
-    $ python setup.py install
+pip install emiproc
 ```
-
-The following requirements on third-party packages:
-
-* Python (>= 3.6)
-* cartopy
-* netCDF4
-* numpy
-* shapely
-* xarray
-
-Please note emission inventories are not included in the repository, but have to
-be obtained separately.
-
-## Quickstart
-
-1. Take one of the configuration files in the cases folder and adjust it to your case.
-
-2. Generate the emission files:
-```
-    $ python -m emiproc grid --case config_{tno|ch}
-```
-
-3. Generate the profiles:
-```
-    $ python -m emiproc tp --case-file <filename>  # for temporal profiles
-    $ python -m emiproc vp                         # for vertical profiles
-```
-
-Further examples, including the generation of offline files and inventory merging, can be found in [cases/README.md](cases/README.md)
-
-## Gridded annual emissions
-
-Emissions are read from the inventory and projected onto the COSMO or ICON grid.
-
-The necessary information, such as grid characterstics and species, are supplied via
-a config file. Since emission inventories can be structured quite differently, it may
-also be necessary to adapt the main script. The provided examples are a good starting
-point.
-
-### Grids
-
-In the file `grids.py` you can find definitions for classes handling common gridtypes
-(COSMO, TNO, swiss). Use them in your configuration file to specify your grid.
-
-If your grid can not be represented by an existing one, implement your own grid class
-by inheriting from the `Grid` baseclass and implementing the required methods.
 
 ## License
 
-This work is licensed under the Creative Commons Attribution 4.0 International License.
-To view a copy of this license, visit http://creativecommons.org/licenses/by/4.0/ or
-send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+This work is licensed under a BSD-3-Clause licence. See the LICENSE file for details or https://opensource.org/license/bsd-3-clause
+
+
+## References 
+
+If you use emiproc, please cite our paper: [https://doi.org/10.21105/joss.07509](https://doi.org/10.21105/joss.07509)
+
+

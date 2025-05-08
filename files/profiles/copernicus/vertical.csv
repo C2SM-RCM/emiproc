@@ -1,0 +1,13 @@
+GNFR,Category,20m,92m,184m,324m,522m,781m,1106m
+A,Public_Power,0,0,0.0025,0.51,0.453,0.0325,0.002
+B,Industry,0.06,0.16,0.75,0.03,0,0,0
+C,Other_Stationary_Combustion,1,0,0,0,0,0,0
+D,Fugitives,0.02,0.08,0.6,0.3,0,0,0
+E,Solvents,1,0,0,0,0,0,0
+F,Road_Transport,1,0,0,0,0,0,0
+G,Shipping,0.2,0.8,0,0,0,0,0
+H,Aviation,0.25,0.25,0.1,0.1,0.1,0.1,0.1
+I,Off_Road,1,0,0,0,0,0,0
+J,Waste,0,0,0.41,0.57,0.02,0,0
+K,Agricultural_Livestock,1,0,0,0,0,0,0
+L,Agricultural_Other,1,0,0,0,0,0,0

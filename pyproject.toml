@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emiproc"
+description = "Emission Processing Tool"
+authors = [
+    {name = "Lionel Constantin", email="lionel.constantin@empa.ch"},
+    {name = "Michael Jähn"},
+    {name = "Gerrit Kuhlmann"},
+    {name = "Qing Mu"},
+    {name = "Jean-Matthieu Haussaire"},
+    {name = "David Ochsner"},
+    {name = "Katherine Osterried"},
+    {name = "Valentin Clément"},
+    {name = "Joel Thanwerdas"},
+    {name = "Corina Keller"},
+    {name = "Erik Koene"},
+    {name = "Alessandro Bigi"},
+    {name = "Michael Steiner"},
+    {name = "Dominik Brunner", email="dominik.brunner@empa.ch"},
+]
+dependencies = [
+    "geos",
+    "numpy",
+    "pandas",
+    "geopandas",
+    "netCDF4",
+    "dask",
+    "scipy",
+    "shapely",
+    "xarray>=2023.10",
+    "rasterio",
+    "pyogrio",
+    "pyyaml",
+    "fiona",
+]
+license = {text = "BSD-3-Clause"}
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["emission", "processing", "inventory", "cosmo", "icon-art"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+
+dynamic = ["version"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "incremental: mark a test as part of an incremental test suite"
+]
+
+[tool.setuptools.packages.find]
+include = ["emiproc"]  # package names should match these glob patterns (["*"] by default)
+
+[tool.setuptools_scm]
+write_to = "emiproc/_version.py"
+
+
+[project.optional-dependencies]
+doc = [
+    "sphinx",
+    "furo",
+    "enum-tools",
+    "sphinx_toolbox",
+    "nbsphinx",
+    "ipython",
+]
+dev = ["black", "pytest"]
