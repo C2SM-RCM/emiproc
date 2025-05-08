@@ -62,10 +62,35 @@ def test_calculate_vprm_emissions(sample_data):
 
 def test_urban_model(sample_data):
     df, df_vprm = sample_data
+
+    df = df.copy()
+    df_vprm = df_vprm.copy()
+
     df[("T", "urban")] = [28, 32, 30, 29]
-    result = calculate_vprm_emissions(*sample_data, model="urban")
+    df['evi_ref'] = df[('vegetation_type_1', 'evi')] 
+    df_vprm['isa'] = 0.5
+    
+    result = calculate_vprm_emissions(df, df_vprm, model="urban")
     assert ("vegetation_type_1", "nee") in result.columns
     assert ("vegetation_type_2", "nee") in result.columns
+
+def test_modified_vprm_model(sample_data):
+    df, df_vprm = sample_data
+    df_vprm = df_vprm.copy()
+
+    df_vprm["alpha1"] = 0.065
+    df_vprm["alpha2"] = 0.0024
+
+    df_vprm['theta1'] = 0.116
+    df_vprm['theta2'] = -0.0005
+    df_vprm['theta3'] = 0.0009
+
+    df_vprm['gamma'] = 4.61
+
+    df_vprm['Tcrit'] = -15.
+    df_vprm['Tmult'] = 0.55
+
+    calculate_vprm_emissions(df, df_vprm, model="modified_groudji")
 
 
 def test_missing_urban_temperature(sample_data):
@@ -85,3 +110,4 @@ def test_calculate_vegetation_indices():
     assert evi.shape == (4,)
     assert lswi.shape == (4,)
     assert ndvi.shape == (4,)
+

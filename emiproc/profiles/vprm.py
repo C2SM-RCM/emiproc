@@ -42,6 +42,7 @@ urban_vprm_models = [
     VPRM_Model.urban_windbourne,
 ]
 
+
 def calculate_vegetation_indices(
     nir: bandType,
     swir: bandType,
@@ -181,9 +182,6 @@ def calculate_vprm_emissions(
 
     where :math:`\\mathrm{Resp_{e-init}}` is the basic vprm respiration and :math:`\\mathrm{ISA}` is the impervious surface area at the vegetation location.
 
-    .. warning::
-        The urban VPRM model is currently not fully implemented.
-
     modified-VPRM
 
     The modified-VPRM model follows the standard VPRM for GEE and has a different model for the estimate of respiration: for more details see Gourdij et al., JGR 2021
@@ -194,7 +192,14 @@ def calculate_vprm_emissions(
         - ('T', 'global'): Temperature in degC
         - (vegetation_type, 'lswi'): Land Surface Water Index
         - (vegetation_type, 'evi'): Enhanced Vegetation Index
-        - ('T', 'urban'): Optional for urban VPRM. Temperature in degC (urban area)
+
+        Urban VPRM models:
+
+        - `evi_ref`: Reference EVI for the urban VPRM model.
+            This is the EVI at a non-urban reference site
+            representing a baseline leaf-off, woody biomass respiration.
+        - ('T', 'urban'): Temperature in degC in the urban area
+
 
     :param df_vprm: Dataframe with the VPRM parameters.
         Each row must correspond to a vegetation type and have the following columns:
@@ -207,16 +212,23 @@ def calculate_vprm_emissions(
         - `Tmax`: Maximum temperature for photosynthesis
         - `Tlow`: Low temperature for photosynthesis
         - `PAR0`: Photosynthetically Active Radiation parameter
-        - `is_urban`: Boolean indicating if the vegetation type is urban (optional, default is False)
-        - `is_modified`: Boolean indicating if respiration for that vegetation type follows the modified VPRM (optional, default is False)
-        - `alpha1`: Respiration parameter for the modified VPRM
-        - `alpha2`: Respiration parameter for the modified VPRM
-        - `gamma`: Coeff for EVI in respiration for the modified VPRM
-        - `k1`: Coeff for water respiration scaling factor in the modified VPRM
-        - `k2`: Coeff for water respiration scaling factor in the modified VPRM
-        - `k3`: Coeff for water respiration scaling factor in the modified VPRM
-        - `tcrit`: critical temperature for respiration in the modified VPRM
-        - `tnull`: value between 0-1 to weigh the difference between atm temp and tcrit in the modified VPRM
+
+        Urban VPRM models:
+        - `isa`: Impervious Surface Area (ISA) at the vegetation location.
+            This is the fraction of the area that is impervious (e.g. buildings, roads, etc.)
+            Use 0.5 if you don't know.
+
+        Modified VPRM:
+        - `k1`: Coeff for water respiration scaling factor
+        - `k2`: Coeff for water respiration scaling factor
+        - `k3`: Coeff for water respiration scaling factor
+        - `alpha1`: Respiration parameter
+        - `alpha2`: Respiration parameter
+        - `gamma`: Coeff for EVI in respiration
+        - `tcrit`: critical temperature for respiration
+        - `tnull`: value between 0-1 to weigh the difference between atm temp and tcrit
+
+    :param model: VPRM model to use. See :py:class:`VPRM_Model` for the list of models.
 
     :return: Dataframe with the emissions. Some columns are added
 
@@ -225,6 +237,15 @@ def calculate_vprm_emissions(
         - (vegetation_type, 'resp'): Respiration
         - (vegetation_type, 'gee'): Gross Ecosystem Exchange
         - (vegetation_type, 'nee'): Net Ecosystem Exchange (nee = gee - resp)
+        - (vegetation_type, 'Tscale'): Temperature scale
+        - (vegetation_type, 'Wscale'): Water scale
+        - (vegetation_type, 'Pscale'): Photosynthesis scale
+
+
+        Urban VPRM models:
+
+        - (vegetation_type, 'resp_h'): Heterotrophic respiration
+        - (vegetation_type, 'resp_a'): Autotrophic respiration
     """
     logger = logging.getLogger(__name__)
     df = df.copy()
@@ -264,38 +285,39 @@ def calculate_vprm_emissions(
         Tmax = df_vprm.loc[vegetation_type, "Tmax"]
         Tlow = df_vprm.loc[vegetation_type, "Tlow"]
 
+        alpha = df_vprm.loc[vegetation_type, "alpha"]
+        beta = df_vprm.loc[vegetation_type, "beta"]
+
         # Get correct temperature serie
         temperature = df[("T", "urban" if model in urban_vprm_models else "global")]
 
         # Calculate the respiration
-
-        # Resp = alpha * T + beta
-        resp = (
-            df_vprm.loc[vegetation_type, "alpha"] * temperature
-            + df_vprm.loc[vegetation_type, "beta"]
-        )
+        resp = alpha * temperature + beta
 
         # for respiration use the modified VPRM if requested
         if model == VPRM_Model.modified_groudji:
-            beta = df_vprm.loc[vegetation_type, "beta"]
             alpha1 = df_vprm.loc[vegetation_type, "alpha1"]
             alpha2 = df_vprm.loc[vegetation_type, "alpha2"]
             gamma = df_vprm.loc[vegetation_type, "gamma"]
-            k1 = df_vprm.loc[vegetation_type, "k1"]
-            k2 = df_vprm.loc[vegetation_type, "k2"]
-            k3 = df_vprm.loc[vegetation_type, "k3"]
-            tcrit = df_vprm.loc[vegetation_type, "tcrit"]
-            tnull = df_vprm.loc[vegetation_type, "tnull"]
+            k1 = df_vprm.loc[vegetation_type, "theta1"]
+            k2 = df_vprm.loc[vegetation_type, "theta2"]
+            k3 = df_vprm.loc[vegetation_type, "theta3"]
+            Tcrit = df_vprm.loc[vegetation_type, "Tcrit"]
+            Tmult = df_vprm.loc[vegetation_type, "Tmult"]
 
             wscale2 = (lswi - np.nanmin(lswi)) / (np.nanmax(lswi) - np.nanmin(lswi))
 
-            temp_mod = df[("T", "global")].copy()
-            temp_mod[temp_mod < tcrit] = tcrit - tnull * (tcrit - temp_mod)
+            # modified air temperature variable intended to capture soil temperatures
+            # that remain warmer than air temperatures in winter
+            temp_mod = temperature.where(
+                temperature >= Tcrit,
+                other=Tcrit - Tmult * (Tcrit - temperature),
+            )
 
             resp = (
                 beta
                 + alpha1 * temp_mod
-                + alpha2 * (temp_mod**2)
+                + alpha2 * temp_mod**2
                 + gamma * evi
                 + k1 * wscale2
                 + k2 * wscale2 * temp_mod
@@ -304,57 +326,85 @@ def calculate_vprm_emissions(
 
         # Under t low, use a contsant value
         mask_low_T = temperature <= Tlow
-        resp.loc[mask_low_T] = df_vprm.loc[vegetation_type, "resp_min"]
 
-        ## Split the urban vegetation into two parts
-        ## initial ecosystem respiration (authotropphic + heterotropohic)
-        # df[(vegetation_type, 'resp_e_init')] = df[(vegetation_type, 'resp _urban')]
-        #
-        ## Heterotrophic respiration
-        ## isa = impervious surface areas
-        # isa = 0.5 # ??? not  sure what value this should be
-        # r  = (1- isa) * df[(vegetation_type, 'resp_e_init')] / 2.
-        #
-        ## Get reference  the yearly minimum of EVI at a reference Forest
-        ## (representing leaf-off, woody biomass autotrophic respiration
-        # evi_ref = df_means[(vegetation_type_ref[vegetation_type], 'EVI')]
-        # r_a = (evi + np.nanmin(evi_ref) * isa) / evi_ref * resp_e_init / 2.
-        #
-        ## Bring the two components together
-        # resp  = r  + r_a
+        # Set T = Tlow when T < Tlow to account for the persistence
+        # of soil respiration in winter, when air temperatures are very cold
+        # but soils remain warm
+        resp_min = alpha * Tlow + beta
+
+        resp.loc[mask_low_T] = resp_min
+
+        if model in urban_vprm_models:
+            # Split the urban vegetation into two parts
+            # initial ecosystem respiration (authotropphic + heterotropohic)
+            resp_e_init = alpha * temperature + beta
+            df[(vegetation_type, "resp_e_init")] = resp_e_init
+            # Heterotrophic respiration
+            # isa = impervious surface areas
+            isa = df_vprm.loc[vegetation_type, "isa"]
+            resp_h = (1 - isa) * resp_e_init / 2.0
+
+            # Get reference  the yearly minimum of EVI at a reference Forest
+            # (representing leaf-off, woody biomass autotrophic respiration
+            evi_ref = df["evi_ref"]
+            resp_a = (evi + np.nanmin(evi_ref) * isa) / evi_ref * resp_e_init / 2.0
+
+            df[(vegetation_type, "resp_h")] = resp_h
+            df[(vegetation_type, "resp_a")] = resp_a
+
+            # Bring the two components together
+            resp = resp_h + resp_a
 
         # GEE
+        # GEE is calculated from various sub components
+
+        # Temperature scale
         Tprod = (temperature - Tmin) * (temperature - Tmax)
         Tscale = Tprod / (Tprod - (temperature - Topt) ** 2)
         Tscale[temperature <= Tmin] = 0.0
+        if model == VPRM_Model.urban_windbourne:
+            # For T scale, the vegetation specific T parameters are not used
+            Tmin, Tmax = 0.0, 40.0
+            mask_low_T = temperature <= 20
+            Tscale.loc[mask_low_T] = Tprod / (Tprod - (temperature - 20) ** 2)
+            mask_mid_T = (temperature >= 20) & (temperature <= 30)
+            Tscale.loc[mask_mid_T] = 1.0
+            mask_high_T = temperature >= 30
+            Tscale.loc[mask_high_T] = Tprod / (Tprod - (temperature - 30) ** 2)
+
         df[(vegetation_type, "Tscale")] = Tscale
 
-        # Typical summer values for LSWI, EVI and Wscale
-        # To be replaced with satellite based parameters
+        # Water scale
         Wscale = (1 + lswi) / (1 + np.nanmax(lswi))
         df[(vegetation_type, "Wscale")] = Wscale
 
-        ## Pscale is 1 during phase two (Mahadevan et al, paragraph [14])
-        ## to detect phase two occurrence let's use a EVI threshold method
-        ## see WRF-GHG
-        ## https://github.com/wrf-model/WRF/blob/f34b11dbb89c002c5c0dca1195aab35daeed7349/chem/module_ghg_fluxes.F#L199
-        ## see pyVPRM
-        ## https://github.com/tglauch/pyVPRM/blob/308421b3f1ade445fef1b9edc37547db83a295cb/pyVPRM/VPRM.py#L561
-        ## since it's not simple to get vegetation dynamics on Sentinel2 (while it's available for MOD12Q2 used by Mahadevan et al., 2008), the overall max and min of EVI is used, not the EVI max/min during growing phase only (as it should be).
+        # Photosynthesis scale
+
+        # to detect phase two occurrence let's use a EVI threshold method
+        # see WRF-GHG
+        # https://github.com/wrf-model/WRF/blob/f34b11dbb89c002c5c0dca1195aab35daeed7349/chem/module_ghg_fluxes.F#L199
+        # see pyVPRM
+        # https://github.com/tglauch/pyVPRM/blob/308421b3f1ade445fef1b9edc37547db83a295cb/pyVPRM/VPRM.py#L561
+        # since it's not simple to get vegetation dynamics on Sentinel2
+        # (while it's available for MOD12Q2 used by Mahadevan et al., 2008)
+        # the overall max and min of EVI is used
+        # not the EVI max/min during growing phase only (as it should be).
         evithr = min(evi) + 0.55 * (max(evi) - min(evi))
 
         if model in urban_vprm_models:
             # Simpler EVI forumalation in urban VPRM
             Pscale = (evi - np.nanmin(evi)) / (np.nanmax(evi) - np.nanmin(evi))
         else:
-            Pscale = (1 + lswi) / 2.0  ## bud-burst to full canopy period
-            Pscale[evi >= evithr] = 1  ## full leaf expansion / full canopy period
+            # bud-burst to full canopy period
+            Pscale = (1 + lswi) / 2.0
+            # is 1 during phase two (Mahadevan et al, paragraph [14])
+            Pscale[evi >= evithr] = 1
+
+        # for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
+        if str(vegetation_type).lower() == "evergreen":
+            Pscale = 1
 
         df[(vegetation_type, "Pscale")] = Pscale
-
-        ## for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
-        if str(vegetation_type).lower() == "evergreen":
-            df[(vegetation_type, "Pscale")] = 1
 
         gee = (
             df_vprm.loc[vegetation_type, "lambda"]
