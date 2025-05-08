@@ -353,7 +353,7 @@ def calculate_vprm_emissions(
         df[(vegetation_type, "Pscale")] = Pscale
 
         ## for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
-        if vegetation_type == "Evergreen":
+        if str(vegetation_type).lower() == "evergreen":
             df[(vegetation_type, "Pscale")] = 1
 
         gee = (
