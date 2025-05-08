@@ -73,7 +73,8 @@ def test_urban_model(sample_data):
     df_vprm = df_vprm.copy()
 
     df[("T", "urban")] = [28, 32, 30, 29]
-    df["evi_ref"] = df[("vegetation_type_1", "evi")]
+    df[("vegetation_type_1", "evi_ref")] = df[("vegetation_type_1", "evi")]
+    df[("vegetation_type_2", "evi_ref")] = df[("vegetation_type_1", "evi")]
     df_vprm["isa"] = 0.5
 
     result = calculate_vprm_emissions(df, df_vprm, model="urban")
@@ -88,7 +89,8 @@ def test_urban_windbourne_data(sample_data):
     df_vprm = df_vprm.copy()
 
     df[("T", "urban")] = [28, 32, 30, 29]
-    df["evi_ref"] = df[("vegetation_type_1", "evi")]
+    df[("vegetation_type_1", "evi_ref")] = df[("vegetation_type_1", "evi")]
+    df[("vegetation_type_2", "evi_ref")] = df[("vegetation_type_1", "evi")]
     df_vprm["isa"] = 0.5
 
     result = calculate_vprm_emissions(df, df_vprm, model="urban_windbourne")

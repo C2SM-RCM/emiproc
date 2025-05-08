@@ -195,10 +195,11 @@ def calculate_vprm_emissions(
 
         Urban VPRM models:
 
-        - `evi_ref`: Reference EVI for the urban VPRM model.
+        - (vegetation_type, 'evi_ref'): Reference EVI for the urban VPRM model.
             This is the EVI at a non-urban reference site
             representing a baseline leaf-off, woody biomass respiration.
-        - ('T', 'urban'): Temperature in degC in the urban area
+        - ('T', 'urban'): Temperature in degC in the urban area, 
+            representing the urban heat island effect.
 
 
     :param df_vprm: Dataframe with the VPRM parameters.
@@ -345,8 +346,9 @@ def calculate_vprm_emissions(
             resp_h = (1 - isa) * resp_e_init / 2.0
 
             # Get reference  the yearly minimum of EVI at a reference Forest
-            # (representing leaf-off, woody biomass autotrophic respiration
-            evi_ref = df["evi_ref"]
+            # min of evi_ref is representing leaf-off,
+            # woody biomass autotrophic respiration
+            evi_ref = df[(vegetation_type, "evi_ref")]
             resp_a = (evi + np.nanmin(evi_ref) * isa) / evi_ref * resp_e_init / 2.0
 
             df[(vegetation_type, "resp_h")] = resp_h
