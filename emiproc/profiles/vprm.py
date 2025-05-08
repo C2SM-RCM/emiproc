@@ -26,7 +26,7 @@ class VPRM_Model(Enum):
 
     - `standard`: Standard VPRM model [Mahadevan_2008]_
     - `urban`: Original Urban VPRM model [Urban_VPRM_Hardiman_2017]_
-    - `urban_windbourne`: Urban VPRM model with windbourne [Urban_VPRM_Windbourne_2021]_
+    - `urban_windbourne`: Urban VPRM model with windbourne [Urban_VPRM_Winbourne_2021]_
     - `modified_groudji`: Modified VPRM model [VPRM_modified_groudji_2022]_
 
     """
