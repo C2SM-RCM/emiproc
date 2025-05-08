@@ -22,3 +22,8 @@ VPRM
 
 .. automodule:: emiproc.profiles.vprm
     :members:
+
+
+
+.. automodule:: emiproc.plots.vprm
+    :members:
