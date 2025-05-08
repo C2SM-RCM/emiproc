@@ -144,7 +144,7 @@ def export_hourly_emissions(
         coords=coords,
         attrs=netcdf_attributes,
     )
-    if unit in PER_M2_UNITS:
+    if grid.crs:
         # add the cell area
         areas = np.array(grid.cell_areas).reshape(grid.shape).T
         if not is_regular_grid:
