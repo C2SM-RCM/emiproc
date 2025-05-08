@@ -59,10 +59,12 @@ def test_calculate_vprm_emissions(sample_data):
     assert ("vegetation_type_1", "nee") in result.columns
     assert ("vegetation_type_2", "nee") in result.columns
 
+
 def test_bad_model(sample_data):
     df, df_vprm = sample_data
     with pytest.raises(ValueError):
         calculate_vprm_emissions(df, df_vprm, model="bad_model")
+
 
 def test_urban_model(sample_data):
     df, df_vprm = sample_data
@@ -71,9 +73,9 @@ def test_urban_model(sample_data):
     df_vprm = df_vprm.copy()
 
     df[("T", "urban")] = [28, 32, 30, 29]
-    df['evi_ref'] = df[('vegetation_type_1', 'evi')] 
-    df_vprm['isa'] = 0.5
-    
+    df["evi_ref"] = df[("vegetation_type_1", "evi")]
+    df_vprm["isa"] = 0.5
+
     result = calculate_vprm_emissions(df, df_vprm, model="urban")
     assert ("vegetation_type_1", "nee") in result.columns
     assert ("vegetation_type_2", "nee") in result.columns
@@ -86,12 +88,13 @@ def test_urban_windbourne_data(sample_data):
     df_vprm = df_vprm.copy()
 
     df[("T", "urban")] = [28, 32, 30, 29]
-    df['evi_ref'] = df[('vegetation_type_1', 'evi')] 
-    df_vprm['isa'] = 0.5
+    df["evi_ref"] = df[("vegetation_type_1", "evi")]
+    df_vprm["isa"] = 0.5
 
     result = calculate_vprm_emissions(df, df_vprm, model="urban_windbourne")
     assert ("vegetation_type_1", "nee") in result.columns
     assert ("vegetation_type_2", "nee") in result.columns
+
 
 def test_modified_vprm_model(sample_data):
     df, df_vprm = sample_data
@@ -100,14 +103,14 @@ def test_modified_vprm_model(sample_data):
     df_vprm["alpha1"] = 0.065
     df_vprm["alpha2"] = 0.0024
 
-    df_vprm['theta1'] = 0.116
-    df_vprm['theta2'] = -0.0005
-    df_vprm['theta3'] = 0.0009
+    df_vprm["theta1"] = 0.116
+    df_vprm["theta2"] = -0.0005
+    df_vprm["theta3"] = 0.0009
 
-    df_vprm['gamma'] = 4.61
+    df_vprm["gamma"] = 4.61
 
-    df_vprm['Tcrit'] = -15.
-    df_vprm['Tmult'] = 0.55
+    df_vprm["Tcrit"] = -15.0
+    df_vprm["Tmult"] = 0.55
 
     calculate_vprm_emissions(df, df_vprm, model="modified_groudji")
 
@@ -129,4 +132,3 @@ def test_calculate_vegetation_indices():
     assert evi.shape == (4,)
     assert lswi.shape == (4,)
     assert ndvi.shape == (4,)
-
