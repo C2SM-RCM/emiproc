@@ -69,9 +69,6 @@ def test_bad_model(sample_data):
 def test_urban_model(sample_data):
     df, df_vprm = sample_data
 
-    df = df.copy()
-    df_vprm = df_vprm.copy()
-
     df[("T", "urban")] = [28, 32, 30, 29]
     df[("vegetation_type_1", "evi_ref")] = df[("vegetation_type_1", "evi")]
     df[("vegetation_type_2", "evi_ref")] = df[("vegetation_type_1", "evi")]
@@ -85,9 +82,6 @@ def test_urban_model(sample_data):
 def test_urban_windbourne_data(sample_data):
     df, df_vprm = sample_data
 
-    df = df.copy()
-    df_vprm = df_vprm.copy()
-
     df[("T", "urban")] = [28, 32, 30, 29]
     df[("vegetation_type_1", "evi_ref")] = df[("vegetation_type_1", "evi")]
     df[("vegetation_type_2", "evi_ref")] = df[("vegetation_type_1", "evi")]
@@ -100,7 +94,6 @@ def test_urban_windbourne_data(sample_data):
 
 def test_modified_vprm_model(sample_data):
     df, df_vprm = sample_data
-    df_vprm = df_vprm.copy()
 
     df_vprm["alpha1"] = 0.065
     df_vprm["alpha2"] = 0.0024
