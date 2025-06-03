@@ -68,5 +68,6 @@ doc = [
     "sphinx_toolbox",
     "nbsphinx",
     "ipython",
+    "matplotlib",
 ]
 dev = ["black", "pytest"]
