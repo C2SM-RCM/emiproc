@@ -7,9 +7,11 @@ from emiproc.grids import HexGrid, RegularGrid, GeoPandasGrid
 # Regular grid for testing
 # Note that this grid is big enough to include the inventories from the
 # test_utils/test_inventories.py module
-regular_grid = RegularGrid(
+reg_grid_kwargs = dict(
     xmin=-1, xmax=5, ymin=-2, ymax=3, nx=10, ny=15, name="Test Regular Grid"
 )
+regular_grid = RegularGrid(**reg_grid_kwargs)
+regular_grid_no_crs = RegularGrid(**reg_grid_kwargs, crs=None)
 
 hex_grid = HexGrid(xmin=-1, xmax=5, ymin=-2, ymax=3, nx=10, ny=15, name="Test Hex Grid")
 
