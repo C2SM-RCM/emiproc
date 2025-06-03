@@ -307,7 +307,7 @@ def plot_inventory(
                     extent=[x_min, x_max, y_min, y_max],
                 )
             else:
-                # Plot only polygons, other wise, it will be wierd with the mulipolygon
+                # Plot only polygons, otherwise, it will be weird with the multipolygon
                 # hiding parts of the grid
                 mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
                 im = PolyCollection(
