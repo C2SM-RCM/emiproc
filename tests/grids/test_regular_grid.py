@@ -1,6 +1,7 @@
-import pytest
 import geopandas as gpd
 import pandas as pd
+import pytest
+
 from emiproc.grids import RegularGrid
 from emiproc.tests_utils.test_grids import regular_grid
 
