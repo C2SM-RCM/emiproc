@@ -164,7 +164,7 @@ def plot_inventory(
     :arg reverse_y: if True, will reverse the y-axis.
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     :arg country_borders_kwargs: additional keyword arguments for the country borders.
-        See `geopandas.Geoseries.plot` for more information. 
+        See `geopandas.Geoseries.plot` for more information.
     """
 
     logger = logging.getLogger(__name__)
@@ -307,13 +307,16 @@ def plot_inventory(
                     extent=[x_min, x_max, y_min, y_max],
                 )
             else:
+                # Plot only polygons, otherwise, it will be weird with the multipolygon
+                # hiding parts of the grid
+                mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
                 im = PolyCollection(
-                    grid.corners,
+                    grid.corners[mask_polygons],
                     cmap=this_cmap,
                     norm=norm,
                     **poly_collection_kwargs,
                 )
-                im.set_array(emissions.flatten())
+                im.set_array(emissions.flatten()[mask_polygons])
                 ax.add_collection(im)
             add_ax_info(ax)
             ax.set_title(f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y")
@@ -363,13 +366,14 @@ def plot_inventory(
                 extent=[x_min, x_max, y_min, y_max],
             )
         else:
+            mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
             im = PolyCollection(
-                grid.corners,
+                grid.corners[mask_polygons],
                 cmap=this_cmap,
                 norm=norm,
                 **poly_collection_kwargs,
             )
-            im.set_array(total_sub_emissions.flatten())
+            im.set_array(total_sub_emissions.flatten()[mask_polygons])
             ax.add_collection(im)
 
         ax.set_title(

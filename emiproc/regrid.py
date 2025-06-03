@@ -417,7 +417,7 @@ def remap_inventory(
         weights_file = Path(weights_file)
 
     if isinstance(grid, Grid) or issubclass(type(grid), Grid):
-        grid_cells = gpd.GeoSeries(grid.cells_as_polylist, crs=grid.crs)
+        grid_cells = grid.gdf.geometry.reset_index(drop=True)
     elif isinstance(grid, gpd.GeoSeries):
         grid_cells = grid.reset_index(drop=True)
     else:
