@@ -170,8 +170,8 @@ def plot_inventory(
     logger = logging.getLogger(__name__)
 
     grid = inv.grid
-    if grid.crs == 2056: #swiss grid
-        grid_shape = (grid.ny,grid.nx)
+    if grid.crs == 2056: # swiss grid
+        grid_shape = (grid.nx,grid.ny)
     else:
         grid_shape = (grid.nx, grid.ny)
     is_regular = issubclass(type(grid), RegularGrid)
@@ -201,7 +201,10 @@ def plot_inventory(
         logger.info("Only one category, will plot only the total emissions")
         total_only = True
 
-    x_min, y_min, x_max, y_max = grid.gdf.total_bounds
+    if grid.crs == 2056: # need to transpose swiss grid
+        y_min, x_min, y_max, x_max = grid.gdf.total_bounds
+    else:
+        x_min, y_min, x_max, y_max = grid.gdf.total_bounds
 
     if not spec_lims:
         spec_lims = (x_min, x_max, y_min, y_max)
@@ -306,12 +309,12 @@ def plot_inventory(
 
             norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
             if is_regular:
-                if grid.crs == 2056:
+                if grid.crs == 2056: # need to transpoe swiss grid
                     im = ax.imshow(
-                        emissions.T[:, ::-1],
+                        emissions.T[:,::-1], 
                         norm=norm,
                         cmap=this_cmap,
-                        extent=[x_min, x_max, y_min, y_max],
+                        extent=[x_min, x_max, y_min, y_max ],
                     )
                 else:
                     im = ax.imshow(
@@ -373,13 +376,14 @@ def plot_inventory(
         norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
         if is_regular:
-            if grid.crs == 2056:
+            if grid.crs == 2056: # need to transpose swiss grid
                 im = ax.imshow(
-                    total_sub_emissions.T[:, ::-1],
+                    total_sub_emissions.T[:,::-1], 
                     norm=norm,
                     cmap=this_cmap,
-                    extent=[x_min, x_max, y_min, y_max],
+                    extent=[x_min, x_max, y_min, y_max, ],
                 )
+                ax.invert_yaxis() 
             else:
                 im = ax.imshow(
                     total_sub_emissions,
