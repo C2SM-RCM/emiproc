@@ -92,7 +92,6 @@ class SwissRasters(Inventory):
         )
         df_emissions = df_emissions.set_index("cat_sub")
         self.df_emissions = df_emissions
-
         year_str = str(year)
 
         # Check if selected year is in dataset
@@ -193,7 +192,6 @@ class SwissRasters(Inventory):
         # ---------------------------------------------------------------------
 
         rasters_dir = Path(rasters_dir)
-
         # Grids that depend on substance (road transport)
         rasters_str_dir = Path(rasters_str_dir)
         str_rasters = [
@@ -205,7 +203,6 @@ class SwissRasters(Inventory):
 
         # Grids that do not depend on substance
         normal_rasters = [r for r in rasters_dir.glob("*.asc")]
-
         self.all_raster_files = normal_rasters + str_rasters
 
         self.raster_categories = [r.stem for r in normal_rasters] + [

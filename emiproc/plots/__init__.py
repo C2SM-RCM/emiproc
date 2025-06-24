@@ -170,7 +170,10 @@ def plot_inventory(
     logger = logging.getLogger(__name__)
 
     grid = inv.grid
-    grid_shape = (grid.nx, grid.ny)
+    if grid.crs == 2056: #swiss grid
+        grid_shape = (grid.ny,grid.nx)
+    else:
+        grid_shape = (grid.nx, grid.ny)
     is_regular = issubclass(type(grid), RegularGrid)
     logger.info(f"Grid is regular: {is_regular}")
 
@@ -213,6 +216,9 @@ def plot_inventory(
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
+        # If grid.crs is 2056 (swiss grid), reproject the country boundaries
+        if getattr(grid, "crs", None) == 2056:
+            gdf_countries = gdf_countries.to_crs(epsg=2056)
         # Crop the countries to the grid
         gdf_countries = gdf_countries.cx[x_min:x_max, y_min:y_max].clip_by_rect(
             x_min, y_min, x_max, y_max
@@ -300,12 +306,20 @@ def plot_inventory(
 
             norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
             if is_regular:
-                im = ax.imshow(
-                    emissions,
-                    norm=norm,
-                    cmap=this_cmap,
-                    extent=[x_min, x_max, y_min, y_max],
-                )
+                if grid.crs == 2056:
+                    im = ax.imshow(
+                        emissions.T[:, ::-1],
+                        norm=norm,
+                        cmap=this_cmap,
+                        extent=[x_min, x_max, y_min, y_max],
+                    )
+                else:
+                    im = ax.imshow(
+                        emissions,
+                        norm=norm,
+                        cmap=this_cmap,
+                        extent=[x_min, x_max, y_min, y_max],
+                    )
             else:
                 # Plot only polygons, otherwise, it will be weird with the multipolygon
                 # hiding parts of the grid
@@ -359,12 +373,20 @@ def plot_inventory(
         norm, this_cmap = get_norm_and_cmap(emission_non_zero_values)
 
         if is_regular:
-            im = ax.imshow(
-                total_sub_emissions,
-                norm=norm,
-                cmap=this_cmap,
-                extent=[x_min, x_max, y_min, y_max],
-            )
+            if grid.crs == 2056:
+                im = ax.imshow(
+                    total_sub_emissions.T[:, ::-1],
+                    norm=norm,
+                    cmap=this_cmap,
+                    extent=[x_min, x_max, y_min, y_max],
+                )
+            else:
+                im = ax.imshow(
+                    total_sub_emissions,
+                    norm=norm,
+                    cmap=this_cmap,
+                    extent=[x_min, x_max, y_min, y_max],
+                )
         else:
             mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
             im = PolyCollection(
