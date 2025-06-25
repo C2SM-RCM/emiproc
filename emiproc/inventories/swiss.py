@@ -2,7 +2,7 @@ from __future__ import annotations
 from enum import Enum, auto
 from os import PathLike
 from pathlib import Path
-from emiproc.grids import LV95, SwissGrid
+from emiproc.grids import LV95, RegularGrid
 from emiproc.inventories import Category, Inventory, Substance
 import pandas as pd
 import geopandas as gpd
@@ -35,7 +35,7 @@ class SwissRasters(Inventory):
     """An inventory of Switzerland based on swiss rasters."""
 
     edge_size: int = 100
-    grid: SwissGrid
+    grid: RegularGrid
     df_eipwp: gpd.GeoDataFrame
     df_emissions: pd.DataFrame
     emission: pd.Series
@@ -264,8 +264,7 @@ class SwissRasters(Inventory):
         self.requires_grid = requires_grid
 
         # Grid on which the inventory is created
-        self.grid = SwissGrid(
-            "ch_emissions",
+        self.grid = RegularGrid(
             nx=3600,
             ny=2400,
             xmin=2480000,
@@ -273,24 +272,15 @@ class SwissRasters(Inventory):
             dx=self.edge_size,
             dy=self.edge_size,
             crs=LV95,
-        )
-
-        xs = np.arange(
-            self.grid.xmin,
-            self.grid.xmin + self.grid.nx * self.grid.dx,
-            step=self.grid.dx,
-        )
-        ys = np.arange(
-            self.grid.ymin,
-            self.grid.ymin + self.grid.ny * self.grid.dy,
-            step=self.grid.dy,
+            name="swiss_raster_grid",
         )
 
         mapping = {}
 
         # Loading Raster categories and assigning respective emissions
         for raster_file, category in zip(self.all_raster_files, self.raster_categories):
-            _raster_array = self.load_raster(raster_file).reshape(-1)
+            # Apply reshaping to correspond to emiproc grid definition
+            _raster_array = self.load_raster(raster_file).T[:, ::-1].reshape(-1)
             if "_" in category:
                 split = category.split("_")
                 cat = split[0]
@@ -310,29 +300,12 @@ class SwissRasters(Inventory):
                     if total_emissions > 0:
                         mapping[(category, sub)] = _raster_array * total_emissions
 
-        if self.requires_grid:
-            x_coords, y_coords = np.meshgrid(xs, ys[::-1])
-            # Reshape to 1D
-            x_coords = x_coords.flatten()
-            y_coords = y_coords.flatten()
-            dx = self.grid.dx
-            dy = self.grid.dy
-            coords = np.array(
-                [
-                    [x, y]
-                    for x, y in zip(
-                        [x_coords, x_coords, x_coords + dx, x_coords + dx],
-                        [y_coords, y_coords + dy, y_coords + dy, y_coords],
-                    )
-                ]
-            )
-            coords = np.rollaxis(coords, -1, 0)
         self.gdf = gpd.GeoDataFrame(
             mapping,
             crs=LV95,
             # This vector is same as raster data reshaped using reshape(-1)
             geometry=(
-                polygons(coords)
+                self.grid.gdf.geometry
                 if self.requires_grid
                 else np.full(self.grid.nx * self.grid.ny, np.nan)
             ),

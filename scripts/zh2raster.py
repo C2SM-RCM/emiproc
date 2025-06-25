@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 
 from emiproc.plots import plot_inventory
 from emiproc.exports.netcdf import nc_cf_attributes
-from emiproc.grids import LV95, WGS84, SwissGrid, RegularGrid
+from emiproc.grids import LV95, WGS84, RegularGrid
 from emiproc.inventories.swiss import SwissRasters
 from emiproc.inventories.utils import (
     add_inventories,

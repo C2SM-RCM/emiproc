@@ -213,6 +213,8 @@ def plot_inventory(
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
+        # Set to the same CRS as the grid
+        gdf_countries = gdf_countries.to_crs(grid.crs)
         # Crop the countries to the grid
         gdf_countries = gdf_countries.cx[x_min:x_max, y_min:y_max].clip_by_rect(
             x_min, y_min, x_max, y_max
