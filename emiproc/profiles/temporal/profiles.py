@@ -234,9 +234,6 @@ AnyTimeProfile = Union[
 ]
 
 
-
-
-
 # Maps temporal profiles to their corrected version
 leap_year_corrected: dict[TemporalProfile, TemporalProfile] = {
     HourOfYearProfile: HourOfLeapYearProfile,

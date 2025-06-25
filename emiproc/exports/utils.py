@@ -26,9 +26,9 @@ def get_temporally_scaled_array(
     ```
 
     .. warning::
-        If you use this function and specify a time frequency larger than the 
+        If you use this function and specify a time frequency larger than the
         temporal resolution of the profiles, you might perform undersampling.
-        This means for example that if you sample with a daily frequency and 
+        This means for example that if you sample with a daily frequency and
         you have hour of day profiles, you will use the same value in the the
         profile, which will lead to a wrong result.
 
@@ -121,9 +121,7 @@ def get_temporally_scaled_array(
     )
 
     # Remove the -1 values
-    indices_to_use_cleaned = indices_to_use.where(
-        indices_to_use != -1, 0
-    ) 
+    indices_to_use_cleaned = indices_to_use.where(indices_to_use != -1, 0)
 
     # Get the proper scaling factors for each index
     scaling_factors_at_times = da_scaling_factors.loc[
@@ -131,9 +129,7 @@ def get_temporally_scaled_array(
     ]
 
     # Set the missing indices to 1.0
-    scaling_factor_at_times = scaling_factors_at_times.where(
-        indices_to_use != -1, 1.0
-    )  
+    scaling_factor_at_times = scaling_factors_at_times.where(indices_to_use != -1, 1.0)
 
     # Merge all the time factors together
     scaling_factor_at_times = scaling_factors_at_times.prod("profile")
