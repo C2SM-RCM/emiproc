@@ -1,4 +1,5 @@
 """Test case of a grid that intersects a shape."""
+
 import shutil
 import numpy as np
 import geopandas as gpd

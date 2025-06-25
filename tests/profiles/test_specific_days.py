@@ -1,11 +1,12 @@
 """Test for the specific days profile."""
+
 from __future__ import annotations
 
 
 import pytest
 from emiproc.profiles.temporal.specific_days import SpecificDay, days_of_specific_day
-"""Test for the specific days profile."""
 
+"""Test for the specific days profile."""
 
 
 def test_specific_day_from_day_number():

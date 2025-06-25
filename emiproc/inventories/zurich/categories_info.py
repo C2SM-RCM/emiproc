@@ -1,4 +1,5 @@
 """Information about the categories."""
+
 from emiproc.inventories import EmissionInfo
 
 
@@ -99,4 +100,3 @@ ZURICH_SOURCES = {
         comment="new junk Cat, group with other category?",
     ),
 }
-

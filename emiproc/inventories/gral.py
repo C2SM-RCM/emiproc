@@ -1,4 +1,5 @@
 """Read an the input for a gramgral simulation as an inventory."""
+
 from __future__ import annotations
 from enum import Enum, IntEnum
 import json
@@ -44,6 +45,7 @@ class LinesCols(IntEnum):
     EXTENSION = 10
     EMISSION = 13  # kg/h/km
 
+
 class CadastreCols(IntEnum):
     """Columns of the cadastre file."""
 
@@ -56,11 +58,12 @@ class CadastreCols(IntEnum):
     EMISSION = 6  # kg/h
     SOURCE_GROUP = 10
 
+
 class GralInventory(Inventory):
     """Gral inventory.
 
     Load the inputs of a gral simulation.
-    
+
     .. warning:: There are some things not implemented yet:
         - The portals file
         - Emission Infos (exit velocity, heights, ...)
@@ -155,7 +158,9 @@ class GralInventory(Inventory):
             if substance not in self.gdfs[category].columns:
                 self.gdfs[category][substance] = 0
             # Now we can append
-            self.gdfs[category] = pd.concat([self.gdfs[category], gdf], ignore_index=True)
+            self.gdfs[category] = pd.concat(
+                [self.gdfs[category], gdf], ignore_index=True
+            )
 
     def _read_points(self) -> None:
         """Read the point sources."""
@@ -174,9 +179,12 @@ class GralInventory(Inventory):
             # Create the GeoDataFrame
             emission_col = df.columns[PointsCols.EMISSION]
             # Select only the emission column renamed to the substance
-            emissions_values = df[mask_source_group].rename(
-                columns={emission_col: substance}
-            )[substance].to_numpy().astype(float)
+            emissions_values = (
+                df[mask_source_group]
+                .rename(columns={emission_col: substance})[substance]
+                .to_numpy()
+                .astype(float)
+            )
             # Convert the units from kg/h to kg/y
             emissions_values *= HOUR_PER_YR
             gdf = gpd.GeoDataFrame(
@@ -224,9 +232,11 @@ class GralInventory(Inventory):
             self.logger.debug(f"{gs_lines=}")
 
             # Select only the emission column renamed to the substance
-            emission_values = df[mask_source_group].rename(
-                columns={emission_col: substance}
-            )[substance].to_numpy()
+            emission_values = (
+                df[mask_source_group]
+                .rename(columns={emission_col: substance})[substance]
+                .to_numpy()
+            )
             # Convert the units from kg/h/km to kg/y(/shape)
             line_lenghts = gs_lines.length * 1e-3
             emission_values *= HOUR_PER_YR * line_lenghts
@@ -256,30 +266,44 @@ class GralInventory(Inventory):
         for source_group in source_groups:
             substance, category = self._get_sub_cat(source_group)
             self.logger.debug(f"{source_group=}, {substance=}, {category=}")
-            mask_source_group = df[df.columns[CadastreCols.SOURCE_GROUP]] == source_group
+            mask_source_group = (
+                df[df.columns[CadastreCols.SOURCE_GROUP]] == source_group
+            )
             # Create the GeoDataFrame
             emission_col = df.columns[CadastreCols.EMISSION]
             # Create geseries with the start points and end points
             df_group = df.loc[mask_source_group]
 
             gs_sqaures = gpd.GeoSeries(
-                [Polygon(((x, y), (x + x_ext, y), (x + x_ext, y + y_ext), (x, y + y_ext), (x, y))) 
-                for x, y, x_ext, y_ext in zip(
-                    df_group[df.columns[CadastreCols.X]],
-                    df_group[df.columns[CadastreCols.Y]],
-                    df_group[df.columns[CadastreCols.X_EXTENSION]],
-                    df_group[df.columns[CadastreCols.Y_EXTENSION]],
-                )],
+                [
+                    Polygon(
+                        (
+                            (x, y),
+                            (x + x_ext, y),
+                            (x + x_ext, y + y_ext),
+                            (x, y + y_ext),
+                            (x, y),
+                        )
+                    )
+                    for x, y, x_ext, y_ext in zip(
+                        df_group[df.columns[CadastreCols.X]],
+                        df_group[df.columns[CadastreCols.Y]],
+                        df_group[df.columns[CadastreCols.X_EXTENSION]],
+                        df_group[df.columns[CadastreCols.Y_EXTENSION]],
+                    )
+                ],
                 crs=self._requested_crs,
             )
             self.logger.debug(f"{gs_sqaures=}")
 
             # Select only the emission column renamed to the substance
-            emission_values = df[mask_source_group].rename(
-                columns={emission_col: substance}
-            )[substance].to_numpy()
+            emission_values = (
+                df[mask_source_group]
+                .rename(columns={emission_col: substance})[substance]
+                .to_numpy()
+            )
             # Convert the units from kg/h(/shape?) to kg/y(/shape)
-            emission_values *= HOUR_PER_YR 
+            emission_values *= HOUR_PER_YR
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame
@@ -291,8 +315,6 @@ class GralInventory(Inventory):
             self.logger.debug(f"{gdf=}")
             self._add_gdf(gdf, substance, category)
 
-
-
     def _read_portals(self) -> None:
         """Read the portals sources."""
         if not self.file_portals.is_file():
@@ -303,7 +325,3 @@ class GralInventory(Inventory):
                 f"{self.file_portals=} found. But reading portals is not implemented"
                 " yet."
             )
-
-
-
-

@@ -17,7 +17,6 @@ from emiproc.profiles.temporal.specific_days import SpecificDay
 logger = logging.getLogger(__name__)
 
 
-
 def _get_type(
     t: tuple[type[SpecificDayProfile], SpecificDay] | AnyTimeProfile,
 ) -> type[SpecificDayProfile]:
@@ -25,7 +24,7 @@ def _get_type(
         return t[0]
     return t
 
-  
+
 def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     """Rescale the ratios to sum up to 1.
 
@@ -42,7 +41,6 @@ def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     return_[:, mask_zero] = 1.0 / ratios.shape[0]
 
     return return_
-
 
 
 class CompositeTemporalProfiles:

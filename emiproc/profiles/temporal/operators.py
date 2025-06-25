@@ -190,9 +190,7 @@ def interpolate_profiles_hour_of_year(
     offset = 0
     for t in profiles.types:
         if _get_type(t) == SpecificDayProfile:
-            raise ValueError(
-                f"Cannot interpolate {t=}, it is a specific day profile."
-            )
+            raise ValueError(f"Cannot interpolate {t=}, it is a specific day profile.")
         # create an array with the ratios
         t_len = t.size
         this_ratios = ratios[:, offset : offset + t_len]

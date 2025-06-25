@@ -20,7 +20,7 @@ class SpecificDay(Enum):
     # One of the 5 first days
     WEEKDAY = auto()
 
-    # Only the 4 first weekdays 
+    # Only the 4 first weekdays
     WEEKDAY_4 = auto()
 
     # One of the 2 last days
@@ -64,7 +64,7 @@ def days_of_specific_day(specific_day: SpecificDay) -> list[SpecificDay]:
 
 def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
     """Return the days corresponding for a specific day.
-    
+
     This agrees with the pandas convention where Monday is 0 and Sunday is 6.
     """
 
@@ -95,4 +95,3 @@ def get_days_as_ints(specific_day: SpecificDay) -> list[int]:
         raise NotImplementedError(
             f"{specific_day=} is implemented in  {get_days_as_ints}"
         )
-

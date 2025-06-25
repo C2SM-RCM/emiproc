@@ -396,7 +396,7 @@ def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:
         kwargs = {}
         if profile_class is SpecificDayProfile:
             # get the type of the profile (remove the diurn_ prefix)
-            profile_type = '_'.join(key.split("_")[1:])
+            profile_type = "_".join(key.split("_")[1:])
             # Add the selected day
             kwargs["specific_day"] = SpecificDay(profile_type)
 

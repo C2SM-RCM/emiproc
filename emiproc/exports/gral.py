@@ -33,7 +33,7 @@ The following methods are applied:
     The Multi-lines have to be split into single lines, which increases the
     size of the problem.
 - areas: polygons have to be rasterized into squares before writing them.
-- tunnels: not implemented 
+- tunnels: not implemented
 
 
 
