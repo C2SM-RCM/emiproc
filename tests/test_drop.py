@@ -8,11 +8,7 @@ def test_inv_with_gdfs():
 
     categories = ["adf", "blek", "liku"]
 
-
-    inv_dropped = drop(
-        inv_with_pnt_sources, substances=["CO2"], categories=categories
-    )
-
+    inv_dropped = drop(inv_with_pnt_sources, substances=["CO2"], categories=categories)
 
     # Check the the categories are dropped
     assert all([cat not in inv_dropped.categories for cat in categories])
@@ -28,9 +24,7 @@ def test_inv_drop_cat():
 
     categories = ["adf"]
 
-    inv_dropped = drop(
-        inv, categories=categories
-    )
+    inv_dropped = drop(inv, categories=categories)
 
     assert "adf" not in inv_dropped.categories
     assert "liku" in inv_dropped.categories
@@ -42,9 +36,7 @@ def test_inv_drop_sub():
 
     subtances = ["CO2"]
 
-    inv_dropped = drop(
-        inv, substances=subtances
-    )
+    inv_dropped = drop(inv, substances=subtances)
 
     assert "CO2" not in inv_dropped.substances
     assert "NH3" in inv_dropped.substances
@@ -55,9 +47,7 @@ def test_inv_drop_sub():
 def test_keep_instead_of_drop():
     subtances = ["CO2"]
 
-    inv_dropped = drop(
-        inv, substances=subtances, keep_instead_of_drop=True
-    )
+    inv_dropped = drop(inv, substances=subtances, keep_instead_of_drop=True)
 
     assert "CO2" in inv_dropped.substances
     assert "NH3" not in inv_dropped.substances
