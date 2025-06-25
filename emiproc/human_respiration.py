@@ -1,8 +1,4 @@
-"""Emiproc provides tools to help generate human respiration emissions.
-
-
-
-"""
+"""Emiproc provides tools to help generate human respiration emissions."""
 
 from __future__ import annotations
 
