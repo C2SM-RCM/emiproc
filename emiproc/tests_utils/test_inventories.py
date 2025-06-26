@@ -17,10 +17,10 @@ serie = basic_serie
 inv = Inventory.from_gdf(
     gpd.GeoDataFrame(
         {
-            ("adf", "CH4"): [i + 3 for i in range(len(serie))],
-            ("adf", "CO2"): [i for i in range(len(serie))],
-            ("liku", "CO2"): [i for i in range(len(serie))],
-            ("test", "NH3"): [i + 1 for i in range(len(serie))],
+            ("adf", "CH4"): [float(i + 3) for i in range(len(serie))],
+            ("adf", "CO2"): [float(i) for i in range(len(serie))],
+            ("liku", "CO2"): [float(i) for i in range(len(serie))],
+            ("test", "NH3"): [float(i) + 1 for i in range(len(serie))],
         },
         geometry=serie,
     )
@@ -86,10 +86,10 @@ inv_with_gdfs_bad_indexes = Inventory.from_gdf(
 inv_on_grid_serie2 = Inventory.from_gdf(
     gpd.GeoDataFrame(
         {
-            ("adf", "CH4"): [i + 3 for i in range(len(basic_serie_2))],
-            ("adf", "CO2"): [i for i in range(len(basic_serie_2))],
-            ("liku", "CO2"): [i for i in range(len(basic_serie_2))],
-            ("test", "NH3"): [i + 1 for i in range(len(basic_serie_2))],
+            ("adf", "CH4"): [float(i + 3) for i in range(len(basic_serie_2))],
+            ("adf", "CO2"): [float(i) for i in range(len(basic_serie_2))],
+            ("liku", "CO2"): [float(i) for i in range(len(basic_serie_2))],
+            ("test", "NH3"): [float(i + 1) for i in range(len(basic_serie_2))],
         },
         geometry=basic_serie_2,
     )
@@ -98,10 +98,10 @@ inv_on_grid_serie2 = Inventory.from_gdf(
 inv_on_grid_serie2_bis = Inventory.from_gdf(
     gpd.GeoDataFrame(
         {
-            ("adf", "CH4"): [i + 3 for i in range(len(basic_serie_of_size_2))],
-            ("adf", "CO2"): [i for i in range(len(basic_serie_of_size_2))],
-            ("liku", "CO2"): [i for i in range(len(basic_serie_of_size_2))],
-            ("test", "NH3"): [i + 1 for i in range(len(basic_serie_of_size_2))],
+            ("adf", "CH4"): [float(i + 3) for i in range(len(basic_serie_of_size_2))],
+            ("adf", "CO2"): [float(i) for i in range(len(basic_serie_of_size_2))],
+            ("liku", "CO2"): [float(i) for i in range(len(basic_serie_of_size_2))],
+            ("test", "NH3"): [float(i + 1) for i in range(len(basic_serie_of_size_2))],
         },
         geometry=basic_serie_of_size_2,
     )
