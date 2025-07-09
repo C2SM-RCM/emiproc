@@ -1,4 +1,5 @@
 """Test some basic features of the inventory profiles."""
+
 import xarray as xr
 from pathlib import Path
 import numpy as np
@@ -215,44 +216,50 @@ def test_combination_over_dimensions():
     )
     check_valid_vertical_profile(new_profiles)
 
+
 def test_group_profiles_categories():
 
-    weights = get_weights_of_gdf_profiles(vertical_profiles.inv.gdf, vertical_profiles.inv.v_profiles_indexes)
-    new_profiles,new_indices = group_profiles_indexes(
-        profiles = vertical_profiles.inv.v_profiles,
-        profiles_indexes = vertical_profiles.inv.v_profiles_indexes,
+    weights = get_weights_of_gdf_profiles(
+        vertical_profiles.inv.gdf, vertical_profiles.inv.v_profiles_indexes
+    )
+    new_profiles, new_indices = group_profiles_indexes(
+        profiles=vertical_profiles.inv.v_profiles,
+        profiles_indexes=vertical_profiles.inv.v_profiles_indexes,
         indexes_weights=weights,
         categories_group=vertical_profiles.inv_groups_dict,
     )
-    
+
+
 def test_group_profiles_substances():
 
-    weights = get_weights_of_gdf_profiles(vertical_profiles.inv.gdf, vertical_profiles.inv.v_profiles_indexes)
-    new_profiles,new_indices = group_profiles_indexes(
-        profiles = vertical_profiles.inv.v_profiles,
-        profiles_indexes = vertical_profiles.inv.v_profiles_indexes,
+    weights = get_weights_of_gdf_profiles(
+        vertical_profiles.inv.gdf, vertical_profiles.inv.v_profiles_indexes
+    )
+    new_profiles, new_indices = group_profiles_indexes(
+        profiles=vertical_profiles.inv.v_profiles,
+        profiles_indexes=vertical_profiles.inv.v_profiles_indexes,
         indexes_weights=weights,
         categories_group=vertical_profiles.inv_groups_subs_dict,
-        groupping_dimension="substance"
+        groupping_dimension="substance",
     )
-    
-    
+
 
 def test_can_group_profiles_in_inv():
-    group_categories(
-        vertical_profiles.inv, vertical_profiles.inv_groups_dict
-    )
-
+    group_categories(vertical_profiles.inv, vertical_profiles.inv_groups_dict)
 
 
 def test_point_sources_are_just_appened():
-    g_inv = group_categories(vertical_profiles.inv, {"new_cat": ["test_cat", "test_cat2", "test_cat3"]})
+    g_inv = group_categories(
+        vertical_profiles.inv, {"new_cat": ["test_cat", "test_cat2", "test_cat3"]}
+    )
 
     assert len(g_inv.gdfs["new_cat"]) == 8
     # Check that the data was correctly appended
     assert np.all(g_inv.gdfs["new_cat"]["CO2"] == [1, 2, 3, 1.2, 2.7, 8, 1, 2])
     assert np.all(g_inv.gdfs["new_cat"]["CH4"] == [0, 0, 0, 4, 2, 8, 0, 0])
-    assert np.all(g_inv.gdfs["new_cat"]["__v_profile__"] == [-1, 2, 1, 1, 2, -1, -1, -1])
+    assert np.all(
+        g_inv.gdfs["new_cat"]["__v_profile__"] == [-1, 2, 1, 1, 2, -1, -1, -1]
+    )
 
 
 #  Create hourly profiles
@@ -281,4 +288,4 @@ def check_valid_profiles_indexes_array(inv: Inventory, index_array: xr.DataArray
 
 if __name__ == "__main__":
     pytest.main([__file__])
-    #test_group_profiles_substances()
+    # test_group_profiles_substances()

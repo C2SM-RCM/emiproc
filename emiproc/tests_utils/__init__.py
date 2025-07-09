@@ -1,4 +1,5 @@
 """Utilities for testing emiproc."""
+
 import emiproc
 from pathlib import Path
 
