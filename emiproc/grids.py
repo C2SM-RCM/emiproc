@@ -171,11 +171,11 @@ class Grid:
     @cached_property
     def cell_areas(self) -> Iterable[float]:
         """Return an array containing the area of each cell in m2."""
-        return (
-            gpd.GeoSeries(self.cells_as_polylist, crs=self.crs)
+        geom = self.gdf.geometry
+        if geom.crs is not None:
             # Convert to WGS84 to get the area in m^2
-            .to_crs(epsg=WGS84_NSIDC).area
-        )
+            geom = geom.to_crs(epsg=WGS84_NSIDC)
+        return geom.area.astype(float)
 
     @cached_property
     def centers(self) -> gpd.GeoSeries:
@@ -598,6 +598,11 @@ class TNOGrid(RegularGrid):
 
         self.nx = len(self.lon_var)
         self.ny = len(self.lat_var)
+
+        self.xmin = self.lon_var.min()
+        self.xmax = self.lon_var.max()
+        self.ymin = self.lat_var.min()
+        self.ymax = self.lat_var.max()
 
         # The lat/lon values are the cell-centers
         self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)

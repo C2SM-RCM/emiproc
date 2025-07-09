@@ -1,15 +1,13 @@
 from pathlib import Path
 
-
-import xarray as xr
-import numpy as np
 import geopandas as gpd
-from shapely.creation import polygons
+import numpy as np
+import xarray as xr
 
-from emiproc.grids import WGS84_PROJECTED, GeoPandasGrid
+from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal.profiles import MounthsProfile
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.profiles import MounthsProfile
 
 
 class SaunoisInventory(Inventory):
@@ -62,53 +60,12 @@ class SaunoisInventory(Inventory):
         # Use a simple integer index for the cell
         da_stacked["cell"] = np.arange(da_stacked.sizes["cell"])
 
-        # Make the geometry
-        lon = da_stacked_all["lon"].values
-        lat = da_stacked_all["lat"].values
-
-        lon_range = da["lon"].values
-        lat_range = da["lat"].values
-
-        d_lon = np.round(np.diff(lon_range)[0], 8)
-        d_lat = np.round(np.diff(lat_range)[0], 8)
-        # Ensure the spacing is constant
-        assert np.allclose(
-            np.diff(lon_range), d_lon
-        ), "Longitude spacing is not constant"
-        assert np.allclose(
-            np.diff(lat_range), d_lat
-        ), "Latitude spacing is not constant"
-
-        # Reconstruct the grid vertices
-        coords = np.array(
-            [
-                # Bottom left
-                [
-                    lon - d_lon / 2,
-                    lat - d_lat / 2,
-                ],
-                # Bottom right
-                [
-                    lon + d_lon / 2,
-                    lat - d_lat / 2,
-                ],
-                # Top right
-                [
-                    lon + d_lon / 2,
-                    lat + d_lat / 2,
-                ],
-                # Top left
-                [
-                    lon - d_lon / 2,
-                    lat + d_lat / 2,
-                ],
-            ]
+        self.grid = RegularGrid.from_centers(
+            x_centers=da["lon"].values,
+            y_centers=da["lat"].values,
+            name="Saunois_Grid",
+            rounding=2,
         )
-
-        coords = np.rollaxis(coords, -1, 0)
-
-        geometry = gpd.GeoSeries(polygons(coords), crs="WGS84")
-        self.grid = GeoPandasGrid(geometry, shape=(len(lon_range), len(lat_range)))
 
         # Unit conversion
         # Units are gCH4/m2/day
@@ -123,8 +80,10 @@ class SaunoisInventory(Inventory):
             )
         ).sum(dim="time")
         # kg/g * m2/cell
-        converstion_factor = 1e-3 * geometry.to_crs(WGS84_PROJECTED).area
-        da_total = da_stacked_total * converstion_factor.values
+        conversion_factor = 1e-3 * self.grid.cell_areas
+        da_total = da_stacked_total * xr.DataArray(
+            conversion_factor, dims="cell", coords={"cell": da_stacked["cell"]}
+        )
 
         # Convert to pandas
         df = (
@@ -132,7 +91,7 @@ class SaunoisInventory(Inventory):
             .drop_vars(["cell"])
             .to_pandas()
         )
-        self.gdf = gpd.GeoDataFrame(df, geometry=geometry)
+        self.gdf = gpd.GeoDataFrame(df, geometry=self.grid.gdf.geometry)
         self.gdfs = {}
 
         # Generate the profiles
