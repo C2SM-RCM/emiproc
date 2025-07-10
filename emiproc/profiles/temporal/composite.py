@@ -131,6 +131,8 @@ class CompositeTemporalProfiles:
         out = f"CompositeProfiles({len(self)} profiles "
         if len(self) < 10:
             out += f"from {[profile_name(t) for t in self.types]})"
+        else:
+            out += f"from {len(self.types)} types)"
         return out
 
     def __len__(self) -> int:

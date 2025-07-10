@@ -357,7 +357,9 @@ def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
 
 
 def profiles_to_scalingfactors_dataarray(
-    profiles: CompositeTemporalProfiles | VerticalProfiles, indexes: xr.DataArray
+    profiles: CompositeTemporalProfiles | VerticalProfiles,
+    indexes: xr.DataArray,
+    use_ratios: bool = False,
 ) -> xr.DataArray:
     """Convert a profiles object to a ratios DataArray.
 
@@ -368,18 +370,20 @@ def profiles_to_scalingfactors_dataarray(
 
     :returns: A DataArray with the scaling factors.
     """
+    name = "ratios" if use_ratios else "scaling_factors"
+    name_no_s = name[:-1]
+    sf = getattr(profiles, name)
 
-    sf = profiles.scaling_factors
     return xr.DataArray(
         sf[indexes],
-        dims=[*indexes.dims, "scaling_factors"],
+        dims=[*indexes.dims, name_no_s],
         coords={
             **indexes.coords,
-            "scaling_factors": range(sf.shape[-1]),
+            name_no_s: range(sf.shape[-1]),
         },
         # Remove the profiles with no ratios (will be set to nan)
         # This assumes that no profile = no contribution, so only the other ratios in the cell will have an impact
-    ).where(indexes != -1, 1.0)
+    ).where(indexes != -1, 1.0 if not use_ratios else 1.0 / profiles.size)
 
 
 def ratios_dataarray_to_profiles(
