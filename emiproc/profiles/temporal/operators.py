@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 import logging
 from datetime import datetime, timedelta
 from typing import Type
@@ -33,6 +34,17 @@ from emiproc.profiles.utils import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class TemporalProfilesInteprolated(Enum):
+    """Possible temporal profiles for interpolation.
+
+    :param HOUR_OF_YEAR:  Every hour gets a scaling factor
+    :param THREE_CYCLES:  Three cycles (hour of day, day of week, month of year)
+    """
+
+    HOUR_OF_YEAR = "hour_of_year"
+    THREE_CYCLES = "three_cycles"
 
 
 def get_index_in_profile(
@@ -70,7 +82,9 @@ def get_index_in_profile(
         indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
     elif profile == HourOfWeekPerMonthProfile:
         indexes = (
-            time_range.hour + time_range.day_of_week * 24 + time_range.month * 24 * 7
+            time_range.hour
+            + time_range.day_of_week * 24
+            + (time_range.month - 1) * 24 * 7
         )
     else:
         raise NotImplementedError(f"Profile type {profile} not implemented.")
@@ -156,7 +170,13 @@ def get_profile_da(
 
     if isinstance(
         profile,
-        (DailyProfile, HourOfYearProfile, HourOfLeapYearProfile, SpecificDayProfile),
+        (
+            DailyProfile,
+            HourOfYearProfile,
+            HourOfLeapYearProfile,
+            SpecificDayProfile,
+            HourOfWeekPerMonthProfile,
+        ),
     ):
         ts = pd.date_range(**daterange_kwargs, freq="h")
         offset = pd.Timedelta("30m")
@@ -216,17 +236,18 @@ def get_profile_da(
     return da
 
 
-def interpolate_profiles_hour_of_year(
+def interpolate_profiles(
     profiles: CompositeTemporalProfiles,
     year: int,
     interpolation_method: str = "linear",
     return_profiles: bool = False,
+    output_type: TemporalProfilesInteprolated = TemporalProfilesInteprolated.HOUR_OF_YEAR,
 ) -> (
     CompositeTemporalProfiles
     | xr.DataArray
     | tuple[CompositeTemporalProfiles | xr.DataArray, xr.DataArray]
 ):
-    """Interpolate the profiles to create a hour of year profile.
+    """Interpolate the profiles to create another specific profile.
 
     :arg profiles: The profiles to use.
     :arg year: The year to use.
@@ -234,14 +255,23 @@ def interpolate_profiles_hour_of_year(
         See `xarray <https://docs.xarray.dev/en/stable/user-guide/interpolation.html>`_
         for more details.
     :arg return_profiles: If True, return the profiles instead of the ratios.
+    :arg output_type: The type of the output profile.
 
     :return: The interpolated profiles or the ratios based on the
         `return_profiles` argument.
     """
-
     serie = pd.date_range(
         f"{year}-01-01", f"{year+1}-01-01", freq="h", inclusive="left"
     )
+
+    if (
+        return_profiles is False
+        and output_type != TemporalProfilesInteprolated.HOUR_OF_YEAR
+    ):
+        raise ValueError(
+            "If `return_profiles` is False, `output_type` must be "
+            f"{TemporalProfilesInteprolated.HOUR_OF_YEAR}."
+        )
 
     das_scaling_factors = []
 
@@ -270,13 +300,46 @@ def interpolate_profiles_hour_of_year(
     # Multiply the data arrays
     da = xr.concat(das_scaling_factors, dim="profile_type").prod(dim="profile_type")
     da_ratios = da / da.sum(dim="datetime")
+
+    if output_type == TemporalProfilesInteprolated.THREE_CYCLES:
+        # Create the threee cyles
+        ratios = {}
+        ratios[DailyProfile] = (
+            da_ratios.groupby("datetime.hour").mean().rename({"hour": "ratio"})
+        )
+        ratios[WeeklyProfile] = (
+            da_ratios.groupby("datetime.dayofweek")
+            .mean()
+            .rename({"dayofweek": "ratio"})
+        )
+        # Sum for the mounths to account for longer or shorter months
+        ratios[MounthsProfile] = (
+            da_ratios.groupby("datetime.month").sum().rename({"month": "ratio"})
+        )
+        types = list(ratios.keys())
+        da_ratios = xr.concat([da for da in ratios.values()], dim="ratio")
+    elif output_type == TemporalProfilesInteprolated.HOUR_OF_YEAR:
+        types = [get_leap_year_or_normal(HourOfYearProfile, year)]
+    else:
+        raise NotImplementedError(
+            f"Output type {output_type} not implemented. "
+            "Use any of the "
+            f"{TemporalProfilesInteprolated}."
+        )
+
     # Create the profile
     if return_profiles:
         return CompositeTemporalProfiles.from_ratios(
-            da_ratios.values, types=[get_leap_year_or_normal(HourOfYearProfile, year)]
+            da_ratios.values,
+            types=types,
+            rescale=output_type != TemporalProfilesInteprolated.HOUR_OF_YEAR,
         )
 
     return da_ratios
+
+
+# Old legacy function
+interpolate_profiles_hour_of_year = interpolate_profiles
 
 
 def resolve_daytype(
