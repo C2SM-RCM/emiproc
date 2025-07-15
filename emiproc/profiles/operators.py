@@ -385,11 +385,27 @@ def country_to_cells(
     grid: Grid,
     country_mask_kwargs: dict[str, any] = {},
     ignore_missing_countries: bool = False,
+    fraction_method: bool = False,
 ) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
     """Takes profiles given for countries and transform them to cells.
 
-    The input profiles must have a 'country' dimension.
     The output profiles will have a 'cell' dimension.
+
+    :arg profiles: The profiles to use for merging.
+    :arg profiles_indexes: The indexes of the profiles.
+        Must have a 'country' dimension.
+    :arg grid: The grid to use for the country mask.
+    :arg country_mask_kwargs: Additional keyword arguments to pass to
+        :py:func:`emiproc.utilities.get_country_mask`.
+    :arg ignore_missing_countries: If True, will not raise an error if some countries
+        are missing in the profiles. Instead, they will be ignored.
+        If False, will raise an error if some countries are missing.
+    :arg fraction_method: If True, will use the country mask fractions to calculate
+        the profiles on the cells. If False, the main country in the cell will be assigned.
+        If the processing takes too long, it is recommended to not use the fraction method.
+
+    :return: The profiles on the cells and the new indexes.
+
 
     country_mask_kwargs are passed to :py:func:`emiproc.utilities.get_country_mask`.
     """
@@ -427,15 +443,17 @@ def country_to_cells(
         )
 
     # These will be the weights of the profiles
-    countries_fractions: xr.DataArray = get_country_mask(
-        grid, return_fractions=True, **country_mask_kwargs
+    countries_fractions: xr.DataArray | np.ndarray = get_country_mask(
+        grid, return_fractions=fraction_method, **country_mask_kwargs
     )
 
     # Check that the countries are all given
     # All the countries of the grid must be in the profiles
-    missing_countries = set(countries_fractions.coords["country"].values) - set(
-        profiles_indexes.coords["country"].values
-    )
+    missing_countries = set(
+        countries_fractions.coords["country"].values
+        if fraction_method
+        else countries_fractions.reshape(-1).tolist()
+    ) - set(profiles_indexes.coords["country"].values)
 
     if missing_countries and not ignore_missing_countries:
         raise ValueError(
@@ -443,25 +461,56 @@ def country_to_cells(
             "Please check the profiles or set `ignore_missing_countries=False` ."
         )
 
-    da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
+    if fraction_method:
+        # Create new profiles by averaging with the country fractions
+        da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
 
-    sf_on_cell = da_sf.dot(countries_fractions, dim=["country"])
+        sf_on_cell = da_sf.dot(countries_fractions, dim=["country"])
 
-    profiles_array, new_indexes = ratios_dataarray_to_profiles(
-        sf_on_cell.rename({"scaling_factors": "ratio"})
-    )
-
-    if isinstance(profiles, VerticalProfiles):
-        new_profiles = VerticalProfiles(
-            profiles_array / profiles_array.sum(axis=1).reshape((-1, 1)),
-            profiles.height,
+        profiles_array, new_indexes = ratios_dataarray_to_profiles(
+            sf_on_cell.rename({"scaling_factors": "ratio"})
         )
-    elif isinstance(profiles, CompositeTemporalProfiles):
-        new_profiles = CompositeTemporalProfiles.from_ratios(
-            profiles_array, types=profiles.types, rescale=True
-        )
+
+        if isinstance(profiles, VerticalProfiles):
+            new_profiles = VerticalProfiles(
+                profiles_array / profiles_array.sum(axis=1).reshape((-1, 1)),
+                profiles.height,
+            )
+        elif isinstance(profiles, CompositeTemporalProfiles):
+            new_profiles = CompositeTemporalProfiles.from_ratios(
+                profiles_array, types=profiles.types, rescale=True
+            )
+        else:
+            raise TypeError(f"Unknown profile type {type(profiles)}")
+
     else:
-        raise TypeError(f"Unknown profile type {type(profiles)}")
+        # Map for each cell the country it belongs to
+        country_fractions = countries_fractions.reshape(-1)
+        da_country_to_cell = xr.DataArray(
+            data=country_fractions,
+            dims=["cell"],
+        )
+        # Add -1 ot the missing countries
+        if ignore_missing_countries and missing_countries:
+            profiles_indexes = xr.concat(
+                [
+                    profiles_indexes,
+                    xr.full_like(
+                        profiles_indexes.isel(country=0),
+                        -1,
+                    ).expand_dims({"country": list(missing_countries)}),
+                ],
+                dim="country",
+            )
+        # Set the cell to profile
+        new_indexes = (
+            profiles_indexes.sel(country=da_country_to_cell)
+            .set_index({"cell": "country"})
+            .assign_coords(
+                cell=np.arange(len(country_fractions), dtype=int),
+            )
+        )
+        new_profiles = profiles
 
     return new_profiles, new_indexes
 

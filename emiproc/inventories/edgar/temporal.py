@@ -175,6 +175,9 @@ def read_edgar_auxilary_profiles(
     Outputs them in a format that they can directly be set as profiles
     to the inventory.
 
+    The auxiliary profiles are available at, as "auxiliary tables":
+    https://edgar.jrc.ec.europa.eu/dataset_temp_profile
+
     some categories might missmatch.
     """
 
@@ -195,6 +198,57 @@ def read_edgar_auxilary_profiles(
         full_ratios, types=[type(p1), type(p2)]
     )
 
-    # TODO: add correction based on the categories of the inventory
+    # Add the categories which are in the inventory but not in the auxiliary profiles
+    inv_cats = inventory.categories
+    indices_cats = full_indexes["category"].values
+    categories_present = [c for c in inv_cats if c in indices_cats]
+    categories_missing = [c for c in inv_cats if c not in indices_cats]
+    # Correct the missing categories to take only the cat of the first part
+    category_to_use = {c: c[:3] for c in categories_missing}
+    not_in_aux = [c for c in category_to_use.values() if c not in indices_cats]
+    assert (
+        not not_in_aux
+    ), f"Some categories are not available in the auxiliary profiles: {not_in_aux}"
+    indexes_corrected = xr.concat(
+        [
+            full_indexes.sel(category=categories_present),
+            full_indexes.sel(category=list(category_to_use.values())).assign_coords(
+                category=list(category_to_use.keys())
+            ),
+        ],
+        dim="category",
+    )
 
-    return profiles_full, full_indexes
+    # Rename the SEA country to -99 as is convention in emiproc for not specific country
+    indexes_corrected = indexes_corrected.assign_coords(
+        country=indexes_corrected["country"].where(
+            indexes_corrected["country"] != "SEA", "-99"
+        )
+    )
+
+    # These countries are missing in the profiles
+    # SSD: south sudan
+    # SRB: serbia
+    # MNE: montenegro
+    # PSE: palestine
+    # ATA: antarctica
+    # ATF: french antarctic
+    countries_to_assign = {
+        "SSD": "SDN",  # sudan
+        "SRB": "SCG",  # serbia and montenegro
+        "MNE": "SCG",  # serbia and montenegro
+        "PSE": "LAO",  # Lebanon
+        "ATA": "ARG",  # Argentina (closest)
+        "ATF": "ARG",  # Argentina (closest)
+    }
+    indexes_corrected = xr.concat(
+        [
+            indexes_corrected,
+            indexes_corrected.sel(
+                country=list(countries_to_assign.values())
+            ).assign_coords(country=list(countries_to_assign.keys())),
+        ],
+        dim="country",
+    )
+
+    return profiles_full, indexes_corrected

@@ -16,6 +16,7 @@ from emiproc.profiles.temporal.profiles import (
     DayOfYearProfile,
     Hour3OfDayPerMonth,
     HourOfLeapYearProfile,
+    HourOfWeekPerMonthProfile,
     HourOfYearProfile,
     MounthsProfile,
     SpecificDayProfile,
@@ -67,8 +68,12 @@ def get_index_in_profile(
         indexes = time_range.hour + (time_range.day_of_year - 1) * 24
     elif profile == Hour3OfDayPerMonth:
         indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
+    elif profile == HourOfWeekPerMonthProfile:
+        indexes = (
+            time_range.hour + time_range.day_of_week * 24 + time_range.month * 24 * 7
+        )
     else:
-        raise NotImplementedError(f"Profile type {profile} not recognized")
+        raise NotImplementedError(f"Profile type {profile} not implemented.")
 
     assert indexes.min() >= -1, f"{profile=}, {time_range=}"
     assert indexes.max() < profile.size, f"{profile=}, {time_range=}"

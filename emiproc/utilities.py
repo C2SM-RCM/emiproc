@@ -337,6 +337,9 @@ def get_country_mask(
     if weight_filepath is not None:
         suffix = ".npy" if not return_fractions else ".nc"
         weight_filepath = Path(weight_filepath)
+        if not weight_filepath.suffix:
+            # If no suffix is given, add the default one
+            weight_filepath = weight_filepath.with_suffix(suffix)
         if weight_filepath.suffix != suffix:
             raise ValueError(
                 f"Weight file {weight_filepath} should have suffix {suffix}"

@@ -129,7 +129,7 @@ class CompositeTemporalProfiles:
             f"{p[0].__name__}({p[1]})" if isinstance(p, tuple) else p.__name__
         )
         out = f"CompositeProfiles({len(self)} profiles "
-        if len(self) < 10:
+        if len(self.types) < 4:
             out += f"from {[profile_name(t) for t in self.types]})"
         else:
             out += f"from {len(self.types)} types)"
