@@ -81,6 +81,61 @@ def get_index_in_profile(
     return indexes
 
 
+def get_scaling_factors_at_time(
+    profile: CompositeTemporalProfiles,
+    time_range: pd.DatetimeIndex,
+) -> xr.DataArray:
+    """Evaluate the temporal profile at the given time range.
+
+    :arg profile: The temporal profile to evaluate.
+    :arg time_range: The time range to evaluate the profile at.
+
+    :return: A DataArray with the scaling factors for each time in the time range.
+    """
+
+    # Scaling factor data array
+    da_sf = xr.DataArray(
+        profile.scaling_factors,
+        coords={"profile": np.arange(len(profile)), "ratio": np.arange(profile.size)},
+    )
+
+    # Get teh index of of the scaling factor for each type of temporal profile
+    size_offset = 0
+    indices = []
+
+    for profile_type in profile.types:
+
+        this_index = get_index_in_profile(profile_type, time_range)
+
+        out_index = this_index + size_offset
+        out_index = out_index.where(this_index != -1, -1)
+
+        indices.append(out_index)
+
+        size_offset += _get_type(profile_type).size
+
+    indices_to_use = xr.DataArray(
+        np.array(indices).T,
+        coords=dict(
+            time=time_range,
+            sub_profile=np.arange(len(profile.types)),
+        ),
+        dims=["time", "sub_profile"],
+    )
+
+    # Here for the indexing to work, we need to temporary set the missing values to 0 and then put them back to 1
+    da_sf_of_profile = (
+        da_sf.sel(
+            ratio=indices_to_use.where(indices_to_use != -1, 0)
+            # Set the no profile to 1. scaling factor value
+        ).where(indices_to_use != -1, 1.0)
+        # Multiply the scaling factors for each sub-profile
+        .prod(dim="sub_profile")
+    )
+
+    return da_sf_of_profile
+
+
 def get_profile_da(
     profile: TemporalProfile,
     year: int,
