@@ -374,6 +374,9 @@ def resolve_daytype(
     return out_profiles, out_indexes.unstack("ind", fill_value=-1)
 
 
+# below are legacy functions, but still used in some places
+
+
 def create_scaling_factors_time_serie(
     start_time: datetime,
     end_time: datetime,
@@ -412,14 +415,14 @@ def create_scaling_factors_time_serie(
 
     # Apply the profiles
     for profile in profiles:
-        scaling_factors *= profile_to_scaling_factors(
+        scaling_factors *= _profile_to_scaling_factors(
             time_serie, profile, apply_month_interpolation=apply_month_interpolation
         )
 
     return pd.Series(scaling_factors, index=time_serie)
 
 
-def profile_to_scaling_factors(
+def _profile_to_scaling_factors(
     time_serie: pd.DatetimeIndex,
     profile: AnyTimeProfile,
     apply_month_interpolation: bool = True,
