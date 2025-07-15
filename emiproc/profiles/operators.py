@@ -449,11 +449,30 @@ def country_to_cells(
 
     # Check that the countries are all given
     # All the countries of the grid must be in the profiles
-    missing_countries = set(
+    countries_in_mask = set(
         countries_fractions.coords["country"].values
         if fraction_method
         else countries_fractions.reshape(-1).tolist()
-    ) - set(profiles_indexes.coords["country"].values)
+    )
+    if (
+        "-99" in countries_in_mask
+        and "-99" not in profiles_indexes.coords["country"].values
+    ):
+        # -99 is the missing country, so we can add it as missing profiles
+        profiles_indexes = xr.concat(
+            [
+                profiles_indexes,
+                xr.full_like(
+                    profiles_indexes.isel(country=0),
+                    -1,
+                ).expand_dims({"country": ["-99"]}),
+            ],
+            dim="country",
+        )
+
+    missing_countries = countries_in_mask - set(
+        profiles_indexes.coords["country"].values
+    )
 
     if missing_countries and not ignore_missing_countries:
         raise ValueError(
