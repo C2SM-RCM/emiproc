@@ -200,7 +200,7 @@ def combine_profiles(
     # Recover the profiles and indexes from the new scaling factors
 
     new_profiles, new_indexes = ratios_dataarray_to_profiles(
-        new_scaling_factors.rename({"scaling_factors": "ratio"})
+        new_scaling_factors.rename({"scaling_factor": "ratio"})
     )
 
     if isinstance(profiles, VerticalProfiles):
@@ -468,7 +468,7 @@ def country_to_cells(
         sf_on_cell = da_sf.dot(countries_fractions, dim=["country"])
 
         profiles_array, new_indexes = ratios_dataarray_to_profiles(
-            sf_on_cell.rename({"scaling_factors": "ratio"})
+            sf_on_cell.rename({"scaling_factor": "ratio"})
         )
 
         if isinstance(profiles, VerticalProfiles):
@@ -654,7 +654,7 @@ def add_profiles(
     sf_total = sf1 * weights1 + sf2 * weights2
 
     ratios, indexes = ratios_dataarray_to_profiles(
-        sf_total.rename({"scaling_factors": "ratio"})
+        sf_total.rename({"scaling_factor": "ratio"})
     )
 
     # Create the new profiles object

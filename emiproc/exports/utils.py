@@ -107,6 +107,8 @@ def get_temporally_scaled_array(
         profiles_indexes.where(profiles_indexes == -1, drop=True).coords
     ] = 1.0
 
+    da_scaling_factors = da_scaling_factors.broadcast_like(da_totals)
+
     if sum_over_cells and "cell" in profiles_indexes.dims:
         # instad of multilplying in a first step and summing in a second
         # we can use the dot product to get the same result
