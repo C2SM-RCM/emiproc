@@ -107,20 +107,13 @@ def get_temporally_scaled_array(
         profiles_indexes.where(profiles_indexes == -1, drop=True).coords
     ] = 1.0
 
-    # Set the scaling factors on the missing cells
-    scaling_factor_at_times_all_cells = da_scaling_factors.reindex(
-        da_totals.coords
-    ).fillna(1.0)
-
     if sum_over_cells and "cell" in profiles_indexes.dims:
         # instad of multilplying in a first step and summing in a second
         # we can use the dot product to get the same result
-        temporally_scaled_emissions = da_totals.dot(
-            scaling_factor_at_times_all_cells, dim="cell"
-        )
+        temporally_scaled_emissions = da_totals.dot(da_scaling_factors, dim="cell")
 
     else:
         # Finally scale the emissions at each time
-        temporally_scaled_emissions = da_totals * scaling_factor_at_times_all_cells
+        temporally_scaled_emissions = da_totals * da_scaling_factors
 
     return temporally_scaled_emissions
