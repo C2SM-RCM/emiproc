@@ -315,7 +315,7 @@ def plot_inventory(
                 im = PolyCollection(
                     (
                         grid.corners[mask_polygons]
-                        if grid.corners
+                        if hasattr(grid, "corners") and grid.corners is not None
                         # Get the coordinates of the polygons
                         else grid.gdf.geometry[mask_polygons].apply(
                             lambda geom: geom.exterior.coords
@@ -379,7 +379,7 @@ def plot_inventory(
             im = PolyCollection(
                 (
                     grid.corners[mask_polygons]
-                    if grid.corners
+                    if hasattr(grid, "corners") and grid.corners is not None
                     # Get the coordinates of the polygons
                     else grid.gdf.geometry[mask_polygons].apply(
                         lambda geom: geom.exterior.coords
