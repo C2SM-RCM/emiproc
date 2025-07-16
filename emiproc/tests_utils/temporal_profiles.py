@@ -191,24 +191,6 @@ indexes_inv_catsubcell = xr.DataArray(
     },
 )
 
-# For the african test set
-african_countries_test_set = ["SEN", "MLI", "MRT", "GIN", "GNB", "LBR", "SLE", "GMB"]
-indexes_african_simple = xr.DataArray(
-    data=np.arange(len(african_countries_test_set)),
-    dims=["country"],
-    coords={"country": african_countries_test_set},
-)
-indexes_african_2d = xr.DataArray(
-    data=np.arange(len(african_countries_test_set) * 3).reshape(
-        (len(african_countries_test_set), 3)
-    ),
-    dims=["country", "category"],
-    coords={
-        "country": african_countries_test_set,
-        "category": ["liku", "blek", "test"],
-    },
-)
-
 
 @dataclass(eq=False)
 class Profile2(TemporalProfile):

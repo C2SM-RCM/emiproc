@@ -36,7 +36,7 @@ from emiproc.profiles.utils import (
 logger = logging.getLogger(__name__)
 
 
-class TemporalProfilesInteprolated(Enum):
+class TemporalProfilesInterpolated(Enum):
     """Possible temporal profiles for interpolation.
 
     :param HOUR_OF_YEAR:  Every hour gets a scaling factor
@@ -241,7 +241,7 @@ def interpolate_profiles(
     year: int,
     interpolation_method: str = "linear",
     return_profiles: bool = False,
-    output_type: TemporalProfilesInteprolated = TemporalProfilesInteprolated.HOUR_OF_YEAR,
+    output_type: TemporalProfilesInterpolated = TemporalProfilesInterpolated.HOUR_OF_YEAR,
 ) -> (
     CompositeTemporalProfiles
     | xr.DataArray
@@ -266,11 +266,11 @@ def interpolate_profiles(
 
     if (
         return_profiles is False
-        and output_type != TemporalProfilesInteprolated.HOUR_OF_YEAR
+        and output_type != TemporalProfilesInterpolated.HOUR_OF_YEAR
     ):
         raise ValueError(
             "If `return_profiles` is False, `output_type` must be "
-            f"{TemporalProfilesInteprolated.HOUR_OF_YEAR}."
+            f"{TemporalProfilesInterpolated.HOUR_OF_YEAR}."
         )
 
     das_scaling_factors = []
@@ -301,7 +301,7 @@ def interpolate_profiles(
     da = xr.concat(das_scaling_factors, dim="profile_type").prod(dim="profile_type")
     da_ratios = da / da.sum(dim="datetime")
 
-    if output_type == TemporalProfilesInteprolated.THREE_CYCLES:
+    if output_type == TemporalProfilesInterpolated.THREE_CYCLES:
         # Create the threee cyles
         ratios = {}
         ratios[DailyProfile] = (
@@ -318,13 +318,13 @@ def interpolate_profiles(
         )
         types = list(ratios.keys())
         da_ratios = xr.concat([da for da in ratios.values()], dim="ratio")
-    elif output_type == TemporalProfilesInteprolated.HOUR_OF_YEAR:
+    elif output_type == TemporalProfilesInterpolated.HOUR_OF_YEAR:
         types = [get_leap_year_or_normal(HourOfYearProfile, year)]
     else:
         raise NotImplementedError(
             f"Output type {output_type} not implemented. "
             "Use any of the "
-            f"{TemporalProfilesInteprolated}."
+            f"{TemporalProfilesInterpolated}."
         )
 
     # Create the profile
@@ -332,7 +332,7 @@ def interpolate_profiles(
         return CompositeTemporalProfiles.from_ratios(
             da_ratios.values,
             types=types,
-            rescale=output_type != TemporalProfilesInteprolated.HOUR_OF_YEAR,
+            rescale=output_type != TemporalProfilesInterpolated.HOUR_OF_YEAR,
         )
 
     return da_ratios
