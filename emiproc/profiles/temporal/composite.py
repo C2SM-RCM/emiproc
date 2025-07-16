@@ -377,6 +377,10 @@ def make_composite_profiles(
 
     """
 
+    if isinstance(profiles, CompositeTemporalProfiles):
+        # If the profiles are already composite, we can return them directly
+        return profiles, indexes
+
     if not isinstance(profiles, AnyProfiles):
         raise TypeError(f"{profiles=} must be an {AnyProfiles}.")
 

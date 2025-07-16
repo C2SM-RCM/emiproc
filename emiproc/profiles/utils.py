@@ -438,3 +438,48 @@ def ratios_dataarray_to_profiles(
         profiles_indexes = profiles_indexes.squeeze("dummy").drop_vars("dummy")
 
     return unique_profiles.T, profiles_indexes.astype(int)
+
+
+def group_profile_cells_by_regions(
+    profiles_indexes: xr.DataArray,
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Group the profile cells into regions based on the unique values in the 'cell' dimension.
+
+    Regions have the same profiles for all other dimensions than cell.
+
+    In the end from the output you get:
+    ```
+    regions_index.sel(region=region_of_cell).drop_vars('region').equals(profiles_indexes)
+
+    ```
+
+    :arg profiles_indexes:
+        A DataArray with a 'cell' dimension that contains the profile indexes.
+
+    :returns:
+        - `regions_index`: A DataArray with the unique profile indexes for each region.
+        - `region_of_cell`: A DataArray that maps each cell to its corresponding region.
+    """
+
+    if "cell" not in profiles_indexes.dims:
+        raise ValueError(
+            "The profiles indexes must contain a 'cell' dimension to group by regions."
+        )
+    cell_dim_index = profiles_indexes.dims.index("cell")
+    u, i = np.unique(profiles_indexes, axis=cell_dim_index, return_inverse=True)
+    regions_index = xr.DataArray(
+        u,
+        dims=[d if d != "cell" else "region" for d in profiles_indexes.dims],
+        coords={
+            dim: profiles_indexes.coords[dim]
+            for dim in profiles_indexes.dims
+            if dim != "cell"
+        }
+        | {"region": np.arange(u.shape[cell_dim_index])},
+    )
+    region_of_cell = xr.DataArray(
+        i,
+        dims=["cell"],
+        coords={"cell": profiles_indexes.coords["cell"]},
+    )
+    return regions_index, region_of_cell
