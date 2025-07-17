@@ -78,7 +78,7 @@ for var in emiproc_generated_variables:
     fig.savefig(out_folder / f"{var}.png")
     # fig.show()
 
-# %% extra variables on the regions defined by grountry ids
+# %% extra variables on the regions defined by country ids
 
 
 icon_grid = ICONGrid(icon_file)
