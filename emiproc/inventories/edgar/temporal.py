@@ -206,9 +206,8 @@ def read_edgar_auxilary_profiles(
     # Correct the missing categories to take only the cat of the first part
     category_to_use = {c: c[:3] for c in categories_missing}
     not_in_aux = [c for c in category_to_use.values() if c not in indices_cats]
-    assert (
-        not not_in_aux
-    ), f"Some categories are not available in the auxiliary profiles: {not_in_aux}"
+    if not_in_aux:
+        raise ValueError(f"Some categories are not available in the auxiliary profiles: {not_in_aux}")
     indexes_corrected = xr.concat(
         [
             full_indexes.sel(category=categories_present),
