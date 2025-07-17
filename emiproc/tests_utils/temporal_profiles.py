@@ -109,9 +109,9 @@ oem_const_profile = [
     WeeklyProfile(),
 ]
 get_hoy = lambda year: get_leap_year_or_normal(HourOfYearProfile, year=year)
-get_oem_const_hour_of_year_profile = lambda year: [
-    get_hoy(year)(ratios=np.ones(get_hoy(year).size) / get_hoy(year).size)
-]
+def get_oem_const_hour_of_year_profile(year):
+    hoy_profile = get_hoy(year)
+    return [hoy_profile(ratios=np.ones(hoy_profile.size) / hoy_profile.size)]
 weekly_test_profile = WeeklyProfile(ratios=[0.11, 0.09, 0.10, 0.09, 0.14, 0.24, 0.23])
 mounths_test_profile = MounthsProfile(
     ratios=[0.19, 0.17, 0.13, 0.06, 0.05, 0.00, 0.00, 0.00, 0.01, 0.04, 0.15, 0.20]
