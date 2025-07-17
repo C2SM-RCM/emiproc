@@ -129,8 +129,10 @@ class CompositeTemporalProfiles:
             f"{p[0].__name__}({p[1]})" if isinstance(p, tuple) else p.__name__
         )
         out = f"CompositeProfiles({len(self)} profiles "
-        if len(self) < 10:
+        if len(self.types) < 4:
             out += f"from {[profile_name(t) for t in self.types]})"
+        else:
+            out += f"from {len(self.types)} types)"
         return out
 
     def __len__(self) -> int:
@@ -374,6 +376,10 @@ def make_composite_profiles(
         The indexes must have a dim called "profile" with the name of the profile type.
 
     """
+
+    if isinstance(profiles, CompositeTemporalProfiles):
+        # If the profiles are already composite, we can return them directly
+        return profiles, indexes
 
     if not isinstance(profiles, AnyProfiles):
         raise TypeError(f"{profiles=} must be an {AnyProfiles}.")

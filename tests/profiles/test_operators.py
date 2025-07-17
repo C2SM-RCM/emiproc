@@ -22,11 +22,10 @@ from emiproc.profiles.temporal.profiles import (
 )
 from emiproc.profiles.temporal.specific_days import SpecificDay
 from emiproc.tests_utils import temporal_profiles, vertical_profiles
+from emiproc.tests_utils.african_case import indexes_african_2d, indexes_african_simple
 from emiproc.tests_utils.temporal_profiles import (
     TEST_COPENICUS_PROFILES,
     get_random_profiles,
-    indexes_african_2d,
-    indexes_african_simple,
     read_test_copernicus,
 )
 from emiproc.tests_utils.test_grids import regular_grid_africa

@@ -5,7 +5,7 @@ import xarray as xr
 
 from emiproc.inventories import Inventory
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles, _get_type
-from emiproc.profiles.temporal.operators import get_index_in_profile
+from emiproc.profiles.temporal.operators import get_scaling_factors_at_time
 from emiproc.profiles.temporal.specific_days import get_days_as_ints
 from emiproc.utils.translators import inv_to_xarray
 
@@ -39,8 +39,8 @@ def get_temporally_scaled_array(
         This can be useful to improve the performance of the plotting.
 
     :return: the temporally resolved emissions array.
-        The units are the same as in the inventory. (kg/y/cell)
-        But now even scaled on the time axis given units are still kg/y/cell.
+        The units are the same as in the inventory. (kg/y/cell or kg/y if sum_over_cells is True)
+        But now even scaled on the time axis given units are still that unit.
         If you want to get the emissions at your time resolution you need divide
         by the number of your time resolution that fits in a year.
     """
@@ -51,6 +51,14 @@ def get_temporally_scaled_array(
         raise ValueError(
             "The inventory does not have temporal profiles."
             "You need to set the profiles to get a temporally resolved emissions array."
+        )
+
+    if "country" in profiles_indexes.dims:
+        raise ValueError(
+            "Inventory profiles have a country dimension "
+            "To calculate the temporally resolved emissions array, "
+            "you need to convert country profiles to cell profiles first, with "
+            "`emiproc.inventories.utils.country_to_cells()` ."
         )
 
     if isinstance(time_range, int):
@@ -66,79 +74,48 @@ def get_temporally_scaled_array(
         )
 
     da_totals = inv_to_xarray(inv)
-    if sum_over_cells:
-        da_totals = da_totals.sum("cell")
 
     if not isinstance(profiles, CompositeTemporalProfiles):
         profiles = CompositeTemporalProfiles(profiles)
 
-    # Acess the scaling factors
-    scaling_factors_array = profiles.scaling_factors[profiles_indexes]
-
     if "cell" in profiles_indexes.dims:
-        if sum_over_cells:
-            raise ValueError(
-                "The scaling factors are defined for individual cells."
-                "You need to set sum_over_cells to False"
-            )
         # The profiles are usually only given on cells with emissions
         missing_cells = da_totals.cell.loc[~da_totals.cell.isin(profiles_indexes.cell)]
         # Check that the profiles are given for all cells
-        assert (
-            da_totals.sel(cell=missing_cells).sum().values == 0
-        ), "Some cell or emissions with none zero values have missing profiles"
+        zero_cells_missing = da_totals.sel(cell=missing_cells).where(
+            da_totals.sel(cell=missing_cells) == 0, drop=True
+        )
+        if zero_cells_missing.size > 0:
+            raise ValueError(
+                "Some cells have emissions but no profiles are given for them."
+                f" Missing cells: {zero_cells_missing}"
+            )
+    else:
+        # If cell not given, we can speed up the calculation
+        if sum_over_cells:
+            da_totals = da_totals.sum("cell")
 
-    da_scaling_factors = xr.DataArray(
-        scaling_factors_array,
-        coords=dict(
-            **profiles_indexes.coords,
-            profile_index=np.arange(profiles.size),
-        ),
-    )
+    da_sf = get_scaling_factors_at_time(profiles, time_range)
 
-    # Get teh index of of the scaling factor for each type of temporal profile
-    size_offset = 0
-    indices = []
+    # Get the scaling factors for each profile
+    da_scaling_factors = da_sf.sel(
+        # Apply similar strategy for missing profiles
+        profile=profiles_indexes.where(profiles_indexes != -1, 0)
+    ).drop_vars("profile")
+    # Apply similar strategy for missing profiles which is more performant (in place)
+    da_scaling_factors.loc[
+        profiles_indexes.where(profiles_indexes == -1, drop=True).coords
+    ] = 1.0
 
-    for profile_type in profiles.types:
+    da_scaling_factors = da_scaling_factors.broadcast_like(da_totals)
 
-        this_index = get_index_in_profile(profile_type, time_range)
+    if sum_over_cells and "cell" in profiles_indexes.dims:
+        # instad of multilplying in a first step and summing in a second
+        # we can use the dot product to get the same result
+        temporally_scaled_emissions = da_totals.dot(da_scaling_factors, dim="cell")
 
-        out_index = this_index + size_offset
-        out_index = out_index.where(this_index != -1, -1)
-
-        indices.append(out_index)
-
-        size_offset += _get_type(profile_type).size
-
-    indices_to_use = xr.DataArray(
-        np.array(indices).T,
-        coords=dict(
-            time=time_range,
-            profile=np.arange(len(profiles.types)),
-        ),
-        dims=["time", "profile"],
-    )
-
-    # Remove the -1 values
-    indices_to_use_cleaned = indices_to_use.where(indices_to_use != -1, 0)
-
-    # Get the proper scaling factors for each index
-    scaling_factors_at_times = da_scaling_factors.loc[
-        dict(profile_index=indices_to_use_cleaned)
-    ]
-
-    # Set the missing indices to 1.0
-    scaling_factor_at_times = scaling_factors_at_times.where(indices_to_use != -1, 1.0)
-
-    # Merge all the time factors together
-    scaling_factor_at_times = scaling_factors_at_times.prod("profile")
-    # Set the scaling factors on the missing cells
-    scaling_factor_at_times_all_cells = scaling_factor_at_times.reindex(
-        da_totals.coords
-    ).fillna(1.0)
-
-    # Finally scale the emissions at each time
-    temporally_scaled_emissions = da_totals * scaling_factor_at_times_all_cells
+    else:
+        # Finally scale the emissions at each time
+        temporally_scaled_emissions = da_totals * da_scaling_factors
 
     return temporally_scaled_emissions
