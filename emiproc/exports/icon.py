@@ -34,7 +34,10 @@ from emiproc.profiles.vertical_profiles import (
     VerticalProfiles,
     resample_vertical_profiles,
 )
-from emiproc.tests_utils.temporal_profiles import oem_const_profile
+from emiproc.tests_utils.temporal_profiles import (
+    oem_const_profile,
+    get_oem_const_hour_of_year_profile,
+)
 from emiproc.utilities import (
     SEC_PER_HOUR,
     SEC_PER_YR,
@@ -92,10 +95,11 @@ def export_icon_oem(
     output_dir: PathLike,
     group_dict: dict[str, list[str]] = {},
     temporal_profiles_type: TemporalProfilesTypes = TemporalProfilesTypes.THREE_CYCLES,
-    year: int | None = None,
     nc_attributes: dict[str, str] = DEFAULT_NC_ATTRIBUTES,
     substances: list[str] | None = None,
     correct_tz_shift: bool = True,
+    # Deprectated, use inv.year instead
+    year: int | None = None,
 ):
     """Export to a netcdf file for ICON OEM.
 
@@ -147,6 +151,17 @@ def export_icon_oem(
 
     """
     logger = logging.getLogger("emiproc.export_icon_oem")
+
+    if year is not None:
+        logger.warning(
+            "The year parameter is deprecated and will be removed in the future. "
+            "You need now to specify the year in the inventory object."
+        )
+
+    test_year_and_profiles_types_combination(
+        year=inv.year,
+        profiles_type=temporal_profiles_type,
+    )
 
     icon_grid_file = Path(icon_grid_file)
     output_dir = Path(output_dir)
@@ -210,16 +225,41 @@ def export_icon_oem(
         np.save(mask_file, tz_mask)
 
     date_of_shift = datetime(
-        year=year if year is not None else datetime.now().year, month=1, day=1
+        year=inv.year if inv.year is not None else datetime.now().year, month=1, day=1
     )
-    if "cell" in inv.t_profiles_indexes.dims:
+
+    t_profiles_indexes = inv.t_profiles_indexes
+    time_profiles = inv.t_profiles_groups
+
+    if t_profiles_indexes is None:
+        assert time_profiles is None
+        t_profiles_indexes = xr.DataArray(
+            np.zeros(
+                shape=(len(inv.categories), len(inv.substances)), dtype=int
+            ),  # All profiles are constant
+            coords={
+                "category": inv.categories,
+                "substance": inv.substances,
+            },
+        )
+        time_profiles = CompositeTemporalProfiles(
+            [
+                (
+                    oem_const_profile
+                    if temporal_profiles_type == TemporalProfilesTypes.THREE_CYCLES
+                    else get_oem_const_hour_of_year_profile(inv.year)
+                )
+            ]
+        )
+
+    if "cell" in t_profiles_indexes.dims:
         # Get the regions with same temporal profiles
         regions_index, region_of_cell = group_profile_cells_by_regions(
-            inv.t_profiles_indexes
+            t_profiles_indexes
         )
     else:
         # Create a single region for all cells
-        regions_index = xr.zeros_like(inv.t_profiles_indexes, dtype=int).expand_dims(
+        regions_index = xr.zeros_like(t_profiles_indexes, dtype=int).expand_dims(
             {"region": np.array([0], dtype=int)}
         )
         region_of_cell = xr.DataArray(
@@ -259,6 +299,7 @@ def export_icon_oem(
     # Save the profiles
     make_icon_time_profiles(
         catsubs=catsubs,
+        time_profiles=time_profiles,
         inv=inv,
         profiles_indexes=regions_index,
         regions=regions,
@@ -329,8 +370,20 @@ def export_icon_oem(
     logger.info(f"Exported inventory to {output_dir}.")
 
 
+def test_year_and_profiles_types_combination(
+    year: int | None,
+    profiles_type: TemporalProfilesTypes,
+):
+    if year is None:
+        if profiles_type == TemporalProfilesTypes.HOUR_OF_YEAR:
+            raise ValueError(
+                "You must provide a year for the temporal profiles option."
+            )
+
+
 def make_icon_time_profiles(
     catsubs: dict[tuple[Category, Substance], str],
+    time_profiles: CompositeTemporalProfiles,
     inv: Inventory,
     profiles_indexes: xr.DataArray | None,
     regions: xr.DataArray,
@@ -363,17 +416,13 @@ def make_icon_time_profiles(
         Only the shifts are different.
     """
     year = inv.year
-    if year is None:
-        if profiles_type == TemporalProfilesTypes.HOUR_OF_YEAR:
-            raise ValueError(
-                "You must provide a year for the temporal profiles option."
-            )
+    if year is None and profiles_type == TemporalProfilesTypes.THREE_CYCLES:
         # set a random year for profiles that don't depend on the year
         year = datetime.now().year
 
     profiles_type = TemporalProfilesTypes(profiles_type)
 
-    time_profiles = inv.t_profiles_groups
+    HoyProfile = get_leap_year_or_normal(HourOfYearProfile, year=year)
 
     if time_profiles is None:
         time_profiles = oem_const_profile
@@ -419,9 +468,7 @@ def make_icon_time_profiles(
         nc_attrs["title"] = "Month of year profiles"
         dict_ds["monthofyear"] = xr.Dataset(attrs=nc_attrs.copy())
     elif profiles_type == TemporalProfilesTypes.HOUR_OF_YEAR:
-        if not time_profiles.types == [
-            get_leap_year_or_normal(HourOfYearProfile, year=year)
-        ]:
+        if not time_profiles.types == [HoyProfile]:
             raise ValueError(
                 f"Expected {HourOfYearProfile} or {HourOfLeapYearProfile} "
                 "based on the year it is in the"
@@ -442,7 +489,7 @@ def make_icon_time_profiles(
         DailyProfile: "hourofday",
         WeeklyProfile: "dayofweek",
         MounthsProfile: "monthofyear",
-        HourOfYearProfile: "hourofyear",
+        HoyProfile: "hourofyear",
     }
 
     for (cat, sub), name in catsubs.items():
@@ -464,10 +511,7 @@ def make_icon_time_profiles(
             ]
             sf_counter += profile_type.size
 
-            if (
-                profile_type in [DailyProfile, HourOfLeapYearProfile]
-                and correct_tz_shift
-            ):
+            if profile_type in [DailyProfile, HoyProfile] and correct_tz_shift:
                 # Shift the scaling factors for the hour of day
                 this_scaling_factors = np.roll(
                     this_scaling_factors, -regions.coords["tz_shift"].values, axis=1

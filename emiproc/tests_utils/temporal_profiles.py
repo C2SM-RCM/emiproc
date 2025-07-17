@@ -16,6 +16,9 @@ from emiproc.profiles.temporal.profiles import (
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
+    HourOfYearProfile,
+    HourOfLeapYearProfile,
+    get_leap_year_or_normal,
 )
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
@@ -104,6 +107,10 @@ oem_const_profile = [
     DailyProfile(),
     MounthsProfile(),
     WeeklyProfile(),
+]
+get_hoy = lambda year: get_leap_year_or_normal(HourOfYearProfile, year=year)
+get_oem_const_hour_of_year_profile = lambda year: [
+    get_hoy(year)(ratios=np.ones(get_hoy(year).size) / get_hoy(year).size)
 ]
 weekly_test_profile = WeeklyProfile(ratios=[0.11, 0.09, 0.10, 0.09, 0.14, 0.24, 0.23])
 mounths_test_profile = MounthsProfile(

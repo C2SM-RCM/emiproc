@@ -6,6 +6,8 @@ import xarray as xr
 
 from emiproc import FILES_DIR
 from emiproc.grids import ICONGrid
+from emiproc.inventories import Inventory
+import geopandas as gpd
 
 ICON_GRID_DIR = FILES_DIR / "test" / "icon_grid"
 
@@ -36,6 +38,22 @@ def get_test_grid(
         download_test_grid(grid_path.name)
     return ICONGrid(grid_path)
 
+
+# Inventory for the icon test grid
+inv = Inventory.from_gdf(
+    gdfs={
+        "point": gpd.GeoDataFrame(
+            data={
+                "CO2": 3 * [1],
+            },
+            geometry=gpd.points_from_xy(
+                y=[38.695852, 48.695852, 59.695852],
+                x=[69.089789, 79.089789, 89.089789],
+            ),
+            crs="WGS84",
+        ),
+    }
+)
 
 if __name__ == "__main__":
     print(get_test_grid())
