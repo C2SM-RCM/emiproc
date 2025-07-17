@@ -29,7 +29,7 @@ def test_get_test_grid():
 def test_utils_function():
 
     profile_type = get_oem_const_hour_of_year_profile(2020)
-    assert isinstance(*profile_type, HourOfLeapYearProfile)
+    assert isinstance(profile_type[0], HourOfLeapYearProfile)
 
 
 def test_export_icon():
