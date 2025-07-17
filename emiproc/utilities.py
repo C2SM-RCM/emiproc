@@ -20,6 +20,7 @@ from zipfile import ZipFile
 import geopandas as gpd
 import numpy as np
 import xarray as xr
+from filelock import FileLock
 from shapely.geometry import MultiPolygon, Polygon
 
 from emiproc import FILES_DIR, PROCESS
@@ -134,45 +135,50 @@ def get_timezones(
 
     raw_file_path = path_to_save / "combined-shapefile-with-oceans.shp"
 
-    # First get the correct version we need
-    if not raw_file_path.is_file() or update:
-        repo_url_api = (
-            "https://api.github.com/repos/evansiroky/timezone-boundary-builder"
-        )
-        repo_url = "https://github.com/evansiroky/timezone-boundary-builder"
+    filelock = FileLock(str(raw_file_path) + ".lock")
 
-        # Get the latest version
+    with filelock:
+        # First get the correct version we need
+        if not raw_file_path.is_file() or update:
+            repo_url_api = (
+                "https://api.github.com/repos/evansiroky/timezone-boundary-builder"
+            )
+            repo_url = "https://github.com/evansiroky/timezone-boundary-builder"
 
-        if version is None:
-            # Get the version to download
-            with urllib.request.urlopen(repo_url_api + "/releases/latest") as response:
+            # Get the latest version
+
+            if version is None:
+                # Get the version to download
+                with urllib.request.urlopen(
+                    repo_url_api + "/releases/latest"
+                ) as response:
+                    if response.status == 200:
+                        release_info = json.loads(response.read().decode("utf-8"))
+                    else:
+                        raise ValueError(
+                            "Failed to retrieve latest release info. Status code:"
+                            f" {response.status}"
+                        )
+
+                latest_version = release_info["tag_name"]
+                version_to_download = latest_version
+            else:
+                # Download the specific version
+                version_to_download = version
+
+            # Download the file
+            url = f"{repo_url}/releases/download/{version_to_download}/timezones-with-oceans.shapefile.zip"
+            logger.log(PROCESS, f"Downloading timezones from {url}")
+            with urllib.request.urlopen(url) as response:
                 if response.status == 200:
-                    release_info = json.loads(response.read().decode("utf-8"))
+                    resp = response.read()
                 else:
                     raise ValueError(
                         "Failed to retrieve latest release info. Status code:"
                         f" {response.status}"
                     )
-
-            latest_version = release_info["tag_name"]
-            version_to_download = latest_version
-        else:
-            # Download the specific version
-            version_to_download = version
-
-        # Download the file
-        url = f"{repo_url}/releases/download/{version_to_download}/timezones-with-oceans.shapefile.zip"
-        logger.log(PROCESS, f"Downloading timezones from {url}")
-        with urllib.request.urlopen(url) as response:
-            if response.status == 200:
-                resp = response.read()
-            else:
-                raise ValueError(
-                    "Failed to retrieve latest release info. Status code:"
-                    f" {response.status}"
-                )
-        zipfile = ZipFile(BytesIO(resp))
-        zipfile.extractall(path_to_save)
+            zipfile = ZipFile(BytesIO(resp))
+            zipfile.extractall(path_to_save)
 
     if not simplify_tolerance:
         return gpd.read_file(str(raw_file_path))
@@ -281,20 +287,25 @@ def get_natural_earth(
     """
     logger = logging.getLogger("emiproc.get_natural_earth")
     path_to_save = FILES_DIR / "natural_earth" / f"ne_{resolution}_{category}_{name}"
-    if not path_to_save.exists():
-        logger.log(
-            PROCESS,
-            f"Downloading the natural earth file {resolution}_{category}_{name}",
-        )
-        URL_TEMPLATE = (
-            "https://naturalearth.s3.amazonaws.com/{resolution}_"
-            "{category}/ne_{resolution}_{name}.zip"
-        )
-        path_to_save.mkdir(parents=True, exist_ok=True)
-        url = URL_TEMPLATE.format(resolution=resolution, category=category, name=name)
-        resp = urlopen(url)
-        zipfile = ZipFile(BytesIO(resp.read()))
-        zipfile.extractall(path_to_save)
+
+    filelock = FileLock(str(path_to_save) + ".lock")
+    with filelock:
+        if not path_to_save.exists():
+            logger.log(
+                PROCESS,
+                f"Downloading the natural earth file {resolution}_{category}_{name}",
+            )
+            URL_TEMPLATE = (
+                "https://naturalearth.s3.amazonaws.com/{resolution}_"
+                "{category}/ne_{resolution}_{name}.zip"
+            )
+            path_to_save.mkdir(parents=True, exist_ok=True)
+            url = URL_TEMPLATE.format(
+                resolution=resolution, category=category, name=name
+            )
+            resp = urlopen(url)
+            zipfile = ZipFile(BytesIO(resp.read()))
+            zipfile.extractall(path_to_save)
 
     # Load the country file
     shpfile = str(path_to_save / f"ne_{resolution}_{name}.shp")

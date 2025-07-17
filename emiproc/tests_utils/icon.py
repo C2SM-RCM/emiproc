@@ -9,6 +9,8 @@ from emiproc.grids import ICONGrid
 from emiproc.inventories import Inventory
 import geopandas as gpd
 
+from filelock import FileLock
+
 ICON_GRID_DIR = FILES_DIR / "test" / "icon_grid"
 
 ICON_GRID_DIR.mkdir(parents=True, exist_ok=True)
@@ -34,8 +36,10 @@ def get_test_grid(
 ) -> ICONGrid:
     """Return the path of the test grid."""
 
-    if not grid_path.exists():
-        download_test_grid(grid_path.name)
+    lock = FileLock(str(grid_path) + ".lock")
+    with lock:
+        if not grid_path.exists():
+            download_test_grid(grid_path.name)
     return ICONGrid(grid_path)
 
 
