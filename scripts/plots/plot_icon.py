@@ -2,6 +2,7 @@
 
 This will generate a plot for each oem variable in the file.
 """
+
 # %%
 from pathlib import Path
 
@@ -9,11 +10,14 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+import geopandas as gpd
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import LogNorm
 
 from emiproc import TESTS_DIR
 from emiproc.plots.nclcmaps import cmap
+from emiproc.grids import ICONGrid
+
 
 # %% Load the file of icon
 icon_file = TESTS_DIR / "export_icon" / "oem_gridded_emissions.nc"
@@ -44,7 +48,7 @@ for var in emiproc_generated_variables:
     if not np.any(da):
         # No emissions at all
         continue
-    
+
     min_val = da.min().values
     max_val = da.max().values
 
@@ -73,3 +77,29 @@ for var in emiproc_generated_variables:
     fig.colorbar(poly_coll)
     fig.savefig(out_folder / f"{var}.png")
     # fig.show()
+
+# %% extra variables on the regions defined by grountry ids
+
+
+icon_grid = ICONGrid(icon_file)
+gdf = icon_grid.gdf
+# %%
+
+gdf["country_ids"] = ds["country_ids"].astype(int)
+# Spatial join of the cell to get the regions=country
+countries_shapes = {
+    c_id: gdf[gdf["country_ids"] == c_id].geometry.union_all()
+    for c_id in sorted(gdf["country_ids"].unique())
+}
+# %%
+gdf_country = gpd.GeoDataFrame(
+    {
+        "geometry": countries_shapes.values(),
+    }
+    | {var: ds[var].values for var in ds.data_vars if ds[var].dims == ("region",)},
+    index=countries_shapes.keys(),
+)
+gdf_country
+# %%
+gdf_country.explore("tz_shift")
+# %%
