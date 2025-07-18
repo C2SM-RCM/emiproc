@@ -34,6 +34,7 @@ Full documentation: https://emiproc.readthedocs.io .
 
 * [ICON-ART](https://www.icon-art.kit.edu/)
 * [WRF-Chem](https://www2.acom.ucar.edu/wrf-chem)
+* [GRAMM-GRAL](https://gral.tugraz.at/)
 * [NetCDF](https://emiproc.readthedocs.io/en/master/api/exports.html#emiproc.exports.rasters.export_raster_netcdf)
 
 ### 🌍 Suported Inventories 
