@@ -65,9 +65,10 @@ This work is licensed under a BSD-3-Clause licence. See the LICENSE file for det
 If you use `emiproc` in your research or project, 
 please cite the following publication: 
 
-> Lionel et al., (2025). Emiproc: A Python package for emission inventory processing. Journal of Open Source Software, 10(105), 7509
+> Lionel et al., (2025).
+> Emiproc: A Python package for emission inventory processing.
+> Journal of Open Source Software, 10(105), 7509
 > [https://doi.org/10.21105/joss.07509](https://doi.org/10.21105/joss.07509)
 
-[https://doi.org/10.21105/joss.07509](https://doi.org/10.21105/joss.07509)
 
 
