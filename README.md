@@ -47,7 +47,7 @@ Full documentation: https://emiproc.readthedocs.io .
 ### 🏭 Emission Models 
 
 * [VPRM](https://doi.org/10.1029/2006GB002735) - Vegetation
-* [HDD](https://en.wikipedia.org/wiki/Heating_degree_day) (heating temporal profiles)
+* [HDD](https://en.wikipedia.org/wiki/Heating_degree_day) - Domestic Heating 
 * [Human Respiration](https://emiproc.readthedocs.io/en/master/api/models.html#module-emiproc.human_respiration)
 
 ## 🙋 Need help or want to contribute?
