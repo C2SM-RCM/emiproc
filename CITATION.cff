@@ -1,0 +1,56 @@
+cff-version: "1.2.0"
+authors:
+- family-names: Lionel
+  given-names: Constantin
+  orcid: "https://orcid.org/0009-0009-0347-4897"
+- family-names: Dominik
+  given-names: Brunner
+  orcid: "https://orcid.org/0000-0002-4007-6902"
+- family-names: Joel
+  given-names: Thanwerdas
+  orcid: "https://orcid.org/0000-0003-1040-831X"
+- family-names: Corina
+  given-names: Keller
+  orcid: "https://orcid.org/0009-0000-7128-2584"
+- family-names: Michael
+  given-names: Steiner
+  orcid: "https://orcid.org/0009-0001-5425-4570"
+- family-names: Erik
+  given-names: Koene
+  orcid: "https://orcid.org/0000-0002-2778-4066"
+doi: 10.5281/zenodo.14614230
+message: If you use this software, please cite our article in the
+  Journal of Open Source Software.
+preferred-citation:
+  authors:
+  - family-names: Lionel
+    given-names: Constantin
+    orcid: "https://orcid.org/0009-0009-0347-4897"
+  - family-names: Dominik
+    given-names: Brunner
+    orcid: "https://orcid.org/0000-0002-4007-6902"
+  - family-names: Joel
+    given-names: Thanwerdas
+    orcid: "https://orcid.org/0000-0003-1040-831X"
+  - family-names: Corina
+    given-names: Keller
+    orcid: "https://orcid.org/0009-0000-7128-2584"
+  - family-names: Michael
+    given-names: Steiner
+    orcid: "https://orcid.org/0009-0001-5425-4570"
+  - family-names: Erik
+    given-names: Koene
+    orcid: "https://orcid.org/0000-0002-2778-4066"
+  date-published: 2025-01-14
+  doi: 10.21105/joss.07509
+  issn: 2475-9066
+  issue: 105
+  journal: Journal of Open Source Software
+  publisher:
+    name: Open Journals
+  start: 7509
+  title: "Emiproc: A Python package for emission inventory processing"
+  type: article
+  url: "https://joss.theoj.org/papers/10.21105/joss.07509"
+  volume: 10
+title: "Emiproc: A Python package for emission inventory processing"
