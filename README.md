@@ -4,15 +4,11 @@
 [![ReadTheDocs](https://readthedocs.org/projects/emiproc/badge/?version=master)](emiproc.readthedocs.io)
 
 
-Python package for processing emission datasets and converting them
-into netcdf rasters or inputs for transport models (ICON-ART, COSMO-ART, ...).
+Python package for processing emission datasets and preparing them for atmospheric transport models.
 
-If interested in previous versions, please check the branches
-dedicated to the previous releases.
-
-## Documentation
-
-The full documentation is hosted at https://emiproc.readthedocs.io .
+If you need to prepare emissions for a model and you don't want to get 
+a headache with regridding, sector conversion or temporal distributions,
+`emiproc` is for you.
 
 ## Installation 
 
@@ -21,6 +17,36 @@ The full documentation is hosted at https://emiproc.readthedocs.io .
 ```
 pip install emiproc
 ```
+
+## Documentation
+
+The full documentation is hosted at https://emiproc.readthedocs.io .
+
+### Supported models 
+
+* ICON-ART
+* WRF
+* NetCDF output
+
+### Suported Inventories 
+
+* EDGAR
+* TNO
+* GFAS
+* GFED
+
+### Emission models 
+
+* VPRM (vegetation)
+* HDD (heating temporal profiles)
+* Human Respiration
+
+## Support
+
+In case you need to implement another inventory or model, 
+please open an issue, we are happy to help.
+
+
 
 ## License
 
