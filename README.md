@@ -5,6 +5,8 @@
 [![ReadTheDocs](https://readthedocs.org/projects/emiproc/badge/?version=master)](emiproc.readthedocs.io)
 
 
+![Emission Processing Pipeline](docs/source/diagrams/pipeline.drawio.svg)
+
 `emiproc` helps scientists convert, process, and prepare gridded emissions datasets
 for atmospheric modeling, data visualization, and scientific deliverables.
 
@@ -15,8 +17,6 @@ a headache with regridding, sector conversion or temporal distributions,
 
 ## 📦 Installation 
 
-`emiproc` can be installed with pip:
-
 ```bash
 pip install emiproc
 ```
@@ -26,8 +26,6 @@ pip install emiproc
 For a quick start we recommend [the EDGAR tutorial](https://emiproc.readthedocs.io/en/master/tutos/edgar_processing.html#EDGAR-Inventory-Processing)
 
 Full documentation: https://emiproc.readthedocs.io .
-
-![Emission Processing Pipeline](docs/source/diagrams/pipeline.drawio.svg)
 
 
 ### 💨 Supported Models 
