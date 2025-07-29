@@ -62,21 +62,21 @@ def create_HDD_scaling_factor(
     heating_activated = serie_daily_T < min_heating_T
     HDD = (inside_T - serie_daily_T) * heating_activated.astype(float)
 
-    # Yearly avergage
-    yearly_means = HDD.resample("Y").mean()
+    # Yearly average
+    yearly_means = HDD.resample("YS").mean()
     ts_mean = pd.Series(np.nan, index=HDD.index)
     for dt, mean in yearly_means.items():
         ts_mean.loc[ts_mean.index.year == dt.year] = mean
     # Scale with the yearly means
-    a_HDD = HDD / ts_mean
+    annual_HDD = HDD / ts_mean
 
     start = serie_T.index.min()
     end = serie_T.index.max()
-    hdd_ts = pd.Series(np.nan, pd.date_range(start, end, freq="H"))
+    hdd_ts = pd.Series(np.nan, pd.date_range(start, end, freq="h"))
     # Get hourly values
     a_HDD_hourly = (
-        a_HDD.reindex(index=a_HDD.index.union(hdd_ts.index))
-        .interpolate("pad")
+        annual_HDD.reindex(index=annual_HDD.index.union(hdd_ts.index))
+        .ffill()
         .reindex(hdd_ts.index)
     )
 
