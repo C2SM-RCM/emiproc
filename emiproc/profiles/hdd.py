@@ -63,7 +63,7 @@ def create_HDD_scaling_factor(
     HDD = (inside_T - serie_daily_T) * heating_activated.astype(float)
 
     # Yearly average
-    yearly_means = HDD.resample("YS").mean()
+    yearly_means = HDD.resample("YE").mean()
     ts_mean = pd.Series(np.nan, index=HDD.index)
     for dt, mean in yearly_means.items():
         ts_mean.loc[ts_mean.index.year == dt.year] = mean
