@@ -89,7 +89,6 @@ Utilities
 
 .. autofunction:: emiproc.profiles.temporal.operators.create_scaling_factors_time_serie
 
-.. autofunction:: emiproc.profiles.temporal.operators.profile_to_scaling_factors
 
 
 Specific days 

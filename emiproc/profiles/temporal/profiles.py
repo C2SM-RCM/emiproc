@@ -59,6 +59,11 @@ class TemporalProfile:
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
 
+    @property
+    def scaling_factors(self) -> np.ndarray:
+        """Return the scaling factors for the profile."""
+        return self.ratios * self.size
+
     def __getitem__(self, key: int) -> TemporalProfile:
         """Return the profile at the given index."""
         return self.__class__(self.ratios[key])
@@ -224,6 +229,19 @@ class DayOfLeapYearProfile(TemporalProfile):
     size: int = N_DAY_LEAPYEAR
 
 
+@dataclass(eq=False)
+class HourOfWeekPerMonthProfile(TemporalProfile):
+    """Hour of week per month profile.
+
+    Same as :py:class:`HourOfWeekProfile`, but for each month.
+
+    The profile starts on Monday of January at 00:00.
+    Then it continues over that january week and then continues to the next month.
+    """
+
+    size: int = N_HOUR_WEEK * N_MONTH_YEAR
+
+
 AnyTimeProfile = Union[
     DailyProfile,
     SpecificDayProfile,
@@ -231,10 +249,13 @@ AnyTimeProfile = Union[
     MounthsProfile,
     HourOfYearProfile,
     HourOfLeapYearProfile,
+    HourOfWeekProfile,
+    Hour3OfDay,
+    Hour3OfDayPerMonth,
+    HourOfWeekPerMonthProfile,
+    DayOfYearProfile,
+    DayOfLeapYearProfile,
 ]
-
-
-
 
 
 # Maps temporal profiles to their corrected version

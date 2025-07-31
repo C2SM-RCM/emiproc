@@ -7,7 +7,7 @@ import json
 import logging
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import fiona
 import geopandas as gpd
@@ -18,11 +18,16 @@ import xarray as xr
 from shapely.geometry import Point, MultiPolygon, Polygon
 from emiproc.grids import Grid
 
+from emiproc.profiles.temporal.operators import (
+    TemporalProfilesInterpolated,
+    interpolate_profiles,
+)
 from emiproc.regrid import geoserie_intersection
 from emiproc.profiles.operators import (
     add_profiles,
     get_weights_of_gdf_profiles,
     group_profiles_indexes,
+    country_to_cells as profiles_country_to_cells,
 )
 
 if TYPE_CHECKING:
@@ -753,3 +758,116 @@ def drop(
 
     out_inv.history.append(f"Dropped {substances=} and {categories=}")
     return out_inv
+
+
+def country_to_cells(
+    inv: Inventory,
+    country_mask_kwargs: dict[str, Any] = {},
+    ignore_missing_countries: bool = False,
+    fraction_method: bool = False,
+) -> Inventory:
+    """Convert the country profiles of an inventory to cell profiles.
+
+    This will convert the country profiles to cell profiles, such that
+    the emissions are distributed over the cells of the grid.
+    The country profiles are assumed to be in the gdf of the inventory.
+
+    This uses the :py:func:`emiproc.profiles.operators.profiles_country_to_cells`
+    function internally.
+
+    :arg inv: The inventory to convert.
+    :arg country_mask_kwargs: Additional keyword arguments to pass to the
+        :py:func:`emiproc.profiles.operators.profiles_country_to_cells` function.
+    :arg ignore_missing_countries: If True, the function will ignore missing
+        countries in the profiles. If False, it will raise an error if
+        some countries are missing in the profiles.
+    :return: A new inventory with the country profiles converted to cell profiles.
+    """
+    logger = logging.getLogger("emiproc.country_to_cells")
+    new_inv = inv.copy(
+        profiles=False,
+    )
+
+    for profiles_name, profiles_indexes_name in [
+        ("t_profiles_groups", "t_profiles_indexes"),
+        ("v_profiles", "v_profiles_indexes"),
+    ]:
+        profiles = getattr(inv, profiles_name, None)
+        profiles_indexes: xr.DataArray = getattr(inv, profiles_indexes_name, None)
+
+        if profiles is None:
+            if profiles_indexes is not None:
+                logger.warning(
+                    f"The inventory {inv} has no {profiles_name} "
+                    f"but has {profiles_indexes_name}."
+                    " This is not expected, please check your inventory."
+                )
+            continue
+
+        if "country" not in profiles_indexes.dims:
+            logger.debug(
+                f"The inventory does not have a 'country' dimension in the {profiles_indexes_name}."
+                " No conversion will be done."
+            )
+            setattr(new_inv, profiles_name, profiles)
+            setattr(new_inv, profiles_indexes_name, profiles_indexes)
+            continue
+
+        # Convert the country profiles to cell profiles
+        new_profiles, new_indices = profiles_country_to_cells(
+            profiles,
+            profiles_indexes,
+            inv.grid,
+            country_mask_kwargs=country_mask_kwargs,
+            ignore_missing_countries=ignore_missing_countries,
+            fraction_method=fraction_method,
+        )
+        setattr(new_inv, profiles_name, new_profiles)
+        setattr(new_inv, profiles_indexes_name, new_indices)
+
+        logger.info(f"Converted {profiles_name} to cell profiles.")
+
+    return new_inv
+
+
+def interpolate_temporal_profiles(
+    inv: Inventory,
+    interpolation_method: str = "linear",
+    output_type: TemporalProfilesInterpolated = TemporalProfilesInterpolated.HOUR_OF_YEAR,
+) -> Inventory:
+    """Interpolate the temporal profiles of an inventory.
+
+    This will interpolate the temporal profiles of the inventory to create
+    a new inventory with the interpolated profiles.
+
+    This function uses
+    :py:func:`emiproc.profiles.temporal.operators.interpolate_profiles` internally.
+    Have a look for more details on the interpolation.
+
+    :arg inv: The inventory to interpolate.
+    :arg interpolation_method: The method to use for the interpolation.
+    :arg output_type: The output type of the interpolation.
+
+    :return: A new inventory with the interpolated temporal profiles.
+    """
+
+    if inv.year is None:
+        raise ValueError(
+            "The inventory does not have a year set. "
+            "Please set the year before interpolating the temporal profiles."
+        )
+
+    # Interpolate the temporal profiles
+    interpolated_profiles = interpolate_profiles(
+        profiles=inv.t_profiles_groups,
+        year=inv.year,
+        interpolation_method=interpolation_method,
+        output_type=output_type,
+        return_profiles=True,
+    )
+
+    # Return a new inventory with the interpolated profiles
+    new_inv = inv.copy()
+    new_inv.t_profiles_groups = interpolated_profiles
+
+    return new_inv

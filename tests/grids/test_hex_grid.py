@@ -1,6 +1,7 @@
-# %%
-import pytest
 import geopandas as gpd
+import pandas as pd
+import pytest
+
 from emiproc.grids import HexGrid
 from emiproc.tests_utils.test_grids import hex_grid
 
@@ -89,3 +90,25 @@ def test_shape():
 
     assert nx == hex_grid.nx
     assert ny == hex_grid.ny
+
+
+def test_centers():
+    centers = hex_grid.centers
+
+    assert len(centers) == hex_grid.nx * hex_grid.ny
+    assert isinstance(centers, gpd.GeoSeries)
+
+    # Can get the x and y
+    x = centers.x
+    y = centers.y
+    assert isinstance(x, pd.Series)
+    assert isinstance(y, pd.Series)
+
+    # Get centroid with gpd method
+    center_gpd = hex_grid.gdf.centroid
+    x_gpd, y_gpd = center_gpd.x, center_gpd.y
+
+    # Check that the centers are in the right order
+
+    pd.testing.assert_series_equal(x, x_gpd)
+    pd.testing.assert_series_equal(y, y_gpd)
