@@ -134,14 +134,23 @@ def plot_vprm_params_per_veg_type(
         if "indices" in plots:
             ax_inds = next(axes_iter)
             axes_dict["indices"] = ax_inds
-            indices = {"evi": "green", "ndvi": "orange", "lswi": "red", "evi_ref": "blue"}
+            indices = {
+                "evi": "green",
+                "ndvi": "orange",
+                "lswi": "red",
+                "evi_ref": "blue",
+            }
             for index, color in indices.items():
                 if index == "evi_ref" and model not in urban_vprm_models:
                     continue
                 if (vegetation_type, index) not in df.columns:
                     continue
                 ax_inds.plot(
-                    df.index, df[(vegetation_type, index)], label=index, color=color, alpha=0.8,
+                    df.index,
+                    df[(vegetation_type, index)],
+                    label=index,
+                    color=color,
+                    alpha=0.8,
                 )
                 if group_by is None:
                     mask = df[(vegetation_type, index + "_mask")]

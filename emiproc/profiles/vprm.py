@@ -198,7 +198,7 @@ def calculate_vprm_emissions(
         - (vegetation_type, 'evi_ref'): Reference EVI for the urban VPRM model.
             This is the EVI at a non-urban reference site
             representing a baseline leaf-off, woody biomass respiration.
-        - ('T', 'urban'): Temperature in degC in the urban area, 
+        - ('T', 'urban'): Temperature in degC in the urban area,
             representing the urban heat island effect.
 
 
@@ -408,7 +408,7 @@ def calculate_vprm_emissions(
 
         df[(vegetation_type, "Pscale")] = Pscale
 
-        gee = - (
+        gee = -(
             df_vprm.loc[vegetation_type, "lambda"]
             * Tscale
             * Pscale
