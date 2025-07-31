@@ -408,7 +408,7 @@ def calculate_vprm_emissions(
 
         df[(vegetation_type, "Pscale")] = Pscale
 
-        gee = (
+        gee = - (
             df_vprm.loc[vegetation_type, "lambda"]
             * Tscale
             * Pscale
