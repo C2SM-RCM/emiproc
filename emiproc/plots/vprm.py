@@ -11,7 +11,7 @@ from emiproc.profiles.vprm import VPRM_Model, urban_vprm_models
 def plot_vprm_params_per_veg_type(
     df: pd.DataFrame,
     df_vprm: pd.DataFrame,
-    veg_types: list[str],
+    veg_types: list[str] | None = None,
     model: VPRM_Model | str = VPRM_Model.standard,
     plots: list[str] = ["meteo", "indices", "emissions", "scaling"],
     group_by: str | None = None,
@@ -28,6 +28,16 @@ def plot_vprm_params_per_veg_type(
 
     model = VPRM_Model(model)
 
+    if veg_types is None:
+        veg_types_indices = df_vprm.index.tolist()
+        veg_type_timeseries = df.columns.get_level_values(0).unique().tolist()
+        veg_types = list(set(veg_types_indices) & set(veg_type_timeseries))
+        if not veg_types:
+            raise ValueError(
+                "No vegetation types found in the data. "
+                "Please provide a list of vegetation types."
+            )
+
     fig, axes_grid = plt.subplots(
         nrows=len(plots),
         ncols=len(veg_types),
@@ -38,9 +48,13 @@ def plot_vprm_params_per_veg_type(
     )
 
     if group_by is not None:
-
         df["group"] = df.index.strftime(group_by)
-        df = df.groupby("group").mean()
+        df = df.set_index("group", append=True)
+        # Only aggregate numeric columns for performance and avoid dtype issues
+        df_grouped = df.groupby(level="group", sort=False).mean(numeric_only=True)
+        # Use the group as the new index for plotting
+        df_grouped.index = df_grouped.index.get_level_values("group")
+        df = df_grouped
 
     y_labels = {
         "meteo": "Temperature [C]",
@@ -123,6 +137,8 @@ def plot_vprm_params_per_veg_type(
             indices = {"evi": "green", "ndvi": "orange", "lswi": "red", "evi_ref": "blue"}
             for index, color in indices.items():
                 if index == "evi_ref" and model not in urban_vprm_models:
+                    continue
+                if (vegetation_type, index) not in df.columns:
                     continue
                 ax_inds.plot(
                     df.index, df[(vegetation_type, index)], label=index, color=color, alpha=0.8,
