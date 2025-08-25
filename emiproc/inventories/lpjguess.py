@@ -26,6 +26,9 @@ class LPJ_GUESS_Inventory(Inventory):
         ----------
         lpj_guess_files:
             List of paths to the LPJ-GUESS files.
+        year:
+            The year for which the inventory is created.
+            Used to know if the year is leap or not.
         """
         super().__init__()
         self.year = year
