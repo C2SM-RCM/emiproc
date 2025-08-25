@@ -7,7 +7,7 @@ import xarray as xr
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.profiles import DayOfYearProfile
+from emiproc.profiles.temporal.profiles import DayOfYearProfile, get_leap_year_or_normal
 
 
 class LPJ_GUESS_Inventory(Inventory):
@@ -19,15 +19,19 @@ class LPJ_GUESS_Inventory(Inventory):
 
     """
 
-    def __init__(self, lpj_guess_files: list[Path]):
+    def __init__(self, lpj_guess_files: list[Path], year: int):
         """Initialize the inventory.
 
         Parameters
         ----------
         lpj_guess_files:
             List of paths to the LPJ-GUESS files.
+        year:
+            The year for which the inventory is created.
+            Used to know if the year is leap or not.
         """
         super().__init__()
+        self.year = year
 
         ds = xr.open_mfdataset(lpj_guess_files, combine="by_coords")
 
@@ -121,7 +125,8 @@ class LPJ_GUESS_Inventory(Inventory):
 
         self.set_profiles(
             profiles=CompositeTemporalProfiles.from_ratios(
-                da_valid_profiles.values.T, types=[DayOfYearProfile]
+                da_valid_profiles.values.T,
+                types=[get_leap_year_or_normal(DayOfYearProfile, year=self.year)],
             ),
             indexes=profiles_indexes,
         )
