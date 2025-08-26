@@ -16,7 +16,7 @@ class EmissionFactor:
     """
 
     # Very simple estimation for aproximate results
-    # 1.0 is usually used to simplify calculations 
+    # 1.0 is usually used to simplify calculations
     ROUGH_ESTIMATON = 1.0
     CO2_ROUGH_ESTIMATON = 1.0
     # 251 g C d−1 , Prairie Duarte 2007
