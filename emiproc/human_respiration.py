@@ -16,8 +16,17 @@ class EmissionFactor:
     """
 
     # Very simple estimation for aproximate results
+    # 1.0 is usually used to simplify calculations
     ROUGH_ESTIMATON = 1.0
     CO2_ROUGH_ESTIMATON = 1.0
+    # 251 g C d−1 , Prairie Duarte 2007
+    # http://dx.doi.org/10.5194/bg-4-215-2007
+    CO2_PRAIRIE_DUARTE = 0.92
+
+    # Also this paper has more detailed values depending on age group, gender and BMI
+    # https://doi.org/10.1186/s13021-022-00217-7
+    # See table 2
+    # https://cbmjournal.biomedcentral.com/articles/10.1186/s13021-022-00217-7/tables/2
 
     # 2.1 g / year / person
     # https://doi.org/10.1016/S0048-9697(97)00267-2
