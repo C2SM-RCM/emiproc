@@ -288,6 +288,8 @@ def get_natural_earth(
     logger = logging.getLogger("emiproc.get_natural_earth")
     path_to_save = FILES_DIR / "natural_earth" / f"ne_{resolution}_{category}_{name}"
 
+    path_to_save.parent.mkdir(parents=True, exist_ok=True)
+
     filelock = FileLock(str(path_to_save) + ".lock")
     with filelock:
         if not path_to_save.exists():
