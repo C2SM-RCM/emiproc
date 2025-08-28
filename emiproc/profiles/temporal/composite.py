@@ -426,3 +426,15 @@ def make_composite_profiles(
     out_indexes = new_indexes.unstack("z")
 
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
+
+
+def split_composite_profile(profile: CompositeTemporalProfiles) -> list[TemporalProfile]:
+    """Split a composite profile into its individual profiles."""
+    out = []
+    counter = 0
+    composite_ratios = profile.ratios
+    for type in profile.types:
+        size = type.size
+        out.append(type(composite_ratios[:, counter: counter + size]))
+        counter += size
+    return out
