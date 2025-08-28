@@ -149,34 +149,6 @@ def get_desired_profile_index(
     return int(desired_index.values)
 
 
-@emiproc.deprecated
-def read_profile_csv(
-    file: PathLike,
-    cat_colname: str = "Category",
-    sub_colname: str = "Substance",
-    read_csv_kwargs: dict[str, Any] = {},
-) -> tuple[pd.DataFrame, str, str | None]:
-    """Read a profile csv file and return the dataframe, the category column name and the substance column name.
-
-    Checks the name of the category and substances columns.
-    """
-    file = Path(file)
-
-    df = pd.read_csv(file, **read_csv_kwargs)
-    if cat_colname not in df.columns:
-        raise ValueError(f"Cannot find '{cat_colname}' header in {file=}")
-
-    if sub_colname in df.columns:
-        sub_header = "Substance"
-    else:
-        sub_header = None
-        logger = logging.getLogger("emiproc.profiles.read_cat_sub_from_csv")
-        logger.warning(
-            f"Cannot find 'Substance' header in {file=}.\n"
-            "All substances will be treated the same way."
-        )
-
-    return df, cat_colname, sub_header
 
 
 def get_profiles_indexes(

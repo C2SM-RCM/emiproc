@@ -23,7 +23,6 @@ from emiproc.profiles.temporal.specific_days import SpecificDay
 from emiproc.profiles.utils import (
     get_profiles_indexes,
     merge_indexes,
-    read_profile_csv,
     read_profile_file,
 )
 

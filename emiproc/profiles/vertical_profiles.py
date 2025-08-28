@@ -13,7 +13,6 @@ from emiproc import deprecated
 from emiproc.profiles.utils import (
     get_profiles_indexes,
     merge_indexes,
-    read_profile_csv,
     read_profile_file,
 )
 from emiproc.profiles import naming
