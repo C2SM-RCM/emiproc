@@ -75,7 +75,7 @@ def plot_profile(
 
     :arg profile: The profile to plot. Can be any kind of profiles supported in emiproc.
     :arg ax: The axes to plot on.
-    :arg ignore_limit: Whether to ignore the profile limit, for plotting a 
+    :arg ignore_limit: Whether to ignore the profile limit, for plotting a
         lot of profiles.
     :arg profile_number: The profile number to plot. In case you want to plot only
         one of the profiles in the input.
