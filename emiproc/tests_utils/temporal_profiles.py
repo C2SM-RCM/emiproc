@@ -22,7 +22,7 @@ from emiproc.profiles.temporal.profiles import (
 )
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
-yaml_profiles_dir = emiproc.FILES_DIR / "profiles" / "yaml"
+yaml_profiles_dir = emiproc.FILES_DIR / "profiles" / "yamls"
 
 TEST_COPENICUS_PROFILES = ["hour_in_day", "day_in_week", "month_in_year"]
 
