@@ -91,7 +91,7 @@ def plot_profile(
                 ignore_limit=ignore_limit,
                 labels=labels,
                 profile_number=profile_number,
-                share_ax=True if ax is None else False,
+                share_ax=True if ax else False,
                 ax=ax,
             )
 
@@ -180,5 +180,11 @@ def _plot_profiles(
     fig.tight_layout()
     fig.subplots_adjust(wspace=0.2)
     fig.suptitle("Profiles", fontsize=16, y=1.05)
+
+    # Set the ylim after ward 
+    max_y = max(np.max(p.ratios) for p in profiles) * 1.1
+    min_y = min(np.min(p.ratios) for p in profiles) * 0.9
+
+    axes[0].set_ylim(min_y, max_y)
 
     return fig, axes if not share_ax else ax
