@@ -38,4 +38,4 @@ jobs:
         pytest
     - name: Test running some examples
       run: |
-        python -m ./scripts/plots/plot_profiles.py
+        python ./scripts/plots/plot_profiles.py
