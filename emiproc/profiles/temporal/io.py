@@ -94,6 +94,7 @@ def read_temporal_profiles(
     time_profiles_files_format: str = "timeprofiles*.csv",
     profile_csv_kwargs: dict[str, Any] = {},
     rtol: float = 1e-5,
+    col_of_dim: dict[str, str] = {},
 ) -> tuple[list[list[AnyTimeProfile]] | None, xr.DataArray | None]:
     """Read the temporal profiles csv files to the emiproc inventory format.
 
@@ -161,7 +162,7 @@ def read_temporal_profiles(
             )
         logger.info(f"{possible_matching=}")
         # Generate the profiles objects
-        indexes = get_profiles_indexes(df)
+        indexes = get_profiles_indexes(df, col_of_dim=col_of_dim)
         for profile_type, colnames in possible_matching.items():
             try:
                 ratios = np.array([df[col] for col in colnames])
@@ -206,139 +207,6 @@ def read_temporal_profiles(
         out_indexes = out_indexes.drop_vars("profile")
 
     return composite_profiles, out_indexes
-
-
-@emiproc.deprecated
-def from_csv(
-    file: PathLike,
-    profile_csv_kwargs: dict[str, Any] = {},
-) -> dict[str | tuple[str, str] : AnyTimeProfile]:
-    """Create the profile from a csv file.
-
-    Based on the file, guess the correct profile
-    to create.
-
-    This is now deprectaed. Use :py:func:`read_temporal_profiles` instead.
-    """
-
-    df, cat_header, sub_header = read_profile_csv(file, **profile_csv_kwargs)
-
-    if "Mon" in df.columns:
-        # Weekly profile with 3 letters identification
-        data_columns = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        profile = WeeklyProfile
-    elif "mon" in df.columns:
-        # Weekly profile with 3 letters identification
-        data_columns = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-        profile = WeeklyProfile
-    elif " mon " in df.columns:
-        data_columns = [" mon ", " tue ", " wed ", " thu ", " fri ", " sat ", " sun "]
-        profile = WeeklyProfile
-    elif "Monday" in df.columns:
-        # Weekly profile with full name identification
-        data_columns = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
-        profile = WeeklyProfile
-    elif "Jan" in df.columns:
-        # Yearly profile with 3 letters identification
-        data_columns = [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
-        ]
-        profile = MounthsProfile
-    elif " jan " in df.columns:
-        data_columns = [
-            " jan ",
-            " feb ",
-            " mar ",
-            " apr ",
-            " may ",
-            " jun ",
-            " jul ",
-            " aug ",
-            " sep ",
-            " oct ",
-            " nov ",
-            " dec ",
-        ]
-        profile = MounthsProfile
-    elif "January" in df.columns:
-        # Yearly profile with full name identification
-        data_columns = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ]
-        profile = MounthsProfile
-    elif (
-        "0" not in df.columns
-        and "1" in df.columns
-        and "24" in df.columns
-        and "25" not in df.columns
-    ):
-        # Daily profile
-        data_columns = [str(i) for i in range(1, 25)]
-        profile = DailyProfile
-    else:
-        raise NotImplementedError(f"Cannot guess the profile from {file=}")
-
-    # Check that all the data columns are in the file
-    for col in data_columns:
-        if not col in df.columns:
-            raise ValueError(
-                f"Cannot find {col=} in {file=}, required to build {profile=}"
-            )
-
-    # Read all rows to generate the profiles
-    profiles = {}
-    for _, row in df.iterrows():
-        cat = row[cat_header]
-        if sub_header is not None:
-            sub = row[sub_header]
-            key = (cat, sub)
-        else:
-            key = cat
-        ratios = np.array([row[col] for col in data_columns])
-
-        # Check if scaling factors are given instead of ratios
-        if np.isclose(ratios.sum(), len(ratios)):
-            ratios = ratios / ratios.sum()
-        elif not np.isclose(ratios.sum(), 1.0):
-            pass  # Already ratios
-        else:
-            raise ValueError(
-                f"Cannot guess if {ratios=} are ratios or scaling factors for {row=} in"
-                f" {file=}."
-            )
-        profiles[key] = profile(ratios=ratios)
-
-    return profiles
 
 
 def from_yaml(yaml_file: PathLike) -> list[AnyTimeProfile]:

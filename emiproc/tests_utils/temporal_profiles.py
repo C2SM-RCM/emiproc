@@ -7,7 +7,7 @@ import xarray as xr
 
 import emiproc
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.io import from_csv
+from emiproc.profiles.temporal.io import from_yaml, read_temporal_profiles
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
@@ -22,17 +22,29 @@ from emiproc.profiles.temporal.profiles import (
 )
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
+yaml_profiles_dir = emiproc.FILES_DIR / "profiles" / "yaml"
 
 TEST_COPENICUS_PROFILES = ["hour_in_day", "day_in_week", "month_in_year"]
 
 
-def read_test_copernicus() -> dict[str, list[AnyTimeProfile]]:
+def read_test_copernicus() -> tuple[CompositeTemporalProfiles, xr.DataArray]:
     """Read the test copernicus profiles."""
 
-    return {
-        p: from_csv(copernicus_profiles_dir / f"timeprofiles-{p}.csv")
-        for p in TEST_COPENICUS_PROFILES
+    return read_temporal_profiles(
+            copernicus_profiles_dir,
+            "timeprofiles*.csv",
+            col_of_dim={"category": "Category"},
+        )
+
+
+
+def read_test_yamls() -> dict[str, list[AnyTimeProfile]]:
+    """Read the test yaml profiles."""
+    profiles = {
+        yaml_file.stem: from_yaml(yaml_file)
+        for yaml_file in yaml_profiles_dir.glob("*.yaml")
     }
+    return profiles
 
 
 def get_random_profiles(
