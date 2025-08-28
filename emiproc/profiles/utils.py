@@ -182,6 +182,7 @@ def read_profile_csv(
 def get_profiles_indexes(
     df: pd.DataFrame,
     colnames: dict[str, list[str]] = naming.attributes_accepted_colnames,
+    col_of_dim: dict[str, str] = {},
 ) -> xr.DataArray:
     """Return the profiles indexes from the dataframe.
 
@@ -194,13 +195,19 @@ def get_profiles_indexes(
     """
 
     # First get the dimensions present in the columns of the dataframe
-    col_of_dim = {}
     for dim, colnames in colnames.items():
+        if dim in col_of_dim.keys():
+            if col_of_dim[dim] not in df.columns:
+                raise ValueError(f"Cannot find column {col_of_dim[dim]} in {df.columns}")
+            continue
         columns = [col for col in colnames if col in df.columns]
         if len(columns) > 1:
             raise ValueError(
                 f"Cannot find which column to use for {dim=} in {columns=}.\n"
                 f"All columns refer to {dim=}."
+                " Specify which one to use using `col_of_dim={`" 
+                f"{dim}: 'column_name'"
+                "}`."
             )
         elif len(columns) == 1:
             col_of_dim[dim] = columns[0]
