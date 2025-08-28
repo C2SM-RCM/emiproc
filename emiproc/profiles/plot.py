@@ -181,7 +181,7 @@ def _plot_profiles(
     fig.subplots_adjust(wspace=0.2)
     fig.suptitle("Profiles", fontsize=16, y=1.05)
 
-    # Set the ylim after ward 
+    # Set the ylim after ward
     max_y = max(np.max(p.ratios) for p in profiles) * 1.1
     min_y = min(np.min(p.ratios) for p in profiles) * 0.9
 
