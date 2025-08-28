@@ -251,7 +251,6 @@ def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalPro
     assert np.all(r >= 0)
 
 
-
 def read_vertical_profiles(
     profiles_dir: PathLike,
     col_of_dim: dict[str, str] | None = None,

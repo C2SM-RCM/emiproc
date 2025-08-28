@@ -2,7 +2,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-from emiproc.profiles.temporal.composite import CompositeTemporalProfiles, split_composite_profile
+from emiproc.profiles.temporal.composite import (
+    CompositeTemporalProfiles,
+    split_composite_profile,
+)
 from emiproc.profiles.temporal.constants import N_HOUR_YEAR
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
@@ -75,7 +78,6 @@ def plot_profile(
 
     if isinstance(profile, CompositeTemporalProfiles):
         profile = split_composite_profile(profile)
-
 
     if isinstance(profile, list):
         if len(profile) == 0:

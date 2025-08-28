@@ -149,8 +149,6 @@ def get_desired_profile_index(
     return int(desired_index.values)
 
 
-
-
 def get_profiles_indexes(
     df: pd.DataFrame,
     colnames: dict[str, list[str]] = naming.attributes_accepted_colnames,
@@ -174,14 +172,16 @@ def get_profiles_indexes(
     for dim, colnames in colnames.items():
         if dim in col_of_dim.keys():
             if col_of_dim[dim] not in df.columns:
-                raise ValueError(f"Cannot find column {col_of_dim[dim]} in {df.columns}")
+                raise ValueError(
+                    f"Cannot find column {col_of_dim[dim]} in {df.columns}"
+                )
             continue
         columns = [col for col in colnames if col in df.columns]
         if len(columns) > 1:
             raise ValueError(
                 f"Cannot find which column to use for {dim=} in {columns=}.\n"
                 f"All columns refer to {dim=}."
-                " Specify which one to use using `col_of_dim={`" 
+                " Specify which one to use using `col_of_dim={`"
                 f"{dim}: 'column_name'"
                 "}`."
             )

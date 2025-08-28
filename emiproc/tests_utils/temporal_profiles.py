@@ -31,11 +31,10 @@ def read_test_copernicus() -> tuple[CompositeTemporalProfiles, xr.DataArray]:
     """Read the test copernicus profiles."""
 
     return read_temporal_profiles(
-            copernicus_profiles_dir,
-            "timeprofiles*.csv",
-            col_of_dim={"category": "Category"},
-        )
-
+        copernicus_profiles_dir,
+        "timeprofiles*.csv",
+        col_of_dim={"category": "Category"},
+    )
 
 
 def read_test_yamls() -> dict[str, list[AnyTimeProfile]]:
