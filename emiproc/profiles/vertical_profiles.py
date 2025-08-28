@@ -254,6 +254,7 @@ def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalPro
 
 def read_vertical_profiles(
     profiles_dir: PathLike,
+    col_of_dim: dict[str, str] | None = None,
 ) -> tuple[VerticalProfiles, xr.DataArray]:
     """Read vertical profiles from csv files.
 
@@ -375,7 +376,7 @@ def read_vertical_profiles(
         v_profiles.append(profile)
 
         # all the profiles (time and vertical)
-        indexes = get_profiles_indexes(df_vertical)
+        indexes = get_profiles_indexes(df_vertical, col_of_dim=col_of_dim)
         # Add the offset where the indexes is defined (!= -1)
         indexes = indexes.where(indexes == -1, indexes + index_offset)
 

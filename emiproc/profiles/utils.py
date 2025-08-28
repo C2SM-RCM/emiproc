@@ -154,7 +154,7 @@ def get_desired_profile_index(
 def get_profiles_indexes(
     df: pd.DataFrame,
     colnames: dict[str, list[str]] = naming.attributes_accepted_colnames,
-    col_of_dim: dict[str, str] = {},
+    col_of_dim: dict[str, str] | None = None,
 ) -> xr.DataArray:
     """Return the profiles indexes from the dataframe.
 
@@ -165,6 +165,10 @@ def get_profiles_indexes(
     with nan values will fill other other values when no profile is
     given.
     """
+    if col_of_dim is None:
+        col_of_dim = {}
+    else:
+        col_of_dim = col_of_dim.copy()
 
     # First get the dimensions present in the columns of the dataframe
     for dim, colnames in colnames.items():

@@ -93,7 +93,7 @@ def read_temporal_profiles(
     time_profiles_files_format: str = "timeprofiles*.csv",
     profile_csv_kwargs: dict[str, Any] = {},
     rtol: float = 1e-5,
-    col_of_dim: dict[str, str] = {},
+    col_of_dim: dict[str, str] | None = None,
 ) -> tuple[list[list[AnyTimeProfile]] | None, xr.DataArray | None]:
     """Read the temporal profiles csv files to the emiproc inventory format.
 
@@ -161,7 +161,7 @@ def read_temporal_profiles(
             )
         logger.info(f"{possible_matching=}")
         # Generate the profiles objects
-        indexes = get_profiles_indexes(df, col_of_dim=col_of_dim)
+        indexes = get_profiles_indexes(df, col_of_dim=col_of_dim or {})
         for profile_type, colnames in possible_matching.items():
             try:
                 ratios = np.array([df[col] for col in colnames])
