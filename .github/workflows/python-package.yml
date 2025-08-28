@@ -36,3 +36,6 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    - name: Test running some examples
+      run: |
+        python -m ./scripts/plots/plot_profiles.py
