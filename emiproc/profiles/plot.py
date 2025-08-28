@@ -1,3 +1,4 @@
+from __future__ import annotations
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -22,46 +23,45 @@ from emiproc.profiles.vertical_profiles import VerticalProfile
 def get_x_axis(
     profile: AnyTimeProfile | VerticalProfile,
 ) -> tuple[str, list[float | str]]:
-    match profile:
-        case VerticalProfile():
-            return "Height", np.concatenate([profile.height, profile.height[-1:]])
-        case HourOfYearProfile() | HourOfLeapYearProfile():
-            return "Hour of year", np.arange(profile.size + 1)
-        case MounthsProfile():
-            return "", [
-                "January",
-                "February",
-                "March",
-                "April",
-                "May",
-                "June",
-                "July",
-                "August",
-                "September",
-                "October",
-                "November",
-                "December",
-                "",
-            ]
-        case WeeklyProfile():
-            return "", [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday",
-                "",
-            ]
-        case SpecificDayProfile():
-            return f"Hour of day on {profile.specific_day.value}", np.arange(25)
-        case DailyProfile():
-            return "Hour of day", np.arange(25)
-        case _:
-            raise NotImplementedError(
-                f"Cannot determine axis for {type(profile)}. Please implement."
-            )
+    if isinstance(profile, VerticalProfile):
+        return "Height", np.concatenate([profile.height, profile.height[-1:]])
+    elif isinstance(profile, (HourOfYearProfile, HourOfLeapYearProfile)):
+        return "Hour of year", np.arange(profile.size + 1)
+    elif isinstance(profile, MounthsProfile):
+        return "", [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+            "",
+        ]
+    elif isinstance(profile, WeeklyProfile):
+        return "", [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+            "",
+        ]
+    elif isinstance(profile, SpecificDayProfile):
+        return f"Hour of day on {profile.specific_day.value}", np.arange(25)
+    elif isinstance(profile, DailyProfile):
+        return "Hour of day", np.arange(25)
+    else:
+        raise NotImplementedError(
+            f"Cannot determine axis for {type(profile)}. Please implement."
+        )
 
 
 def plot_profile(
