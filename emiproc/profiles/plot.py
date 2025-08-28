@@ -72,6 +72,22 @@ def plot_profile(
     Any type of profile is accepted.
     """
 
+    if isinstance(profile, list):
+        if len(profile) == 0:
+            raise ValueError("Cannot pass an empty list of profiles.")
+        elif len(profile) == 1:
+            profile = profile[0]
+        else:
+            # Plot all profiles in the list
+            return _plot_profiles(
+                profile,
+                ignore_limit=ignore_limit,
+                labels=labels,
+                profile_number=profile_number,
+                share_ax=True if ax is None else False,
+                ax=ax,
+            )
+
     if ax is None:
         fig, ax = plt.subplots()
     else:
@@ -96,7 +112,7 @@ def plot_profile(
     profiles_to_plot = np.concatenate([ratios, ratios[:, -1:]], axis=1)
 
     # Plot by steps to show that the whole period is concerned
-    ax.step(x_axis, profiles_to_plot.T, where="post")
+    ax.step(x_axis, profiles_to_plot.T, where="post", label=profile.label)
 
     if labels:
         ax.set_xlabel(x_label)
@@ -110,3 +126,52 @@ def plot_profile(
     ax.set_ylim(0, None)
 
     return fig, ax
+
+
+def _plot_profiles(
+    profiles: list[VerticalProfile | AnyTimeProfile],
+    ignore_limit: bool = False,
+    labels: bool = True,
+    profile_number: int | None = None,
+    share_ax: bool = False,
+    ax: plt.Axes | None = None,
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot a list of profiles.
+
+    Same as `plot_profile`, but for a list of profiles.
+    Hidden so that one can use it in the main function.
+    """
+
+    assert len(profiles) > 1, "Should not be called for a single profile."
+
+    if ax is None:
+        fig, axes = plt.subplots(
+            nrows=1,
+            ncols=len(profiles) if not share_ax else 1,
+            figsize=(5 * len(profiles), 5),
+            sharey=True,
+            squeeze=True,
+        )
+    else:
+        fig = ax.get_figure()
+        axes = ax
+        share_ax = True
+
+    if share_ax:
+        axes = np.array([axes] * len(profiles))
+
+    for i, profile in enumerate(profiles):
+        ax = axes[i]
+
+        plot_profile(
+            profile,
+            ax=ax,
+            ignore_limit=ignore_limit,
+            profile_number=profile_number,
+            labels=labels,
+        )
+    fig.tight_layout()
+    fig.subplots_adjust(wspace=0.2)
+    fig.suptitle("Profiles", fontsize=16, y=1.05)
+
+    return fig, axes if not share_ax else ax
