@@ -191,6 +191,7 @@ def calculate_vprm_emissions(
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     This is a variant of the urban VPRM model that uses a different formulation for :math:`T_{scale}`:
+    
     .. math::
         T_{\\text{scale}} = \\begin{cases}
         \\frac{(T - 0) \\cdot (T - 40)}{(T - 0) \\cdot (T - 40) + (T - 20)^2} & \\text{if } T \\leq 20 \\\\
@@ -203,7 +204,8 @@ def calculate_vprm_emissions(
     modified-VPRM
     ^^^^^^^^^^^^^
 
-    The modified-VPRM model follows the standard VPRM for GEE and has a different model for the estimate of respiration: for more details see [Gourdij et al., 2022]_.
+    The modified-VPRM model follows the standard VPRM for GEE and has a different model
+    for the estimate of respiration: for more details see [VPRM_modified_groudji_2022]_.
 
     :param df: Dataframe with the observations. It must be a multiindex dataframe with the following columns:
 
