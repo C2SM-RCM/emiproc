@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
 from emiproc.profiles.vprm import VPRM_Model, urban_vprm_models
 
@@ -54,7 +55,11 @@ def plot_vprm_params_per_veg_type(
         df_grouped = df.groupby(level="group", sort=False).mean(numeric_only=True)
         # Use the group as the new index for plotting
         df_grouped.index = df_grouped.index.get_level_values("group")
-        df = df_grouped
+        df = df_grouped 
+
+        x = np.arange(len(df.index))
+    else:
+        x = df.index
 
     y_labels = {
         "meteo": "Temperature [C]",
@@ -75,14 +80,14 @@ def plot_vprm_params_per_veg_type(
             axes_dict["meteo"] = ax_T
             ax_T.set_title(vegetation_type)
             l_tg = ax_T.plot(
-                df.index,
+                x,
                 df[("T", "global")],
                 label="T global  averaged",
                 alpha=0.5,
             )
             if model in urban_vprm_models:
                 l_tu = ax_T.plot(
-                    df.index,
+                    x,
                     df[("T", "urban")],
                     label="T urban  averaged",
                     alpha=0.5,
@@ -97,7 +102,7 @@ def plot_vprm_params_per_veg_type(
 
             ax_RAD = ax_T.twinx()
             l_r = ax_RAD.plot(
-                df.index,
+                x,
                 df[("RAD", "global")],
                 label="Radiation",
                 color="orange",
@@ -113,15 +118,15 @@ def plot_vprm_params_per_veg_type(
             # Make horizontal lines for the parameters
             ax_T.hlines(
                 df_vprm.loc[vegetation_type, vprm_params],
-                df.index[0],
-                df.index[-1],
+                x[0],
+                x[-1],
                 color="k",
                 linestyles="dashed",
             )
             for param in vprm_params:
                 # Add text for the parameters
                 ax_T.text(
-                    df.index[0],
+                    x[0],
                     df_vprm.loc[vegetation_type, param],
                     param,
                     color="k",
@@ -146,7 +151,7 @@ def plot_vprm_params_per_veg_type(
                 if (vegetation_type, index) not in df.columns:
                     continue
                 ax_inds.plot(
-                    df.index,
+                    x,
                     df[(vegetation_type, index)],
                     label=index,
                     color=color,
@@ -155,7 +160,7 @@ def plot_vprm_params_per_veg_type(
                 if group_by is None:
                     mask = df[(vegetation_type, index + "_mask")]
                     ax_inds.scatter(
-                        df.index[mask],
+                        x[mask],
                         df.loc[mask, (vegetation_type, index + "_extracted")],
                         color=color,
                         marker="x",
@@ -164,8 +169,8 @@ def plot_vprm_params_per_veg_type(
                 min_evi_ref = min(df[(vegetation_type, "evi_ref")])
                 ax_inds.hlines(
                     min_evi_ref,
-                    df.index[0],
-                    df.index[-1],
+                    x[0],
+                    x[-1],
                     color="blue",
                     linestyles="dashed",
                     alpha=0.5,
@@ -180,12 +185,12 @@ def plot_vprm_params_per_veg_type(
             axes_dict["emissions"] = ax_emi
 
             ax_emi.plot(
-                df.index, df[(vegetation_type, "resp")], label="resp", alpha=0.7
+                x, df[(vegetation_type, "resp")], label="resp", alpha=0.7
             )
-            ax_emi.plot(df.index, df[(vegetation_type, "gee")], label="gee", alpha=0.7)
-            ax_emi.plot(df.index, df[(vegetation_type, "nee")], label="nee", alpha=0.7)
+            ax_emi.plot(x, df[(vegetation_type, "gee")], label="gee", alpha=0.7)
+            ax_emi.plot(x, df[(vegetation_type, "nee")], label="nee", alpha=0.7)
             # Horizontal line at 0
-            ax_emi.plot([df.index[0], df.index[-1]], [0, 0], "k")
+            ax_emi.plot([x[0], x[-1]], [0, 0], "k")
 
         # Plot the scaling params
 
@@ -194,7 +199,7 @@ def plot_vprm_params_per_veg_type(
             axes_dict["scaling"] = ax_scale
 
             for param in ["Tscale", "Wscale", "Pscale"]:
-                ax_scale.plot(df.index, df[(vegetation_type, param)], label=param)
+                ax_scale.plot(x, df[(vegetation_type, param)], label=param)
 
         if is_left_col:
             for title, ax in axes_dict.items():
@@ -215,7 +220,29 @@ def plot_vprm_params_per_veg_type(
         # Set x ticks rotation
         axes[-1].tick_params(
             "x",
-            rotation=45,
+            #rotation=45,
+            direction = "out",
         )
+
+    if group_by is not None:
+
+        # Remove the highest frequency from the group by 
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+        group_by_clean = group_by.replace(':', '').replace('-', '').replace(' ', '')
+        ticks = {
+            "%m%H": (
+                np.arange(0, 12*24, 24),
+                months
+            ),
+            '%m%d': (
+                np.arange(0, 12*31, 31),
+                months
+            ),
+        }.get(group_by_clean, None)
+        if ticks is None:
+            raise ValueError(f"Cannot set x ticks for cleaned group_by: {group_by_clean}")
+
+        axes_grid[-1, 0].set_xticks(*ticks)
 
     fig.align_ylabels(axes_grid[:, 0])
