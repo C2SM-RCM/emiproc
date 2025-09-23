@@ -55,7 +55,7 @@ def plot_vprm_params_per_veg_type(
         df_grouped = df.groupby(level="group", sort=False).mean(numeric_only=True)
         # Use the group as the new index for plotting
         df_grouped.index = df_grouped.index.get_level_values("group")
-        df = df_grouped 
+        df = df_grouped
 
         x = np.arange(len(df.index))
     else:
@@ -184,9 +184,7 @@ def plot_vprm_params_per_veg_type(
             ax_emi = next(axes_iter)
             axes_dict["emissions"] = ax_emi
 
-            ax_emi.plot(
-                x, df[(vegetation_type, "resp")], label="resp", alpha=0.7
-            )
+            ax_emi.plot(x, df[(vegetation_type, "resp")], label="resp", alpha=0.7)
             ax_emi.plot(x, df[(vegetation_type, "gee")], label="gee", alpha=0.7)
             ax_emi.plot(x, df[(vegetation_type, "nee")], label="nee", alpha=0.7)
             # Horizontal line at 0
@@ -220,28 +218,37 @@ def plot_vprm_params_per_veg_type(
         # Set x ticks rotation
         axes[-1].tick_params(
             "x",
-            #rotation=45,
-            direction = "out",
+            # rotation=45,
+            direction="out",
         )
 
     if group_by is not None:
 
-        # Remove the highest frequency from the group by 
-        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        # Remove the highest frequency from the group by
+        months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+        ]
 
-        group_by_clean = group_by.replace(':', '').replace('-', '').replace(' ', '')
+        group_by_clean = group_by.replace(":", "").replace("-", "").replace(" ", "")
         ticks = {
-            "%m%H": (
-                np.arange(0, 12*24, 24),
-                months
-            ),
-            '%m%d': (
-                np.arange(0, 12*31, 31),
-                months
-            ),
+            "%m%H": (np.arange(0, 12 * 24, 24), months),
+            "%m%d": (np.arange(0, 12 * 31, 31), months),
         }.get(group_by_clean, None)
         if ticks is None:
-            raise ValueError(f"Cannot set x ticks for cleaned group_by: {group_by_clean}")
+            raise ValueError(
+                f"Cannot set x ticks for cleaned group_by: {group_by_clean}"
+            )
 
         axes_grid[-1, 0].set_xticks(*ticks)
 
