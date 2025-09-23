@@ -24,6 +24,8 @@ bandType = Union[np.ndarray, xr.DataArray]
 class VPRM_Model(Enum):
     """Enum for the VPRM model types.
 
+    see :py:func:`calculate_vprm_emissions` for details about the different versions.
+
     - `standard`: Standard VPRM model [Mahadevan_2008]_
     - `urban`: Original Urban VPRM model [Urban_VPRM_Hardiman_2017]_
     - `urban_windbourne`: Urban VPRM model with windbourne [Urban_VPRM_Winbourne_2021]_
@@ -119,7 +121,8 @@ def calculate_vprm_emissions(
 
     There are 3 implementation of the VPRM model: standard VPRM (Mahadevan et al., 2008), modified-VPRM (Gourdij et al., 2021)
 
-    Standard VPRM:
+    Standard VPRM
+    ^^^^^^^^^^^^^
 
     PAR (Photosynthetically Active Radiation) is calculated from the shortwave radiation:
 
@@ -164,7 +167,8 @@ def calculate_vprm_emissions(
     .. math::
         \\frac{\\mu mol_{\\mathrm{CO2}}}{m^2 * s}
 
-    urban-VPRM:
+    Urban VPRM
+    ^^^^^^^^^^
 
     The VPRM model can be extended to urban areas according to [Urban_VPRM].
 
@@ -182,9 +186,24 @@ def calculate_vprm_emissions(
 
     where :math:`\\mathrm{Resp_{e-init}}` is the basic vprm respiration and :math:`\\mathrm{ISA}` is the impervious surface area at the vegetation location.
 
-    modified-VPRM
 
-    The modified-VPRM model follows the standard VPRM for GEE and has a different model for the estimate of respiration: for more details see Gourdij et al., JGR 2021
+    Urban VPRM with Windbourne
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    This is a variant of the urban VPRM model that uses a different formulation for :math:`T_{scale}`:
+    .. math::
+        T_{\\text{scale}} = \\begin{cases}
+        \\frac{(T - 0) \\cdot (T - 40)}{(T - 0) \\cdot (T - 40) + (T - 20)^2} & \\text{if } T \\leq 20 \\\\
+        1 & \\text{if } 20 < T < 30 \\\\
+        \\frac{(T - 0) \\cdot (T - 40)}{(T - 0) \\cdot (T - 40) + (T - 30)^2} & \\text{if } T \\geq 30
+        \\end{cases}
+
+    
+
+    modified-VPRM
+    ^^^^^^^^^^^^^
+
+    The modified-VPRM model follows the standard VPRM for GEE and has a different model for the estimate of respiration: for more details see [Gourdij et al., 2022]_.
 
     :param df: Dataframe with the observations. It must be a multiindex dataframe with the following columns:
 
