@@ -130,7 +130,7 @@ class GFED4_Inventory(Inventory):
         super().__init__()
 
         if use_variable not in ["C", "DM"]:
-            raise ValueError("use must be either 'C' or 'DM'")
+            raise ValueError("use_variable must be either 'C' or 'DM'")
 
         self.gfed_filepath = Path(gfed_filepath)
         gfed_file = self.gfed_filepath
