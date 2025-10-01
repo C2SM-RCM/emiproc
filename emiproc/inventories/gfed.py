@@ -154,7 +154,7 @@ class GFED4_Inventory(Inventory):
                 group=f"/emissions/{month:02}/partitioning",
                 phony_dims="sort",
             )
-            # Get teh phony dims and renmae them
+            # Get the phony dims and rename them
             ds_partion = rename_phony_dims(ds_partion)
             da_dm = rename_phony_dims(da_dm)
             da_partition = ds_partion.to_dataarray(dim="category")
