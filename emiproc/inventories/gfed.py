@@ -72,7 +72,7 @@ class GFED_Grid(RegularGrid):
     def __init__(self, gfed_filepath: PathLike):
 
         gfed_filepath = Path(gfed_filepath)
-        ds = xr.open_dataset(gfed_filepath)
+        ds = xr.open_dataset(gfed_filepath, phony_dims="sort")
 
         # Get the lon lat coordinates
         # This assumes (but checks) that the grid is regular
@@ -118,14 +118,19 @@ class GFED4_Inventory(Inventory):
     The data set contains two variables:
         * C: Carbon emissions
         * DM: Dry matter emissions
+        
+    Has to be specified which one to use with the `use_variable` argument.
 
     .. note:: This inventory applies only for GFED4 .
         GFED5 has changed the format and is not supported by this class.
     """
 
-    def __init__(self, gfed_filepath: PathLike, year: int):
+    def __init__(self, gfed_filepath: PathLike, year: int, use_variable: str = "DM"):
 
         super().__init__()
+
+        if use_variable not in ["C", "DM"]:
+            raise ValueError("use must be either 'C' or 'DM'")
 
         self.gfed_filepath = Path(gfed_filepath)
         gfed_file = self.gfed_filepath
@@ -141,14 +146,26 @@ class GFED4_Inventory(Inventory):
         lat_lon_dims = lambda ds: {phony_dims(ds)[0]: "lat", phony_dims(ds)[1]: "lon"}
         rename_phony_dims = lambda ds: ds.rename(lat_lon_dims(ds))
         for month in range(1, 13):
-            da_dm = xr.open_dataset(gfed_file, group=f"/emissions/{month:02}")["DM"]
+            da_dm = xr.open_dataset(
+                gfed_file, group=f"/emissions/{month:02}", phony_dims="sort"
+            )["DM"]
             ds_partion = xr.open_dataset(
-                gfed_file, group=f"/emissions/{month:02}/partitioning"
+                gfed_file,
+                group=f"/emissions/{month:02}/partitioning",
+                phony_dims="sort",
             )
             # Get teh phony dims and renmae them
             ds_partion = rename_phony_dims(ds_partion)
             da_dm = rename_phony_dims(da_dm)
             da_partition = ds_partion.to_dataarray(dim="category")
+            # Keep only the requested variable
+            da_partition = da_partition.sel(
+                category=[
+                    cat
+                    for cat in da_partition["category"].values
+                    if cat.startswith(use_variable)
+                ]
+            )
             das.append((da_dm * da_partition).expand_dims(month=[month]))
         da = xr.concat(das, dim="month")
 
@@ -156,7 +173,9 @@ class GFED4_Inventory(Inventory):
         da["category"] = [str(cat).split("_")[-1] for cat in da["category"].values]
 
         # Get the grid cell areas
-        grid_areas = xr.open_dataset(gfed_file, group="/ancill/")["grid_cell_area"]
+        grid_areas = xr.open_dataset(gfed_file, group="/ancill/", phony_dims="sort")[
+            "grid_cell_area"
+        ]
         grid_areas = rename_phony_dims(grid_areas)
         # Scale with the grid cell area to get kg / year / cell
         da = da * grid_areas
