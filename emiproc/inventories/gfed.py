@@ -118,7 +118,7 @@ class GFED4_Inventory(Inventory):
     The data set contains two variables:
         * C: Carbon emissions
         * DM: Dry matter emissions
-        
+
     Has to be specified which one to use with the `use_variable` argument.
 
     .. note:: This inventory applies only for GFED4 .
