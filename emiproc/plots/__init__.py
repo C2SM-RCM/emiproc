@@ -164,7 +164,7 @@ def plot_inventory(
     :arg reverse_y: if True, will reverse the y-axis.
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     :arg country_borders_kwargs: additional keyword arguments for the country borders.
-        See `geopandas.Geoseries.plot` for more information. 
+        See `geopandas.Geoseries.plot` for more information.
     """
 
     logger = logging.getLogger(__name__)
@@ -213,6 +213,8 @@ def plot_inventory(
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
+        # Set to the same CRS as the grid
+        gdf_countries = gdf_countries.to_crs(grid.crs)
         # Crop the countries to the grid
         gdf_countries = gdf_countries.cx[x_min:x_max, y_min:y_max].clip_by_rect(
             x_min, y_min, x_max, y_max
@@ -307,13 +309,23 @@ def plot_inventory(
                     extent=[x_min, x_max, y_min, y_max],
                 )
             else:
+                # Plot only polygons, otherwise, it will be weird with the multipolygon
+                # hiding parts of the grid
+                mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
                 im = PolyCollection(
-                    grid.corners,
+                    (
+                        grid.corners[mask_polygons]
+                        if hasattr(grid, "corners") and grid.corners is not None
+                        # Get the coordinates of the polygons
+                        else grid.gdf.geometry[mask_polygons].apply(
+                            lambda geom: geom.exterior.coords
+                        )
+                    ),
                     cmap=this_cmap,
                     norm=norm,
                     **poly_collection_kwargs,
                 )
-                im.set_array(emissions.flatten())
+                im.set_array(emissions.flatten()[mask_polygons])
                 ax.add_collection(im)
             add_ax_info(ax)
             ax.set_title(f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y")
@@ -363,13 +375,21 @@ def plot_inventory(
                 extent=[x_min, x_max, y_min, y_max],
             )
         else:
+            mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
             im = PolyCollection(
-                grid.corners,
+                (
+                    grid.corners[mask_polygons]
+                    if hasattr(grid, "corners") and grid.corners is not None
+                    # Get the coordinates of the polygons
+                    else grid.gdf.geometry[mask_polygons].apply(
+                        lambda geom: geom.exterior.coords
+                    )
+                ),
                 cmap=this_cmap,
                 norm=norm,
                 **poly_collection_kwargs,
             )
-            im.set_array(total_sub_emissions.flatten())
+            im.set_array(total_sub_emissions.flatten()[mask_polygons])
             ax.add_collection(im)
 
         ax.set_title(

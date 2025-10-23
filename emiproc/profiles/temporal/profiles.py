@@ -59,6 +59,11 @@ class TemporalProfile:
     def n_profiles(self) -> int:
         return self.ratios.shape[0]
 
+    @property
+    def scaling_factors(self) -> np.ndarray:
+        """Return the scaling factors for the profile."""
+        return self.ratios * self.size
+
     def __getitem__(self, key: int) -> TemporalProfile:
         """Return the profile at the given index."""
         return self.__class__(self.ratios[key])
@@ -84,6 +89,11 @@ class TemporalProfile:
         if not isinstance(other, TemporalProfile):
             raise TypeError(f"{other=} must be a {TemporalProfile}.")
         return self.size < other.size
+
+    @property
+    def label(self) -> str:
+        """Return a label for the profile."""
+        return f"{self.__class__.__name__}"
 
 
 @dataclass(eq=False)
@@ -127,6 +137,11 @@ class SpecificDayProfile(DailyProfile):
         if isinstance(other, SpecificDayProfile):
             return self.specific_day < other.specific_day
         return super().__lt__(other)
+
+    @property
+    def label(self) -> str:
+        """Return a label for the profile."""
+        return f"{self.__class__.__name__} ({self.specific_day._name_})"
 
 
 @dataclass(eq=False)
@@ -224,6 +239,19 @@ class DayOfLeapYearProfile(TemporalProfile):
     size: int = N_DAY_LEAPYEAR
 
 
+@dataclass(eq=False)
+class HourOfWeekPerMonthProfile(TemporalProfile):
+    """Hour of week per month profile.
+
+    Same as :py:class:`HourOfWeekProfile`, but for each month.
+
+    The profile starts on Monday of January at 00:00.
+    Then it continues over that january week and then continues to the next month.
+    """
+
+    size: int = N_HOUR_WEEK * N_MONTH_YEAR
+
+
 AnyTimeProfile = Union[
     DailyProfile,
     SpecificDayProfile,
@@ -231,10 +259,13 @@ AnyTimeProfile = Union[
     MounthsProfile,
     HourOfYearProfile,
     HourOfLeapYearProfile,
+    HourOfWeekProfile,
+    Hour3OfDay,
+    Hour3OfDayPerMonth,
+    HourOfWeekPerMonthProfile,
+    DayOfYearProfile,
+    DayOfLeapYearProfile,
 ]
-
-
-
 
 
 # Maps temporal profiles to their corrected version

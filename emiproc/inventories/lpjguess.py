@@ -1,15 +1,13 @@
 from pathlib import Path
 
-
-import xarray as xr
-import numpy as np
 import geopandas as gpd
-from shapely.creation import polygons
+import numpy as np
+import xarray as xr
 
-from emiproc.grids import WGS84_PROJECTED, GeoPandasGrid
+from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
-from emiproc.profiles.temporal.profiles import DayOfYearProfile
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.profiles import DayOfYearProfile, get_leap_year_or_normal
 
 
 class LPJ_GUESS_Inventory(Inventory):
@@ -21,15 +19,19 @@ class LPJ_GUESS_Inventory(Inventory):
 
     """
 
-    def __init__(self, lpj_guess_files: list[Path]):
+    def __init__(self, lpj_guess_files: list[Path], year: int):
         """Initialize the inventory.
 
         Parameters
         ----------
         lpj_guess_files:
             List of paths to the LPJ-GUESS files.
+        year:
+            The year for which the inventory is created.
+            Used to know if the year is leap or not.
         """
         super().__init__()
+        self.year = year
 
         ds = xr.open_mfdataset(lpj_guess_files, combine="by_coords")
 
@@ -79,54 +81,21 @@ class LPJ_GUESS_Inventory(Inventory):
         lon_range = da_merged["longitude"].values
         lat_range = da_merged["latitude"].values
 
-        d_lon = np.diff(lon_range)[0]
-        d_lat = np.diff(lat_range)[0]
-        # Ensure the spacing is constant
-        assert np.allclose(
-            np.diff(lon_range), d_lon
-        ), "Longitude spacing is not constant"
-        assert np.allclose(
-            np.diff(lat_range), d_lat
-        ), "Latitude spacing is not constant"
-
-        # Reconstruct the grid vertices
-        coords = np.array(
-            [
-                # Bottom left
-                [
-                    lon - d_lon / 2,
-                    lat - d_lat / 2,
-                ],
-                # Bottom right
-                [
-                    lon + d_lon / 2,
-                    lat - d_lat / 2,
-                ],
-                # Top right
-                [
-                    lon + d_lon / 2,
-                    lat + d_lat / 2,
-                ],
-                # Top left
-                [
-                    lon - d_lon / 2,
-                    lat + d_lat / 2,
-                ],
-            ]
+        self.grid = RegularGrid.from_centers(
+            x_centers=lon_range,
+            y_centers=lat_range,
+            name="LPJ-GUESS-grid",
         )
 
-        coords = np.rollaxis(coords, -1, 0)
-
-        # Create the polygons
-        geometry = gpd.GeoSeries(polygons(coords), crs="WGS84")
-        self.grid = GeoPandasGrid(geometry, shape=(len(lon_range), len(lat_range)))
-
+        geometry = self.grid.gdf.geometry
         # Unit conversion
         # "mg CH4 m-2 d-1" -> "kg / year / cell"
         # Day to Year is already included when we summed
         # kg/mg * m2/cell
-        converstion_factor = 1e-6 * geometry.to_crs(WGS84_PROJECTED).area
-        da_total = da_stacked.sum(dim="time") * converstion_factor.values
+        converstion_factor = 1e-6 * self.grid.cell_areas
+        da_total = da_stacked.sum(dim="time") * xr.DataArray(
+            converstion_factor, dims="cell", coords={"cell": da_stacked["cell"]}
+        )
 
         # Convert to pandas
         df = (
@@ -156,7 +125,8 @@ class LPJ_GUESS_Inventory(Inventory):
 
         self.set_profiles(
             profiles=CompositeTemporalProfiles.from_ratios(
-                da_valid_profiles.values.T, types=[DayOfYearProfile]
+                da_valid_profiles.values.T,
+                types=[get_leap_year_or_normal(DayOfYearProfile, year=self.year)],
             ),
             indexes=profiles_indexes,
         )

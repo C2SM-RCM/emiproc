@@ -149,39 +149,10 @@ def get_desired_profile_index(
     return int(desired_index.values)
 
 
-@emiproc.deprecated
-def read_profile_csv(
-    file: PathLike,
-    cat_colname: str = "Category",
-    sub_colname: str = "Substance",
-    read_csv_kwargs: dict[str, Any] = {},
-) -> tuple[pd.DataFrame, str, str | None]:
-    """Read a profile csv file and return the dataframe, the category column name and the substance column name.
-
-    Checks the name of the category and substances columns.
-    """
-    file = Path(file)
-
-    df = pd.read_csv(file, **read_csv_kwargs)
-    if cat_colname not in df.columns:
-        raise ValueError(f"Cannot find '{cat_colname}' header in {file=}")
-
-    if sub_colname in df.columns:
-        sub_header = "Substance"
-    else:
-        sub_header = None
-        logger = logging.getLogger("emiproc.profiles.read_cat_sub_from_csv")
-        logger.warning(
-            f"Cannot find 'Substance' header in {file=}.\n"
-            "All substances will be treated the same way."
-        )
-
-    return df, cat_colname, sub_header
-
-
 def get_profiles_indexes(
     df: pd.DataFrame,
     colnames: dict[str, list[str]] = naming.attributes_accepted_colnames,
+    col_of_dim: dict[str, str] | None = None,
 ) -> xr.DataArray:
     """Return the profiles indexes from the dataframe.
 
@@ -192,15 +163,27 @@ def get_profiles_indexes(
     with nan values will fill other other values when no profile is
     given.
     """
+    if col_of_dim is None:
+        col_of_dim = {}
+    else:
+        col_of_dim = col_of_dim.copy()
 
     # First get the dimensions present in the columns of the dataframe
-    col_of_dim = {}
     for dim, colnames in colnames.items():
+        if dim in col_of_dim.keys():
+            if col_of_dim[dim] not in df.columns:
+                raise ValueError(
+                    f"Cannot find column {col_of_dim[dim]} in {df.columns}"
+                )
+            continue
         columns = [col for col in colnames if col in df.columns]
         if len(columns) > 1:
             raise ValueError(
                 f"Cannot find which column to use for {dim=} in {columns=}.\n"
                 f"All columns refer to {dim=}."
+                " Specify which one to use using `col_of_dim={`"
+                f"{dim}: 'column_name'"
+                "}`."
             )
         elif len(columns) == 1:
             col_of_dim[dim] = columns[0]
@@ -357,7 +340,9 @@ def merge_indexes(indexes: list[xr.DataArray]) -> xr.DataArray:
 
 
 def profiles_to_scalingfactors_dataarray(
-    profiles: CompositeTemporalProfiles | VerticalProfiles, indexes: xr.DataArray
+    profiles: CompositeTemporalProfiles | VerticalProfiles,
+    indexes: xr.DataArray,
+    use_ratios: bool = False,
 ) -> xr.DataArray:
     """Convert a profiles object to a ratios DataArray.
 
@@ -368,18 +353,20 @@ def profiles_to_scalingfactors_dataarray(
 
     :returns: A DataArray with the scaling factors.
     """
+    name = "ratios" if use_ratios else "scaling_factors"
+    name_no_s = name[:-1]
+    sf = getattr(profiles, name)
 
-    sf = profiles.scaling_factors
     return xr.DataArray(
         sf[indexes],
-        dims=[*indexes.dims, "scaling_factors"],
+        dims=[*indexes.dims, name_no_s],
         coords={
             **indexes.coords,
-            "scaling_factors": range(sf.shape[-1]),
+            name_no_s: range(sf.shape[-1]),
         },
         # Remove the profiles with no ratios (will be set to nan)
         # This assumes that no profile = no contribution, so only the other ratios in the cell will have an impact
-    ).where(indexes != -1, 1.0)
+    ).where(indexes != -1, 1.0 if not use_ratios else 1.0 / profiles.size)
 
 
 def ratios_dataarray_to_profiles(
@@ -434,3 +421,48 @@ def ratios_dataarray_to_profiles(
         profiles_indexes = profiles_indexes.squeeze("dummy").drop_vars("dummy")
 
     return unique_profiles.T, profiles_indexes.astype(int)
+
+
+def group_profile_cells_by_regions(
+    profiles_indexes: xr.DataArray,
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Group the profile cells into regions based on the unique values in the 'cell' dimension.
+
+    Regions have the same profiles for all other dimensions than cell.
+
+    In the end from the output you get:
+    ```
+    regions_index.sel(region=region_of_cell).drop_vars('region').equals(profiles_indexes)
+
+    ```
+
+    :arg profiles_indexes:
+        A DataArray with a 'cell' dimension that contains the profile indexes.
+
+    :returns:
+        - `regions_index`: A DataArray with the unique profile indexes for each region.
+        - `region_of_cell`: A DataArray that maps each cell to its corresponding region.
+    """
+
+    if "cell" not in profiles_indexes.dims:
+        raise ValueError(
+            "The profiles indexes must contain a 'cell' dimension to group by regions."
+        )
+    cell_dim_index = profiles_indexes.dims.index("cell")
+    u, i = np.unique(profiles_indexes, axis=cell_dim_index, return_inverse=True)
+    regions_index = xr.DataArray(
+        u,
+        dims=[d if d != "cell" else "region" for d in profiles_indexes.dims],
+        coords={
+            dim: profiles_indexes.coords[dim]
+            for dim in profiles_indexes.dims
+            if dim != "cell"
+        }
+        | {"region": np.arange(u.shape[cell_dim_index])},
+    )
+    region_of_cell = xr.DataArray(
+        i,
+        dims=["cell"],
+        coords={"cell": profiles_indexes.coords["cell"]},
+    )
+    return regions_index, region_of_cell

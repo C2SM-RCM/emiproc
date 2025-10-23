@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pytest
+import xarray as xr
 
 from emiproc import FILES_DIR
 from emiproc.exports.hourly import export_hourly_emissions
@@ -115,3 +116,5 @@ def test_with_regular_grid():
     # Check that the file is there
     for file in output_files:
         assert file.exists(), f"File {file} does not exist"
+        ds = xr.open_dataset(file)
+        assert "cell_area" in ds.variables.keys(), "cell_area not in dataset"

@@ -16,6 +16,16 @@ Inventory Operators
 .. autofunction:: emiproc.inventories.utils.drop
 
 
+Profiles Operators 
+------------------
+
+A set of operators to manipulate profiles in inventories.
+
+
+.. autofunction:: emiproc.inventories.utils.country_to_cells
+
+.. autofunction:: emiproc.inventories.utils.interpolate_temporal_profiles
+
 Geometric Transformations 
 -------------------------
 

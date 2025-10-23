@@ -40,9 +40,34 @@ BoundingBox = tuple[float, float, float, float]
 
 class Grid:
     """Abstract base class for a grid.
+
     Derive your own grid implementation from this and make sure to provide
     an appropriate implementation of the required methods.
-    As an example you can look at TNOGrid.
+
+    :param name: Name of the grid.
+    :type name: str
+    :param crs: The coordinate reference system of the grid.
+    :type crs: int | str | pyproj.CRS
+
+    :param gdf: A geopandas dataframe containing the grid cells as geometries.
+    :type gdf: gpd.GeoDataFrame
+    :param cells_as_polylist: A list of polygons representing the grid cells.
+    :type cells_as_polylist: list[shapely.geometry.Polygon]
+
+    :param nx: Number of cells in the x direction.
+    :type nx: int
+    :param ny: Number of cells in the y direction. Set this to 1 for non-regular grids.
+    :type ny: int
+    :param shape: The shape of the grid as a tuple (nx, ny).
+    :type shape: tuple[int, int]
+
+    :param corners: Corners of the cells.
+    :type corners: np.ndarray | None
+    :param centers: Centers of the cells, as a GeoSeries of Points.
+        You can use grid.centers.x and grid.centers.y to get the x and y coordinates.
+    :type centers: gpd.GeoSeries
+    :param cell_areas: Area of the cells in m^2.
+    :type cell_areas: Iterable[float]
     """
 
     name: str
@@ -146,11 +171,16 @@ class Grid:
     @cached_property
     def cell_areas(self) -> Iterable[float]:
         """Return an array containing the area of each cell in m2."""
-        return (
-            gpd.GeoSeries(self.cells_as_polylist, crs=self.crs)
+        geom = self.gdf.geometry
+        if geom.crs is not None:
             # Convert to WGS84 to get the area in m^2
-            .to_crs(epsg=WGS84_NSIDC).area
-        )
+            geom = geom.to_crs(epsg=WGS84_NSIDC)
+        return geom.area.astype(float)
+
+    @cached_property
+    def centers(self) -> gpd.GeoSeries:
+        """Return a GeoSeries with the points centers of the cells."""
+        return self.gdf.centroid
 
     def __len__(self):
         """Return the number of cells in the grid."""
@@ -163,15 +193,18 @@ class RegularGrid(Grid):
     This allows for some capabilities that are not available for
     irregular grids (rasterization, image like plotting).
 
-    The grid can be defined in multiple ways.
-    All the way need the reference (xmin, ymin).
-    Then you need 2 of the three following:
+    To create the grid, one mandatory parameter is the reference:
 
-    * xmax, ymax to define the bounding box
-    * nx, ny to define the number of cells in each direction
-    * dx, dy to define the size of the cells in each direction
+    :param xmin/ymin: The minimum x and y coordinate of the grid.
 
-    Leave the unused parameters as None.
+    Then you need two of the three following:
+
+    :param xmax/ymax: The maximum x and y coordinate of the grid.
+    :param nx/ny: The number of cells in both directions.
+    :param dx/dy: The size of the cells.
+        The number of decimals specified is used to round the coordinates.
+
+    The grid will be constructed to fit the given parameters.
     """
 
     # The centers of the cells (lon =x, lat = y)
@@ -330,6 +363,16 @@ class RegularGrid(Grid):
     @cached_property
     def bounds(self) -> tuple[int, int, int, int]:
         return self.xmin, self.ymin, self.xmax, self.ymax
+
+    @cached_property
+    def centers(self) -> gpd.GeoSeries:
+        """Return a GeoSeries with the points centers of the cells."""
+
+        # Require no calculation compared to the gdf.centroid
+        return gpd.GeoSeries.from_xy(
+            np.repeat(self.lon_range, self.ny),
+            np.tile(self.lat_range, self.nx),
+        )
 
     @classmethod
     def from_centers(
@@ -556,6 +599,11 @@ class TNOGrid(RegularGrid):
         self.nx = len(self.lon_var)
         self.ny = len(self.lat_var)
 
+        self.xmin = self.lon_var.min()
+        self.xmax = self.lon_var.max()
+        self.ymin = self.lat_var.min()
+        self.ymax = self.lat_var.max()
+
         # The lat/lon values are the cell-centers
         self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
         self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
@@ -731,85 +779,6 @@ class GeoPandasGrid(Grid):
     def cells_as_polylist(self) -> list[Polygon]:
         """Return all the cells as a list of polygons."""
         return self.gdf.geometry.tolist()
-
-
-class SwissGrid(RegularGrid):
-    """Represent a grid used by swiss inventories, such as meteotest, maiolica
-    or carbocount."""
-
-    dx: float
-    dy: float
-    xmin: float
-    ymin: float
-
-    def __init__(self, name, nx, ny, dx, dy, xmin, ymin, crs: int = LV95):
-        """Store the grid information.
-
-        Swiss grids use LV95 coordinates, which switch the axes:
-
-        * x <-> Northing
-        * y <-> Easting
-
-        For consistency with the other Grids, we use:
-
-        * x <-> Longitude ~ "swiss y"
-        * y <-> Latitude  ~ "swiss x"
-
-        Thus, a header of a .asc file translates as follows:
-
-        * ncols     -> nx
-        * nrows     -> ny
-        * xllcorner -> ymin
-        * yllcorner -> xmin
-        * cellsize  -> dx, dy
-
-        Parameters
-        ----------
-        dx : float
-            EASTERLY size of a gridcell in meters
-        dy : float
-            NORTHLY size of a gridcell in meters
-        nx : int
-            Number of cells in EASTERLY direction
-        ny : int
-            Number of cells in NORTHLY direction
-        xmin : float
-            EASTERLY distance of bottom left gridpoint in meters
-        ymin : float
-            NORTHLY distance of bottom left gridpoint in meters
-        crs:
-            The projection to use.
-            only
-            work with WGS84 or  SWISS .
-        """
-
-        # The swiss grid is not technically using a PlateCarree projection
-        # (in fact it is not using any projection implemented by cartopy),
-        # however the points returned by the cell_corners() method are in
-        # WGS84, which PlateCarree defaults to.
-        super().__init__(
-            name=name, nx=nx, ny=ny, dx=dx, dy=dy, xmin=xmin, ymin=ymin, crs=crs
-        )
-
-    @cached_property
-    def lon_range(self):
-        """Return an array containing all the longitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(nx,), dtype=float)
-        """
-        return np.array([self.xmin + i * self.dx for i in range(self.nx + 1)])
-
-    @cached_property
-    def lat_range(self):
-        """Return an array containing all the latitudinal points on the grid.
-
-        Returns
-        -------
-        np.array(shape=(ny,), dtype=float)
-        """
-        return np.array([self.ymin + j * self.dy for j in range(self.ny + 1)])
 
 
 class ICONGrid(Grid):

@@ -19,7 +19,7 @@ import xarray as xr
 from shapely.geometry import Point, Polygon
 
 from emiproc.exports.netcdf import nc_cf_attributes
-from emiproc.grids import LV95, WGS84, RegularGrid, SwissGrid
+from emiproc.grids import LV95, WGS84, RegularGrid
 from emiproc.inventories.swiss import SwissRasters
 from emiproc.inventories.utils import (
     add_inventories,
