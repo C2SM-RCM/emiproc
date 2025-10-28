@@ -110,7 +110,7 @@ def read_hourly_profiles_file(
             + "_"
             + ds_this_month["daytype_id"].astype(str).values,
         )
-        ds_this_month = ds_this_month.drop(["month", "daytype_id"])
+        ds_this_month = ds_this_month.drop_vars(["month", "daytype_id"])
 
         for day_of_week in range(1, 8):
             df_this_day = df_weekend_definitions[
@@ -144,7 +144,7 @@ def read_hourly_profiles_file(
                 + ds_this_day_shifted["category"].values
             )
             ds_this_day_shifted = ds_this_day_shifted.assign_coords(index=country_cat)
-            concat_list.append(ds_this_day_shifted.drop("country_daytype"))
+            concat_list.append(ds_this_day_shifted.drop_vars("country_daytype"))
 
     # Concatenate over the hour, as this is the dimension of the profiles now
     ds_weeklymonth = xr.concat(concat_list, dim="hour", coords="minimal")
@@ -210,7 +210,9 @@ def read_edgar_auxilary_profiles(
     not_in_aux = [c for c in category_to_use.values() if c not in indices_cats]
     if not_in_aux:
         raise ValueError(
-            f"Some categories are not available in the auxiliary profiles: {not_in_aux}"
+            f"Some categories are not available in the auxiliary profiles: {not_in_aux}. "
+            "Make sure that you selected `use_short_category_names=True` "
+            "when loading the inventory."
         )
     indexes_corrected = xr.concat(
         [
