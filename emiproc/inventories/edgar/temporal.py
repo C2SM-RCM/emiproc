@@ -102,10 +102,10 @@ def read_hourly_profiles_file(
 
     # Concatenate the profiles over the weeks based on the category-country indices
     concat_list = []
-    for mount in range(1, 13):
-        ds_this_month = ds_hourly.where(ds_hourly["month"] == mount, drop=True)
+    for month in range(1, 13):
+        ds_this_month = ds_hourly.where(ds_hourly["month"] == month, drop=True).drop("month")
         ds_this_month["country_daytype"] = (
-            "index",
+            "index",ds_this_month
             ds_this_month["country"].values
             + "_"
             + ds_this_month["daytype_id"].astype(str).values,
@@ -133,9 +133,9 @@ def read_hourly_profiles_file(
             ds_this_day_shifted = ds_this_day.assign_coords(
                 hour=ds_this_day["hour"]
                 + 24 * (day_of_week - 1)
-                + (24 * 7 * (mount - 1))
+                + (24 * 7 * (month - 1))
             )
-            # Restet the index to have only country and category
+            # Reset the index to have only country and category
             country_cat = (
                 ds_this_day_shifted["country"].values
                 + "_"
@@ -145,22 +145,22 @@ def read_hourly_profiles_file(
             concat_list.append(ds_this_day_shifted)
 
     # Concatenate over the hour, as this is the dimension of the profiles now
-    ds_weeklymounth = xr.concat(concat_list, dim="hour")
+    ds_weeklymonth = xr.concat(concat_list, dim="hour", coords="minimal")
 
     indexes = xr.DataArray(
         coords=xr.Coordinates.from_pandas_multiindex(
             pd.MultiIndex.from_arrays(
-                [ds_weeklymounth["country"].values, ds_weeklymounth["category"].values],
+                [ds_weeklymonth["country"].values, ds_weeklymonth["category"].values],
                 names=["country", "category"],
             ),
             dim="index",
         ),
-        data=np.arange(len(ds_weeklymounth.index), dtype=int).reshape(-1),
+        data=np.arange(len(ds_weeklymonth.index), dtype=int).reshape(-1),
         dims="index",
     ).unstack("index", fill_value=-1)
 
     profiles = HourOfWeekPerMonthProfile(
-        ds_weeklymounth.values / ds_weeklymounth.sum(dim="hour").values[:, None],
+        ds_weeklymonth.values / ds_weeklymonth.sum(dim="hour").values[:, None],
     )
 
     return profiles, indexes
