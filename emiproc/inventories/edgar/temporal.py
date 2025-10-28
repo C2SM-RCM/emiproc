@@ -103,13 +103,15 @@ def read_hourly_profiles_file(
     # Concatenate the profiles over the weeks based on the category-country indices
     concat_list = []
     for month in range(1, 13):
-        ds_this_month = ds_hourly.where(ds_hourly["month"] == month, drop=True).drop("month")
+        ds_this_month = ds_hourly.where(ds_hourly["month"] == month, drop=True)
         ds_this_month["country_daytype"] = (
-            "index",ds_this_month
+            "index",
             ds_this_month["country"].values
             + "_"
             + ds_this_month["daytype_id"].astype(str).values,
         )
+        ds_this_month = ds_this_month.drop(["month", "daytype_id"])
+
         for day_of_week in range(1, 8):
             df_this_day = df_weekend_definitions[
                 df_weekend_definitions["Weekday_id"] == day_of_week
@@ -142,7 +144,7 @@ def read_hourly_profiles_file(
                 + ds_this_day_shifted["category"].values
             )
             ds_this_day_shifted = ds_this_day_shifted.assign_coords(index=country_cat)
-            concat_list.append(ds_this_day_shifted)
+            concat_list.append(ds_this_day_shifted.drop("country_daytype"))
 
     # Concatenate over the hour, as this is the dimension of the profiles now
     ds_weeklymonth = xr.concat(concat_list, dim="hour", coords="minimal")
