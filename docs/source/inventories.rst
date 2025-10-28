@@ -24,6 +24,9 @@ EDGAR
 
 :py:class:`emiproc.inventories.edgar.EDGARv8`
 
+
+:py:func:`emiproc.inventories.edgar.temporal.read_edgar_auxilary_profiles`
+
 Swiss Rasterized Inventory 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
