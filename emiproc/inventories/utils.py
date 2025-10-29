@@ -16,7 +16,7 @@ import numpy as np
 import xarray as xr
 
 from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.grids import Grid
+from emiproc.grids import GeoPandasGrid, Grid, RegularGrid
 
 from emiproc.profiles.temporal.operators import (
     TemporalProfilesInterpolated,
@@ -911,6 +911,21 @@ def clip_box(
                     "is not implemented yet."
                 )
         out_gdf = out_gdf.reset_index(drop=True)
+
+        # Also modify the grid
+        if isinstance(inv.grid, RegularGrid):
+            out_grid = inv.grid.clip_box(minx, miny, maxx, maxy)
+        else:
+            out_grid = GeoPandasGrid(out_gdf.geometry, name="clipped_grid")
+        
+        grid_size = len(out_grid)
+        data_size = len(out_gdf)
+        if grid_size != data_size:
+            raise RuntimeError(
+                f"After clipping, the grid size ({grid_size}) and gdf size ({data_size}) do not match."
+            )
+        out_inv.grid = out_grid
+            
     else:
         out_gdf = None
     out_inv.gdf = out_gdf

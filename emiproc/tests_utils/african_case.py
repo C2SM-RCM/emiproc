@@ -23,6 +23,9 @@ gdf = gpd.GeoDataFrame(
 
 african_inv = Inventory.from_gdf(gdf)
 
+african_inv_regular_grid = african_inv.copy()
+african_inv_regular_grid.grid = regular_grid_africa
+
 # Now we make an invenotry but only the land cells have emissons (the ones that have a country in them)
 da_african_ratios = get_country_mask(regular_grid_africa, return_fractions=True)
 mask_cell_no_country = (da_african_ratios.sum(dim="country") == 0).to_numpy()
