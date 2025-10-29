@@ -112,3 +112,11 @@ input/output
 .. autofunction:: emiproc.profiles.temporal.io.from_yaml
 
 .. autofunction:: emiproc.profiles.temporal.io.to_yaml
+
+
+
+Implemented Profiles 
+====================
+
+
+.. autofunction:: emiproc.inventories.edgar.temporal.read_edgar_auxilary_profiles
