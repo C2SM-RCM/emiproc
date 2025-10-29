@@ -31,5 +31,6 @@ Geometric Transformations
 
 .. autofunction:: emiproc.inventories.utils.crop_with_shape
 
+.. autofunction:: emiproc.inventories.utils.clip_box
 
 .. autofunction:: emiproc.regrid.remap_inventory
