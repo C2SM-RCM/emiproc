@@ -934,6 +934,8 @@ def clip_box(
     out_inv.gdfs = {}
     for cat, gdf in inv.gdfs.items():
         out_gdf = gdf.cx[minx:maxx, miny:maxy]
+        if out_gdf.empty:
+            continue
         out_inv.gdfs[cat] = out_gdf.reset_index(drop=True) 
     out_inv.history.append(f"Clipped to box ({minx}, {miny}, {maxx}, {maxy})")
     return out_inv
