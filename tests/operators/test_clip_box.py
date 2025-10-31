@@ -2,7 +2,7 @@ import pytest
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.inventories.utils import clip_box
-from emiproc.tests_utils import temporal_profiles, test_inventories, african_case
+from emiproc.tests_utils import test_inventories, african_case
 
 
 @pytest.mark.parametrize(
