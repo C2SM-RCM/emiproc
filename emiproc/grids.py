@@ -406,7 +406,7 @@ class RegularGrid(Grid):
         xminind, xmaxind = get_indices(self.lon_bounds, minx, maxx)
         yminind, ymaxind = get_indices(self.lat_bounds, miny, maxy)
 
-        logger.warning(f"{xminind=}, {xmaxind=}, {yminind=}, {ymaxind=}")
+        logger.debug(
 
         if xminind == xmaxind or yminind == ymaxind:
             raise ValueError("Bounding box does not intersect with grid.")
