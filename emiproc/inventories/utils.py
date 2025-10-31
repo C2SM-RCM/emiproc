@@ -873,7 +873,6 @@ def interpolate_temporal_profiles(
     return new_inv
 
 
-
 def clip_box(
     inv: Inventory,
     minx: float,
@@ -893,19 +892,20 @@ def clip_box(
     """
 
     if minx >= maxx or miny >= maxy:
-        raise ValueError("Invalid bounding box coordinates."
-                         f" Must have ({minx=}< {maxx=}) and ({miny=} < {maxy=})"
-                         )
-    
+        raise ValueError(
+            "Invalid bounding box coordinates."
+            f" Must have ({minx=}< {maxx=}) and ({miny=} < {maxy=})"
+        )
+
     out_inv = inv.copy(no_gdfs=True)
 
     # Clip the gdf
     if inv.gdf is not None:
         out_gdf = inv.gdf.cx[minx:maxx, miny:maxy]
-        # Adapt also the profiles indexes if the cell is in there 
+        # Adapt also the profiles indexes if the cell is in there
         for index_name in ["v_profiles_indexes", "t_profiles_indexes"]:
             indexes: xr.DataArray | None = getattr(out_inv, index_name, None)
-            if indexes is not None and 'cell' in indexes.dims:
+            if indexes is not None and "cell" in indexes.dims:
                 raise NotImplementedError(
                     f"Clipping inventories with {index_name} depending on 'cell' "
                     "is not implemented yet."
@@ -917,7 +917,7 @@ def clip_box(
             out_grid = inv.grid.clip_box(minx, miny, maxx, maxy)
         else:
             out_grid = GeoPandasGrid(out_gdf.geometry, name="clipped_grid")
-        
+
         grid_size = len(out_grid)
         data_size = len(out_gdf)
         if grid_size != data_size:
@@ -925,7 +925,7 @@ def clip_box(
                 f"After clipping, the grid size ({grid_size}) and gdf size ({data_size}) do not match."
             )
         out_inv.grid = out_grid
-            
+
     else:
         out_gdf = None
     out_inv.gdf = out_gdf
@@ -936,8 +936,6 @@ def clip_box(
         out_gdf = gdf.cx[minx:maxx, miny:maxy]
         if out_gdf.empty:
             continue
-        out_inv.gdfs[cat] = out_gdf.reset_index(drop=True) 
+        out_inv.gdfs[cat] = out_gdf.reset_index(drop=True)
     out_inv.history.append(f"Clipped to box ({minx}, {miny}, {maxx}, {maxy})")
     return out_inv
-    
-

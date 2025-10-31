@@ -373,7 +373,7 @@ class RegularGrid(Grid):
             np.repeat(self.lon_range, self.ny),
             np.tile(self.lat_range, self.nx),
         )
-    
+
     def clip_box(
         self,
         minx: float,
@@ -397,7 +397,7 @@ class RegularGrid(Grid):
         def get_indices(range_arr, minv, maxv):
             """Get the indices of the range array that are within the min and max values."""
             minind = np.searchsorted(range_arr, minv, side="left") - 1
-            maxind = np.searchsorted(range_arr, maxv, side="right") 
+            maxind = np.searchsorted(range_arr, maxv, side="right")
             minind = max(minind, 0)
             maxind = min(maxind, len(range_arr) - 1)
             return minind, maxind
@@ -406,9 +406,7 @@ class RegularGrid(Grid):
         xminind, xmaxind = get_indices(self.lon_bounds, minx, maxx)
         yminind, ymaxind = get_indices(self.lat_bounds, miny, maxy)
 
-        logger.warning(
-            f"{xminind=}, {xmaxind=}, {yminind=}, {ymaxind=}"
-        )
+        logger.warning(f"{xminind=}, {xmaxind=}, {yminind=}, {ymaxind=}")
 
         if xminind == xmaxind or yminind == ymaxind:
             raise ValueError("Bounding box does not intersect with grid.")
@@ -820,7 +818,9 @@ class GeoPandasGrid(Grid):
     ):
         super().__init__(name, gdf.crs)
 
-        self._geometry = (gdf if isinstance(gdf, gpd.GeoSeries) else gdf.geometry).copy()
+        self._geometry = (
+            gdf if isinstance(gdf, gpd.GeoSeries) else gdf.geometry
+        ).copy()
 
         if shape is not None:
             self.nx, self.ny = shape
