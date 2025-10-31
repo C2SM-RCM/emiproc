@@ -2,7 +2,7 @@ import pytest
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.inventories.utils import clip_box
-from emiproc.tests_utils import temporal_profiles, test_inventories, african_case
+from emiproc.tests_utils import test_inventories, african_case
 
 
 @pytest.mark.parametrize(
@@ -60,4 +60,4 @@ def test_clip_box_bad_box():
 
     inv = test_inventories.inv_with_pnt_sources
     with pytest.raises(ValueError, match="Invalid bounding box coordinates"):
-        clipped_inv = clip_box(inv, minx=20, miny=0, maxx=10, maxy=10)
+        clip_box(inv, minx=20, miny=0, maxx=10, maxy=10)
