@@ -60,4 +60,4 @@ def test_clip_box_bad_box():
 
     inv = test_inventories.inv_with_pnt_sources
     with pytest.raises(ValueError, match="Invalid bounding box coordinates"):
-        clipped_inv = clip_box(inv, minx=20, miny=0, maxx=10, maxy=10)
+        clip_box(inv, minx=20, miny=0, maxx=10, maxy=10)
