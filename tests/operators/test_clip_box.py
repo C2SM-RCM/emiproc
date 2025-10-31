@@ -49,8 +49,6 @@ def test_clip_regular_grid(coords):
     assert grid_out.nx <= grid_in.nx
     assert grid_out.ny <= grid_in.ny
 
-    print(grid_out.lon_bounds)
-    print(grid_out.lat_bounds)
 
     assert grid_out.lat_bounds[0] in grid_in.lat_bounds
     assert grid_out.lat_bounds[-1] in grid_in.lat_bounds
