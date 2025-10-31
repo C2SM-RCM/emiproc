@@ -2,7 +2,6 @@ import pytest
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.inventories.utils import clip_box
-from emiproc.profiles.temporal.profiles import HourOfYearProfile, WeeklyProfile
 from emiproc.tests_utils import temporal_profiles, test_inventories, african_case
 
 
