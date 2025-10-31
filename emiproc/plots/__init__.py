@@ -244,11 +244,11 @@ def plot_inventory(
         out_dir.mkdir(parents=True, exist_ok=True)
 
     per_substances_per_sector_emissions = {}
-    for sub in inv.substances:
+    for sub in sorted(inv.substances):
         per_sector_emissions = {}
         per_substances_per_sector_emissions[sub] = per_sector_emissions
         total_sub_emissions = np.zeros(grid_shape).T
-        for cat in inv.categories:
+        for cat in sorted(inv.categories):
             if (cat, sub) not in inv.gdf:
                 # TODO: this will miss point sources for the total_sub_emissions
                 # And also miss point sources for that category
