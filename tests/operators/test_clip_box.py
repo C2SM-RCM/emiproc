@@ -2,7 +2,6 @@ import pytest
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.inventories.utils import clip_box
-from emiproc.profiles.temporal.profiles import HourOfYearProfile, WeeklyProfile
 from emiproc.tests_utils import temporal_profiles, test_inventories, african_case
 
 
@@ -49,8 +48,6 @@ def test_clip_regular_grid(coords):
     assert grid_out.nx <= grid_in.nx
     assert grid_out.ny <= grid_in.ny
 
-    print(grid_out.lon_bounds)
-    print(grid_out.lat_bounds)
 
     assert grid_out.lat_bounds[0] in grid_in.lat_bounds
     assert grid_out.lat_bounds[-1] in grid_in.lat_bounds
