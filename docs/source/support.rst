@@ -12,6 +12,17 @@ If you find a bug or an issue, you can visit our
 `issue tracker <https://github.com/C2SM-RCM/emiproc/issues>`_ .
 
 
+
+References
+---------- 
+
+`emiproc` was published in the journal of open source software in 2025 [emiproc_2025]_. 
+
+
+If you use `emiproc` in your research or project,
+please cite the following publication: https://doi.org/10.21105/joss.07509 .
+
+
 .. _contact:
 
 Contact
@@ -31,11 +42,11 @@ The prefered way of contacting us is through the github page.
 History 
 -------
 
-Emiproc was originally published for the OEM of ICON in [Jähn_et_al_2020]_.
+`emiproc` was originally published for the OEM of ICON in [Jähn_et_al_2020]_.
 In 2022 it was refactored with a more modular and object-oriented design,
 in order to account for more inventories and models.
 
 License
 -------
 
-Since 2024, emiproc is licensed by Empa under The 3-Clause BSD License. 
+Since 2024, `emiproc` is licensed by Empa under The 3-Clause BSD License. 
