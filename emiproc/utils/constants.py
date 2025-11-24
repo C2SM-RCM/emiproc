@@ -2,6 +2,7 @@
 MOLAR_MASSES_ = {
     "CH4": 16.04,
     "CO2": 44.01,
+    "N2O": 44.013,
     # This is a test value
     "test": 1.0,
     "test2": 2.0,
