@@ -473,6 +473,8 @@ class Inventory:
             self.v_profiles_indexes = indexes_array
         elif isinstance(profile, list):
             self.t_profiles_indexes = indexes_array
+        else:
+            raise ValueError(f"Unknown profile type {type(profile)}")
 
         self.history.append(f"Set profile {profile_idx} to {category}, {substance}.")
 
