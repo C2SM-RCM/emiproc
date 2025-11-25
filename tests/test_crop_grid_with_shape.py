@@ -1,6 +1,7 @@
 """Test case of a grid that intersects a shape."""
 
 import shutil
+from warnings import catch_warnings, simplefilter
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
@@ -129,9 +130,11 @@ def test_read_weights_modified_grid():
     if w_file.with_suffix(".gdb").is_dir():
         shutil.rmtree(w_file.with_suffix(".gdb"))
     w_file.with_suffix(".npy").unlink(missing_ok=True)
-    inv_cropped_1 = crop_with_shape(inv, poly, weight_file=w_file, modify_grid=True)
-    # This time the weights should have been created
-    inv_cropped_2 = crop_with_shape(inv, poly, weight_file=w_file, modify_grid=True)
+    with catch_warnings():
+        simplefilter("ignore", category=UserWarning)
+        inv_cropped_1 = crop_with_shape(inv, poly, weight_file=w_file, modify_grid=True)
+        # This time the weights should have been created
+        inv_cropped_2 = crop_with_shape(inv, poly, weight_file=w_file, modify_grid=True)
 
     assert all(inv_cropped_1.gdf.index == inv_cropped_2.gdf.index)
     # Check that the polygons are the same
