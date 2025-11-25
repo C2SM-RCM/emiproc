@@ -369,6 +369,7 @@ def group_profiles_indexes(
         xr.concat(
             groups_indexes_list,
             dim=groupping_dimension,
+            join='outer',
         )
         .fillna(-1)
         .astype(int)

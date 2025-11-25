@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from warnings import catch_warnings, simplefilter
 
 import numpy as np
 import xarray as xr
@@ -36,8 +37,9 @@ def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     sums = ratios.sum(axis=0)
 
     mask_zero = sums == 0
-
-    return_ = ratios / sums
+    with catch_warnings():
+        simplefilter("ignore", category=RuntimeWarning)
+        return_ = ratios / sums
     return_[:, mask_zero] = 1.0 / ratios.shape[0]
 
     return return_

@@ -3,8 +3,9 @@
 from __future__ import annotations
 import logging
 from pathlib import Path
-from warnings import warn
+from warnings import simplefilter, catch_warnings
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 from typing import TYPE_CHECKING, Iterable
 from shapely.geometry import Point, MultiPolygon, Polygon
@@ -18,6 +19,19 @@ logger = logging.getLogger("emiproc.regrid")
 if TYPE_CHECKING:
     from os import PathLike
     from emiproc.inventories import Inventory
+
+
+def _get_area_no_warning(geometry: gpd.GeoSeries) -> pd.Series:
+    """Get the area of a geoserie without warning.
+
+    This is useful when the geometries are in degrees.
+    """
+    if geometry.crs is None or geometry.crs != "EPSG:4326":
+        return geometry.area
+    with catch_warnings():
+        simplefilter("ignore", category=UserWarning)
+        areas = geometry.area
+    return areas
 
 
 def get_weights_mapping(
@@ -223,11 +237,11 @@ def calculate_weights_mapping(
                 d["geometry"].intersection(gpd.GeoSeries(d["geometry_out"]))
             )
         )
-
+        inter_area = _get_area_no_warning(gdf_weights.geometry_inter)
         if loop_over_inv_objects:
             # Calculate weights for polygons
-            gdf_weights["weights"] = (
-                gdf_weights.geometry_inter.area / gdf_weights.geometry_out.area
+            gdf_weights["weights"] = inter_area / _get_area_no_warning(
+                gdf_weights.geometry_out
             )
 
             # Process the points
@@ -247,8 +261,8 @@ def calculate_weights_mapping(
 
         else:
             # Calculate weights and extract indices
-            gdf_weights["weights"] = (
-                gdf_weights.geometry_inter.area / gdf_weights.geometry.area
+            gdf_weights["weights"] = inter_area / _get_area_no_warning(
+                gdf_weights.geometry
             )
             gdf_weights = gdf_weights.sort_values(by=["index_out", "index_inv"])
             w_mapping["inv_indexes"] = gdf_weights.index.to_numpy()
