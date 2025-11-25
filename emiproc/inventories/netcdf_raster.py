@@ -1,4 +1,5 @@
 from os import PathLike
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
@@ -25,14 +26,40 @@ def get_unit_scaling_factor_to_kg_per_year_per_cell(unit: str) -> tuple[float, b
     if unit == "kg/m2/s":
         # kg/m2/s * day/year * s/day * m2/cell = kg/year/cell
         return DAY_PER_YR * SEC_PER_DAY, True  # seconds to year
+    elif unit in ["kg/y/cell", "kg y-1 cell-1", "kg/year/cell"]:
+        return 1.0, False
     else:
         raise NotImplementedError(f"Unit {unit} not supported.")
 
+
+def get_year_from_attrs(attrs: dict) -> int | None:
+    """Get the year from the attributes dictionary.
+
+    :param attrs: Attributes dictionary.
+    :return: Year if found, None otherwise.
+    """
+    if "year" in attrs:
+        try: 
+            return int(attrs["year"])
+        except (ValueError, TypeError):
+            return None
+    
+    return None
+
+def _array_to_series(da: xr.DataArray) -> pd.Series:
+    """Convert a DataArray to a Pandas Series, averaging over time if necessary."""
+    if 'time' in da.dims:
+        da = da.mean(dim='time')
+    
+    return da.to_pandas()
 
 class NetcdfRaster(Inventory):
     """Netcdf inventory.
 
     Useful for custom inventories defined on a regular grid.
+
+    Can read inventories created by
+    :py:func:`~emiproc.exports.rasters.export_raster_netcdf`.
 
 
     :param file: Path to the netcdf file.
@@ -49,12 +76,14 @@ class NetcdfRaster(Inventory):
     def __init__(
         self,
         file: PathLike,
-        variable_to_catsub: dict[str, tuple[Category, Substance]],
+        variable_to_catsub: dict[str, tuple[Category, Substance]] | None = None,
         lat_name: str = "lat",
         lon_name: str = "lon",
         time_name: str = "time",
         unit: str | None = None,
     ) -> None:
+        file = Path(file)
+        self.name = f"NetcdfRaster_Inventory_{file.stem}"
         super().__init__()
 
         with xr.open_dataset(file) as ds:
@@ -67,19 +96,46 @@ class NetcdfRaster(Inventory):
 
             cell_areas = self.grid.cell_areas
 
-            if len(ds[time_name]) != 1:
-                raise NotImplementedError(
-                    f"Expected only one time step in the dataset, found {len(ds[time_name])}."
-                    "If you want to implement time-varying inventories, please contact the developers."
-                )
-
-            self.year = pd.to_datetime(ds[time_name].values[0]).year
+            if time_name in ds.variables:
+                if len(ds[time_name]) != 1:
+                    raise NotImplementedError(
+                        f"Expected only one time step in the dataset, found {len(ds[time_name])}."
+                        "If you want to implement time-varying inventories, please contact the developers."
+                    )
+                year = pd.to_datetime(ds[time_name].values[0]).year 
+            elif "year" in ds.attrs:
+                # No time variable, probably a constant inventory
+                year = get_year_from_attrs(ds.attrs)
+                if year is None:
+                    self.logger.warning(
+                        "Year attribute found in the dataset, but could not be converted to int."
+                        "Setting year to None."
+                    )
+            else:
+                year = None
+            self.year = year
 
             das = {}
+
+            if variable_to_catsub is None:
+                variable_to_catsub = {}
+                for var in ds.data_vars:
+                    attrs = ds[var].attrs
+                    if (substance := attrs.get("substance")) and (
+                        category := attrs.get("category")
+                    ):
+                        variable_to_catsub[var] = (category, substance)
+                if not variable_to_catsub:
+                    raise ValueError(
+                        "variable_to_catsub is None and could not be inferred from the dataset. "
+                        "Please provide a mapping from variable names to (category, substance) tuples."
+                    )
             for var, (category, substance) in variable_to_catsub.items():
                 da_stacked = (
                     ds[var]
                     .stack(cell=(lon_name, lat_name))
+                    # Reset the cell index 
+                    .reset_index("cell")
                     .drop_vars([lon_name, lat_name])
                     # .expand_dims(dim=dict(catsub=[(category, substance)]))
                     .fillna(0.0)
@@ -106,8 +162,9 @@ class NetcdfRaster(Inventory):
         # ratios, indices = ratios_dataarray_to_profiles(da_ratios)
 
         # Convert to pandas
+
         series = {
-            catsub: da.mean(dim="time").drop_vars(["cell"]).to_pandas()
+            catsub: _array_to_series(da)
             for catsub, da in das.items()
         }
 
