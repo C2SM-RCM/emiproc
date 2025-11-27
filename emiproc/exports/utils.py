@@ -82,8 +82,9 @@ def get_temporally_scaled_array(
         # The profiles are usually only given on cells with emissions
         missing_cells = da_totals.cell.loc[~da_totals.cell.isin(profiles_indexes.cell)]
         # Check that the profiles are given for all cells
-        zero_cells_missing = da_totals.sel(cell=missing_cells).where(
-            da_totals.sel(cell=missing_cells) == 0, drop=True
+        da_totals_missing_cells = da_totals.sel(cell=missing_cells)
+        zero_cells_missing = da_totals_missing_cells.where(
+            da_totals_missing_cells != 0, drop=True
         )
         if zero_cells_missing.size > 0:
             raise ValueError(
@@ -112,7 +113,7 @@ def get_temporally_scaled_array(
     if sum_over_cells and "cell" in profiles_indexes.dims:
         # instad of multilplying in a first step and summing in a second
         # we can use the dot product to get the same result
-        temporally_scaled_emissions = da_totals.dot(da_scaling_factors, dim="cell")
+        temporally_scaled_emissions = da_totals.dot(da_scaling_factors.fillna(0.0), dim="cell")
 
     else:
         # Finally scale the emissions at each time
