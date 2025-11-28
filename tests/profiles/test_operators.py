@@ -22,11 +22,10 @@ from emiproc.profiles.temporal.profiles import (
 )
 from emiproc.profiles.temporal.specific_days import SpecificDay
 from emiproc.tests_utils import temporal_profiles, vertical_profiles
+from emiproc.tests_utils.african_case import indexes_african_2d, indexes_african_simple
 from emiproc.tests_utils.temporal_profiles import (
     TEST_COPENICUS_PROFILES,
     get_random_profiles,
-    indexes_african_2d,
-    indexes_african_simple,
     read_test_copernicus,
 )
 from emiproc.tests_utils.test_grids import regular_grid_africa
@@ -36,9 +35,9 @@ from emiproc.tests_utils.vertical_profiles import (
 
 
 def test_reading_copernicus():
-    profiles = read_test_copernicus()
+    profiles, indexes = read_test_copernicus()
 
-    assert len(profiles) == len(TEST_COPENICUS_PROFILES)
+    assert len(profiles.types) == len(TEST_COPENICUS_PROFILES)
 
 
 def test_weighted_combination():

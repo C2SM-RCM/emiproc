@@ -172,7 +172,9 @@ class EDGARv8(Inventory):
         super().__init__()
 
         nc_file_pattern = Path(nc_file_pattern_or_dir)
-        logger = logging.getLogger(__name__)
+        logger = self.logger
+
+        self.year = year
 
         if nc_file_pattern.is_dir():
             nc_file_pattern = nc_file_pattern / "*.nc"

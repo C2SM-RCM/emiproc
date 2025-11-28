@@ -1,4 +1,5 @@
 """Zurich inventory."""
+
 from os import PathLike
 from pathlib import Path
 from emiproc.inventories import Inventory, Substance, Category
@@ -49,14 +50,14 @@ class MapLuftZurich(Inventory):
             If not specified, all categories are loaded.
         :arg remove_josefstrasse_khkw: Whether the incineration plant
             at josefstrasse should be removed from the inventory.
-            Emission for category 'c2301_KHKWKehricht_Emissionen_Kanton' at 
+            Emission for category 'c2301_KHKWKehricht_Emissionen_Kanton' at
             the Josefstrasse location will be removed from the inventory.
             It should be planned to be removed in March 2021.
             The other Josefstrasse category will still be present, as they
             account for some kinds of energy production.
             In case  remove_josefstrasse_khkw, the emissions are not set to any
             other location in the inventory.
-        :arg convert_lines_to_polygons: Whether this should convert line emissions 
+        :arg convert_lines_to_polygons: Whether this should convert line emissions
             to polygons. Only few models can handle line emissions.
             The default width of the line is 10m for all categories.
             This is not currently not changeable.
@@ -86,7 +87,9 @@ class MapLuftZurich(Inventory):
 
         for category in categories:
             gdf = process_emission_category(
-                mapluft_gdb, category, convert_lines_to_polygons=convert_lines_to_polygons
+                mapluft_gdb,
+                category,
+                convert_lines_to_polygons=convert_lines_to_polygons,
             )
             # Select the columns with the emissions values
             names_in_gdf = [
@@ -97,8 +100,10 @@ class MapLuftZurich(Inventory):
                 continue
             gdf = gdf.loc[:, list(names_in_gdf) + ["geometry"]]
 
-            
-            if remove_josefstrasse_khkw and category == "c2301_KHKWKehricht_Emissionen_Kanton":
+            if (
+                remove_josefstrasse_khkw
+                and category == "c2301_KHKWKehricht_Emissionen_Kanton"
+            ):
                 # Check point sources at the josefstrasse location
                 mask_josefstrasse = gdf.geometry == Point(2681839.000, 1248988.000)
                 if any(mask_josefstrasse):
@@ -114,6 +119,7 @@ class MapLuftZurich(Inventory):
 if __name__ == "__main__":
 
     from emiproc.inventories.zurich.categories_info import ZURICH_SOURCES
+
     mapluft_file = Path("/store/empa/em05/mapluft/mapLuft_2020_v2021.gdb")
     inv = MapLuftZurich(mapluft_file)
     inv.emission_infos = ZURICH_SOURCES

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 import logging
 from datetime import datetime, timedelta
 from typing import Type
@@ -16,6 +17,7 @@ from emiproc.profiles.temporal.profiles import (
     DayOfYearProfile,
     Hour3OfDayPerMonth,
     HourOfLeapYearProfile,
+    HourOfWeekPerMonthProfile,
     HourOfYearProfile,
     MounthsProfile,
     SpecificDayProfile,
@@ -32,6 +34,17 @@ from emiproc.profiles.utils import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class TemporalProfilesInterpolated(Enum):
+    """Possible temporal profiles for interpolation.
+
+    :param HOUR_OF_YEAR:  Every hour gets a scaling factor
+    :param THREE_CYCLES:  Three cycles (hour of day, day of week, month of year)
+    """
+
+    HOUR_OF_YEAR = "hour_of_year"
+    THREE_CYCLES = "three_cycles"
 
 
 def get_index_in_profile(
@@ -67,13 +80,74 @@ def get_index_in_profile(
         indexes = time_range.hour + (time_range.day_of_year - 1) * 24
     elif profile == Hour3OfDayPerMonth:
         indexes = (time_range.hour // 3) + (time_range.month - 1) * 8
+    elif profile == HourOfWeekPerMonthProfile:
+        indexes = (
+            time_range.hour
+            + time_range.day_of_week * 24
+            + (time_range.month - 1) * 24 * 7
+        )
     else:
-        raise NotImplementedError(f"Profile type {profile} not recognized")
+        raise NotImplementedError(f"Profile type {profile} not implemented.")
 
     assert indexes.min() >= -1, f"{profile=}, {time_range=}"
     assert indexes.max() < profile.size, f"{profile=}, {time_range=}"
 
     return indexes
+
+
+def get_scaling_factors_at_time(
+    profile: CompositeTemporalProfiles,
+    time_range: pd.DatetimeIndex,
+) -> xr.DataArray:
+    """Evaluate the temporal profile at the given time range.
+
+    :arg profile: The temporal profile to evaluate.
+    :arg time_range: The time range to evaluate the profile at.
+
+    :return: A DataArray with the scaling factors for each time in the time range.
+    """
+
+    # Scaling factor data array
+    da_sf = xr.DataArray(
+        profile.scaling_factors,
+        coords={"profile": np.arange(len(profile)), "ratio": np.arange(profile.size)},
+    )
+
+    # Get teh index of of the scaling factor for each type of temporal profile
+    size_offset = 0
+    indices = []
+
+    for profile_type in profile.types:
+
+        this_index = get_index_in_profile(profile_type, time_range)
+
+        out_index = this_index + size_offset
+        out_index = out_index.where(this_index != -1, -1)
+
+        indices.append(out_index)
+
+        size_offset += _get_type(profile_type).size
+
+    indices_to_use = xr.DataArray(
+        np.array(indices).T,
+        coords=dict(
+            time=time_range,
+            sub_profile=np.arange(len(profile.types)),
+        ),
+        dims=["time", "sub_profile"],
+    )
+
+    # Here for the indexing to work, we need to temporary set the missing values to 0 and then put them back to 1
+    da_sf_of_profile = (
+        da_sf.sel(
+            ratio=indices_to_use.where(indices_to_use != -1, 0)
+            # Set the no profile to 1. scaling factor value
+        ).where(indices_to_use != -1, 1.0)
+        # Multiply the scaling factors for each sub-profile
+        .prod(dim="sub_profile")
+    )
+
+    return da_sf_of_profile
 
 
 def get_profile_da(
@@ -96,7 +170,13 @@ def get_profile_da(
 
     if isinstance(
         profile,
-        (DailyProfile, HourOfYearProfile, HourOfLeapYearProfile, SpecificDayProfile),
+        (
+            DailyProfile,
+            HourOfYearProfile,
+            HourOfLeapYearProfile,
+            SpecificDayProfile,
+            HourOfWeekPerMonthProfile,
+        ),
     ):
         ts = pd.date_range(**daterange_kwargs, freq="h")
         offset = pd.Timedelta("30m")
@@ -156,17 +236,18 @@ def get_profile_da(
     return da
 
 
-def interpolate_profiles_hour_of_year(
+def interpolate_profiles(
     profiles: CompositeTemporalProfiles,
     year: int,
     interpolation_method: str = "linear",
     return_profiles: bool = False,
+    output_type: TemporalProfilesInterpolated = TemporalProfilesInterpolated.HOUR_OF_YEAR,
 ) -> (
     CompositeTemporalProfiles
     | xr.DataArray
     | tuple[CompositeTemporalProfiles | xr.DataArray, xr.DataArray]
 ):
-    """Interpolate the profiles to create a hour of year profile.
+    """Interpolate the profiles to create another specific profile.
 
     :arg profiles: The profiles to use.
     :arg year: The year to use.
@@ -174,14 +255,23 @@ def interpolate_profiles_hour_of_year(
         See `xarray <https://docs.xarray.dev/en/stable/user-guide/interpolation.html>`_
         for more details.
     :arg return_profiles: If True, return the profiles instead of the ratios.
+    :arg output_type: The type of the output profile.
 
     :return: The interpolated profiles or the ratios based on the
         `return_profiles` argument.
     """
-
     serie = pd.date_range(
         f"{year}-01-01", f"{year+1}-01-01", freq="h", inclusive="left"
     )
+
+    if (
+        return_profiles is False
+        and output_type != TemporalProfilesInterpolated.HOUR_OF_YEAR
+    ):
+        raise ValueError(
+            "If `return_profiles` is False, `output_type` must be "
+            f"{TemporalProfilesInterpolated.HOUR_OF_YEAR}."
+        )
 
     das_scaling_factors = []
 
@@ -190,9 +280,7 @@ def interpolate_profiles_hour_of_year(
     offset = 0
     for t in profiles.types:
         if _get_type(t) == SpecificDayProfile:
-            raise ValueError(
-                f"Cannot interpolate {t=}, it is a specific day profile."
-            )
+            raise ValueError(f"Cannot interpolate {t=}, it is a specific day profile.")
         # create an array with the ratios
         t_len = t.size
         this_ratios = ratios[:, offset : offset + t_len]
@@ -212,13 +300,46 @@ def interpolate_profiles_hour_of_year(
     # Multiply the data arrays
     da = xr.concat(das_scaling_factors, dim="profile_type").prod(dim="profile_type")
     da_ratios = da / da.sum(dim="datetime")
+
+    if output_type == TemporalProfilesInterpolated.THREE_CYCLES:
+        # Create the threee cyles
+        ratios = {}
+        ratios[DailyProfile] = (
+            da_ratios.groupby("datetime.hour").mean().rename({"hour": "ratio"})
+        )
+        ratios[WeeklyProfile] = (
+            da_ratios.groupby("datetime.dayofweek")
+            .mean()
+            .rename({"dayofweek": "ratio"})
+        )
+        # Sum for the mounths to account for longer or shorter months
+        ratios[MounthsProfile] = (
+            da_ratios.groupby("datetime.month").sum().rename({"month": "ratio"})
+        )
+        types = list(ratios.keys())
+        da_ratios = xr.concat([da for da in ratios.values()], dim="ratio")
+    elif output_type == TemporalProfilesInterpolated.HOUR_OF_YEAR:
+        types = [get_leap_year_or_normal(HourOfYearProfile, year)]
+    else:
+        raise NotImplementedError(
+            f"Output type {output_type} not implemented. "
+            "Use any of the "
+            f"{TemporalProfilesInterpolated}."
+        )
+
     # Create the profile
     if return_profiles:
         return CompositeTemporalProfiles.from_ratios(
-            da_ratios.values, types=[get_leap_year_or_normal(HourOfYearProfile, year)]
+            da_ratios.values,
+            types=types,
+            rescale=output_type != TemporalProfilesInterpolated.HOUR_OF_YEAR,
         )
 
     return da_ratios
+
+
+# Old legacy function
+interpolate_profiles_hour_of_year = interpolate_profiles
 
 
 def resolve_daytype(
@@ -316,6 +437,9 @@ def resolve_daytype(
     return out_profiles, out_indexes.unstack("ind", fill_value=-1)
 
 
+# below are legacy functions, but still used in some places
+
+
 def create_scaling_factors_time_serie(
     start_time: datetime,
     end_time: datetime,
@@ -354,14 +478,14 @@ def create_scaling_factors_time_serie(
 
     # Apply the profiles
     for profile in profiles:
-        scaling_factors *= profile_to_scaling_factors(
+        scaling_factors *= _profile_to_scaling_factors(
             time_serie, profile, apply_month_interpolation=apply_month_interpolation
         )
 
     return pd.Series(scaling_factors, index=time_serie)
 
 
-def profile_to_scaling_factors(
+def _profile_to_scaling_factors(
     time_serie: pd.DatetimeIndex,
     profile: AnyTimeProfile,
     apply_month_interpolation: bool = True,

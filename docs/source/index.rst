@@ -55,6 +55,12 @@ Contents
    bibliography
 
 
+References
+---------- 
+
+If you use `emiproc` in your research or project, 
+please cite the following publication: https://doi.org/10.21105/joss.07509
+
 
 Indices and tables
 ------------------

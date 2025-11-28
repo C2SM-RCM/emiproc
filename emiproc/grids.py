@@ -171,11 +171,11 @@ class Grid:
     @cached_property
     def cell_areas(self) -> Iterable[float]:
         """Return an array containing the area of each cell in m2."""
-        return (
-            gpd.GeoSeries(self.cells_as_polylist, crs=self.crs)
+        geom = self.gdf.geometry
+        if geom.crs is not None:
             # Convert to WGS84 to get the area in m^2
-            .to_crs(epsg=WGS84_NSIDC).area
-        )
+            geom = geom.to_crs(epsg=WGS84_NSIDC)
+        return geom.area.astype(float)
 
     @cached_property
     def centers(self) -> gpd.GeoSeries:
@@ -372,6 +372,55 @@ class RegularGrid(Grid):
         return gpd.GeoSeries.from_xy(
             np.repeat(self.lon_range, self.ny),
             np.tile(self.lat_range, self.nx),
+        )
+
+    def clip_box(
+        self,
+        minx: float,
+        miny: float,
+        maxx: float,
+        maxy: float,
+    ) -> RegularGrid:
+        """Clip the grid to the given bounding box.
+
+        Returns a new RegularGrid object.
+
+        Clips in a similar way as the `cx` indexer of geopandas.
+        Uses intersection with the bounding box
+
+        :param minx: Minimum x coordinate of the bounding box.
+        :param miny: Minimum y coordinate of the bounding box.
+        :param maxx: Maximum x coordinate of the bounding box.
+        :param maxy: Maximum y coordinate of the bounding box.
+        """
+
+        def get_indices(range_arr, minv, maxv):
+            """Get the indices of the range array that are within the min and max values."""
+            minind = np.searchsorted(range_arr, minv, side="left") - 1
+            maxind = np.searchsorted(range_arr, maxv, side="right")
+            minind = max(minind, 0)
+            maxind = min(maxind, len(range_arr) - 1)
+            return minind, maxind
+
+        # Find the indices of the cells that are within the bounding box
+        xminind, xmaxind = get_indices(self.lon_bounds, minx, maxx)
+        yminind, ymaxind = get_indices(self.lat_bounds, miny, maxy)
+
+        if xminind == xmaxind or yminind == ymaxind:
+            raise ValueError("Bounding box does not intersect with grid.")
+
+        new_xmin = self.lon_bounds[xminind]
+        new_ymin = self.lat_bounds[yminind]
+
+        return RegularGrid(
+            xmin=new_xmin,
+            ymin=new_ymin,
+            dx=self.dx,
+            dy=self.dy,
+            nx=xmaxind - xminind,
+            ny=ymaxind - yminind,
+            name=f"{self.name}_clipped",
+            crs=self.crs,
         )
 
     @classmethod
@@ -599,6 +648,11 @@ class TNOGrid(RegularGrid):
         self.nx = len(self.lon_var)
         self.ny = len(self.lat_var)
 
+        self.xmin = self.lon_var.min()
+        self.xmax = self.lon_var.max()
+        self.ymin = self.lat_var.min()
+        self.ymax = self.lat_var.max()
+
         # The lat/lon values are the cell-centers
         self.dx = (self.lon_var[-1] - self.lon_var[0]) / (self.nx - 1)
         self.dy = (self.lat_var[-1] - self.lat_var[0]) / (self.ny - 1)
@@ -756,13 +810,15 @@ class GeoPandasGrid(Grid):
 
     def __init__(
         self,
-        gdf: gpd.GeoDataFrame,
+        gdf: gpd.GeoDataFrame | gpd.GeoSeries,
         name: str = "gpd_grid",
         shape: tuple[int, int] | None = None,
     ):
         super().__init__(name, gdf.crs)
 
-        self._gdf = gdf
+        self._geometry = (
+            gdf if isinstance(gdf, gpd.GeoSeries) else gdf.geometry
+        ).copy()
 
         if shape is not None:
             self.nx, self.ny = shape

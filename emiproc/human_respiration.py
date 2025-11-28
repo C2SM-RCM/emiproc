@@ -1,8 +1,5 @@
-"""Emiproc provides tools to help generate human respiration emissions.
+"""Emiproc provides tools to help generate human respiration emissions."""
 
-
-
-"""
 from __future__ import annotations
 
 from os import PathLike
@@ -19,18 +16,27 @@ class EmissionFactor:
     """
 
     # Very simple estimation for aproximate results
+    # 1.0 is usually used to simplify calculations
     ROUGH_ESTIMATON = 1.0
     CO2_ROUGH_ESTIMATON = 1.0
+    # 251 g C d−1 , Prairie Duarte 2007
+    # http://dx.doi.org/10.5194/bg-4-215-2007
+    CO2_PRAIRIE_DUARTE = 0.92
 
-    # 2.1 g / year / person 
+    # Also this paper has more detailed values depending on age group, gender and BMI
+    # https://doi.org/10.1186/s13021-022-00217-7
+    # See table 2
+    # https://cbmjournal.biomedcentral.com/articles/10.1186/s13021-022-00217-7/tables/2
+
+    # 2.1 g / year / person
     # https://doi.org/10.1016/S0048-9697(97)00267-2
     N2O_MITSUI_ET_ALL = 2.1e-3 / DAY_PER_YR
 
-    # Breath: 2.3 mmol / day / person 
-    # Flatus: 7.0 mmol / day / person 
+    # Breath: 2.3 mmol / day / person
+    # Flatus: 7.0 mmol / day / person
     # https://doi.org/10.1016/j.atmosenv.2019.116823
     # Multiply by the molar mass of CH4 and correct units
-    CH4_POLAG_KEPPLER = (2.3 + 7.0) * 1e-3 * 16e-3 
+    CH4_POLAG_KEPPLER = (2.3 + 7.0) * 1e-3 * 16e-3
 
 
 def load_data_from_quartieranalyse(
@@ -72,7 +78,7 @@ def load_data_from_quartieranalyse(
 def people_to_emissions(
     people_gdf: gpd.GeoDataFrame,
     time_ratios: dict[Category, float],
-    emission_factor:  dict[CatSub, float] | float = EmissionFactor.ROUGH_ESTIMATON,
+    emission_factor: dict[CatSub, float] | float = EmissionFactor.ROUGH_ESTIMATON,
     output_gdfs: bool = False,
     name: str = "human_respiration",
     substance: Substance = "CO2",
@@ -103,7 +109,7 @@ def people_to_emissions(
     :arg output_gdfs: Whether the output inventory should contain the emission
         data in gdfs instead of in the gdf(default).
     :arg name: The name of the inventory.
-    :arg substance: The substance name of the emissions. 
+    :arg substance: The substance name of the emissions.
 
     :return: The Inventory containing human emissions.
     """
@@ -116,10 +122,14 @@ def people_to_emissions(
         # Check that the keys are correct
         for key in emission_factor.keys():
             if not isinstance(key, tuple) or len(key) != 2:
-                raise ValueError(f"Invalid key {key = } in emission_factor. Must be a tuple of (category, substance).")
+                raise ValueError(
+                    f"Invalid key {key = } in emission_factor. Must be a tuple of (category, substance)."
+                )
             cat, sub = key
             if cat not in categories:
-                raise ValueError(f"Invalid category {cat = } in emission_factor. Must be one of {categories = }")
+                raise ValueError(
+                    f"Invalid category {cat = } in emission_factor. Must be one of {categories = }"
+                )
     if not sum(time_ratios.values()) == 1:
         raise ValueError(
             f"The time ratios must sum up to 1, got {time_ratios.values() = }"

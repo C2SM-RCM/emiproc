@@ -304,7 +304,14 @@ def plot_inventory(
                 # hiding parts of the grid
                 mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
                 im = PolyCollection(
-                    grid.corners[mask_polygons],
+                    (
+                        grid.corners[mask_polygons]
+                        if hasattr(grid, "corners") and grid.corners is not None
+                        # Get the coordinates of the polygons
+                        else grid.gdf.geometry[mask_polygons].apply(
+                            lambda geom: geom.exterior.coords
+                        )
+                    ),
                     cmap=this_cmap,
                     norm=norm,
                     **poly_collection_kwargs,
@@ -361,7 +368,14 @@ def plot_inventory(
         else:
             mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
             im = PolyCollection(
-                grid.corners[mask_polygons],
+                (
+                    grid.corners[mask_polygons]
+                    if hasattr(grid, "corners") and grid.corners is not None
+                    # Get the coordinates of the polygons
+                    else grid.gdf.geometry[mask_polygons].apply(
+                        lambda geom: geom.exterior.coords
+                    )
+                ),
                 cmap=this_cmap,
                 norm=norm,
                 **poly_collection_kwargs,

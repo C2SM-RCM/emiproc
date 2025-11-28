@@ -40,7 +40,7 @@ Operators On Vertical Profiles
 input/output 
 ^^^^^^^^^^^^
 
-.. autofunction:: emiproc.profiles.vertical_profiles.from_csv
+.. autofunction:: emiproc.profiles.vertical_profiles.read_vertical_profiles
 
 
 Temporal Profiles
@@ -89,7 +89,6 @@ Utilities
 
 .. autofunction:: emiproc.profiles.temporal.operators.create_scaling_factors_time_serie
 
-.. autofunction:: emiproc.profiles.temporal.operators.profile_to_scaling_factors
 
 
 Specific days 
@@ -110,8 +109,14 @@ input/output
 
 .. autofunction:: emiproc.profiles.temporal.io.read_temporal_profiles
 
-.. autofunction:: emiproc.profiles.temporal.io.from_csv
-
 .. autofunction:: emiproc.profiles.temporal.io.from_yaml
 
 .. autofunction:: emiproc.profiles.temporal.io.to_yaml
+
+
+
+Implemented Profiles 
+====================
+
+
+.. autofunction:: emiproc.inventories.edgar.temporal.read_edgar_auxilary_profiles

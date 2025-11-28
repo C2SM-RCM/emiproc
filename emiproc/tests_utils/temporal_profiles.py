@@ -7,7 +7,7 @@ import xarray as xr
 
 import emiproc
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.io import from_csv
+from emiproc.profiles.temporal.io import from_yaml, read_temporal_profiles
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
@@ -16,20 +16,34 @@ from emiproc.profiles.temporal.profiles import (
     MounthsProfile,
     TemporalProfile,
     WeeklyProfile,
+    HourOfYearProfile,
+    HourOfLeapYearProfile,
+    get_leap_year_or_normal,
 )
 
 copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
+yaml_profiles_dir = emiproc.FILES_DIR / "profiles" / "yamls"
 
 TEST_COPENICUS_PROFILES = ["hour_in_day", "day_in_week", "month_in_year"]
 
 
-def read_test_copernicus() -> dict[str, list[AnyTimeProfile]]:
+def read_test_copernicus() -> tuple[CompositeTemporalProfiles, xr.DataArray]:
     """Read the test copernicus profiles."""
 
-    return {
-        p: from_csv(copernicus_profiles_dir / f"timeprofiles-{p}.csv")
-        for p in TEST_COPENICUS_PROFILES
+    return read_temporal_profiles(
+        copernicus_profiles_dir,
+        "timeprofiles*.csv",
+        col_of_dim={"category": "Category"},
+    )
+
+
+def read_test_yamls() -> dict[str, list[AnyTimeProfile]]:
+    """Read the test yaml profiles."""
+    profiles = {
+        yaml_file.stem: from_yaml(yaml_file)
+        for yaml_file in yaml_profiles_dir.glob("*.yaml")
     }
+    return profiles
 
 
 def get_random_profiles(
@@ -105,6 +119,14 @@ oem_const_profile = [
     MounthsProfile(),
     WeeklyProfile(),
 ]
+get_hoy = lambda year: get_leap_year_or_normal(HourOfYearProfile, year=year)
+
+
+def get_oem_const_hour_of_year_profile(year):
+    hoy_profile = get_hoy(year)
+    return [hoy_profile(ratios=np.ones(hoy_profile.size) / hoy_profile.size)]
+
+
 weekly_test_profile = WeeklyProfile(ratios=[0.11, 0.09, 0.10, 0.09, 0.14, 0.24, 0.23])
 mounths_test_profile = MounthsProfile(
     ratios=[0.19, 0.17, 0.13, 0.06, 0.05, 0.00, 0.00, 0.00, 0.01, 0.04, 0.15, 0.20]
@@ -188,24 +210,6 @@ indexes_inv_catsubcell = xr.DataArray(
         "category": ["adf", "liku"],  # omit one category on purpose
         "substance": ["CH4", "CO2", "NH3"],
         "cell": np.arange(5),
-    },
-)
-
-# For the african test set
-african_countries_test_set = ["SEN", "MLI", "MRT", "GIN", "GNB", "LBR", "SLE", "GMB"]
-indexes_african_simple = xr.DataArray(
-    data=np.arange(len(african_countries_test_set)),
-    dims=["country"],
-    coords={"country": african_countries_test_set},
-)
-indexes_african_2d = xr.DataArray(
-    data=np.arange(len(african_countries_test_set) * 3).reshape(
-        (len(african_countries_test_set), 3)
-    ),
-    dims=["country", "category"],
-    coords={
-        "country": african_countries_test_set,
-        "category": ["liku", "blek", "test"],
     },
 )
 
