@@ -829,7 +829,7 @@ class GeoPandasGrid(Grid):
     @property
     def cells_as_polylist(self) -> list[Polygon]:
         """Return all the cells as a list of polygons."""
-        return self.gdf.geometry.tolist()
+        return self._geometry.tolist()
 
 
 class ICONGrid(Grid):
