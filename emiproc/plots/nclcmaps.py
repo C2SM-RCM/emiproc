@@ -1,8 +1,8 @@
 """Ncl colormaps for emission plots.
 
-Comes from https://github.com/samwisehawkins/nclcmaps & 
+Comes from https://github.com/samwisehawkins/nclcmaps &
 https://sronpersonalpages.nl/~pault/#sec:qualitative
-Most of the colormaps from the original file were removed 
+Most of the colormaps from the original file were removed
 as not needed.
 
 Can be used as follows::
