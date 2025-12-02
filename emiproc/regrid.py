@@ -1,23 +1,28 @@
 """Different functions for doing the weights remapping."""
 
 from __future__ import annotations
+
 import logging
 from pathlib import Path
-from warnings import simplefilter, catch_warnings
+from typing import TYPE_CHECKING, Iterable
+from warnings import catch_warnings, simplefilter
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from typing import TYPE_CHECKING, Iterable
-from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.utilities import ProgressIndicator
 from scipy.sparse import coo_array, dok_matrix
+from shapely.geometry import MultiPolygon, Point, Polygon
+
+from emiproc import PROCESS
 from emiproc.grids import Grid
 from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
+from emiproc.utilities import ProgressIndicator
 
 logger = logging.getLogger("emiproc.regrid")
 
 if TYPE_CHECKING:
     from os import PathLike
+
     from emiproc.inventories import Inventory
 
 
@@ -122,10 +127,11 @@ def calculate_weights_mapping(
     # shapes_inv = inv.gdf.geometry
     # shapes_out = grid.gdf.to_crs(inv.crs)
     # loop_over_inv_objects=False
-    logger.info(
+    logger.log(
+        PROCESS,
         "calculating weights mapping "
         f"from {len(shapes_inv)} inventory shapes "
-        f"to {len(shapes_out)} grid cells."
+        f"to {len(shapes_out)} grid cells.",
     )
 
     w_mapping = {
