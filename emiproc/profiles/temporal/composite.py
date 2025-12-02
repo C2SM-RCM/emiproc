@@ -63,6 +63,11 @@ class CompositeTemporalProfiles:
         np.ndarray[int],
     ]
 
+    def __new__(cls, profiles: list[list[AnyTimeProfile]] | CompositeTemporalProfiles):
+        if isinstance(profiles, CompositeTemporalProfiles):
+            return profiles.copy()
+        return super().__new__(cls)
+
     def __init__(self, profiles: list[list[AnyTimeProfile]] = []) -> None:
         n = len(profiles)
         self._profiles = {}

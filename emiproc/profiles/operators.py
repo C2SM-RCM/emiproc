@@ -369,7 +369,7 @@ def group_profiles_indexes(
         xr.concat(
             groups_indexes_list,
             dim=groupping_dimension,
-            join='outer',
+            join="outer",
         )
         .fillna(-1)
         .astype(int)
@@ -652,8 +652,8 @@ def add_profiles(
     weights2 = weights2.fillna(0)
 
     profiles_name = "t_profiles_groups"
-    profiles1: CompositeTemporalProfiles = getattr(inv1, profiles_name)
-    profiles2: CompositeTemporalProfiles = getattr(inv2, profiles_name)
+    profiles1 = CompositeTemporalProfiles(getattr(inv1, profiles_name))
+    profiles2 = CompositeTemporalProfiles(getattr(inv2, profiles_name))
 
     # Make the profiles have the same sub-profiles included
     # This will make scaling factors of 1 when a sub-profile is missing
