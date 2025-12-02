@@ -4,30 +4,43 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import xarray as xr
+import numpy as np
 
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Category, Inventory, Substance
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.profiles import MounthsProfile
+from emiproc.profiles.temporal.profiles import MounthsProfile, AnyTimeProfile
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utilities import DAY_PER_YR, HOUR_PER_YR, SEC_PER_DAY
+from emiproc.utils.constants import get_molar_mass
 
 
-def get_unit_scaling_factor_to_kg_per_year_per_cell(unit: str) -> tuple[float, bool]:
+def get_unit_scaling_factor_to_kg_per_year_per_cell(
+    unit: str, substance: str | None = None
+) -> tuple[float, bool]:
     """Get the scaling factor to convert from the given unit to kg/year/cell.
 
     Supported units:
     - "kg/m2/s"
 
     :param unit: Unit string.
+
     :return: Scaling factor. and a boolean indicating that we need to scale (multiply) with the cell area.
     """
-    unit = unit.lower()
     if unit == "kg/m2/s":
         # kg/m2/s * day/year * s/day * m2/cell = kg/year/cell
         return DAY_PER_YR * SEC_PER_DAY, True  # seconds to year
     elif unit in ["kg/y/cell", "kg y-1 cell-1", "kg/year/cell"]:
         return 1.0, False
+    elif unit == "PgC/yr":
+        # Carbon to CO2 conversion
+        if substance != "CO2":
+            raise ValueError("PgC/yr unit can only be used for CO2 substance.")
+        return 1e12 * (44.01 / 12.01), False
+    elif unit == "micromol/m2/s":
+        molar_mass = get_molar_mass(substance)  # g/mol
+        # micromol/m2/s * kg/g * g/mol * mol/micromol * s/year * m2/cell
+        return molar_mass * 1e-3 * molar_mass * 1e-6 * SEC_PER_DAY * DAY_PER_YR, True
     else:
         raise NotImplementedError(f"Unit {unit} not supported.")
 
@@ -39,19 +52,28 @@ def get_year_from_attrs(attrs: dict) -> int | None:
     :return: Year if found, None otherwise.
     """
     if "year" in attrs:
-        try: 
+        try:
             return int(attrs["year"])
         except (ValueError, TypeError):
             return None
-    
+
     return None
 
-def _array_to_series(da: xr.DataArray) -> pd.Series:
+
+def _array_to_series(da: xr.DataArray, time_name: str) -> pd.Series:
     """Convert a DataArray to a Pandas Series, averaging over time if necessary."""
-    if 'time' in da.dims:
-        da = da.mean(dim='time')
-    
+    if time_name in da.dims:
+        da = da.mean(dim=time_name)
+
+    # Check that there is only one dimension left (cell)
+    if len(da.dims) != 1 or da.dims[0] != "cell":
+        raise ValueError(
+            f"Expected DataArray with only 'cell' dimension, found {da.dims}."
+            " Make sure you specified the name of the time dimension correctly."
+        )
+
     return da.to_pandas()
+
 
 class NetcdfRaster(Inventory):
     """Netcdf inventory.
@@ -81,6 +103,8 @@ class NetcdfRaster(Inventory):
         lon_name: str = "lon",
         time_name: str = "time",
         unit: str | None = None,
+        temporal_profile: type[AnyTimeProfile] | None = None,
+        year: int | None = None,
     ) -> None:
         file = Path(file)
         self.name = f"NetcdfRaster_Inventory_{file.stem}"
@@ -96,14 +120,44 @@ class NetcdfRaster(Inventory):
 
             cell_areas = self.grid.cell_areas
 
-            if time_name in ds.variables:
-                if len(ds[time_name]) != 1:
-                    raise NotImplementedError(
-                        f"Expected only one time step in the dataset, found {len(ds[time_name])}."
-                        "If you want to implement time-varying inventories, please contact the developers."
+            if time_name in ds.variables and len(ds[time_name]) == 1 and year is None:
+                # Case when time dimension is a single variable
+                year = pd.to_datetime(ds[time_name].values[0]).year
+            elif time_name in ds.variables:
+                # Time dimension, must read the temporal profile
+                # Check the size of the time dimension
+                if temporal_profile is None:
+                    raise ValueError(
+                        "Temporal profile must be provided for inventories "
+                        "with multiple time steps."
                     )
-                year = pd.to_datetime(ds[time_name].values[0]).year 
-            elif "year" in ds.attrs:
+                years_in_data = pd.to_datetime(ds[time_name].values).year
+                if year is None:
+                    # Check only one year is present
+                    unique_years = pd.unique(years_in_data)
+                    if len(unique_years) > 1:
+                        raise ValueError(
+                            "Multiple years found in the data. Please specify the year to select."
+                        )
+                    year = unique_years[0]
+                else:
+                    # Ensue the data is given for that year
+                    self.logger.info(
+                        f"Selecting data for year {year} "
+                        f" availabe: {sum(years_in_data == year)} time steps."
+                    )
+                    ds = ds.sel({time_name: years_in_data == year})
+                    if len(ds[time_name]) == 0:
+                        raise ValueError(
+                            f"No data found for year {year} in the inventory."
+                        )
+                if temporal_profile.size != len(ds[time_name]):
+                    raise ValueError(
+                        f"Temporal profile size {temporal_profile.size} does not "
+                        f"match number of time steps {len(ds[time_name])}."
+                    )
+
+            elif "year" in ds.attrs and year is None:
                 # No time variable, probably a constant inventory
                 year = get_year_from_attrs(ds.attrs)
                 if year is None:
@@ -112,10 +166,11 @@ class NetcdfRaster(Inventory):
                         "Setting year to None."
                     )
             else:
-                year = None
+                year = year
             self.year = year
 
             das = {}
+            das_ratios = []
 
             if variable_to_catsub is None:
                 variable_to_catsub = {}
@@ -134,16 +189,30 @@ class NetcdfRaster(Inventory):
                 da_stacked = (
                     ds[var]
                     .stack(cell=(lon_name, lat_name))
-                    # Reset the cell index 
+                    # Reset the cell index
                     .reset_index("cell")
                     .drop_vars([lon_name, lat_name])
+                    .assign_coords(cell=np.arange(len(self.grid.gdf), dtype=int))
                     # .expand_dims(dim=dict(catsub=[(category, substance)]))
                     .fillna(0.0)
                 )
+                if temporal_profile is not None:
+                    # Calculate ratios for profiles
+                    mask_zero = da_stacked.sum(dim=time_name) == 0
+                    da_ratios = da_stacked.sel({"cell": ~mask_zero})
+                    # Ensure high precision for the ratios, so that they sum to 1
+                    da_ratios = da_ratios.astype("float64")
+                    da_ratios = da_ratios / da_ratios.sum(dim=time_name)
+                    da_ratios = da_ratios.expand_dims(
+                        dim={"catsub": [(category, substance)]}
+                    )
+                    das_ratios.append(da_ratios)
                 # Unit conversion
-                this_unit = ds[var].units.lower() if unit is None else unit
+                this_unit = ds[var].units if unit is None else unit
                 scaling_factor, multiply_by_area = (
-                    get_unit_scaling_factor_to_kg_per_year_per_cell(this_unit)
+                    get_unit_scaling_factor_to_kg_per_year_per_cell(
+                        this_unit, substance=substance
+                    )
                 )
                 if multiply_by_area:
                     da_cell_areas = xr.DataArray(
@@ -155,25 +224,34 @@ class NetcdfRaster(Inventory):
                 da_stacked = da_stacked * scaling_factor
                 das[(category, substance)] = da_stacked
 
-        # For implementation of temporal profiles in the future:
-
-        # da_ratios = da_stacked / da_stacked.sum(dim="time")
-        # da_ratios = da_ratios.rename(time="ratio")
-        # ratios, indices = ratios_dataarray_to_profiles(da_ratios)
-
         # Convert to pandas
-
-        series = {
-            catsub: _array_to_series(da)
-            for catsub, da in das.items()
-        }
+        series = {catsub: _array_to_series(da, time_name) for catsub, da in das.items()}
 
         self.gdf = gpd.GeoDataFrame(series, geometry=self.grid.gdf.geometry)
         self.gdfs = {}
 
-        # self.set_profiles(
-        #    profiles=CompositeTemporalProfiles.from_ratios(
-        #        ratios=ratios, types=[MounthsProfile]
-        #    ),
-        #    indexes=indices,
-        # )
+        if temporal_profile is None:
+            return 
+
+        # Following is only for temporal profiles
+
+        da_ratios: xr.DataArray = xr.concat(das_ratios, dim="catsub", join="outer")
+        # Put catsub to category and substance coordinates
+        da_ratios = da_ratios.assign_coords(
+            xr.Coordinates.from_pandas_multiindex(
+                pd.MultiIndex.from_tuples(
+                    da_ratios['catsub'].values, names=["category", "substance"]
+                ),
+                dim="catsub",
+            )
+        )
+        da_ratios = da_ratios.unstack("catsub")
+        ratios, indices = ratios_dataarray_to_profiles(
+            da_ratios.rename({time_name: "ratio"})
+        )
+        self.set_profiles(
+            profiles=CompositeTemporalProfiles.from_ratios(
+                ratios=ratios, types=[temporal_profile]
+            ),
+            indexes=indices,
+        )
