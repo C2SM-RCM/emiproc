@@ -117,17 +117,17 @@ def explore_inventory(
 
 def plot_inventory(
     inv: Inventory,
-    figsize: tuple[int, int] = (16, 9),
+    figsize: tuple[int, int] | None = None,
     q: float = 0.001,
     vmin: None | float = None,
     vmax: None | float = None,
     cmap=nclcmaps.cmap("iridescent"),
     symcmap="RdBu_r",
-    spec_lims: None | tuple[float] = None,
+    spec_lims: None | tuple[float] | str = None,
     out_dir: PathLike | None = None,
     axis_formatter: str | None = None,
-    x_label: str = "lon [°]",
-    y_label: str = "lat [°]",
+    x_label: str | None = None,
+    y_label: str | None = None,
     add_country_borders: bool = False,
     total_only: bool = False,
     reverse_y: bool = False,
@@ -156,6 +156,7 @@ def plot_inventory(
     :arg symcmap: the symetric colormap to use when:str  there are negative values.
         As in matplotlib.
     :arg spec_lims: the limits of the plot. As in matplotlib.
+        If "grid", will use the grid cell coordinates.
     :arg out_dir: the directory where to save the plots. If None, will show the plots.
     :arg axis_formatter: for example "{x:6.0f}" will show 6 number and 0
         after the . , which is useful for swiss coordinates.
@@ -201,6 +202,15 @@ def plot_inventory(
 
     if not spec_lims:
         spec_lims = (x_min, x_max, y_min, y_max)
+    elif spec_lims == "grid":
+        spec_lims = (0, grid.nx, 0, grid.ny)
+        if x_label is None:
+            x_label = "grid cell x"
+        if y_label is None:
+            y_label = "grid cell y"
+    else:
+        spec_lims = tuple(spec_lims)
+
 
     if add_country_borders:
         gdf_countries = get_natural_earth(
@@ -220,6 +230,11 @@ def plot_inventory(
 
     else:
         add_country_borders = lambda ax: None
+
+    if x_label is None:
+        x_label = "lon [°]"
+    if y_label is None:
+        y_label = "lat [°]"
 
     def add_ax_info(ax: mpl.axes.Axes):
         if axis_formatter is not None:
@@ -278,6 +293,9 @@ def plot_inventory(
             if total_only:
                 continue
 
+            if figsize is None:
+                figsize = (14, round(12 * (y_max - y_min) / (x_max - x_min)))
+
             fig, ax = plt.subplots(
                 figsize=figsize,
                 # gridspec_kw={"right": 0.9, "wspace": 0},
@@ -297,7 +315,7 @@ def plot_inventory(
                     emissions,
                     norm=norm,
                     cmap=this_cmap,
-                    extent=[x_min, x_max, y_min, y_max],
+                    extent=spec_lims,
                 )
             else:
                 # Plot only polygons, otherwise, it will be weird with the multipolygon
@@ -363,7 +381,7 @@ def plot_inventory(
                 total_sub_emissions,
                 norm=norm,
                 cmap=this_cmap,
-                extent=[x_min, x_max, y_min, y_max],
+                extent=spec_lims,
             )
         else:
             mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
