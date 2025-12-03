@@ -293,6 +293,7 @@ def interpolate_profiles(
             datetime=serie,
             method=interpolation_method,
             assume_sorted=True,
+            kwargs={"fill_value": "extrapolate"},
         )
 
         das_scaling_factors.append(da_interp.expand_dims("profile_type"))
