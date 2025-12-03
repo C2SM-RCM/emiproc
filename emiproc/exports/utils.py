@@ -14,6 +14,9 @@ def get_temporally_scaled_array(
     inv: Inventory,
     time_range: pd.DatetimeIndex | int,
     sum_over_cells: bool = True,
+    freq: str = "D",
+    chunk: bool = False,
+    n_chunks: int = 10,
 ) -> xr.DataArray:
     """Transform the inventory to a temporally resolved emissions array.
 
@@ -61,11 +64,11 @@ def get_temporally_scaled_array(
             "`emiproc.inventories.utils.country_to_cells()` ."
         )
 
-    if isinstance(time_range, int):
+    if isinstance(time_range, int | np.integer):
         time_range = pd.date_range(
             start=f"{time_range}-01-01",
             end=f"{time_range}-12-31",
-            freq="D",
+            freq=freq,
             inclusive="both",
         )
     elif not isinstance(time_range, pd.DatetimeIndex):
@@ -98,15 +101,42 @@ def get_temporally_scaled_array(
 
     da_sf = get_scaling_factors_at_time(profiles, time_range)
 
+    if not chunk or "cell" not in profiles_indexes.dims:
+        return _scale_emission_temporally(
+            da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
+        )
+    
+    # Chunking approach
+    cell_chunks = np.array_split(profiles_indexes['cell'].values, n_chunks)
+
+    scaled_chunks = [
+        _scale_emission_temporally(
+            da_sf,
+            da_totals.sel(cell=cell_chunk),
+            profiles_indexes.sel(cell=cell_chunk),
+            sum_over_cells=sum_over_cells,
+        )
+        for cell_chunk in cell_chunks
+    ]
+
+    return xr.concat(scaled_chunks, dim="cell") if not sum_over_cells else sum(scaled_chunks)
+
+
+def _scale_emission_temporally(
+        da_sf: xr.DataArray,
+        da_totals: xr.DataArray,
+        profiles_indexes: xr.DataArray,
+        sum_over_cells: bool = True,
+    ) -> xr.DataArray:
     # Get the scaling factors for each profile
     da_scaling_factors = da_sf.sel(
         # Apply similar strategy for missing profiles
         profile=profiles_indexes.where(profiles_indexes != -1, 0)
     ).drop_vars("profile")
-    # Apply similar strategy for missing profiles which is more performant (in place)
-    da_scaling_factors.loc[
-        profiles_indexes.where(profiles_indexes == -1, drop=True).coords
-    ] = 1.0
+    # Apply similar strategy for missing profiles 
+    da_scaling_factors = da_scaling_factors.where(
+        profiles_indexes != -1, 1.0
+    )
 
     da_scaling_factors = da_scaling_factors.broadcast_like(da_totals)
 

@@ -21,6 +21,7 @@ from emiproc.inventories import Inventory
 from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.utilities import get_natural_earth
+from emiproc.exports.utils import get_temporally_scaled_array
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
@@ -131,6 +132,7 @@ def plot_inventory(
     add_country_borders: bool = False,
     total_only: bool = False,
     reverse_y: bool = False,
+    temporal_freq: str = "h",
     poly_collection_kwargs: dict[str, Any] = {
         "edgecolors": "black",
         "linewidth": 0.04,
@@ -211,7 +213,6 @@ def plot_inventory(
     else:
         spec_lims = tuple(spec_lims)
 
-
     if add_country_borders:
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
@@ -250,6 +251,14 @@ def plot_inventory(
         plt.ioff()
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
+
+    def save_or_show(fig: plt.Figure, file_name: str):
+        if out_dir:
+            fig.savefig(out_dir / f"{file_name}.png")
+            fig.clear()
+        else:
+            plt.show()
+        plt.close(fig)
 
     per_substances_per_sector_emissions = {}
     for sub in inv.substances:
@@ -350,16 +359,7 @@ def plot_inventory(
 
             fig.tight_layout()
 
-            if out_dir:
-                file_name = Path(out_dir) / f"raster_{sub}_{cat}"
-
-                fig.savefig(file_name.with_suffix(".png"))
-                # fig.savefig(file_name.with_suffix(".pdf"))
-                fig.clear()
-            else:
-                plt.show()
-
-            plt.close(fig)
+            save_or_show(fig, f"raster_{sub}_{cat}")
 
         if not np.any(total_sub_emissions):
             logger.info(f"passsed {sub},total_emissions, no emissions")
@@ -416,16 +416,7 @@ def plot_inventory(
         add_country_borders(ax)
         fig.tight_layout()
 
-        if out_dir:
-            file_name = Path(out_dir) / f"raster_total_{sub}"
-
-            fig.savefig(file_name.with_suffix(".png"))
-            # fig.savefig(file_name.with_suffix(".pdf"))
-            fig.clear()
-        else:
-            plt.show()
-
-        plt.close(fig)
+        save_or_show(fig, f"raster_total_{sub}")
 
     # A bar plot of the total emissions for each substances and each category
     sorted_categories = sorted(inv.categories)
@@ -455,11 +446,33 @@ def plot_inventory(
     ax.set_xticks(range(len(sorted_categories)))
     ax.set_xticklabels(sorted_categories, rotation=45, ha="right")
 
-    if out_dir:
-        file_name = Path(out_dir) / f"barplot_total_emissions"
-        fig.savefig(file_name.with_suffix(".png"))
-        fig.clear()
-    else:
-        plt.show()
+    save_or_show(fig, "barplot_total_emissions")
 
-    plt.close(fig)
+    if hasattr(inv, "t_profiles_groups"):
+
+        da = get_temporally_scaled_array(
+            inv, inv.year, sum_over_cells=True, freq=temporal_freq, chunk=True
+        )
+
+        fig, axes = plt.subplots(
+            figsize=(12, 4 * len(inv.substances)),
+            nrows=len(inv.substances),
+            sharex=True,
+            squeeze=False,
+        )
+        for i_sub, sub in enumerate(inv.substances):
+            ax = axes[i_sub, 0]
+            min_value, max_value = 0, 0
+            for cat in sorted(inv.categories):
+                serie = da.sel(category=cat, substance=sub).values
+                ax.plot(da.time.values, serie, label=cat)
+                min_value = min(min_value, np.min(serie))
+                max_value = max(max_value, np.max(serie))
+            ax.set_ylabel(f"{sub} kg/y")
+            scaling = 1.1
+            ax.set_ylim(min_value * scaling, max_value * scaling)
+        axes[-1, 0].legend()
+
+        fig.suptitle("Temporal distribution of the inventory")
+
+        save_or_show(fig, "temporal_profiles")
