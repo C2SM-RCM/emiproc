@@ -256,6 +256,7 @@ def group_categories(
     inv: Inventory,
     categories_group: dict[str, list[str]],
     ignore_missing: bool = False,
+    chunk: bool = False,
 ) -> Inventory:
     """Group the categories of an inventory in new categories.
 
@@ -273,6 +274,7 @@ def group_categories(
         Ex. ``{"group1": ["cat1", "cat2"], "group2": ["cat3", "cat4"]}``
         If ``cat3`` is not in the inventory, the function will work as if
         ``{"group1": ["cat1", "cat2"], "group2": ["cat4"]}`` was passed.
+    :arg chunks: If given, will process the grouping in chunks of categories
     """
     if ignore_missing:
         # Remove the missing categories
@@ -351,6 +353,7 @@ def group_categories(
                 indexes_weights=get_weights_of_gdf_profiles(inv.gdf, profiles_indexes),
                 categories_group=categories_group,
                 groupping_dimension="category",
+                chunk=chunk,
             )
 
             out_inv.set_profiles(new_profiles, new_indices)
@@ -906,10 +909,14 @@ def clip_box(
         for index_name in ["v_profiles_indexes", "t_profiles_indexes"]:
             indexes: xr.DataArray | None = getattr(out_inv, index_name, None)
             if indexes is not None and "cell" in indexes.dims:
-                raise NotImplementedError(
-                    f"Clipping inventories with {index_name} depending on 'cell' "
-                    "is not implemented yet."
+                cell_in = inv.gdf.index 
+                cell_out = out_gdf.index
+                indexes = indexes.sel(cell=cell_out)
+                # Reindex the cell dimension
+                indexes = indexes.assign_coords(
+                    cell=("cell", np.arange(len(cell_out)))
                 )
+                setattr(out_inv, index_name, indexes)
         out_gdf = out_gdf.reset_index(drop=True)
 
         # Also modify the grid

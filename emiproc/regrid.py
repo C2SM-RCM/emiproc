@@ -401,6 +401,7 @@ def remap_inventory(
     method: str = "new",
     keep_gdfs: bool = False,
     weigths_file: PathLike | None = None,
+    dont_remap_profiles: bool = False,
 ) -> Inventory:
     """Remap any inventory on the desired grid.
 
@@ -412,6 +413,8 @@ def remap_inventory(
     :arg weights_file: The file storing the weights.
     :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
     :arg keep_gdfs: Whether to keep the additional gdfs (shapped emissions) of the inventory.
+    :arg dont_remap_profiles: Whether to not merge the profiles when remapping them.
+        see :py:func:`remap_profiles` for more information.
 
     .. warning::
 
@@ -560,6 +563,7 @@ def remap_inventory(
                 inv.gdf, profiles_indexes=indexes
             ),
             weights_mapping=w_mapping_grid,
+            dont_merge=dont_remap_profiles,
         )
 
         out_inv.set_profiles(new_profiles, new_indexes)

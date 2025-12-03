@@ -145,6 +145,8 @@ def combine_profiles(
     profiles_indexes: xr.DataArray,
     dimension: str,
     weights: xr.DataArray,
+    chunk: bool = False,
+    n_chunks: int = 20,
 ) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
     """Combine profiles from multidimensional array by reducing over a specified dimension.
 
@@ -156,6 +158,7 @@ def combine_profiles(
     :arg weights: The weights of the data. In terms of emissions, it means
         the total emission of that data.
         Weights can be obtained through :py:func:`get_weights_of_gdf_profiles`
+    :arg n_chunks: In case of MemoryError, the number of chunks to use for processing.
 
     :return: the new profiles and the indexes of the combined data
         in these new profiles.
@@ -188,14 +191,42 @@ def combine_profiles(
             f"Unknown profile type {type(profiles)}, must be VerticalProfiles or"
             " CompositeTemporalProfiles"
         )
-    # Access the profiles
-    da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
+    try:
+        if chunk:
+            raise MemoryError("Forcing chunking")
+        # Access the profiles
+        da_sf = profiles_to_scalingfactors_dataarray(profiles, profiles_indexes)
+        # Perform the average on the profiles
+        new_scaling_factors = (da_sf * weights).sum(dimension)
+    except MemoryError as e:
+        # Find another dimension, where we can chunk
+        other_dims = [
+            dim
+            for dim in profiles_indexes.dims
+            if dim != dimension and profiles_indexes.sizes[dim] > 1
+        ]
+        if not other_dims:
+            logger.error("Cannot chunk on other dimensions, re-raising MemoryError.")
+            raise e
+        chunk_dim = other_dims[0]
+        logger.warning(
+            f"MemoryError while combining profiles: {e}. "
+            f"Trying with chunking on '{chunk_dim}'."
+        )
 
-    logger.debug(
-        f"Creating averaged profiles with {da_sf=} and" f" {weights=} on {dimension=}"
-    )
-    # Perform the average on the profiles
-    new_scaling_factors = (da_sf * weights).sum(dimension)
+        factors = [
+            (
+                profiles_to_scalingfactors_dataarray(
+                    profiles, profiles_indexes.sel({chunk_dim: vals})
+                )
+                * weights.sel({chunk_dim: vals})
+            ).sum(dimension)
+            for vals in np.array_split(
+                profiles_indexes.coords[chunk_dim].values, n_chunks
+            )
+        ]
+
+        new_scaling_factors = xr.concat(factors, dim=chunk_dim)
 
     # Recover the profiles and indexes from the new scaling factors
 
@@ -279,6 +310,7 @@ def group_profiles_indexes(
     indexes_weights: xr.DataArray,
     categories_group: dict[str, list[str]],
     groupping_dimension: str = "category",
+    chunk: bool = False,
 ) -> tuple[VerticalProfiles | list[list[TemporalProfile]], xr.DataArray]:
     """Groups profiles and their indexes according to the given mapping.
 
@@ -332,6 +364,7 @@ def group_profiles_indexes(
             profiles_indexes.sel(**sel_dict),
             dimension=groupping_dimension,
             weights=indexes_weights.sel(**sel_dict),
+            chunk=chunk,
         )
         # Set that new coord to the dimension
         group_indexes = group_indexes.expand_dims(group_coord)
@@ -540,6 +573,7 @@ def remap_profiles(
     profiles_indexes: xr.DataArray,
     emissions_weights: xr.DataArray,
     weights_mapping: dict[str, np.ndarray],
+    dont_merge: bool = False,
 ) -> tuple[VerticalProfiles | CompositeTemporalProfiles, xr.DataArray]:
     """Remap the profiles on a new grid.
 
@@ -549,6 +583,9 @@ def remap_profiles(
         Can be calculated using :py:func:`get_weights_of_gdf_profiles`.
     :arg weights_mapping: A dictionary containing the weights for the remapping.
         This is the result of :py:func:`emiproc.utilities.get_weights_mapping`.
+    :arg dont_merge: If True, will use one of the profiles intersecting instead
+        of weighting by the remapping weights. This is useful to simplify the
+        number of profiles.
 
     :return: The remapped profiles and the new indexes.
 
@@ -573,6 +610,15 @@ def remap_profiles(
             weights_mapping["inv_indexes"], list(missing_cells_in_profiles)
         )
         weights_mapping = {k: v[~mask_missing] for k, v in weights_mapping.items()}
+
+    if dont_merge:
+        # Cheange the weight mapping to only use one of the profiles
+        _, ind = np.unique(weights_mapping["output_indexes"], return_index=True)
+        weights_mapping = {
+            "output_indexes": weights_mapping["output_indexes"][ind],
+            "inv_indexes": weights_mapping["inv_indexes"][ind],
+            "weights": np.ones_like(ind, dtype=float),
+        }
 
     # Get the emissions weights at the remapping index
     da_weights_of_remapping = xr.DataArray(
@@ -635,8 +681,42 @@ def add_profiles(
     indexes_name = "t_profiles_indexes"
     profiles_name = "t_profiles_groups"
 
-    indexes1 = getattr(inv1, indexes_name)
-    indexes2 = getattr(inv2, indexes_name)
+    indexes1: xr.DataArray = getattr(inv1, indexes_name)
+    indexes2: xr.DataArray = getattr(inv2, indexes_name)
+
+    profiles_name = "t_profiles_groups"
+    profiles1 = CompositeTemporalProfiles(getattr(inv1, profiles_name))
+    profiles2 = CompositeTemporalProfiles(getattr(inv2, profiles_name))
+
+    all_types = set(sum([p.types for p in [profiles1, profiles2]], []))
+    # Make sure the profiles have the same types
+    if not set(profiles1.types) == set(profiles2.types):
+        raise NotImplementedError(
+            "Cannot add inventories with different sub-profiles: "
+            f"{profiles1.types=} != {profiles2.types=}"
+            "\n Interpolate the profiles to have same sub-profiles first."
+        )
+    # Make the profiles have the same sub-profiles included
+    # This will make scaling factors of 1 when a sub-profile is missing
+    # Careful here, becaue the types will change the order of position
+    profiles1 = profiles1.broadcast(all_types)
+    profiles2 = profiles2.broadcast(all_types)
+
+    # Case simple concatenation instead of weighted combination
+    if all("category" in ind.coords for ind in [indexes1, indexes2]) and set(
+        indexes1.coords["category"].values
+    ).isdisjoint(set(indexes2.coords["category"].values)):
+        # No overlapping categories, just concatenate
+        concatenated_profiles = CompositeTemporalProfiles.from_ratios(
+            np.vstack([profiles1.ratios, profiles2.ratios]),
+            types=profiles1.types,
+        )
+        # Offset the indexes of the second inventory
+        indexes2_offset = indexes2.where(indexes2 == -1, indexes2 + len(profiles1))
+        new_indexes = xr.concat(
+            [indexes1, indexes2_offset], dim="category", join="outer", fill_value=-1
+        )
+        return concatenated_profiles, new_indexes
 
     # Aligns exisiting coordinates
     indexes1, indexes2 = xr.broadcast(indexes1, indexes2)
@@ -650,22 +730,6 @@ def add_profiles(
     # Add the missing
     weights1 = weights1.fillna(0)
     weights2 = weights2.fillna(0)
-
-    profiles_name = "t_profiles_groups"
-    profiles1 = CompositeTemporalProfiles(getattr(inv1, profiles_name))
-    profiles2 = CompositeTemporalProfiles(getattr(inv2, profiles_name))
-
-    # Make the profiles have the same sub-profiles included
-    # This will make scaling factors of 1 when a sub-profile is missing
-    all_types = set(sum([p.types for p in [profiles1, profiles2]], []))
-    # Careful here, becaue the types will change the order of position
-    profiles1 = profiles1.broadcast(all_types)
-    profiles2 = profiles2.broadcast(all_types)
-
-    # Make sure they are the same in the new profiles
-    assert (
-        profiles1.types == profiles2.types
-    ), "Profiles not same type. Please raise an issue on Github."
 
     sf1 = profiles_to_scalingfactors_dataarray(profiles1, indexes1)
     sf2 = profiles_to_scalingfactors_dataarray(profiles2, indexes2)
