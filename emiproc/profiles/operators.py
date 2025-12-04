@@ -684,7 +684,6 @@ def add_profiles(
     indexes1: xr.DataArray = getattr(inv1, indexes_name)
     indexes2: xr.DataArray = getattr(inv2, indexes_name)
 
-    profiles_name = "t_profiles_groups"
     profiles1 = CompositeTemporalProfiles(getattr(inv1, profiles_name))
     profiles2 = CompositeTemporalProfiles(getattr(inv2, profiles_name))
 
