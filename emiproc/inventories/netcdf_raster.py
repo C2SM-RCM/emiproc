@@ -143,7 +143,7 @@ class NetcdfRaster(Inventory):
                     # Ensure the data is given for that year
                     self.logger.info(
                         f"Selecting data for year {year} "
-                        f" availabe: {sum(years_in_data == year)} time steps."
+                        f" available: {sum(years_in_data == year)} time steps."
                     )
                     ds = ds.sel({time_name: years_in_data == year})
                     if len(ds[time_name]) == 0:
