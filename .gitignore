@@ -12,6 +12,7 @@ docs/build/
 *.nc
 *.html
 *.lock
+.coverage
 files/TNO_6x6_GHGco_v4_0/
 files/natural_earth/
 files/timezones/
