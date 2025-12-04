@@ -15,7 +15,15 @@ from emiproc.inventories.netcdf_raster import (
 )
 from emiproc.profiles.temporal.profiles import MounthsProfile, DayOfYearProfile
 from emiproc.tests_utils import TEST_OUTPUTS_DIR
+from emiproc.tests_utils.test_grids import regular_grid
+from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
 from emiproc.utilities import DAY_PER_YR, SEC_PER_DAY
+
+
+# Grid dimensions from test_utils regular_grid (nx=10, ny=15)
+GRID_NX = regular_grid.nx
+GRID_NY = regular_grid.ny
+GRID_NCELLS = GRID_NX * GRID_NY  # 150 cells
 
 
 # Suppress geopandas warnings about geographic CRS
@@ -27,20 +35,12 @@ def suppress_geopandas_warnings():
 
 
 @pytest.fixture
-def simple_grid():
-    """Create a simple regular grid for testing."""
-    return RegularGrid(
-        xmin=0, xmax=10, ymin=0, ymax=10, nx=5, ny=5, name="test_grid"
-    )
-
-
-@pytest.fixture
-def simple_netcdf_file(simple_grid, tmp_path):
-    """Create a simple NetCDF file for testing."""
+def simple_netcdf_file(tmp_path):
+    """Create a simple NetCDF file for testing using regular_grid from test_utils."""
     file_path = tmp_path / "simple_raster.nc"
 
-    # Create emission data (5x5 grid)
-    emission_data = np.random.rand(5, 5).astype(np.float32)
+    # Create emission data matching regular_grid dimensions (ny x nx)
+    emission_data = np.random.rand(GRID_NY, GRID_NX).astype(np.float32)
 
     ds = xr.Dataset(
         data_vars={
@@ -55,8 +55,8 @@ def simple_netcdf_file(simple_grid, tmp_path):
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
         },
         attrs={"year": 2020},
     )
@@ -66,7 +66,7 @@ def simple_netcdf_file(simple_grid, tmp_path):
 
 
 @pytest.fixture
-def multi_variable_netcdf_file(simple_grid, tmp_path):
+def multi_variable_netcdf_file(tmp_path):
     """Create a NetCDF file with multiple emission variables."""
     file_path = tmp_path / "multi_variable_raster.nc"
 
@@ -74,7 +74,7 @@ def multi_variable_netcdf_file(simple_grid, tmp_path):
         data_vars={
             "CO2_industry": (
                 ["lat", "lon"],
-                np.random.rand(5, 5).astype(np.float32),
+                np.random.rand(GRID_NY, GRID_NX).astype(np.float32),
                 {
                     "units": "kg/year/cell",
                     "substance": "CO2",
@@ -83,7 +83,7 @@ def multi_variable_netcdf_file(simple_grid, tmp_path):
             ),
             "CO2_transport": (
                 ["lat", "lon"],
-                np.random.rand(5, 5).astype(np.float32),
+                np.random.rand(GRID_NY, GRID_NX).astype(np.float32),
                 {
                     "units": "kg/year/cell",
                     "substance": "CO2",
@@ -92,7 +92,7 @@ def multi_variable_netcdf_file(simple_grid, tmp_path):
             ),
             "CH4_agriculture": (
                 ["lat", "lon"],
-                np.random.rand(5, 5).astype(np.float32),
+                np.random.rand(GRID_NY, GRID_NX).astype(np.float32),
                 {
                     "units": "kg/year/cell",
                     "substance": "CH4",
@@ -101,8 +101,8 @@ def multi_variable_netcdf_file(simple_grid, tmp_path):
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
         },
         attrs={"year": 2021},
     )
@@ -112,7 +112,7 @@ def multi_variable_netcdf_file(simple_grid, tmp_path):
 
 
 @pytest.fixture
-def netcdf_file_kg_per_m2_per_s(simple_grid, tmp_path):
+def netcdf_file_kg_per_m2_per_s(tmp_path):
     """Create a NetCDF file with emissions in kg/m2/s."""
     file_path = tmp_path / "kg_m2_s_raster.nc"
 
@@ -120,7 +120,7 @@ def netcdf_file_kg_per_m2_per_s(simple_grid, tmp_path):
         data_vars={
             "CO2_power": (
                 ["lat", "lon"],
-                np.ones((5, 5)).astype(np.float32),  # 1 kg/m2/s everywhere
+                np.ones((GRID_NY, GRID_NX)).astype(np.float32),  # 1 kg/m2/s everywhere
                 {
                     "units": "kg/m2/s",
                     "substance": "CO2",
@@ -129,8 +129,8 @@ def netcdf_file_kg_per_m2_per_s(simple_grid, tmp_path):
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
         },
         attrs={"year": 2022},
     )
@@ -140,7 +140,7 @@ def netcdf_file_kg_per_m2_per_s(simple_grid, tmp_path):
 
 
 @pytest.fixture
-def netcdf_file_with_time(simple_grid, tmp_path):
+def netcdf_file_with_time(tmp_path):
     """Create a NetCDF file with a single time dimension."""
     file_path = tmp_path / "time_raster.nc"
 
@@ -150,7 +150,7 @@ def netcdf_file_with_time(simple_grid, tmp_path):
         data_vars={
             "CO2_heating": (
                 ["time", "lat", "lon"],
-                np.random.rand(1, 5, 5).astype(np.float32),
+                np.random.rand(1, GRID_NY, GRID_NX).astype(np.float32),
                 {
                     "units": "kg/year/cell",
                     "substance": "CO2",
@@ -159,8 +159,8 @@ def netcdf_file_with_time(simple_grid, tmp_path):
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
             "time": time_values,
         },
     )
@@ -170,15 +170,15 @@ def netcdf_file_with_time(simple_grid, tmp_path):
 
 
 @pytest.fixture
-def netcdf_file_with_monthly_profiles(simple_grid, tmp_path):
+def netcdf_file_with_monthly_profiles(tmp_path):
     """Create a NetCDF file with 12 monthly time steps."""
     file_path = tmp_path / "monthly_raster.nc"
 
     # Create time values for each month of a single year
     time_values = pd.to_datetime([f"2023-{m:02d}-15" for m in range(1, 13)])
 
-    # Create monthly varying emissions (12 months, 5x5 grid)
-    emission_data = np.random.rand(12, 5, 5).astype(np.float32)
+    # Create monthly varying emissions (12 months)
+    emission_data = np.random.rand(12, GRID_NY, GRID_NX).astype(np.float32)
 
     ds = xr.Dataset(
         data_vars={
@@ -193,8 +193,8 @@ def netcdf_file_with_monthly_profiles(simple_grid, tmp_path):
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
             "time": time_values,
         },
     )
@@ -204,7 +204,7 @@ def netcdf_file_with_monthly_profiles(simple_grid, tmp_path):
 
 
 @pytest.fixture
-def netcdf_file_no_unit_attr(simple_grid, tmp_path):
+def netcdf_file_no_unit_attr(tmp_path):
     """Create a NetCDF file without unit attribute."""
     file_path = tmp_path / "no_unit_raster.nc"
 
@@ -212,7 +212,7 @@ def netcdf_file_no_unit_attr(simple_grid, tmp_path):
         data_vars={
             "emissions": (
                 ["lat", "lon"],
-                np.random.rand(5, 5).astype(np.float32),
+                np.random.rand(GRID_NY, GRID_NX).astype(np.float32),
                 {
                     "substance": "CO2",
                     "category": "test",
@@ -220,8 +220,8 @@ def netcdf_file_no_unit_attr(simple_grid, tmp_path):
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
         },
     )
 
@@ -230,7 +230,7 @@ def netcdf_file_no_unit_attr(simple_grid, tmp_path):
 
 
 @pytest.fixture
-def netcdf_file_no_catsub_attrs(simple_grid, tmp_path):
+def netcdf_file_no_catsub_attrs(tmp_path):
     """Create a NetCDF file without category/substance attributes."""
     file_path = tmp_path / "no_catsub_raster.nc"
 
@@ -238,13 +238,13 @@ def netcdf_file_no_catsub_attrs(simple_grid, tmp_path):
         data_vars={
             "emissions": (
                 ["lat", "lon"],
-                np.random.rand(5, 5).astype(np.float32),
+                np.random.rand(GRID_NY, GRID_NX).astype(np.float32),
                 {"units": "kg/year/cell"},
             ),
         },
         coords={
-            "lon": simple_grid.lon_range,
-            "lat": simple_grid.lat_range,
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
         },
     )
 
@@ -307,7 +307,7 @@ class TestNetcdfRasterBasic:
         assert inv.year == 2020
         assert "industry" in inv.categories
         assert "CO2" in inv.substances
-        assert len(inv.gdf) == 25  # 5x5 grid
+        assert len(inv.gdf) == GRID_NCELLS
 
     def test_read_multi_variable_netcdf(self, multi_variable_netcdf_file):
         """Test reading a NetCDF file with multiple variables."""
@@ -317,12 +317,12 @@ class TestNetcdfRasterBasic:
         assert set(inv.categories) == {"industry", "transport", "agriculture"}
         assert set(inv.substances) == {"CO2", "CH4"}
 
-    def test_total_emissions_preserved(self, simple_grid, tmp_path):
+    def test_total_emissions_preserved(self, tmp_path):
         """Test that total emissions are preserved when reading."""
         file_path = tmp_path / "total_test.nc"
 
         # Create known emission values
-        known_emissions = np.ones((5, 5)) * 100.0  # 100 kg/year/cell everywhere
+        known_emissions = np.ones((GRID_NY, GRID_NX)) * 100.0  # 100 kg/year/cell everywhere
 
         ds = xr.Dataset(
             data_vars={
@@ -337,8 +337,8 @@ class TestNetcdfRasterBasic:
                 ),
             },
             coords={
-                "lon": simple_grid.lon_range,
-                "lat": simple_grid.lat_range,
+                "lon": regular_grid.lon_range,
+                "lat": regular_grid.lat_range,
             },
         )
         ds.to_netcdf(file_path)
@@ -346,14 +346,14 @@ class TestNetcdfRasterBasic:
         inv = NetcdfRaster(file_path)
         total = inv.gdf[("test", "CO2")].sum()
 
-        # Total should be 25 cells * 100 kg/year/cell = 2500 kg/year
-        np.testing.assert_almost_equal(total, 2500.0)
+        # Total should be GRID_NCELLS cells * 100 kg/year/cell
+        np.testing.assert_almost_equal(total, GRID_NCELLS * 100.0)
 
 
 class TestNetcdfRasterWithManualMapping:
     """Tests for NetcdfRaster with variable_to_catsub mapping."""
 
-    def test_custom_variable_mapping(self, simple_grid, tmp_path):
+    def test_custom_variable_mapping(self, tmp_path):
         """Test reading with custom variable to category/substance mapping."""
         file_path = tmp_path / "custom_mapping.nc"
 
@@ -361,13 +361,13 @@ class TestNetcdfRasterWithManualMapping:
             data_vars={
                 "my_emissions": (
                     ["lat", "lon"],
-                    np.random.rand(5, 5),
+                    np.random.rand(GRID_NY, GRID_NX),
                     {"units": "kg/year/cell"},
                 ),
             },
             coords={
-                "lon": simple_grid.lon_range,
-                "lat": simple_grid.lat_range,
+                "lon": regular_grid.lon_range,
+                "lat": regular_grid.lat_range,
             },
         )
         ds.to_netcdf(file_path)
@@ -462,24 +462,23 @@ class TestNetcdfRasterGrid:
 
         assert hasattr(inv, "grid")
         assert isinstance(inv.grid, RegularGrid)
-        assert len(inv.grid.gdf) == 25  # 5x5 grid
+        assert len(inv.grid.gdf) == GRID_NCELLS
 
 
 class TestNetcdfRasterRoundTrip:
     """Tests for round-trip (export then import) of inventories."""
 
-    def test_export_import_roundtrip(self, simple_grid):
+    def test_export_import_roundtrip(self):
         """Test exporting an inventory and reading it back."""
         from emiproc.exports.rasters import export_raster_netcdf
-        from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
 
-        # Prepare the inventory
+        # Prepare the inventory using test_utils objects
         original_inv = inv_with_pnt_sources.copy()
-        original_inv.set_crs(simple_grid.crs)
+        original_inv.set_crs(regular_grid.crs)
 
         # Export
         output_file = TEST_OUTPUTS_DIR / "roundtrip_test.nc"
-        export_raster_netcdf(original_inv, output_file, simple_grid)
+        export_raster_netcdf(original_inv, output_file, regular_grid)
 
         # Import
         imported_inv = NetcdfRaster(output_file)
@@ -494,7 +493,7 @@ class TestNetcdfRasterRoundTrip:
 class TestNetcdfRasterWithDifferentCoordinateNames:
     """Tests for NetcdfRaster with different coordinate variable names."""
 
-    def test_custom_coordinate_names(self, simple_grid, tmp_path):
+    def test_custom_coordinate_names(self, tmp_path):
         """Test reading with custom lat/lon variable names."""
         file_path = tmp_path / "custom_coords.nc"
 
@@ -502,7 +501,7 @@ class TestNetcdfRasterWithDifferentCoordinateNames:
             data_vars={
                 "CO2_test": (
                     ["latitude", "longitude"],
-                    np.random.rand(5, 5),
+                    np.random.rand(GRID_NY, GRID_NX),
                     {
                         "units": "kg/year/cell",
                         "substance": "CO2",
@@ -511,8 +510,8 @@ class TestNetcdfRasterWithDifferentCoordinateNames:
                 ),
             },
             coords={
-                "longitude": simple_grid.lon_range,
-                "latitude": simple_grid.lat_range,
+                "longitude": regular_grid.lon_range,
+                "latitude": regular_grid.lat_range,
             },
         )
         ds.to_netcdf(file_path)
@@ -520,20 +519,20 @@ class TestNetcdfRasterWithDifferentCoordinateNames:
         inv = NetcdfRaster(file_path, lat_name="latitude", lon_name="longitude")
 
         assert "test" in inv.categories
-        assert len(inv.gdf) == 25
+        assert len(inv.gdf) == GRID_NCELLS
 
 
 class TestNetcdfRasterYearSelection:
     """Tests for year selection with multi-year data."""
 
-    def test_select_specific_year_from_multiyear(self, simple_grid, tmp_path):
+    def test_select_specific_year_from_multiyear(self, tmp_path):
         """Test selecting a specific year from multi-year data."""
         file_path = tmp_path / "multi_year.nc"
 
         # Create data spanning two years (24 months)
         time_values = pd.date_range("2022-01-15", periods=24, freq="MS")
 
-        emission_data = np.random.rand(24, 5, 5).astype(np.float32)
+        emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
 
         ds = xr.Dataset(
             data_vars={
@@ -548,8 +547,8 @@ class TestNetcdfRasterYearSelection:
                 ),
             },
             coords={
-                "lon": simple_grid.lon_range,
-                "lat": simple_grid.lat_range,
+                "lon": regular_grid.lon_range,
+                "lat": regular_grid.lat_range,
                 "time": time_values,
             },
         )
@@ -561,7 +560,7 @@ class TestNetcdfRasterYearSelection:
         assert inv.year == 2023
         assert "multi" in inv.categories
 
-    def test_multiple_years_without_selection_raises_error(self, simple_grid, tmp_path):
+    def test_multiple_years_without_selection_raises_error(self, tmp_path):
         """Test that multiple years without year selection raises an error."""
         file_path = tmp_path / "multi_year_no_select.nc"
 
@@ -571,7 +570,7 @@ class TestNetcdfRasterYearSelection:
             data_vars={
                 "CO2_multi": (
                     ["time", "lat", "lon"],
-                    np.random.rand(24, 5, 5),
+                    np.random.rand(24, GRID_NY, GRID_NX),
                     {
                         "units": "kg/year/cell",
                         "substance": "CO2",
@@ -580,8 +579,8 @@ class TestNetcdfRasterYearSelection:
                 ),
             },
             coords={
-                "lon": simple_grid.lon_range,
-                "lat": simple_grid.lat_range,
+                "lon": regular_grid.lon_range,
+                "lat": regular_grid.lat_range,
                 "time": time_values,
             },
         )
@@ -590,7 +589,7 @@ class TestNetcdfRasterYearSelection:
         with pytest.raises(ValueError, match="Multiple years found"):
             NetcdfRaster(file_path, temporal_profile=MounthsProfile)
 
-    def test_nonexistent_year_raises_error(self, simple_grid, tmp_path):
+    def test_nonexistent_year_raises_error(self, tmp_path):
         """Test that requesting a nonexistent year raises an error."""
         file_path = tmp_path / "specific_year.nc"
 
@@ -600,7 +599,7 @@ class TestNetcdfRasterYearSelection:
             data_vars={
                 "CO2_test": (
                     ["time", "lat", "lon"],
-                    np.random.rand(12, 5, 5),
+                    np.random.rand(12, GRID_NY, GRID_NX),
                     {
                         "units": "kg/year/cell",
                         "substance": "CO2",
@@ -609,8 +608,8 @@ class TestNetcdfRasterYearSelection:
                 ),
             },
             coords={
-                "lon": simple_grid.lon_range,
-                "lat": simple_grid.lat_range,
+                "lon": regular_grid.lon_range,
+                "lat": regular_grid.lat_range,
                 "time": time_values,
             },
         )
@@ -623,7 +622,7 @@ class TestNetcdfRasterYearSelection:
 class TestNetcdfRasterTemporalProfileMismatch:
     """Tests for temporal profile size mismatches."""
 
-    def test_profile_size_mismatch_raises_error(self, simple_grid, tmp_path):
+    def test_profile_size_mismatch_raises_error(self, tmp_path):
         """Test that mismatched profile size raises an error."""
         file_path = tmp_path / "size_mismatch.nc"
 
@@ -634,7 +633,7 @@ class TestNetcdfRasterTemporalProfileMismatch:
             data_vars={
                 "CO2_test": (
                     ["time", "lat", "lon"],
-                    np.random.rand(6, 5, 5),
+                    np.random.rand(6, GRID_NY, GRID_NX),
                     {
                         "units": "kg/year/cell",
                         "substance": "CO2",
@@ -643,8 +642,8 @@ class TestNetcdfRasterTemporalProfileMismatch:
                 ),
             },
             coords={
-                "lon": simple_grid.lon_range,
-                "lat": simple_grid.lat_range,
+                "lon": regular_grid.lon_range,
+                "lat": regular_grid.lat_range,
                 "time": time_values,
             },
         )
