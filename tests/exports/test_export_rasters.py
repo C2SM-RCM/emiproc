@@ -116,7 +116,6 @@ def test_with_year():
         )
 
 
-
 def test_can_be_later_read_by_raster_function():
     """Simply test that the function works with defaults"""
 
@@ -128,6 +127,4 @@ def test_can_be_later_read_by_raster_function():
         netcdf_attributes={},
     )
 
-    inv = NetcdfRaster(
-        raster_file
-    )
+    inv = NetcdfRaster(raster_file)

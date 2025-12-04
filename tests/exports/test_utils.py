@@ -77,9 +77,9 @@ def test_temporally_scaled_array_missing_cell_profile_okay():
     inv.set_profiles(profiles, indexes=bad_index)
 
     scaled = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
-    
+
     assert "cell" in scaled.dims
-    
+
     assert "time" in scaled.dims
     assert len(scaled.time) == len(time_range)
 
