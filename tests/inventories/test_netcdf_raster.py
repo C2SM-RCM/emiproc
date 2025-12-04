@@ -10,14 +10,12 @@ from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.inventories.netcdf_raster import (
     NetcdfRaster,
-    get_unit_scaling_factor_to_kg_per_year_per_cell,
     get_year_from_attrs,
 )
 from emiproc.profiles.temporal.profiles import MounthsProfile, DayOfYearProfile
 from emiproc.tests_utils import TEST_OUTPUTS_DIR
 from emiproc.tests_utils.test_grids import regular_grid
 from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
-from emiproc.utilities import DAY_PER_YR, SEC_PER_DAY
 
 
 # Grid dimensions from test_utils regular_grid (nx=10, ny=15)
@@ -252,30 +250,71 @@ def netcdf_file_no_catsub_attrs(tmp_path):
     return file_path
 
 
-# Tests for utility functions
+@pytest.fixture
+def netcdf_extra_dimension(tmp_path):
+    """Create a simple NetCDF file for testing using regular_grid from test_utils."""
+    file_path = tmp_path / "simple_raster_extra_dim.nc"
 
+    # Create emission data matching regular_grid dimensions (ny x nx)
+    EXTRA_DIM_SIZE = 2
+    emission_data = np.random.rand(GRID_NY, GRID_NX, EXTRA_DIM_SIZE).astype(np.float32)
 
-def test_unit_scaling_factor_kg_per_m2_per_s():
-    """Test unit scaling factor for kg/m2/s."""
-    factor, multiply_by_area = get_unit_scaling_factor_to_kg_per_year_per_cell(
-        "kg/m2/s"
+    ds = xr.Dataset(
+        data_vars={
+            "CO2_industry": (
+                ["lat", "lon", "extra_dim"],
+                emission_data,
+                {
+                    "units": "kg/year/cell",
+                    "substance": "CO2",
+                    "category": "industry",
+                },
+            ),
+        },
+        coords={
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
+            "extra_dim": np.arange(EXTRA_DIM_SIZE),
+        },
+        attrs={"year": 2020},
     )
-    assert factor == DAY_PER_YR * SEC_PER_DAY
-    assert multiply_by_area is True
+
+    ds.to_netcdf(file_path)
+    return file_path
 
 
-def test_unit_scaling_factor_kg_per_year_per_cell():
-    """Test unit scaling factor for kg/year/cell variants."""
-    for unit in ["kg/y/cell", "kg y-1 cell-1", "kg/year/cell"]:
-        factor, multiply_by_area = get_unit_scaling_factor_to_kg_per_year_per_cell(unit)
-        assert factor == 1.0
-        assert multiply_by_area is False
+@pytest.fixture
+def netcdf_with_area_unit(tmp_path):
+    """Create a simple NetCDF file for testing using regular_grid from test_utils."""
+    file_path = tmp_path / "simple_raster_area.nc"
+
+    # Create emission data matching regular_grid dimensions (ny x nx)
+    emission_data = np.random.rand(GRID_NY, GRID_NX).astype(np.float32)
+
+    ds = xr.Dataset(
+        data_vars={
+            "CO2_industry": (
+                ["lat", "lon"],
+                emission_data,
+                {
+                    "units": "kg/year/m2",
+                    "substance": "CO2",
+                    "category": "industry",
+                },
+            ),
+        },
+        coords={
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
+        },
+        attrs={"year": 2020},
+    )
+
+    ds.to_netcdf(file_path)
+    return file_path
 
 
-def test_unit_scaling_factor_unsupported_unit():
-    """Test that unsupported unit raises error."""
-    with pytest.raises(NotImplementedError):
-        get_unit_scaling_factor_to_kg_per_year_per_cell("unsupported_unit")
+# Tests for utility functions
 
 
 def test_get_year_from_attrs_valid():
@@ -657,3 +696,28 @@ def test_profile_size_mismatch_raises_error(tmp_path):
 
     with pytest.raises(ValueError, match="Temporal profile size"):
         NetcdfRaster(file_path, temporal_profile=MounthsProfile)
+
+
+def test_extra_dimensions_raises_error(netcdf_extra_dimension):
+    """Test that extra unexpected dimensions raise an error."""
+    with pytest.raises(
+        ValueError, match="Expected DataArray with only 'cell' dimension"
+    ):
+        NetcdfRaster(netcdf_extra_dimension)
+
+
+def test_area_unit_conversion(netcdf_with_area_unit):
+    """Test that units in kg/year/m2 are converted correctly."""
+    inv = NetcdfRaster(netcdf_with_area_unit)
+
+    assert "industry" in inv.categories
+    assert "CO2" in inv.substances
+
+    nc_values = xr.load_dataset(netcdf_with_area_unit)["CO2_industry"]
+    cell_areas = inv.grid.cell_areas.values
+    nc_converted = nc_values.values.T.reshape(-1) * cell_areas
+    nc_total = nc_converted.sum()
+
+    inv_total = inv.gdf[("industry", "CO2")].sum()
+
+    np.testing.assert_almost_equal(nc_total, inv_total)

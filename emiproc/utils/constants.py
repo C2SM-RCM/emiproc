@@ -1,8 +1,18 @@
+# constants to convert from yr -> sec
+DAY_PER_YR = 365.25
+SEC_PER_HOUR = 3600
+HOUR_PER_DAY = 24
+SEC_PER_DAY = SEC_PER_HOUR * HOUR_PER_DAY
+SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
+HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
+
+
 # Molar mass in g / mol
 MOLAR_MASSES_ = {
     "CH4": 16.04,
     "CO2": 44.009,
     "N2O": 44.013,
+    "C": 12.01,
     # This is a test value
     "test": 1.0,
     "test2": 2.0,

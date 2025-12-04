@@ -15,38 +15,7 @@ from emiproc.profiles.temporal.composite import (
     CompositeTemporalProfiles,
 )
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
-from emiproc.utilities import DAY_PER_YR, SEC_PER_DAY
-from emiproc.utils.constants import get_molar_mass
-
-
-def get_unit_scaling_factor_to_kg_per_year_per_cell(
-    unit: str, substance: str | None = None
-) -> tuple[float, bool]:
-    """Get the scaling factor to convert from the given unit to kg/year/cell.
-
-    Supported units:
-    - "kg/m2/s"
-
-    :param unit: Unit string.
-
-    :return: Scaling factor. and a boolean indicating that we need to scale (multiply) with the cell area.
-    """
-    if unit == "kg/m2/s":
-        # kg/m2/s * day/year * s/day * m2/cell = kg/year/cell
-        return DAY_PER_YR * SEC_PER_DAY, True  # seconds to year
-    elif unit in ["kg/y/cell", "kg y-1 cell-1", "kg/year/cell"]:
-        return 1.0, False
-    elif unit == "PgC/yr":
-        # Carbon to CO2 conversion
-        if substance != "CO2":
-            raise ValueError("PgC/yr unit can only be used for CO2 substance.")
-        return 1e12 * (44.01 / 12.01), False
-    elif unit == "micromol/m2/s":
-        molar_mass = get_molar_mass(substance)  # g/mol
-        # micromol/m2/s * kg/g * g/mol * mol/micromol * s/year * m2/cell
-        return 1e-3 * molar_mass * 1e-6 * SEC_PER_DAY * DAY_PER_YR, True
-    else:
-        raise NotImplementedError(f"Unit {unit} not supported.")
+from emiproc.utils.units import get_scaling_factor_to_emiproc
 
 
 def get_year_from_attrs(attrs: dict) -> int | None:
@@ -217,10 +186,8 @@ class NetcdfRaster(Inventory):
                     raise ValueError(
                         f"Unit for variable '{var}' is not specified in the dataset and no unit was provided."
                     )
-                scaling_factor, multiply_by_area = (
-                    get_unit_scaling_factor_to_kg_per_year_per_cell(
-                        this_unit, substance=substance
-                    )
+                scaling_factor, multiply_by_area = get_scaling_factor_to_emiproc(
+                    this_unit, substance=substance
                 )
                 if multiply_by_area:
                     da_cell_areas = xr.DataArray(
