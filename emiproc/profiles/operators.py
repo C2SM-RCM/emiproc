@@ -693,7 +693,7 @@ def add_profiles(
     if not set(profiles1.types) == set(profiles2.types):
         # Make the profiles have the same sub-profiles included
         # This will make scaling factors of 1 when a sub-profile is missing
-        # Careful here, becaue the types will change the order of position
+        # Careful here, because the types will change the order of position
         profiles1 = profiles1.broadcast(all_types)
         profiles2 = profiles2.broadcast(all_types)
 
