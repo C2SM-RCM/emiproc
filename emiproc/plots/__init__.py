@@ -448,7 +448,7 @@ def plot_inventory(
 
     save_or_show(fig, "barplot_total_emissions")
 
-    if hasattr(inv, "t_profiles_groups"):
+    if hasattr(inv, "t_profiles_groups") and inv.t_profiles_groups is not None:
 
         da = get_temporally_scaled_array(
             inv, inv.year, sum_over_cells=True, freq=temporal_freq, chunk=True
