@@ -162,8 +162,7 @@ class NetcdfRaster(Inventory):
                 year = get_year_from_attrs(ds.attrs)
                 if year is None:
                     self.logger.warning(
-                        "Year attribute found in the dataset, but could not be converted to int."
-                        "Setting year to None."
+                        "Year attribute found in the dataset, but could not be converted to int. Setting year to None."
                     )
             else:
                 year = year
