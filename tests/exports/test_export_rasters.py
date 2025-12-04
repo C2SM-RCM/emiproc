@@ -128,3 +128,5 @@ def test_can_be_later_read_by_raster_function():
     )
 
     inv = NetcdfRaster(raster_file)
+    # Assert that the inventory was read and has expected categories
+    assert set(inv.categories) == set(raster_inv.categories)
