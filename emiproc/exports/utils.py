@@ -105,9 +105,9 @@ def get_temporally_scaled_array(
         return _scale_emission_temporally(
             da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
         )
-    
+
     # Chunking approach
-    cell_chunks = np.array_split(profiles_indexes['cell'].values, n_chunks)
+    cell_chunks = np.array_split(profiles_indexes["cell"].values, n_chunks)
 
     scaled_chunks = [
         _scale_emission_temporally(
@@ -119,31 +119,35 @@ def get_temporally_scaled_array(
         for cell_chunk in cell_chunks
     ]
 
-    return xr.concat(scaled_chunks, dim="cell") if not sum_over_cells else sum(scaled_chunks)
+    return (
+        xr.concat(scaled_chunks, dim="cell")
+        if not sum_over_cells
+        else sum(scaled_chunks)
+    )
 
 
 def _scale_emission_temporally(
-        da_sf: xr.DataArray,
-        da_totals: xr.DataArray,
-        profiles_indexes: xr.DataArray,
-        sum_over_cells: bool = True,
-    ) -> xr.DataArray:
+    da_sf: xr.DataArray,
+    da_totals: xr.DataArray,
+    profiles_indexes: xr.DataArray,
+    sum_over_cells: bool = True,
+) -> xr.DataArray:
     # Get the scaling factors for each profile
     da_scaling_factors = da_sf.sel(
         # Apply similar strategy for missing profiles
         profile=profiles_indexes.where(profiles_indexes != -1, 0)
     ).drop_vars("profile")
-    # Apply similar strategy for missing profiles 
-    da_scaling_factors = da_scaling_factors.where(
-        profiles_indexes != -1, 1.0
-    )
+    # Apply similar strategy for missing profiles
+    da_scaling_factors = da_scaling_factors.where(profiles_indexes != -1, 1.0)
 
     da_scaling_factors = da_scaling_factors.broadcast_like(da_totals)
 
     if sum_over_cells and "cell" in profiles_indexes.dims:
         # instad of multilplying in a first step and summing in a second
         # we can use the dot product to get the same result
-        temporally_scaled_emissions = da_totals.dot(da_scaling_factors.fillna(0.0), dim="cell")
+        temporally_scaled_emissions = da_totals.dot(
+            da_scaling_factors.fillna(0.0), dim="cell"
+        )
 
     else:
         # Finally scale the emissions at each time

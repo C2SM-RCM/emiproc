@@ -40,7 +40,7 @@ def get_unit_scaling_factor_to_kg_per_year_per_cell(
     elif unit == "micromol/m2/s":
         molar_mass = get_molar_mass(substance)  # g/mol
         # micromol/m2/s * kg/g * g/mol * mol/micromol * s/year * m2/cell
-        return  1e-3 * molar_mass * 1e-6 * SEC_PER_DAY * DAY_PER_YR, True
+        return 1e-3 * molar_mass * 1e-6 * SEC_PER_DAY * DAY_PER_YR, True
     else:
         raise NotImplementedError(f"Unit {unit} not supported.")
 
@@ -239,7 +239,7 @@ class NetcdfRaster(Inventory):
         da_ratios = da_ratios.assign_coords(
             xr.Coordinates.from_pandas_multiindex(
                 pd.MultiIndex.from_tuples(
-                    da_ratios['catsub'].values, names=["category", "substance"]
+                    da_ratios["catsub"].values, names=["category", "substance"]
                 ),
                 dim="catsub",
             )

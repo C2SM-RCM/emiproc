@@ -909,13 +909,11 @@ def clip_box(
         for index_name in ["v_profiles_indexes", "t_profiles_indexes"]:
             indexes: xr.DataArray | None = getattr(out_inv, index_name, None)
             if indexes is not None and "cell" in indexes.dims:
-                cell_in = inv.gdf.index 
+                cell_in = inv.gdf.index
                 cell_out = out_gdf.index
                 indexes = indexes.sel(cell=cell_out)
                 # Reindex the cell dimension
-                indexes = indexes.assign_coords(
-                    cell=("cell", np.arange(len(cell_out)))
-                )
+                indexes = indexes.assign_coords(cell=("cell", np.arange(len(cell_out))))
                 setattr(out_inv, index_name, indexes)
         out_gdf = out_gdf.reset_index(drop=True)
 
