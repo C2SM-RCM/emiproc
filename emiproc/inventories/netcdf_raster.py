@@ -9,9 +9,8 @@ import numpy as np
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Category, Inventory, Substance
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.profiles import MounthsProfile, AnyTimeProfile
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
-from emiproc.utilities import DAY_PER_YR, HOUR_PER_YR, SEC_PER_DAY
+from emiproc.utilities import DAY_PER_YR, SEC_PER_DAY
 from emiproc.utils.constants import get_molar_mass
 
 
@@ -144,7 +143,7 @@ class NetcdfRaster(Inventory):
                     # Ensure the data is given for that year
                     self.logger.info(
                         f"Selecting data for year {year} "
-                        f" availabe: {sum(years_in_data == year)} time steps."
+                        f" available: {sum(years_in_data == year)} time steps."
                     )
                     ds = ds.sel({time_name: years_in_data == year})
                     if len(ds[time_name]) == 0:

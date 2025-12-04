@@ -274,7 +274,7 @@ def group_categories(
         Ex. ``{"group1": ["cat1", "cat2"], "group2": ["cat3", "cat4"]}``
         If ``cat3`` is not in the inventory, the function will work as if
         ``{"group1": ["cat1", "cat2"], "group2": ["cat4"]}`` was passed.
-    :arg chunks: If given, will process the grouping in chunks of categories
+    :arg chunk: If given, will process the grouping in chunks of categories
     """
     if ignore_missing:
         # Remove the missing categories
