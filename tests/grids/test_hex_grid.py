@@ -1,3 +1,4 @@
+from warnings import catch_warnings, simplefilter
 import geopandas as gpd
 import pandas as pd
 import pytest
@@ -105,7 +106,9 @@ def test_centers():
     assert isinstance(y, pd.Series)
 
     # Get centroid with gpd method
-    center_gpd = hex_grid.gdf.centroid
+    with catch_warnings():
+        simplefilter("ignore", category=UserWarning)
+        center_gpd = hex_grid.gdf.centroid
     x_gpd, y_gpd = center_gpd.x, center_gpd.y
 
     # Check that the centers are in the right order
