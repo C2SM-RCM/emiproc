@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 def _get_area_no_warning(geometry: gpd.GeoSeries) -> pd.Series:
-    """Get the area of a geoserie without warning.
+    """Get the area of a GeoSeries without warning.
 
     This is useful when the geometries are in degrees.
     """
