@@ -612,7 +612,7 @@ def remap_profiles(
         weights_mapping = {k: v[~mask_missing] for k, v in weights_mapping.items()}
 
     if dont_merge:
-        # Cheange the weight mapping to only use one of the profiles
+        # Change the weight mapping to only use one of the profiles
         _, ind = np.unique(weights_mapping["output_indexes"], return_index=True)
         weights_mapping = {
             "output_indexes": weights_mapping["output_indexes"][ind],
