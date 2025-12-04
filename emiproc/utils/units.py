@@ -3,6 +3,8 @@
 Cell or shape depending on gridded emissions or shapefile based emissions.
 """
 
+from __future__ import annotations
+
 from emiproc.utils.constants import get_molar_mass, DAY_PER_YR, SEC_PER_DAY
 
 
