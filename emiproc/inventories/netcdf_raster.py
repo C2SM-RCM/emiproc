@@ -212,7 +212,11 @@ class NetcdfRaster(Inventory):
                     )
                     das_ratios.append(da_ratios)
                 # Unit conversion
-                this_unit = ds[var].units if unit is None else unit
+                this_unit = ds[var].attrs.get("units") if unit is None else unit
+                if this_unit is None:
+                    raise ValueError(
+                        f"Unit for variable '{var}' is not specified in the dataset and no unit was provided."
+                    )
                 scaling_factor, multiply_by_area = (
                     get_unit_scaling_factor_to_kg_per_year_per_cell(
                         this_unit, substance=substance
