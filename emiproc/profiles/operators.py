@@ -612,7 +612,7 @@ def remap_profiles(
         weights_mapping = {k: v[~mask_missing] for k, v in weights_mapping.items()}
 
     if dont_merge:
-        # Cheange the weight mapping to only use one of the profiles
+        # Change the weight mapping to only use one of the profiles
         _, ind = np.unique(weights_mapping["output_indexes"], return_index=True)
         weights_mapping = {
             "output_indexes": weights_mapping["output_indexes"][ind],
@@ -693,7 +693,7 @@ def add_profiles(
     if not set(profiles1.types) == set(profiles2.types):
         # Make the profiles have the same sub-profiles included
         # This will make scaling factors of 1 when a sub-profile is missing
-        # Careful here, becaue the types will change the order of position
+        # Careful here, because the types will change the order of position
         profiles1 = profiles1.broadcast(all_types)
         profiles2 = profiles2.broadcast(all_types)
 

@@ -450,6 +450,8 @@ def plot_inventory(
 
     if hasattr(inv, "t_profiles_groups") and inv.t_profiles_groups is not None:
 
+        if inv.year is None:
+            raise ValueError("inv.year is None. Cannot generate temporally scaled array without a valid year.")
         da = get_temporally_scaled_array(
             inv, inv.year, sum_over_cells=True, freq=temporal_freq, chunk=True
         )

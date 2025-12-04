@@ -141,7 +141,7 @@ class NetcdfRaster(Inventory):
                         )
                     year = unique_years[0]
                 else:
-                    # Ensue the data is given for that year
+                    # Ensure the data is given for that year
                     self.logger.info(
                         f"Selecting data for year {year} "
                         f" availabe: {sum(years_in_data == year)} time steps."
@@ -162,8 +162,7 @@ class NetcdfRaster(Inventory):
                 year = get_year_from_attrs(ds.attrs)
                 if year is None:
                     self.logger.warning(
-                        "Year attribute found in the dataset, but could not be converted to int."
-                        "Setting year to None."
+                        "Year attribute found in the dataset, but could not be converted to int. Setting year to None."
                     )
             else:
                 year = year
@@ -231,7 +230,7 @@ class NetcdfRaster(Inventory):
         self.gdfs = {}
 
         if temporal_profile is None:
-            return 
+            return
 
         # Following is only for temporal profiles
 
