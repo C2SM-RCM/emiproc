@@ -64,7 +64,7 @@ def get_temporally_scaled_array(
             "`emiproc.inventories.utils.country_to_cells()` ."
         )
 
-    if isinstance(time_range, int | np.integer):
+    if isinstance(time_range, (int, np.integer)):
         time_range = pd.date_range(
             start=f"{time_range}-01-01",
             end=f"{time_range}-12-31",
