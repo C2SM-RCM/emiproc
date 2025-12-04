@@ -58,7 +58,7 @@ def test_temporally_scaled_array_missing_cell_profile_fails():
 
     with pytest.raises(ValueError, match="Some cells have emissions but no profiles"):
 
-        scaled = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+        get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
 
 
 def test_temporally_scaled_array_missing_cell_profile_okay():
