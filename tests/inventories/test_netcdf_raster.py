@@ -267,9 +267,7 @@ def test_unit_scaling_factor_kg_per_m2_per_s():
 def test_unit_scaling_factor_kg_per_year_per_cell():
     """Test unit scaling factor for kg/year/cell variants."""
     for unit in ["kg/y/cell", "kg y-1 cell-1", "kg/year/cell"]:
-        factor, multiply_by_area = get_unit_scaling_factor_to_kg_per_year_per_cell(
-            unit
-        )
+        factor, multiply_by_area = get_unit_scaling_factor_to_kg_per_year_per_cell(unit)
         assert factor == 1.0
         assert multiply_by_area is False
 
