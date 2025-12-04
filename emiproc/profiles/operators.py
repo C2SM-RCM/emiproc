@@ -691,16 +691,11 @@ def add_profiles(
     all_types = set(sum([p.types for p in [profiles1, profiles2]], []))
     # Make sure the profiles have the same types
     if not set(profiles1.types) == set(profiles2.types):
-        raise NotImplementedError(
-            "Cannot add inventories with different sub-profiles: "
-            f"{profiles1.types=} != {profiles2.types=}"
-            "\n Interpolate the profiles to have same sub-profiles first."
-        )
-    # Make the profiles have the same sub-profiles included
-    # This will make scaling factors of 1 when a sub-profile is missing
-    # Careful here, becaue the types will change the order of position
-    profiles1 = profiles1.broadcast(all_types)
-    profiles2 = profiles2.broadcast(all_types)
+        # Make the profiles have the same sub-profiles included
+        # This will make scaling factors of 1 when a sub-profile is missing
+        # Careful here, becaue the types will change the order of position
+        profiles1 = profiles1.broadcast(all_types)
+        profiles2 = profiles2.broadcast(all_types)
 
     # Case simple concatenation instead of weighted combination
     if all("category" in ind.coords for ind in [indexes1, indexes2]) and set(
