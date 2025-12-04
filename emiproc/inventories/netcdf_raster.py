@@ -9,7 +9,6 @@ import numpy as np
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Category, Inventory, Substance
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.profiles import MounthsProfile, AnyTimeProfile
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utilities import DAY_PER_YR, SEC_PER_DAY
 from emiproc.utils.constants import get_molar_mass
