@@ -165,7 +165,8 @@ class NetcdfRaster(Inventory):
                         "Year attribute found in the dataset, but could not be converted to int. Setting year to None."
                     )
             else:
-                year = year
+                pass 
+            
             self.year = year
 
             das = {}
