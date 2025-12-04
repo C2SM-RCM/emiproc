@@ -412,7 +412,7 @@ def remap_inventory(
     :arg grid: The grid to remap to.
     :arg weights_file: The file storing the weights.
     :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
-    :arg keep_gdfs: Whether to keep the additional gdfs (shapped emissions) of the inventory.
+    :arg keep_gdfs: Whether to keep the additional gdfs (shaped emissions) of the inventory.
     :arg dont_remap_profiles: Whether to not merge the profiles when remapping them.
         see :py:func:`remap_profiles` for more information.
 
