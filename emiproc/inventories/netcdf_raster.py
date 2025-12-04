@@ -141,7 +141,7 @@ class NetcdfRaster(Inventory):
                         )
                     year = unique_years[0]
                 else:
-                    # Ensue the data is given for that year
+                    # Ensure the data is given for that year
                     self.logger.info(
                         f"Selecting data for year {year} "
                         f" availabe: {sum(years_in_data == year)} time steps."
