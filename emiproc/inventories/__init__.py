@@ -543,15 +543,5 @@ class Inventory:
             raise ValueError(f"Unknown profile type {type(profiles)}")
 
 
-class EmiprocNetCDF(Inventory):
-    """An output from emiproc.
-
-    Useful if you need to process again an inventory.
-    """
-
-    def __init__(self, file: PathLike) -> None:
-        super().__init__()
-
-
 if __name__ == "__main__":
     test_inv = Inventory()
