@@ -230,7 +230,7 @@ class NetcdfRaster(Inventory):
         self.gdfs = {}
 
         if temporal_profile is None:
-            return 
+            return
 
         # Following is only for temporal profiles
 
