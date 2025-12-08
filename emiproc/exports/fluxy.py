@@ -182,17 +182,6 @@ def export_fluxy(
             .assign_attrs(units),
         )
 
-        ds_this = ds_this.assign(
-            **{
-                # Assign the same variable names as the prior for the posterior variables
-                var_prior.replace("prior", "posterior"): ds_this[var_prior]
-                for var_prior in [
-                    "flux_total_prior",
-                    "country_flux_total_prior",
-                ]
-            }
-        )
-
         ds_this.to_netcdf(
             sub_dir / f"{file_stem}.nc",
         )
