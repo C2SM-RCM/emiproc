@@ -22,7 +22,10 @@ TNO
 EDGAR
 ^^^^^
 
-:py:class:`emiproc.inventories.edgar.EDGAR_Inventory`
+:py:class:`emiproc.inventories.edgar.EDGARv8`
+
+
+:py:func:`emiproc.inventories.edgar.temporal.read_edgar_auxilary_profiles`
 
 Swiss Rasterized Inventory 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -63,6 +66,11 @@ CAMS Regional Air Quality
 
 :py:class:`emiproc.inventories.cams_reg_aq.CAMS_REG_AQ`
 
+
+WetCHARTs
+^^^^^^^^^
+
+:py:class:`emiproc.inventories.wetcharts.WetCHARTs`
 
 
 Grids 

@@ -121,12 +121,12 @@ ZH_CO2_Groups = {
 
 # Swiss invenotry is also used to be remapped on the the boundaries around zuirch
 # Note missing co2 categories: many have been removeved becaue not in the zh area
-# eipwp # Industrial point sources 
+# eipwp # Industrial point sources
 # eipzm # Zement Werke
 # evsfa # Shiffarts lilinen should be verkeher
-# evsrh # Rehin shiffarts, not in zh but still 
-# eipis # pisten fahrzeuge 
-# evsra # Schienenverkehr Rangieren 
+# evsrh # Rehin shiffarts, not in zh but still
+# eipis # pisten fahrzeuge
+# evsra # Schienenverkehr Rangieren
 # elfer # landwirtschaftliche Nutzflächen
 # ehhab # Hausalte Brande
 # ehhaf # Haushalte andere Feuerwerk etc
@@ -170,9 +170,6 @@ CH_2_GNFR = {
         "eivgn",
         "eipro",
     ],
-
-
-
     # # Industry
     # "GNFR_B": [
     #     "eipwp",  # this is the weitere punktquelle (additional point sources)

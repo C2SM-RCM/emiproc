@@ -17,8 +17,10 @@ Available Inventories
 
 .. autofunction:: emiproc.inventories.tno.read_tno_gridded_profiles
 
-.. autoclass:: emiproc.inventories.edgar.EDGAR_Inventory
+.. autoclass:: emiproc.inventories.edgar.EDGARv8
     :special-members: __init__
+
+.. autofunction:: emiproc.inventories.edgar.download_edgar_files
 
 .. autoclass:: emiproc.inventories.swiss.SwissRasters
     :special-members: __init__
@@ -47,4 +49,7 @@ Available Inventories
     :special-members: __init__
 
 .. autoclass:: emiproc.inventories.cams_reg_aq.CAMS_REG_AQ
+    :special-members: __init__
+
+.. autoclass:: emiproc.inventories.wetcharts.WetCHARTs
     :special-members: __init__

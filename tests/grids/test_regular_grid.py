@@ -1,11 +1,11 @@
-# %%
-import pytest
 import geopandas as gpd
+import pandas as pd
+import pytest
+
 from emiproc.grids import RegularGrid
 from emiproc.tests_utils.test_grids import regular_grid
 
 
-# %%
 def test_creation():
     RegularGrid(
         xmin=-1, xmax=5, ymin=-2, ymax=3, nx=10, ny=15, name="Test Regular Grid"
@@ -121,3 +121,25 @@ def test_shape():
 
     assert nx == regular_grid.nx
     assert ny == regular_grid.ny
+
+
+def test_centers():
+    centers = regular_grid.centers
+
+    assert len(centers) == regular_grid.nx * regular_grid.ny
+    assert isinstance(centers, gpd.GeoSeries)
+
+    # Can get the x and y
+    x = centers.x
+    y = centers.y
+    assert isinstance(x, pd.Series)
+    assert isinstance(y, pd.Series)
+
+    # Get centroid with gpd method
+    center_gpd = regular_grid.gdf.centroid
+    x_gpd, y_gpd = center_gpd.x, center_gpd.y
+
+    # Check that the centers are in the right order
+
+    pd.testing.assert_series_equal(x, x_gpd)
+    pd.testing.assert_series_equal(y, y_gpd)

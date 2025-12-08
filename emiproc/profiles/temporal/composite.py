@@ -17,7 +17,6 @@ from emiproc.profiles.temporal.specific_days import SpecificDay
 logger = logging.getLogger(__name__)
 
 
-
 def _get_type(
     t: tuple[type[SpecificDayProfile], SpecificDay] | AnyTimeProfile,
 ) -> type[SpecificDayProfile]:
@@ -25,7 +24,7 @@ def _get_type(
         return t[0]
     return t
 
-  
+
 def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     """Rescale the ratios to sum up to 1.
 
@@ -42,7 +41,6 @@ def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     return_[:, mask_zero] = 1.0 / ratios.shape[0]
 
     return return_
-
 
 
 class CompositeTemporalProfiles:
@@ -131,8 +129,10 @@ class CompositeTemporalProfiles:
             f"{p[0].__name__}({p[1]})" if isinstance(p, tuple) else p.__name__
         )
         out = f"CompositeProfiles({len(self)} profiles "
-        if len(self) < 10:
+        if len(self.types) < 4:
             out += f"from {[profile_name(t) for t in self.types]})"
+        else:
+            out += f"from {len(self.types)} types)"
         return out
 
     def __len__(self) -> int:
@@ -377,6 +377,10 @@ def make_composite_profiles(
 
     """
 
+    if isinstance(profiles, CompositeTemporalProfiles):
+        # If the profiles are already composite, we can return them directly
+        return profiles, indexes
+
     if not isinstance(profiles, AnyProfiles):
         raise TypeError(f"{profiles=} must be an {AnyProfiles}.")
 
@@ -422,3 +426,17 @@ def make_composite_profiles(
     out_indexes = new_indexes.unstack("z")
 
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
+
+
+def split_composite_profile(
+    profile: CompositeTemporalProfiles,
+) -> list[TemporalProfile]:
+    """Split a composite profile into its individual profiles."""
+    out = []
+    counter = 0
+    composite_ratios = profile.ratios
+    for type in profile.types:
+        size = type.size
+        out.append(type(composite_ratios[:, counter : counter + size]))
+        counter += size
+    return out

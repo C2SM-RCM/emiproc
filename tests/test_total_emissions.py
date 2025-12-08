@@ -1,4 +1,5 @@
 """Test the calucation of total emissions."""
+
 from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 
 

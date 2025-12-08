@@ -121,7 +121,7 @@ def plot_inventory(
     q: float = 0.001,
     vmin: None | float = None,
     vmax: None | float = None,
-    cmap=nclcmaps.cmap("WhViBlGrYeOrRe"),
+    cmap=nclcmaps.cmap("iridescent"),
     symcmap="RdBu_r",
     spec_lims: None | tuple[float] = None,
     out_dir: PathLike | None = None,
@@ -164,11 +164,10 @@ def plot_inventory(
     :arg reverse_y: if True, will reverse the y-axis.
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     :arg country_borders_kwargs: additional keyword arguments for the country borders.
-        See `geopandas.Geoseries.plot` for more information. 
+        See `geopandas.Geoseries.plot` for more information.
     """
 
     logger = logging.getLogger(__name__)
-
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
     is_regular = issubclass(type(grid), RegularGrid)
@@ -203,16 +202,12 @@ def plot_inventory(
     if not spec_lims:
         spec_lims = (x_min, x_max, y_min, y_max)
 
-    if add_country_borders and (
-        not (hasattr(grid, "lat_range") and hasattr(grid, "lon_range"))
-    ):
-        raise ValueError(
-            "Cannot add country borders without grid lat_range and lon_range"
-        )
-    elif add_country_borders:
+    if add_country_borders:
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
+        # Set to the same CRS as the grid
+        gdf_countries = gdf_countries.to_crs(grid.crs)
         # Crop the countries to the grid
         gdf_countries = gdf_countries.cx[x_min:x_max, y_min:y_max].clip_by_rect(
             x_min, y_min, x_max, y_max
@@ -272,10 +267,8 @@ def plot_inventory(
 
             # from ha to m2
             emissions /= inv.cell_areas
-
             y_slice = slice(None, None, 1 if reverse_y else -1)
             emissions = emissions.reshape(grid_shape).T[y_slice, :]
-
             total_sub_emissions += emissions
 
             if not np.any(emissions):
@@ -307,13 +300,23 @@ def plot_inventory(
                     extent=[x_min, x_max, y_min, y_max],
                 )
             else:
+                # Plot only polygons, otherwise, it will be weird with the multipolygon
+                # hiding parts of the grid
+                mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
                 im = PolyCollection(
-                    grid.corners,
+                    (
+                        grid.corners[mask_polygons]
+                        if hasattr(grid, "corners") and grid.corners is not None
+                        # Get the coordinates of the polygons
+                        else grid.gdf.geometry[mask_polygons].apply(
+                            lambda geom: geom.exterior.coords
+                        )
+                    ),
                     cmap=this_cmap,
                     norm=norm,
                     **poly_collection_kwargs,
                 )
-                im.set_array(emissions.flatten())
+                im.set_array(emissions.flatten()[mask_polygons])
                 ax.add_collection(im)
             add_ax_info(ax)
             ax.set_title(f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y")
@@ -347,7 +350,7 @@ def plot_inventory(
         fig, ax = plt.subplots(figsize=figsize)
 
         emission_non_zero_values = total_sub_emissions[
-            (total_sub_emissions > 0) & (~np.isnan(total_sub_emissions))
+            (total_sub_emissions != 0) & (~np.isnan(total_sub_emissions))
         ]
         if len(emission_non_zero_values) == 0:
             logger.info(f"passsed {sub},total_emissions, no emissions")
@@ -363,13 +366,21 @@ def plot_inventory(
                 extent=[x_min, x_max, y_min, y_max],
             )
         else:
+            mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
             im = PolyCollection(
-                grid.corners,
+                (
+                    grid.corners[mask_polygons]
+                    if hasattr(grid, "corners") and grid.corners is not None
+                    # Get the coordinates of the polygons
+                    else grid.gdf.geometry[mask_polygons].apply(
+                        lambda geom: geom.exterior.coords
+                    )
+                ),
                 cmap=this_cmap,
                 norm=norm,
                 **poly_collection_kwargs,
             )
-            im.set_array(total_sub_emissions.flatten())
+            im.set_array(total_sub_emissions.flatten()[mask_polygons])
             ax.add_collection(im)
 
         ax.set_title(

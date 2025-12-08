@@ -58,9 +58,6 @@ def test_multiple_profiles():
     assert len(p) == 3
 
 
-
-
-
 def test_equality():
     p1 = WeeklyProfile()
     p2 = WeeklyProfile()

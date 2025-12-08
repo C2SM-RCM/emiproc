@@ -24,3 +24,12 @@ Bibliography
     Journal of Geophysical Research: Biogeosciences, 127, 2022
 
     https://doi.org/10.1029/2021JG006568
+
+.. [emiproc_2025]
+
+    Emiproc: A Python package for emission inventory processing
+
+    Lionel et al.,
+    Journal of Open Source Software, 10(105), 7509, 2025
+
+    https://doi.org/10.21105/joss.07509
