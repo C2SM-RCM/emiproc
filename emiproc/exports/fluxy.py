@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from os import PathLike
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import xarray as xr
@@ -12,15 +14,18 @@ from emiproc.exports.utils import get_temporally_scaled_array
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.utilities import get_country_mask
+from emiproc.utils.translators import inv_to_xarray
 
 logger = logging.getLogger(__name__)
+
+Frequency = Literal["yearly", "monthly"]
 
 
 def export_fluxy(
     invs: Inventory | list[Inventory],
     output_dir: PathLike,
     transport_model: str = "emiproc",
-    frequency: str = "yearly",
+    frequency: Frequency = "yearly",
 ) -> None:
     """Export emissions to Fluxy format.
 
@@ -141,12 +146,15 @@ def export_fluxy(
         raise ValueError(
             "All inventories must have different years. " f"Got {invs_years=}."
         )
-
     dss = [
-        get_temporally_scaled_array(
-            inv,
-            time_range=inv.year,
-            sum_over_cells=False,
+        (
+            inv_to_xarray(inv).expand_dims(time=[datetime(inv.year, 6, 1)])
+            if frequency == "yearly"
+            else get_temporally_scaled_array(
+                inv,
+                time_range=inv.year,
+                sum_over_cells=False,
+            )
         )
         for inv in invs
     ]
