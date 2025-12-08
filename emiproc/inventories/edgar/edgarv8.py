@@ -188,7 +188,7 @@ class EDGARv8(Inventory):
 
         nc_files = list(nc_file_pattern.parent.glob(nc_file_pattern.name))
         if not nc_files:
-            raise ValueError(f"No files found for pattern {nc_file_pattern}")
+            raise FileNotFoundError(f"No files found for pattern {nc_file_pattern}")
 
         for filepath in nc_files:
             with xr.open_dataset(filepath) as ds:
