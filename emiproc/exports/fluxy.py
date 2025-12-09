@@ -26,7 +26,7 @@ def export_fluxy(
     output_dir: PathLike,
     transport_model: str = "emiproc",
     frequency: Frequency = "yearly",
-) -> None:
+) -> Path:
     """Export emissions to Fluxy format.
 
     https://github.com/openghg/fluxy
@@ -34,11 +34,11 @@ def export_fluxy(
     Fluxy is a python plotting tool for comparing inverse modeling results.
     As part of fluxy, it is possible to plot prior emissions.
 
-    The following is required on inventories to be exported to fluxy:
+    The following conditions are required on inventories to be exported to fluxy:
 
-    * The inventory must have a :py:class:`~emiproc.grids.RegularGrid`.
-    * The inventory must have a year value given. (not None).
-    * The inventory must have temporal profiles. .
+    * Must have a :py:class:`~emiproc.grids.RegularGrid`.
+    * Must have a year value given if yearly frequency is used.
+    * Must have temporal profiles if monthly frequency is used.
 
     Fluxy files must have a specifc format.
     The files are generated in the following way:
@@ -52,7 +52,7 @@ def export_fluxy(
         This directory is the name of the transport model in fluxy.
     :param transport_model: The transport model name to "fake". (default: `emiproc`)
 
-    :return: None
+    :return: Path to the directory where the files were exported.
 
 
     """
@@ -195,3 +195,4 @@ def export_fluxy(
         )
 
     logger.info(f"Exported {len(substances)} substances to {output_dir}.")
+    return output_dir
