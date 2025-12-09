@@ -75,7 +75,8 @@ def export_fluxy(
             f"Got {[grid.name for grid in grids]}."
         )
     grid = grids[0]
-    assert isinstance(grid, RegularGrid), "Only regular grids are supported."
+    if not isinstance(grid, RegularGrid):
+        raise TypeError("Only regular grids are supported.")
 
     # Check the grid is on WGS84
     if not CRS(grid.crs) == CRS("WGS84"):
