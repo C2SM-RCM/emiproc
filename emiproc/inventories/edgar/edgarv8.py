@@ -174,8 +174,6 @@ class EDGARv8(Inventory):
         """
         super().__init__()
 
-        self.year = year
-
         nc_file_pattern = Path(nc_file_pattern_or_dir)
         logger = self.logger
 
