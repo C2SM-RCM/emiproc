@@ -11,7 +11,7 @@ from emiproc.tests_utils.test_inventories import inv
 
 def test_export_fluxy_fails_on_non_regular_grid():
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(TypeError):
         export_fluxy(
             invs=inv,
             output_dir=TESTS_DIR / "fluxy",

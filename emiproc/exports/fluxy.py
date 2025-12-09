@@ -37,7 +37,7 @@ def export_fluxy(
     The following conditions are required on inventories to be exported to fluxy:
 
     * Must have a :py:class:`~emiproc.grids.RegularGrid`.
-    * Must have a year value given if yearly frequency is used.
+    * Must have a year value given.
     * Must have temporal profiles if monthly frequency is used.
 
     Fluxy files must have a specific format.
@@ -51,9 +51,9 @@ def export_fluxy(
     :param output_dir: Directory to export the emissions to.
         This directory is the name of the transport model in fluxy.
     :param transport_model: The transport model name to "fake". (default: `emiproc`)
+    :param frequency: Frequency of the emissions to export. Can be "yearly" or "monthly". (default: "yearly")
 
     :return: Path to the directory where the files were exported.
-
 
     """
 
@@ -75,7 +75,8 @@ def export_fluxy(
             f"Got {[grid.name for grid in grids]}."
         )
     grid = grids[0]
-    assert isinstance(grid, RegularGrid), "Only regular grids are supported."
+    if not isinstance(grid, RegularGrid):
+        raise TypeError("Only regular grids are supported.")
 
     # Check the grid is on WGS84
     if not CRS(grid.crs) == CRS("WGS84"):
