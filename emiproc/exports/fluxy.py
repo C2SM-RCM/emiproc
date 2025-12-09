@@ -37,7 +37,7 @@ def export_fluxy(
     The following conditions are required on inventories to be exported to fluxy:
 
     * Must have a :py:class:`~emiproc.grids.RegularGrid`.
-    * Must have a year value given if yearly frequency is used.
+    * Must have a year value given.
     * Must have temporal profiles if monthly frequency is used.
 
     Fluxy files must have a specific format.
