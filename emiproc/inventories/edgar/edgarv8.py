@@ -109,6 +109,9 @@ def download_edgar_files(
 
     downloaded = []
 
+    data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     # Download the files
     for link in download_links:
         filename = link.split("/")[-1]
@@ -181,9 +184,11 @@ class EDGARv8(Inventory):
 
         columns = {}
 
-        file_for_grid = None
+        nc_files = list(nc_file_pattern.parent.glob(nc_file_pattern.name))
+        if not nc_files:
+            raise FileNotFoundError(f"No files found for pattern {nc_file_pattern}")
 
-        for filepath in nc_file_pattern.parent.glob(nc_file_pattern.name):
+        for filepath in nc_files:
             with xr.open_dataset(filepath) as ds:
                 if "emissions" not in ds:
                     logger.warning(
@@ -210,10 +215,7 @@ class EDGARv8(Inventory):
 
                 columns[(category, substance)] = da.data.T.reshape(-1)
 
-            if file_for_grid is None:
-                file_for_grid = filepath
-
-        with xr.open_dataset(file_for_grid) as ds:
+        with xr.open_dataset(nc_files[0]) as ds:
             self.grid = RegularGrid.from_centers(
                 ds["lon"].data, ds["lat"].data, name="EDGARv8_grid"
             )
