@@ -40,7 +40,7 @@ def export_fluxy(
     * Must have a year value given if yearly frequency is used.
     * Must have temporal profiles if monthly frequency is used.
 
-    Fluxy files must have a specifc format.
+    Fluxy files must have a specific format.
     The files are generated in the following way:
 
     * <transport_model>_<substance>_<frequency>.nc
