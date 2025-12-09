@@ -69,3 +69,30 @@ def test_export_fluxy():
     )
 
     assert (TESTS_DIR / "fluxy" / "emiproc" / "CH4" / "emiproc_CH4_yearly.nc").is_file()
+
+
+def test_export_fluxy_monthly():
+    """Main test with mounthly frequency."""
+
+    inventory = inv.copy()
+    inventory.set_crs(regular_grid.crs)
+    inventory.year = 2020
+
+    inventory.set_profile(
+        three_profiles[0],
+        category="test",
+    )
+    inventory.set_profile(
+        three_profiles[1],
+        category="adf",
+    )
+
+    export_fluxy(
+        invs=remap_inventory(inventory, grid=regular_grid),
+        output_dir=TESTS_DIR / "fluxy",
+        frequency="monthly",
+    )
+
+    assert (
+        TESTS_DIR / "fluxy" / "emiproc" / "CH4" / "emiproc_CH4_monthly.nc"
+    ).is_file()
