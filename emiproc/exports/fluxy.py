@@ -48,8 +48,8 @@ def export_fluxy(
 
     :param invs: Inventory or list of inventories to export.
         A list of inventory assumes that you want to plot the emissions over multiple years.
-    :param output_dir: Directory to export the emissions to.
-        This directory is the name of the transport model in fluxy.
+    :param output_dir: Parent directory to export the emissions to.
+        A subdirectory named after the transport model will be created within this directory for the exported files.
     :param transport_model: The transport model name to "fake". (default: `emiproc`)
     :param frequency: Frequency of the emissions to export. Can be "yearly" or "monthly". (default: "yearly")
 
