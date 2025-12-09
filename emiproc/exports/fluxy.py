@@ -51,9 +51,9 @@ def export_fluxy(
     :param output_dir: Directory to export the emissions to.
         This directory is the name of the transport model in fluxy.
     :param transport_model: The transport model name to "fake". (default: `emiproc`)
+    :param frequency: Frequency of the emissions to export. Can be "yearly" or "monthly". (default: "yearly")
 
     :return: Path to the directory where the files were exported.
-
 
     """
 
