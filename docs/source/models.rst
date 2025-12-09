@@ -41,7 +41,7 @@ Fluxy is a Python package for visualizing inversion model results.
 It also supports inventories in the form of NetCDF files.
 
 See the
-`following script <https://github.com/C2SM-RCM/emiproc/blob/master/scripts/exports/edgar_2_fluxy.ipynb>`_ 
+:ref:`fluxy tutorial <edgar_2_fluxy>` 
 to learn how to export inventories to 
 fluxy and how to visualize them with fluxy.
 
