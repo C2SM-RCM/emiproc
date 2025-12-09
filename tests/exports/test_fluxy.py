@@ -21,10 +21,14 @@ def test_export_fluxy_fails_on_non_regular_grid():
 def test_export_fluxy_no_profiles_raises():
     inventory = inv.copy()
     inventory.set_crs(regular_grid.crs)
-    with pytest.raises(ValueError):
+    inventory.year = 2020
+    with pytest.raises(
+        ValueError, match="The inventory does not have temporal profiles"
+    ):
         export_fluxy(
             invs=remap_inventory(inventory, grid=regular_grid),
             output_dir=TESTS_DIR / "fluxy",
+            frequency="monthly",
         )
 
 
@@ -40,7 +44,7 @@ def test_export_fluxy_no_year_raises():
         three_profiles[1],
         category="adf",
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="All inventories must have a year"):
         export_fluxy(
             invs=remap_inventory(inventory, grid=regular_grid),
             output_dir=TESTS_DIR / "fluxy",
