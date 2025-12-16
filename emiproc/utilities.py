@@ -25,14 +25,14 @@ from shapely.geometry import MultiPolygon, Polygon
 
 from emiproc import FILES_DIR, PROCESS
 from emiproc.grids import WGS84, WGS84_PROJECTED, Grid
-
-# constants to convert from yr -> sec
-DAY_PER_YR = 365.25
-SEC_PER_HOUR = 3600
-HOUR_PER_DAY = 24
-SEC_PER_DAY = SEC_PER_HOUR * HOUR_PER_DAY
-SEC_PER_YR = DAY_PER_YR * SEC_PER_DAY
-HOUR_PER_YR = DAY_PER_YR * HOUR_PER_DAY
+from emiproc.utils.constants import (
+    DAY_PER_YR,
+    SEC_PER_HOUR,
+    HOUR_PER_DAY,
+    SEC_PER_DAY,
+    SEC_PER_YR,
+    HOUR_PER_YR,
+)
 
 
 def get_day_per_year(year: int | None) -> int | float:
