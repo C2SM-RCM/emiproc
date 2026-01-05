@@ -149,39 +149,10 @@ def get_desired_profile_index(
     return int(desired_index.values)
 
 
-@emiproc.deprecated
-def read_profile_csv(
-    file: PathLike,
-    cat_colname: str = "Category",
-    sub_colname: str = "Substance",
-    read_csv_kwargs: dict[str, Any] = {},
-) -> tuple[pd.DataFrame, str, str | None]:
-    """Read a profile csv file and return the dataframe, the category column name and the substance column name.
-
-    Checks the name of the category and substances columns.
-    """
-    file = Path(file)
-
-    df = pd.read_csv(file, **read_csv_kwargs)
-    if cat_colname not in df.columns:
-        raise ValueError(f"Cannot find '{cat_colname}' header in {file=}")
-
-    if sub_colname in df.columns:
-        sub_header = "Substance"
-    else:
-        sub_header = None
-        logger = logging.getLogger("emiproc.profiles.read_cat_sub_from_csv")
-        logger.warning(
-            f"Cannot find 'Substance' header in {file=}.\n"
-            "All substances will be treated the same way."
-        )
-
-    return df, cat_colname, sub_header
-
-
 def get_profiles_indexes(
     df: pd.DataFrame,
     colnames: dict[str, list[str]] = naming.attributes_accepted_colnames,
+    col_of_dim: dict[str, str] | None = None,
 ) -> xr.DataArray:
     """Return the profiles indexes from the dataframe.
 
@@ -192,15 +163,27 @@ def get_profiles_indexes(
     with nan values will fill other other values when no profile is
     given.
     """
+    if col_of_dim is None:
+        col_of_dim = {}
+    else:
+        col_of_dim = col_of_dim.copy()
 
     # First get the dimensions present in the columns of the dataframe
-    col_of_dim = {}
     for dim, colnames in colnames.items():
+        if dim in col_of_dim.keys():
+            if col_of_dim[dim] not in df.columns:
+                raise ValueError(
+                    f"Cannot find column {col_of_dim[dim]} in {df.columns}"
+                )
+            continue
         columns = [col for col in colnames if col in df.columns]
         if len(columns) > 1:
             raise ValueError(
                 f"Cannot find which column to use for {dim=} in {columns=}.\n"
                 f"All columns refer to {dim=}."
+                " Specify which one to use using `col_of_dim={`"
+                f"{dim}: 'column_name'"
+                "}`."
             )
         elif len(columns) == 1:
             col_of_dim[dim] = columns[0]

@@ -121,7 +121,7 @@ def plot_inventory(
     q: float = 0.001,
     vmin: None | float = None,
     vmax: None | float = None,
-    cmap=nclcmaps.cmap("WhViBlGrYeOrRe"),
+    cmap=nclcmaps.cmap("iridescent"),
     symcmap="RdBu_r",
     spec_lims: None | tuple[float] = None,
     out_dir: PathLike | None = None,
@@ -168,7 +168,6 @@ def plot_inventory(
     """
 
     logger = logging.getLogger(__name__)
-
     grid = inv.grid
     grid_shape = (grid.nx, grid.ny)
     is_regular = issubclass(type(grid), RegularGrid)
@@ -203,13 +202,7 @@ def plot_inventory(
     if not spec_lims:
         spec_lims = (x_min, x_max, y_min, y_max)
 
-    if add_country_borders and (
-        not (hasattr(grid, "lat_range") and hasattr(grid, "lon_range"))
-    ):
-        raise ValueError(
-            "Cannot add country borders without grid lat_range and lon_range"
-        )
-    elif add_country_borders:
+    if add_country_borders:
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
@@ -274,10 +267,8 @@ def plot_inventory(
 
             # from ha to m2
             emissions /= inv.cell_areas
-
             y_slice = slice(None, None, 1 if reverse_y else -1)
             emissions = emissions.reshape(grid_shape).T[y_slice, :]
-
             total_sub_emissions += emissions
 
             if not np.any(emissions):
@@ -359,7 +350,7 @@ def plot_inventory(
         fig, ax = plt.subplots(figsize=figsize)
 
         emission_non_zero_values = total_sub_emissions[
-            (total_sub_emissions > 0) & (~np.isnan(total_sub_emissions))
+            (total_sub_emissions != 0) & (~np.isnan(total_sub_emissions))
         ]
         if len(emission_non_zero_values) == 0:
             logger.info(f"passsed {sub},total_emissions, no emissions")

@@ -13,7 +13,6 @@ from emiproc import deprecated
 from emiproc.profiles.utils import (
     get_profiles_indexes,
     merge_indexes,
-    read_profile_csv,
     read_profile_file,
 )
 from emiproc.profiles import naming
@@ -252,59 +251,9 @@ def check_valid_vertical_profile(vertical_profile: VerticalProfile | VerticalPro
     assert np.all(r >= 0)
 
 
-@deprecated
-def from_csv(file: PathLike) -> tuple[VerticalProfiles, list[str | tuple[str, str]]]:
-    """Read a csv file containing vertical profiles.
-
-    ..warning:: This is deprecated. Use :py:func:`read_vertical_profiles` instead.
-
-
-    The format is the following::
-
-        Category,Substance,20m,92m,184m,324m,522m,781m,1106m
-        Public_Power,CO2,0,0,0.0025,0.51,0.453,0.0325,0.002
-        Public_Power,CH4,0,0,0.0025,0.51,0.453,0.0325,0.002
-        Industry,CO2,0.06,0.16,0.75,0.03,0,0,0
-        ...
-
-    The first line is the header, the first column is the category,
-    the second column is the substance and the rest of the columns
-    are the ratios for each height level.
-
-    The heights level specify mean from the previous height to this one.
-    (e.g. 20m is the mean from 0 to 20m, 92m is the mean from 20m to 92m, ...)
-
-    The Substance column is optional, if not present, the category will be used
-    only.
-
-    """
-
-    # Read the file
-    df, cat_header, sub_header = read_profile_csv(file)
-
-    # Get the height levels
-    heights_mapping = {
-        float(col_name[:-1]): col_name
-        for col_name in df.columns
-        # Take only the columns that end with m
-        if col_name.endswith("m")
-    }
-    heights = sorted(heights_mapping.keys())
-    heights_cols = [heights_mapping[h] for h in heights]
-
-    # Create the profiles
-    profiles = VerticalProfiles(df[heights_cols].to_numpy(), heights)
-
-    if sub_header is None:
-        cat_sub = df[cat_header].to_list()
-    else:
-        cat_sub = df[[cat_header, sub_header]].apply(tuple, axis=1).to_list()
-
-    return profiles, cat_sub
-
-
 def read_vertical_profiles(
     profiles_dir: PathLike,
+    col_of_dim: dict[str, str] | None = None,
 ) -> tuple[VerticalProfiles, xr.DataArray]:
     """Read vertical profiles from csv files.
 
@@ -426,7 +375,7 @@ def read_vertical_profiles(
         v_profiles.append(profile)
 
         # all the profiles (time and vertical)
-        indexes = get_profiles_indexes(df_vertical)
+        indexes = get_profiles_indexes(df_vertical, col_of_dim=col_of_dim)
         # Add the offset where the indexes is defined (!= -1)
         indexes = indexes.where(indexes == -1, indexes + index_offset)
 

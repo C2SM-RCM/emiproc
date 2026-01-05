@@ -16,7 +16,7 @@ import numpy as np
 import xarray as xr
 
 from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.grids import Grid
+from emiproc.grids import GeoPandasGrid, Grid, RegularGrid
 
 from emiproc.profiles.temporal.operators import (
     TemporalProfilesInterpolated,
@@ -871,3 +871,71 @@ def interpolate_temporal_profiles(
     new_inv.t_profiles_groups = interpolated_profiles
 
     return new_inv
+
+
+def clip_box(
+    inv: Inventory,
+    minx: float,
+    miny: float,
+    maxx: float,
+    maxy: float,
+) -> Inventory:
+    """Clip an inventory to a bounding box.
+
+    :arg inv: The inventory to clip.
+    :arg minx: The minimum x coordinate of the bounding box.
+    :arg miny: The minimum y coordinate of the bounding box.
+    :arg maxx: The maximum x coordinate of the bounding box.
+    :arg maxy: The maximum y coordinate of the bounding box.
+
+    :return: A new inventory clipped to the bounding box.
+    """
+
+    if minx >= maxx or miny >= maxy:
+        raise ValueError(
+            "Invalid bounding box coordinates."
+            f" Must have ({minx=}< {maxx=}) and ({miny=} < {maxy=})"
+        )
+
+    out_inv = inv.copy(no_gdfs=True)
+
+    # Clip the gdf
+    if inv.gdf is not None:
+        out_gdf = inv.gdf.cx[minx:maxx, miny:maxy]
+        # Adapt also the profiles indexes if the cell is in there
+        for index_name in ["v_profiles_indexes", "t_profiles_indexes"]:
+            indexes: xr.DataArray | None = getattr(out_inv, index_name, None)
+            if indexes is not None and "cell" in indexes.dims:
+                raise NotImplementedError(
+                    f"Clipping inventories with {index_name} depending on 'cell' "
+                    "is not implemented yet."
+                )
+        out_gdf = out_gdf.reset_index(drop=True)
+
+        # Also modify the grid
+        if isinstance(inv.grid, RegularGrid):
+            out_grid = inv.grid.clip_box(minx, miny, maxx, maxy)
+        else:
+            out_grid = GeoPandasGrid(out_gdf.geometry, name="clipped_grid")
+
+        grid_size = len(out_grid)
+        data_size = len(out_gdf)
+        if grid_size != data_size:
+            raise RuntimeError(
+                f"After clipping, the grid size ({grid_size}) and gdf size ({data_size}) do not match."
+            )
+        out_inv.grid = out_grid
+
+    else:
+        out_gdf = None
+    out_inv.gdf = out_gdf
+
+    # Clip the gdfs
+    out_inv.gdfs = {}
+    for cat, gdf in inv.gdfs.items():
+        out_gdf = gdf.cx[minx:maxx, miny:maxy]
+        if out_gdf.empty:
+            continue
+        out_inv.gdfs[cat] = out_gdf.reset_index(drop=True)
+    out_inv.history.append(f"Clipped to box ({minx}, {miny}, {maxx}, {maxy})")
+    return out_inv
