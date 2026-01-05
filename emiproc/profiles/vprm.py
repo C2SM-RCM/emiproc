@@ -145,7 +145,7 @@ def calculate_vprm_emissions(
 
         Urban VPRM models:
 
-        - `isa`: Impervious Surface Area (ISA) at the vegetation location. 
+        - `isa`: Impervious Surface Area (ISA) at the vegetation location.
             This is the fraction of the area that is impervious (e.g. buildings, roads, etc.)
             Use 0.5 if you don't know.
 

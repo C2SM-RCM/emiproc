@@ -24,7 +24,7 @@ def plot_vprm_params_per_veg_type(
     1. Temperature and radiation
     2. Vegetation indices
     3. Emissions
-    4. Scaling parameters (Tscale, Wscale, Pscale) 
+    4. Scaling parameters (Tscale, Wscale, Pscale)
 
     :param df: Dataframe with the observations.
         Output from :py:func:`~emiproc.profiles.vprm.calculate_vprm_emissions`.
@@ -34,7 +34,7 @@ def plot_vprm_params_per_veg_type(
     :param veg_types: List of vegetation types to plot.
         If None, all vegetation types in the dataframe will be plotted.
     :param model: VPRM model to use. This is used to determine which parameters to plot.
-    :param plots: List of plots to create. 
+    :param plots: List of plots to create.
     :param group_by: If provided, the dataframe will be grouped
         by this temporal frequency before plotting.
         e.g. "%m%H" to get daily profiles for each month.
