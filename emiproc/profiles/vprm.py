@@ -307,6 +307,10 @@ def calculate_vprm_emissions(
         Tmax = df_vprm.loc[vegetation_type, "Tmax"]
         Tlow = df_vprm.loc[vegetation_type, "Tlow"]
 
+        if model == VPRM_Model.urban_windbourne:
+            # For T scale, the vegetation specific T parameters are not used
+            Tmin, Tmax = 0.0, 40.0
+
         alpha = df_vprm.loc[vegetation_type, "alpha"]
         beta = df_vprm.loc[vegetation_type, "beta"]
 
@@ -386,8 +390,6 @@ def calculate_vprm_emissions(
         Tscale = Tprod / (Tprod - (temperature - Topt) ** 2)
         Tscale[temperature <= Tmin] = 0.0
         if model == VPRM_Model.urban_windbourne:
-            # For T scale, the vegetation specific T parameters are not used
-            Tmin, Tmax = 0.0, 40.0
             mask_low_T = temperature <= 20
             Tscale.loc[mask_low_T] = Tprod / (Tprod - (temperature - 20) ** 2)
             mask_mid_T = (temperature >= 20) & (temperature <= 30)
