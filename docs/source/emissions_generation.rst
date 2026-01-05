@@ -76,7 +76,7 @@ Units for all fluxes (NEE, GEE, Resp, ...) are
 Urban VPRM
 ^^^^^^^^^^
 
-The VPRM model can be extended to urban areas according to [Urban_VPRM_Hardiman_2017].
+The VPRM model can be extended to urban areas according to [Urban_VPRM_Hardiman_2017]_.
 
 - A "urban temperature" is used instead of the global temperature to represent
     the urban heat island phenomenon.

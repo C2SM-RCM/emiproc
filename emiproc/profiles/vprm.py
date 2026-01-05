@@ -158,7 +158,7 @@ def calculate_vprm_emissions(
         - `alpha2`: Respiration parameter
         - `gamma`: Coeff for EVI in respiration
         - `Tcrit`: critical temperature for respiration
-        - `Tnull`: value between 0-1 to weigh the difference between atm temp and tcrit
+        - `Tmult`: value between 0-1 to weigh the difference between atm temp and tcrit
 
     :param model: VPRM model to use. See :py:class:`VPRM_Model` for the list of models.
 
@@ -324,7 +324,7 @@ def calculate_vprm_emissions(
         # (while it's available for MOD12Q2 used by Mahadevan et al., 2008)
         # the overall max and min of EVI is used
         # not the EVI max/min during growing phase only (as it should be).
-        evithr = min(evi) + 0.55 * (max(evi) - min(evi))
+        evithr = np.nanmin(evi) + 0.55 * (np.nanmax(evi) - np.nanmin(evi))
 
         if model in urban_vprm_models:
             # Simpler EVI formulation in urban VPRM
@@ -333,12 +333,12 @@ def calculate_vprm_emissions(
             # bud-burst to full canopy period
             Pscale = (1 + lswi) / 2.0
             # is 1 during phase two (Mahadevan et al, paragraph [14])
-            Pscale[evi >= evithr] = 1
+            Pscale[evi >= evithr] = 1.0
 
         # for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
         veg_type_str = str(vegetation_type).lower()
         if "evergreen" in veg_type_str:
-            Pscale = 1
+            Pscale = 1.0
 
         df[(vegetation_type, "Pscale")] = Pscale
 

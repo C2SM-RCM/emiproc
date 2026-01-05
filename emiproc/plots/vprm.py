@@ -170,17 +170,23 @@ def plot_vprm_params_per_veg_type(
                     color=color,
                     alpha=0.8,
                 )
-                if group_by is None:
-                    mask = df[(vegetation_type, index + "_mask")]
+                mask_col = (vegetation_type, index + "_mask")
+                extracted_col = (vegetation_type, index + "_extracted")
+                if (
+                    group_by is None
+                    and mask_col in df.columns
+                    and extracted_col in df.columns
+                ):
+                    mask = df[mask_col]
                     ax_inds.scatter(
                         x[mask],
-                        df.loc[mask, (vegetation_type, index + "_extracted")],
+                        df.loc[mask, extracted_col],
                         color=color,
                         marker="x",
                     )
             evi_ref_col = (vegetation_type, "evi_ref")
             if model in urban_vprm_models and evi_ref_col in df.columns:
-                min_evi_ref = min(df[evi_ref_col])
+                min_evi_ref = np.nanmin(df[evi_ref_col])
                 ax_inds.hlines(
                     min_evi_ref,
                     x[0],
