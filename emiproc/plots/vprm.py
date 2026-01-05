@@ -93,7 +93,7 @@ def plot_vprm_params_per_veg_type(
                     alpha=0.5,
                 )
 
-            vprm_params = vprm_params = [
+            vprm_params = [
                 "Tmin",
                 "Tmax",
                 "Topt",
@@ -175,7 +175,7 @@ def plot_vprm_params_per_veg_type(
                     color="blue",
                     linestyles="dashed",
                     alpha=0.5,
-                    label="minumum evi_ref",
+                    label="minimum evi_ref",
                 )
 
             ax_inds.set_ylim(-0.5, 1.1)

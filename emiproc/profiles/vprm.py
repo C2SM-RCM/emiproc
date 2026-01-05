@@ -252,8 +252,8 @@ def calculate_vprm_emissions(
         - `alpha1`: Respiration parameter
         - `alpha2`: Respiration parameter
         - `gamma`: Coeff for EVI in respiration
-        - `tcrit`: critical temperature for respiration
-        - `tnull`: value between 0-1 to weigh the difference between atm temp and tcrit
+        - `Tcrit`: critical temperature for respiration
+        - `Tnull`: value between 0-1 to weigh the difference between atm temp and tcrit
 
     :param model: VPRM model to use. See :py:class:`VPRM_Model` for the list of models.
 
@@ -282,7 +282,7 @@ def calculate_vprm_emissions(
     df_vprm["resp_min"] = df_vprm["alpha"] * df_vprm["Tlow"] + df_vprm["beta"]
 
     # Photosynthetically Active Radiation (PAR, μmol m−2 s−1)
-    # Conversion from orginal vprm paper, assuming RAD is shortwave radiation
+    # Conversion from original vprm paper, assuming RAD is shortwave radiation
     df["PAR"] = df["RAD"] / 0.505
 
     if model in urban_vprm_models:
@@ -355,7 +355,7 @@ def calculate_vprm_emissions(
                 + k3 * wscale2 * temp_mod**2
             )
 
-        # Under t low, use a contsant value
+        # Under Tlow, use a constant value
         mask_low_T = temperature <= Tlow
 
         # Set T = Tlow when T < Tlow to account for the persistence
@@ -367,7 +367,7 @@ def calculate_vprm_emissions(
 
         if model in urban_vprm_models:
             # Split the urban vegetation into two parts
-            # initial ecosystem respiration (authotropphic + heterotropohic)
+            # initial ecosystem respiration (autotrophic + heterotrophic)
             resp_e_init = alpha * temperature + beta
             df[(vegetation_type, "resp_e_init")] = resp_e_init
             # Heterotrophic respiration
@@ -422,7 +422,7 @@ def calculate_vprm_emissions(
         evithr = min(evi) + 0.55 * (max(evi) - min(evi))
 
         if model in urban_vprm_models:
-            # Simpler EVI forumalation in urban VPRM
+            # Simpler EVI formulation in urban VPRM
             Pscale = (evi - np.nanmin(evi)) / (np.nanmax(evi) - np.nanmin(evi))
         else:
             # bud-burst to full canopy period
@@ -431,7 +431,8 @@ def calculate_vprm_emissions(
             Pscale[evi >= evithr] = 1
 
         # for evergreen, Pscale is 1 fixed (Mahadevan et al, paragraph [13])
-        if str(vegetation_type).lower() == "evergreen":
+        veg_type_str = str(vegetation_type).lower()
+        if "evergreen" in veg_type_str:
             Pscale = 1
 
         df[(vegetation_type, "Pscale")] = Pscale
