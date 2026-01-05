@@ -119,7 +119,12 @@ def calculate_vprm_emissions(
 
     It also includes extensions of the VPRM model for urban areas.
 
-    There are 3 implementation of the VPRM model: standard VPRM (Mahadevan et al., 2008), modified-VPRM (Gourdij et al., 2021)
+    There are 4 implementation of the VPRM model:
+
+    - standard (Mahadevan et al., 2008)
+    - urban  (Hardiman et al., 2017)
+    - urban windbourne (Winbourne et al., 2021)
+    - modified (Gourdij et al., 2021)
 
     Standard VPRM
     ^^^^^^^^^^^^^
@@ -170,7 +175,7 @@ def calculate_vprm_emissions(
     Urban VPRM
     ^^^^^^^^^^
 
-    The VPRM model can be extended to urban areas according to [Urban_VPRM].
+    The VPRM model can be extended to urban areas according to [Urban_VPRM_Hardiman_2017].
 
     - A "urban temperature" is used instead of the global temperature to represent
         the urban heat island phenomenon.
@@ -241,9 +246,9 @@ def calculate_vprm_emissions(
             Use 0.5 if you don't know.
 
         Modified VPRM:
-        - `k1`: Coeff for water respiration scaling factor
-        - `k2`: Coeff for water respiration scaling factor
-        - `k3`: Coeff for water respiration scaling factor
+        - `theta1`: Coeff for water respiration scaling factor
+        - `theta2`: Coeff for water respiration scaling factor
+        - `theta3`: Coeff for water respiration scaling factor
         - `alpha1`: Respiration parameter
         - `alpha2`: Respiration parameter
         - `gamma`: Coeff for EVI in respiration
