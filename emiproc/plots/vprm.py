@@ -165,8 +165,9 @@ def plot_vprm_params_per_veg_type(
                         color=color,
                         marker="x",
                     )
-            if model in urban_vprm_models:
-                min_evi_ref = min(df[(vegetation_type, "evi_ref")])
+            evi_ref_col = (vegetation_type, "evi_ref")
+            if model in urban_vprm_models and evi_ref_col in df.columns:
+                min_evi_ref = min(df[evi_ref_col])
                 ax_inds.hlines(
                     min_evi_ref,
                     x[0],
