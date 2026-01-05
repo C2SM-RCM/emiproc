@@ -79,7 +79,7 @@ def test_urban_model(sample_data):
     assert ("vegetation_type_2", "nee") in result.columns
 
 
-def test_urban_windbourne_data(sample_data):
+def test_urban_winbourne_data(sample_data):
     df, df_vprm = sample_data
 
     df[("T", "urban")] = [28, 32, 30, 29]
@@ -87,7 +87,7 @@ def test_urban_windbourne_data(sample_data):
     df[("vegetation_type_2", "evi_ref")] = df[("vegetation_type_1", "evi")]
     df_vprm["isa"] = 0.5
 
-    result = calculate_vprm_emissions(df, df_vprm, model="urban_windbourne")
+    result = calculate_vprm_emissions(df, df_vprm, model="urban_winbourne")
     assert ("vegetation_type_1", "nee") in result.columns
     assert ("vegetation_type_2", "nee") in result.columns
 
