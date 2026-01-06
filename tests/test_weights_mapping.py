@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import geopandas as gpd
 from typing import Any, Iterable
+from shapely import LineString
 from shapely.geometry import Point, Polygon
 from emiproc.regrid import calculate_weights_mapping
 
@@ -35,6 +36,21 @@ points = gpd.GeoSeries(
         Point(1.2, 1),
         Point(1, 1),  # Between all the squares
         Point(-1, -1),  # Outside
+    ]
+)
+
+lines = gpd.GeoSeries(
+    [
+        # Inside one cell
+        LineString([(0.1, 0.1), (0.2, 0.2)]),
+        # Border of grid
+        LineString([(0, 0), (0, 2)]),
+        # Crossing few, with different lengths
+        LineString([(0.5, 0.5), (1.5, 0.5), (1.5, 1.5)]),
+        # Outside line
+        LineString([(10, 10), (11, 11)]),
+        # Between squares at the edge
+        LineString([(1, 0), (1, 2)]),
     ]
 )
 
@@ -101,6 +117,19 @@ weights_points_to_triangles = [
     (3, 1, 0.5),
 ]
 
+weigths_line_to_square = [
+    (0, 0, 1.0),
+    (1, 0, 0.5),
+    (1, 1, 0.5),
+    (2, 0, 0.25),
+    (2, 2, 0.5),
+    (2, 3, 0.25),
+    (4, 0, 0.25),
+    (4, 1, 0.25),
+    (4, 2, 0.25),
+    (4, 3, 0.25),
+]
+
 
 def check_equal_to_weights(
     weights_tested: dict[str, Iterable[float | int]],
@@ -108,6 +137,7 @@ def check_equal_to_weights(
 ):
     # We will remove the weights at each encounter
     missing_weights = weights_ref.copy()
+    unexpected_weights = []
     for f, t, w in zip(
         weights_tested["inv_indexes"],
         weights_tested["output_indexes"],
@@ -115,13 +145,23 @@ def check_equal_to_weights(
     ):
         w_tuple = (f, t, w)
         if w_tuple not in missing_weights:
-            raise ValueError(f"Unexpected weight detected: {w_tuple}")
-        missing_weights.remove(w_tuple)
+            unexpected_weights.append(w_tuple)
+        else:
+            missing_weights.remove(w_tuple)
+
+    err_msg = ""
+    if unexpected_weights:
+        err_msg += (
+            f"Unexpected weights detected:\n{'\n'.join(map(str, unexpected_weights))}\n"
+        )
 
     for missing_w_tuple in missing_weights:
         # Check weights that were added but should not
         if missing_w_tuple[2] != 0:
-            raise ValueError(f"Extra weights detected: {missing_w_tuple}")
+            err_msg += f"Extra weights detected: {missing_w_tuple}\n"
+
+    if err_msg:
+        raise ValueError(err_msg)
 
 
 # test functions
@@ -166,6 +206,13 @@ def test_points_on_triangles():
     check_equal_to_weights(
         calculate_weights_mapping(points, triangles, loop_over_inv_objects=True),
         weights_points_to_triangles,
+    )
+
+
+def test_lines_to_squares():
+    check_equal_to_weights(
+        calculate_weights_mapping(lines, squares, loop_over_inv_objects=True),
+        weigths_line_to_square,
     )
 
 
