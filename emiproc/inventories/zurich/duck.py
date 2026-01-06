@@ -60,6 +60,7 @@ def _parse_duckdb_table_name(
 
     # Get the columns that match the pattern
     df_emissions = df_emissions.rename(columns=lambda x: re.sub(r"^emission_", "", x))
+    df_emissions = df_emissions.fillna(0.0)
     gdf = gpd.GeoDataFrame(df_emissions, geometry=geometry, crs="LV95")
 
     return gdf
@@ -79,7 +80,7 @@ class DuckDBInventory(Inventory):
     :param duckdb_filepath: Path to the duckDB file.
     :param year: Year of the emissions to load.
     :param skip_suffixes: List of suffixes to skip when loading tables.
-    
+
     """
 
     duckdb_filepath: Path
@@ -134,7 +135,10 @@ class DuckDBInventory(Inventory):
             f"Available tables: {available_tables}"
         )
 
-
+        if len(self.gdfs) == 0:
+            raise ValueError(
+                f"No valid tables loaded from {duckdb_filepath!s} for year {year}."
+            )
 
 
 if __name__ == "__main__":
@@ -155,4 +159,3 @@ if __name__ == "__main__":
     )
 
     inv.logger.info(f"{inv.total_emissions['klärschlammverwertung']=}")
-

@@ -43,6 +43,8 @@ from emiproc.human_respiration import (
     EmissionFactor,
 )
 from emiproc.inventories.zurich import MapLuftZurich
+from emiproc.inventories.zurich.duck import DuckDBInventory
+
 from emiproc.regrid import remap_inventory
 from emiproc.speciation import merge_substances, speciate, speciate_inventory
 from emiproc.utilities import SEC_PER_YR
@@ -53,30 +55,37 @@ from emiproc.utilities import Units
 # %% define some parameters for the output
 
 
-YEAR = 2020
+YEAR = 2024
 
 
-INCLUDE_SWISS_OUTSIDE = True
-swiss_data_path = Path(
-    r"C:\Users\coli\Documents\ZH-CH-emission\Data\CHEmissionen\CH_Emissions_2015_2020_2022_CO2_CO2biog_CH4_N2O_BC_AP.xlsx"
-)
-outdir = Path(r"C:\Users\coli\Documents\ZH-CH-emission\output_files\mapluft_rasters")
-mapluft_dir = Path(r"C:\Users\coli\Documents\Data\mapluft_emissionnen_kanton")
-mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
+INCLUDE_SWISS_OUTSIDE = False
+
+# Paths to data
+data_dir = Path("/newhome/coli/emiproc/files/ch")
+swiss_data_path = data_dir / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv"
+outdir = data_dir / "exports"
+mapluft_dir = Path("/newhome/coli/Data/mapluft_kanton")
+duckdbs_dir = Path("/input/CH_EMISSIONS/MapLuft/Emissions/duckdbs")
+
+
+# Chosse here which data file to use
+# Duck db is the new version, it contains all years in one file
+#inv_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
+inv_file = duckdbs_dir / f"emikat_v2026a.db"
 
 # CRS of the output, can be WGS84 or LV95
-OUTPUT_CRS = WGS84
+OUTPUT_CRS = LV95
 # edge of the raster cells (in meters)
 RASTER_EDGE = 100
 
 
-VERSION = "v2.2"
+VERSION = "v3.0"
 
 # Whether to split the biogenic CO2 and the antoropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
 
 # Whether to add the human respiration
-ADD_HUMAN_RESPIRATION = True
+ADD_HUMAN_RESPIRATION = False
 # File with the data required for the human respiration
 quartier_anlyse_dir = Path(
     r"C:\Users\coli\Documents\Data\Quartieranalyse_zurich"
@@ -92,7 +101,7 @@ USE_GNRF = True
 
 # Whether to split the F category of the GNRF into 4 subcategories for accounting
 # for the different vehicle types (cars, light duty, heavy duty, two wheels)
-SPLIT_GNRF_ROAD_TRANSPORT = True
+SPLIT_GNRF_ROAD_TRANSPORT = False
 
 
 # %% Check some parameters and create the output directory
@@ -109,12 +118,27 @@ if INCLUDE_SWISS_OUTSIDE:
 
 
 # %% load the zurich inventory
-inv = MapLuftZurich(mapluf_file)
+if inv_file.suffix == ".gdb":
+    inv = MapLuftZurich(inv_file)
+else:
+    inv = DuckDBInventory(inv_file, year=YEAR)
 
+#%%
+# print gdf geo type for each gdf 
+for cat, gdf in inv.gdfs.items():
+    # Check if there are invalid geometries
+    if not gdf.is_valid.all():
+        print(f"Warning: Invalid geometries found in category {cat}.")
+        mask_invalid = ~gdf.is_valid
+        print(gdf.geometry.geom_type.unique())
+        print(gdf[mask_invalid].geometry)
+        gdf[mask_invalid].explore()
+        # drop them 
+        inv.gdfs[cat] = gdf[~mask_invalid]
 
 # %%
 def load_zurich_shape(
-    zh_raw_file=r"C:\Users\coli\Documents\ZH-CH-emission\Data\Zurich_borders.txt",
+    zh_raw_file="/newhome/coli/Documents/zurich_footprints/data/Zurich_borders.txt",
     crs_file: int = WGS84,
     crs_out: int = LV95,
 ) -> Polygon:
@@ -128,7 +152,6 @@ def load_zurich_shape(
 
 # %% create the zurich swiss grid
 
-OUTPUT_CRS = WGS84
 zh_shape = load_zurich_shape()
 x_min, y_min, x_max, y_max = zh_shape.bounds
 
@@ -178,22 +201,27 @@ if SPLIT_BIOGENIC_CO2:
 
 # %% do the actual remapping of zurich to rasters
 
-zh_shape = load_zurich_shape()
-zh_cropped = crop_with_shape(inv, zh_shape)
+zh_cropped = crop_with_shape(inv, load_zurich_shape())
 zh_cropped.to_crs(OUTPUT_CRS)
 rasters_inv = remap_inventory(
     zh_cropped,
     grid,
-    weights_file=weights_dir / f"{mapluf_file.stem}_weights",
 )
 
 
 # %% change the categories
 if USE_GNRF:
 
-    from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR
+    from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR, ZH_DUCK_2_GNFR 
+
+    if isinstance(inv, DuckDBInventory):
+        ZH_2_GNFR = ZH_DUCK_2_GNFR
 
     if SPLIT_GNRF_ROAD_TRANSPORT:
+        if isinstance(inv, DuckDBInventory):
+            raise NotImplementedError(
+                "Splitting GNRF road transport not implemented for DuckDB inventory"
+            )
         ZH_2_GNFR = ZH_2_GNFR.copy()
         # Remove the road transport from the GNRF
         ZH_2_GNFR.pop("GNFR_F")
@@ -222,12 +250,12 @@ if USE_GNRF:
 
 # %% add the swiss inventory when needed
 if INCLUDE_SWISS_OUTSIDE:
-
+    data_path = Path("/newhome/coli/emiproc/files/ch")
     inv_ch = SwissRasters(
-        filepath_csv_totals=r"C:\Users\coli\Documents\emissions_preprocessing\output\CH_emissions_EMIS-Daten_1990-2050_Submission_2024_N2O_PM25_NH3_NOx_SO2_PM10_CH4_CO2_biog_CO2_CO.csv",
-        filepath_point_sources=r"C:\Users\coli\Documents\emissions_preprocessing\input\SwissPRTR-Daten_2007-2022.xlsx",
-        rasters_dir=swiss_data_path.parent / "ekat_gridascii_v_swiss2icon",
-        rasters_str_dir=swiss_data_path.parent / "ekat_str_gridascii_v_footprints",
+        filepath_csv_totals=data_path / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv",
+        filepath_point_sources=data_path / "SwissPRTR-Daten_2007-2023.xlsx",
+        rasters_dir=data_path / "ekat_gridascii",
+        rasters_str_dir=data_path / "ekat_str_gridascii",
         requires_grid=True,
         # requires_grid=False,
         year=YEAR,
@@ -245,11 +273,10 @@ if INCLUDE_SWISS_OUTSIDE:
 
     from emiproc.inventories.categories_groups import CH_2_GNFR
 
-    # These categories are not in the invenotry here, because we don't care about them
-    missing_cats = ["eilgk", "evklm", "evtrk", "enwal", "eipwp"]
+    categories_available = set(inv_ch.categories)
     # Remove the missing categories
     our_CH_2_GNFR = {
-        new_cat: [c for c in cats if c not in missing_cats]
+        new_cat: [c for c in cats if c in categories_available]
         for new_cat, cats in CH_2_GNFR.items()
     }
     groupped_ch = group_categories(inv_ch, our_CH_2_GNFR)
@@ -276,14 +303,14 @@ if INCLUDE_SWISS_OUTSIDE:
 
     ch_outside_zh = crop_with_shape(
         groupped_ch,
-        zh_shape,
+        load_zurich_shape(),
         keep_outside=True,
         modify_grid=False,
         weight_file=weights_dir / "ch_out_zh",
     )
     ch_inside_zh = crop_with_shape(
         groupped_ch,
-        zh_shape,
+        load_zurich_shape(),
         keep_outside=False,
         modify_grid=False,
         weight_file=weights_dir / "ch_in_zh",
@@ -381,7 +408,7 @@ out_path = export_raster_netcdf(
             "inside_swiss" if INCLUDE_SWISS_OUTSIDE else "cropped",
             "Fsplit" if SPLIT_GNRF_ROAD_TRANSPORT else "",
             f"{RASTER_EDGE}x{RASTER_EDGE}",
-            mapluf_file.stem,
+            inv_file.stem,
             VERSION,
             f"crs{OUTPUT_CRS}",
             "rasters.nc",
@@ -439,11 +466,19 @@ print(f"Output written to {out_path}")
 # %%
 plt.style.use("default")
 
-plots_dir = Path(r"C:\Users\coli\Pictures\emiproc\zurich_rasters_for_presentations")
+plots_dir = out_path.with_suffix(".plots")
 
-for inv, name in zip([rescaled_ch, inv_zh, rasters_inv], ["ch", "zh", "combined"]):
-    out_dir = plots_dir / weights_dir.name / name
+if INCLUDE_SWISS_OUTSIDE:
+    iterator = zip(
+        [rescaled_ch, ch_inside_zh, rasters_inv],
+        ["ch_outside_rescaled", "ch_inside_zh", "combined"],
+    )
+else:
+    iterator = zip([rasters_inv], ["zurich_only"])
+
+for inv, name in iterator:
+    out_dir = plots_dir / name
     out_dir.mkdir(exist_ok=True, parents=True)
-    plot_inventory(inv, vmin=0.01, vmax=100, out_dir=out_dir, total_only=True)
-
+    plot_inventory(inv,  out_dir=out_dir, total_only=True)
+print(out_dir)
 # %%
