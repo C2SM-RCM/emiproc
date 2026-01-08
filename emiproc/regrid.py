@@ -231,7 +231,7 @@ def calculate_weights_mapping(
             inter_area = gdf_weights.geometry_inter.area
             out_area = gdf_weights.geometry_out.area
 
-            # Process lines (use lenghths)
+            # Process lines (use lengths)
             mask_lines = geom_type_out.isin(["LineString", "MultiLineString"])
             if np.any(mask_lines):
                 gdf_lines = gdf_weights.loc[mask_lines]
