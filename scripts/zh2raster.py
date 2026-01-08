@@ -479,6 +479,6 @@ else:
 for inv, name in iterator:
     out_dir = plots_dir / name
     out_dir.mkdir(exist_ok=True, parents=True)
-    plot_inventory(inv,  out_dir=out_dir, total_only=True)
+    plot_inventory(inv, out_dir=out_dir, total_only=True)
 print(out_dir)
 # %%
