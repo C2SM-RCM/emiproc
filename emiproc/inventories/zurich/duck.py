@@ -1,6 +1,5 @@
 """DuckDB-based inventory."""
 
-from __future__ import annotations
 import logging
 from pathlib import Path
 from os import PathLike
@@ -14,7 +13,7 @@ try:
 except ImportError:
     duckdb = None
 
-from emiproc.inventories import Inventory, Substance, Category
+from emiproc.inventories import Inventory
 
 logger = logging.getLogger(__name__)
 
