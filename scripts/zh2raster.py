@@ -68,7 +68,7 @@ mapluft_dir = Path("/newhome/coli/Data/mapluft_kanton")
 duckdbs_dir = Path("/input/CH_EMISSIONS/MapLuft/Emissions/duckdbs")
 
 
-# Chosse here which data file to use
+# Choose here which data file to use
 # Duck db is the new version, it contains all years in one file
 #inv_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 inv_file = duckdbs_dir / f"emikat_v2026a.db"
