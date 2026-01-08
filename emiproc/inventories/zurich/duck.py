@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from os import PathLike
-from typing import List
 import re
 
 import geopandas as gpd
