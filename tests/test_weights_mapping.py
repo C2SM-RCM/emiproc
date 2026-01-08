@@ -117,7 +117,7 @@ weights_points_to_triangles = [
     (3, 1, 0.5),
 ]
 
-weigths_line_to_square = [
+weights_line_to_square = [
     (0, 0, 1.0),
     (1, 0, 0.5),
     (1, 1, 0.5),
@@ -152,13 +152,15 @@ def check_equal_to_weights(
     err_msg = ""
     if unexpected_weights:
         err_msg += (
-            f"Unexpected weights detected:\n{'\n'.join(map(str, unexpected_weights))}\n"
+            "Unexpected weights detected:\n"
+            + "\n".join(map(str, unexpected_weights))
+            + "\n"
         )
 
     for missing_w_tuple in missing_weights:
         # Check weights that were added but should not
         if missing_w_tuple[2] != 0:
-            err_msg += f"Extra weights detected: {missing_w_tuple}\n"
+            err_msg += f"Extra weights detected: {missing_w_tuple}" + "\n"
 
     if err_msg:
         raise ValueError(err_msg)
@@ -212,7 +214,7 @@ def test_points_on_triangles():
 def test_lines_to_squares():
     check_equal_to_weights(
         calculate_weights_mapping(lines, squares, loop_over_inv_objects=True),
-        weigths_line_to_square,
+        weights_line_to_square,
     )
 
 

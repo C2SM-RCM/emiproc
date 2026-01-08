@@ -231,7 +231,7 @@ def calculate_weights_mapping(
             inter_area = gdf_weights.geometry_inter.area
             out_area = gdf_weights.geometry_out.area
 
-            # Process lines (use lenghths)
+            # Process lines (use lengths)
             mask_lines = geom_type_out.isin(["LineString", "MultiLineString"])
             if np.any(mask_lines):
                 gdf_lines = gdf_weights.loc[mask_lines]
@@ -242,7 +242,8 @@ def calculate_weights_mapping(
             # Calculate weights for polygons
             gdf_weights["weights"] = inter_area / out_area
 
-            # Remove duplicated weights in lines
+            # Remove duplicated weights in lines where the line was
+            # assigned to more than one cell
             if any(mask_lines):
                 mask_duplicated = (
                     gdf_weights.groupby("index_out")["weights"].transform("sum") > 1.0

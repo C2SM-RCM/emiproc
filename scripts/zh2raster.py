@@ -68,7 +68,7 @@ mapluft_dir = Path("/newhome/coli/Data/mapluft_kanton")
 duckdbs_dir = Path("/input/CH_EMISSIONS/MapLuft/Emissions/duckdbs")
 
 
-# Chosse here which data file to use
+# Choose here which data file to use
 # Duck db is the new version, it contains all years in one file
 #inv_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 inv_file = duckdbs_dir / f"emikat_v2026a.db"
@@ -81,7 +81,7 @@ RASTER_EDGE = 100
 
 VERSION = "v3.0"
 
-# Whether to split the biogenic CO2 and the antoropogenic CO2
+# Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
 
 # Whether to add the human respiration
@@ -479,6 +479,6 @@ else:
 for inv, name in iterator:
     out_dir = plots_dir / name
     out_dir.mkdir(exist_ok=True, parents=True)
-    plot_inventory(inv,  out_dir=out_dir, total_only=True)
+    plot_inventory(inv, out_dir=out_dir, total_only=True)
 print(out_dir)
 # %%
