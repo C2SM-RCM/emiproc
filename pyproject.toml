@@ -39,7 +39,7 @@ dependencies = [
 ]
 license = {text = "BSD-3-Clause"}
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["emission", "processing", "inventory", "cosmo", "icon-art"]
 classifiers = [
     "Programming Language :: Python :: 3",
