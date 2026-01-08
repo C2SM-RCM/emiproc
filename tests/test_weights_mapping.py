@@ -117,7 +117,7 @@ weights_points_to_triangles = [
     (3, 1, 0.5),
 ]
 
-weigths_line_to_square = [
+weights_line_to_square = [
     (0, 0, 1.0),
     (1, 0, 0.5),
     (1, 1, 0.5),
@@ -212,7 +212,7 @@ def test_points_on_triangles():
 def test_lines_to_squares():
     check_equal_to_weights(
         calculate_weights_mapping(lines, squares, loop_over_inv_objects=True),
-        weigths_line_to_square,
+        weights_line_to_square,
     )
 
 
