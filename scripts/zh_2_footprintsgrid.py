@@ -53,7 +53,7 @@ mapluf_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 # edge of the raster cells
 VERSION = "v4"
 
-# Whether to split the biogenic CO2 and the antoropogenic CO2
+# Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = True
 
 # Whether to add the human respiration

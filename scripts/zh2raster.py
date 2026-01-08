@@ -81,7 +81,7 @@ RASTER_EDGE = 100
 
 VERSION = "v3.0"
 
-# Whether to split the biogenic CO2 and the antoropogenic CO2
+# Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
 
 # Whether to add the human respiration
