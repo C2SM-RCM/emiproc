@@ -242,7 +242,8 @@ def calculate_weights_mapping(
             # Calculate weights for polygons
             gdf_weights["weights"] = inter_area / out_area
 
-            # Remove duplicated weights in lines
+            # Remove duplicated weights in lines where the line was 
+            # assigned to more than one cell
             if any(mask_lines):
                 mask_duplicated = (
                     gdf_weights.groupby("index_out")["weights"].transform("sum") > 1.0
