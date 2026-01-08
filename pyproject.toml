@@ -34,7 +34,6 @@ dependencies = [
     "rasterio",
     "pyogrio",
     "pyyaml",
-    "fiona",
     "filelock",
 ]
 license = {text = "BSD-3-Clause"}
