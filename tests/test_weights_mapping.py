@@ -152,13 +152,15 @@ def check_equal_to_weights(
     err_msg = ""
     if unexpected_weights:
         err_msg += (
-            f"Unexpected weights detected:\n{'\n'.join(map(str, unexpected_weights))}\n"
+            "Unexpected weights detected:\n"
+            + "\n".join(map(str, unexpected_weights))
+            + "\n"
         )
 
     for missing_w_tuple in missing_weights:
         # Check weights that were added but should not
         if missing_w_tuple[2] != 0:
-            err_msg += f"Extra weights detected: {missing_w_tuple}\n"
+            err_msg += f"Extra weights detected: {missing_w_tuple}" + "\n"
 
     if err_msg:
         raise ValueError(err_msg)
