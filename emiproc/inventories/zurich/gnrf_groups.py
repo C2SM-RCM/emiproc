@@ -105,7 +105,7 @@ ZH_2_GNFR = {
     ],
 }
 
-# alueError: Categories in 'categories_groups' are not matching 'all_categories'. Problem cause by duplicates or not in data:
+
 ZH_DUCK_2_GNFR = {
     "GNFR_A": [
         "bhkw",
