@@ -78,6 +78,9 @@ OUTPUT_CRS = LV95
 # edge of the raster cells (in meters)
 RASTER_EDGE = 100
 
+OUTPUT_GRID = "Regular"
+# OUTPUT_GRID = "footprints"
+
 
 VERSION = "v3.0"
 
@@ -152,45 +155,86 @@ def load_zurich_shape(
 
 # %% create the zurich swiss grid
 
-zh_shape = load_zurich_shape()
-x_min, y_min, x_max, y_max = zh_shape.bounds
-
-if OUTPUT_CRS == LV95:
-    dx, dy = RASTER_EDGE, RASTER_EDGE
-
-elif OUTPUT_CRS == WGS84:
-    transformer = Transformer.from_crs(LV95, WGS84, always_xy=True)
-    x_mid = (x_min + x_max) / 2
-    y_mid = (y_min + y_max) / 2
-    line = LineString([(x_mid, y_mid), (x_mid + RASTER_EDGE, y_mid + RASTER_EDGE)])
-    coords = transform(transformer.transform, line).xy
-    # First calcualate the edges in WGS84
-    dx = abs(coords[0][1] - coords[0][0])
-    dy = abs(coords[1][0] - coords[1][1])
-
-    dx = round(dx, 5)
-    dy = round(dy, 5)
-
-    # But the zurich border also
-    zh_shape = transform(transformer.transform, zh_shape)
+if OUTPUT_GRID == "Regular":
+    zh_shape = load_zurich_shape()
     x_min, y_min, x_max, y_max = zh_shape.bounds
 
-else:
-    raise ValueError("Output CRS not supported")
+    if OUTPUT_CRS == LV95:
+        dx, dy = RASTER_EDGE, RASTER_EDGE
 
-# Round the min to be a multiple of the dx
-x_min = dx * floor(x_min / dx)
-y_min = dy * floor(y_min / dy)
-grid = RegularGrid(
-    xmin=x_min,
-    ymin=y_min,
-    xmax=x_max,
-    ymax=y_max,
-    dx=dx,
-    dy=dy,
-    crs=OUTPUT_CRS,
-    name="Zurich",
-)
+    elif OUTPUT_CRS == WGS84:
+        transformer = Transformer.from_crs(LV95, WGS84, always_xy=True)
+        x_mid = (x_min + x_max) / 2
+        y_mid = (y_min + y_max) / 2
+        line = LineString([(x_mid, y_mid), (x_mid + RASTER_EDGE, y_mid + RASTER_EDGE)])
+        coords = transform(transformer.transform, line).xy
+        # First calcualate the edges in WGS84
+        dx = abs(coords[0][1] - coords[0][0])
+        dy = abs(coords[1][0] - coords[1][1])
+
+        dx = round(dx, 5)
+        dy = round(dy, 5)
+
+        # But the zurich border also
+        zh_shape = transform(transformer.transform, zh_shape)
+        x_min, y_min, x_max, y_max = zh_shape.bounds
+
+    else:
+        raise ValueError("Output CRS not supported")
+
+
+
+    # Round the min to be a multiple of the dx
+    x_min = dx * floor(x_min / dx)
+    y_min = dy * floor(y_min / dy)
+    grid = RegularGrid(
+        xmin=x_min,
+        ymin=y_min,
+        xmax=x_max,
+        ymax=y_max,
+        dx=dx,
+        dy=dy,
+        crs=OUTPUT_CRS,
+        name="Zurich",
+    )
+elif OUTPUT_GRID == "footprints":
+    # TODO: must retest this part
+    footprint_file = "/path/to/zurich_footprint_220808_correct.nc"
+    ds = xr.open_dataset(footprint_file)
+
+    measurement_coordinates = 2680911.322, 1248390.798
+
+    # Rename the indexes
+    ds["x_lv95"] = ds.x + measurement_coordinates[0]
+    ds["y_lv95"] = ds.y + measurement_coordinates[1]
+    # Assing x and y as dimensions
+    ds = ds.set_coords(["x_lv95", "y_lv95"])
+
+    # Create a new dataset with the new coordinates
+
+    # Fromat the integer timestep to a datetime object
+    # Format is yymmddhhMM
+    datetime = pd.to_datetime(ds["timestep"].values, format="%y%m%d%H%M")
+    ds = ds.assign_coords(datetime=("timestep", datetime))
+    # Add georeference to the dataset
+    # ds = ds.rio.write_crs("LV95").rio.set_spatial_dims(x_dim="x", y_dim="y")
+
+
+    # Get only the cells of the grid where footprint is greater than 0
+    x_coords = ds.x_lv95.values
+    y_coords = ds.y_lv95.values
+    d2 = 5.0  # meters, half the size of the cells
+    d_out = 10.0  # meters, size of the cells of the output grid
+    grid = RegularGrid(
+        xmin=x_coords.min() - d2,
+        xmax=x_coords.max() + d2,
+        ymin=y_coords.min() - d2,
+        ymax=y_coords.max() + d2,
+        dx=d_out,
+        dy=d_out,
+        crs="LV95",
+    )
+
 grid
 # %% Split the biogenic CO2
 
@@ -419,10 +463,7 @@ out_path = export_raster_netcdf(
     netcdf_attributes=nc_cf_attributes(
         author="Lionel Constantin, Empa",
         contact="dominik.brunner@empa.ch",
-        title=(
-            "Annual mean emissions of CO2 of the city of Zurich (only emissions within"
-            " the political borders of the city)"
-        ),
+        title=f"Zurich {YEAR} emission inventory",
         source="https://www.stadt-zuerich.ch/gud/de/index/umwelt_energie/luftqualitaet/schadstoffquellen/emissionskataster.html",
         comment="Created for use in the EU project ICOS-Cities",
         history=(
