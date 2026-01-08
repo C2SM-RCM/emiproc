@@ -114,20 +114,20 @@ class DuckDBInventory(Inventory):
         self.grid = None
 
         # Get all tables in the DuckDB file (not loaded, just names)
-        con = duckdb.connect(duckdb_filepath, read_only=True)
-        tables = con.execute("SHOW TABLES;").fetchall()
-        available_tables = [t[0] for t in tables]
+        with duckdb.connect(duckdb_filepath, read_only=True) as con:
+            tables = con.execute("SHOW TABLES;").fetchall()
+            available_tables = [t[0] for t in tables]
 
-        self.gdfs = {}
-        for table in available_tables:
-            if any(table.endswith(suffix) for suffix in skip_suffixes):
-                self.logger.debug(f"Skipping table {table} due to suffix filter.")
-                continue
-            try:
-                gdf = _parse_duckdb_table_name(table, con, year=year)
-                self.gdfs[table] = gdf
-            except Exception as e:
-                self.logger.warning(f"Skipping table {table}: {e}")
+            self.gdfs = {}
+            for table in available_tables:
+                if any(table.endswith(suffix) for suffix in skip_suffixes):
+                    self.logger.debug(f"Skipping table {table} due to suffix filter.")
+                    continue
+                try:
+                    gdf = _parse_duckdb_table_name(table, con, year=year)
+                    self.gdfs[table] = gdf
+                except Exception as e:
+                    self.logger.warning(f"Skipping table {table}: {e}")
 
         self.logger.info(
             f"DuckDBInventory initialized from {duckdb_filepath!s}. "
