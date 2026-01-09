@@ -30,6 +30,9 @@ Available Inventories
 .. autoclass:: emiproc.inventories.zurich.MapLuftZurich
     :special-members: __init__
 
+.. autoclass:: emiproc.inventories.zurich.duck.DuckDBInventory
+    :special-members: __init__
+
 .. autoclass:: emiproc.inventories.netcdf_raster.NetcdfRaster
     :special-members: __init__
 

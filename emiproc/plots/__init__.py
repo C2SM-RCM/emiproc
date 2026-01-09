@@ -422,7 +422,7 @@ def plot_inventory(
     sorted_categories = sorted(inv.categories)
     n_substances = len(inv.substances)
     fig, axes = plt.subplots(
-        figsize=(len(inv.categories) * 0.5, n_substances),
+        figsize=(len(inv.categories) * 0.5, n_substances * 1.3),
         nrows=n_substances,
         sharex=True,
     )
@@ -440,13 +440,17 @@ def plot_inventory(
                 per_substances_per_sector_emissions[sub].get(cat, 0),
                 color=colors_of_categories.get(cat, "black"),
             )
-        ax.set_ylabel(f"{sub} [kg/y]")
+        ax.set_ylabel(sub)
 
     # Add ticks on the last ax (the one at the bottom)
     ax.set_xticks(range(len(sorted_categories)))
     ax.set_xticklabels(sorted_categories, rotation=45, ha="right")
 
+    fig.suptitle("Total emissions per category and substance [kg/y]")
+    fig.tight_layout()
+    
     save_or_show(fig, "barplot_total_emissions")
+
 
     if hasattr(inv, "t_profiles_groups") and inv.t_profiles_groups is not None:
 

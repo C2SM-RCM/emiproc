@@ -244,21 +244,45 @@ def calculate_weights_mapping(
             )
         )
         inter_area = _get_area_no_warning(gdf_weights.geometry_inter)
+        out_area = _get_area_no_warning(gdf_weights.geometry_out)
+
+        geom_type_out = gdf_weights.geometry_out.type
+
         if loop_over_inv_objects:
+
+            # Process lines (use lengths)
+            mask_lines = geom_type_out.isin(["LineString", "MultiLineString"])
+            if np.any(mask_lines):
+                gdf_lines = gdf_weights.loc[mask_lines]
+                # Use the length in each output shape
+                out_area.loc[mask_lines] = gdf_lines.geometry_out.length
+                inter_area.loc[mask_lines] = gdf_lines.geometry_inter.length
+
             # Calculate weights for polygons
-            gdf_weights["weights"] = inter_area / _get_area_no_warning(
-                gdf_weights.geometry_out
-            )
+            gdf_weights["weights"] = inter_area / out_area
+
+            # Remove duplicated weights in lines where the line was
+            # assigned to more than one cell
+            if any(mask_lines):
+                mask_duplicated = (
+                    gdf_weights.groupby("index_out")["weights"].transform("sum") > 1.0
+                )
+                if np.any(mask_duplicated):
+                    gdf_weights.loc[mask_duplicated, "weights"] /= (
+                        gdf_weights.loc[mask_duplicated]
+                        .groupby("index_out")["weights"]
+                        .transform("sum")
+                    )
 
             # Process the points
-            gdf_points = gdf_weights.loc[gdf_weights.geometry_out.type == "Point"]
-            if gdf_points.shape[0]:
-                nareas_points = gdf_points.groupby("index_out").transform(
-                    np.count_nonzero
-                )["geometry"]
-                gdf_weights.loc[gdf_weights.geometry_out.type == "Point", "weights"] = (
-                    1 / nareas_points
+            mask_points = geom_type_out == "Point"
+            if np.any(mask_points):
+                nareas_points = (
+                    gdf_weights.loc[mask_points]
+                    .groupby("index_out")
+                    .transform(np.count_nonzero)["geometry"]
                 )
+                gdf_weights.loc[mask_points, "weights"] = 1.0 / nareas_points
 
             # Extract indices
             gdf_weights = gdf_weights.sort_values(by=["index_inv", "index_out"])
