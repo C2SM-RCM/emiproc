@@ -208,7 +208,7 @@ def export_wrf_hourly_emissions(
             variables.append(this_da)
 
         ds_at_hour = (
-            xr.merge(variables)
+            xr.merge(variables, compat="no_conflicts")
             # Transpose to have the dims in the right order
             .transpose("Time", "emissions_zdim", "south_north", "west_east")
             # Progagate the default attributes

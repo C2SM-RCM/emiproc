@@ -75,6 +75,12 @@ WetCHARTs
 :py:class:`emiproc.inventories.wetcharts.WetCHARTs`
 
 
+NetCDF Raster
+^^^^^^^^^^^^^
+
+:py:class:`emiproc.inventories.netcdf_raster.NetcdfRaster`
+
+
 Grids 
 -----
 

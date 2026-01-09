@@ -1,23 +1,42 @@
 """Different functions for doing the weights remapping."""
 
 from __future__ import annotations
+
 import logging
 from pathlib import Path
-from warnings import warn
-import numpy as np
-import geopandas as gpd
 from typing import TYPE_CHECKING, Iterable
-from shapely.geometry import Point, MultiPolygon, Polygon
-from emiproc.utilities import ProgressIndicator
+from warnings import catch_warnings, simplefilter
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
 from scipy.sparse import coo_array, dok_matrix
+from shapely.geometry import MultiPolygon, Point, Polygon
+
+from emiproc import PROCESS
 from emiproc.grids import Grid
 from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
+from emiproc.utilities import ProgressIndicator
 
 logger = logging.getLogger("emiproc.regrid")
 
 if TYPE_CHECKING:
     from os import PathLike
+
     from emiproc.inventories import Inventory
+
+
+def _get_area_no_warning(geometry: gpd.GeoSeries) -> pd.Series:
+    """Get the area of a GeoSeries without warning.
+
+    This is useful when the geometries are in degrees.
+    """
+    if geometry.crs is None or geometry.crs != "EPSG:4326":
+        return geometry.area
+    with catch_warnings():
+        simplefilter("ignore", category=UserWarning)
+        areas = geometry.area
+    return areas
 
 
 def get_weights_mapping(
@@ -108,10 +127,11 @@ def calculate_weights_mapping(
     # shapes_inv = inv.gdf.geometry
     # shapes_out = grid.gdf.to_crs(inv.crs)
     # loop_over_inv_objects=False
-    logger.info(
+    logger.log(
+        PROCESS,
         "calculating weights mapping "
         f"from {len(shapes_inv)} inventory shapes "
-        f"to {len(shapes_out)} grid cells."
+        f"to {len(shapes_out)} grid cells.",
     )
 
     w_mapping = {
@@ -223,13 +243,12 @@ def calculate_weights_mapping(
                 d["geometry"].intersection(gpd.GeoSeries(d["geometry_out"]))
             )
         )
+        inter_area = _get_area_no_warning(gdf_weights.geometry_inter)
+        out_area = _get_area_no_warning(gdf_weights.geometry_out)
 
         geom_type_out = gdf_weights.geometry_out.type
 
         if loop_over_inv_objects:
-
-            inter_area = gdf_weights.geometry_inter.area
-            out_area = gdf_weights.geometry_out.area
 
             # Process lines (use lengths)
             mask_lines = geom_type_out.isin(["LineString", "MultiLineString"])
@@ -272,8 +291,8 @@ def calculate_weights_mapping(
 
         else:
             # Calculate weights and extract indices
-            gdf_weights["weights"] = (
-                gdf_weights.geometry_inter.area / gdf_weights.geometry.area
+            gdf_weights["weights"] = inter_area / _get_area_no_warning(
+                gdf_weights.geometry
             )
             gdf_weights = gdf_weights.sort_values(by=["index_out", "index_inv"])
             w_mapping["inv_indexes"] = gdf_weights.index.to_numpy()
@@ -406,6 +425,7 @@ def remap_inventory(
     method: str = "new",
     keep_gdfs: bool = False,
     weigths_file: PathLike | None = None,
+    dont_remap_profiles: bool = False,
 ) -> Inventory:
     """Remap any inventory on the desired grid.
 
@@ -416,7 +436,9 @@ def remap_inventory(
     :arg grid: The grid to remap to.
     :arg weights_file: The file storing the weights.
     :arg method: The method to use for remapping. See :py:func:`calculate_weights_mapping`.
-    :arg keep_gdfs: Whether to keep the additional gdfs (shapped emissions) of the inventory.
+    :arg keep_gdfs: Whether to keep the additional gdfs (shaped emissions) of the inventory.
+    :arg dont_remap_profiles: Whether to not merge the profiles when remapping them.
+        see :py:func:`remap_profiles` for more information.
 
     .. warning::
 
@@ -565,6 +587,7 @@ def remap_inventory(
                 inv.gdf, profiles_indexes=indexes
             ),
             weights_mapping=w_mapping_grid,
+            dont_merge=dont_remap_profiles,
         )
 
         out_inv.set_profiles(new_profiles, new_indexes)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from warnings import catch_warnings, simplefilter
 
 import numpy as np
 import xarray as xr
@@ -36,8 +37,9 @@ def rescale_ratios(ratios: np.ndarray) -> np.ndarray:
     sums = ratios.sum(axis=0)
 
     mask_zero = sums == 0
-
-    return_ = ratios / sums
+    with catch_warnings():
+        simplefilter("ignore", category=RuntimeWarning)
+        return_ = ratios / sums
     return_[:, mask_zero] = 1.0 / ratios.shape[0]
 
     return return_
@@ -60,6 +62,11 @@ class CompositeTemporalProfiles:
         type[AnyTimeProfile] | tuple[type[SpecificDayProfile], SpecificDay] | None,
         np.ndarray[int],
     ]
+
+    def __new__(cls, profiles: list[list[AnyTimeProfile]] | CompositeTemporalProfiles):
+        if isinstance(profiles, CompositeTemporalProfiles):
+            return profiles.copy()
+        return super().__new__(cls)
 
     def __init__(self, profiles: list[list[AnyTimeProfile]] = []) -> None:
         n = len(profiles)

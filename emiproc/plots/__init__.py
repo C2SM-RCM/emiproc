@@ -21,6 +21,7 @@ from emiproc.inventories import Inventory
 from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.utilities import get_natural_earth
+from emiproc.exports.utils import get_temporally_scaled_array
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
@@ -117,20 +118,21 @@ def explore_inventory(
 
 def plot_inventory(
     inv: Inventory,
-    figsize: tuple[int, int] = (16, 9),
+    figsize: tuple[int, int] | None = None,
     q: float = 0.001,
     vmin: None | float = None,
     vmax: None | float = None,
     cmap=nclcmaps.cmap("iridescent"),
     symcmap="RdBu_r",
-    spec_lims: None | tuple[float] = None,
+    spec_lims: None | tuple[float] | str = None,
     out_dir: PathLike | None = None,
     axis_formatter: str | None = None,
-    x_label: str = "lon [°]",
-    y_label: str = "lat [°]",
+    x_label: str | None = None,
+    y_label: str | None = None,
     add_country_borders: bool = False,
     total_only: bool = False,
     reverse_y: bool = False,
+    temporal_freq: str = "h",
     poly_collection_kwargs: dict[str, Any] = {
         "edgecolors": "black",
         "linewidth": 0.04,
@@ -156,6 +158,7 @@ def plot_inventory(
     :arg symcmap: the symetric colormap to use when:str  there are negative values.
         As in matplotlib.
     :arg spec_lims: the limits of the plot. As in matplotlib.
+        If "grid", will use the grid cell coordinates.
     :arg out_dir: the directory where to save the plots. If None, will show the plots.
     :arg axis_formatter: for example "{x:6.0f}" will show 6 number and 0
         after the . , which is useful for swiss coordinates.
@@ -201,6 +204,14 @@ def plot_inventory(
 
     if not spec_lims:
         spec_lims = (x_min, x_max, y_min, y_max)
+    elif spec_lims == "grid":
+        spec_lims = (0, grid.nx, 0, grid.ny)
+        if x_label is None:
+            x_label = "grid cell x"
+        if y_label is None:
+            y_label = "grid cell y"
+    else:
+        spec_lims = tuple(spec_lims)
 
     if add_country_borders:
         gdf_countries = get_natural_earth(
@@ -221,6 +232,11 @@ def plot_inventory(
     else:
         add_country_borders = lambda ax: None
 
+    if x_label is None:
+        x_label = "lon [°]"
+    if y_label is None:
+        y_label = "lat [°]"
+
     def add_ax_info(ax: mpl.axes.Axes):
         if axis_formatter is not None:
             ax.xaxis.set_major_formatter(axis_formatter)
@@ -235,6 +251,14 @@ def plot_inventory(
         plt.ioff()
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
+
+    def save_or_show(fig: plt.Figure, file_name: str):
+        if out_dir:
+            fig.savefig(out_dir / f"{file_name}.png")
+            fig.clear()
+        else:
+            plt.show()
+        plt.close(fig)
 
     per_substances_per_sector_emissions = {}
     for sub in sorted(inv.substances):
@@ -278,6 +302,9 @@ def plot_inventory(
             if total_only:
                 continue
 
+            if figsize is None:
+                figsize = (14, round(12 * (y_max - y_min) / (x_max - x_min)))
+
             fig, ax = plt.subplots(
                 figsize=figsize,
                 # gridspec_kw={"right": 0.9, "wspace": 0},
@@ -297,7 +324,7 @@ def plot_inventory(
                     emissions,
                     norm=norm,
                     cmap=this_cmap,
-                    extent=[x_min, x_max, y_min, y_max],
+                    extent=spec_lims,
                 )
             else:
                 # Plot only polygons, otherwise, it will be weird with the multipolygon
@@ -332,16 +359,7 @@ def plot_inventory(
 
             fig.tight_layout()
 
-            if out_dir:
-                file_name = Path(out_dir) / f"raster_{sub}_{cat}"
-
-                fig.savefig(file_name.with_suffix(".png"))
-                # fig.savefig(file_name.with_suffix(".pdf"))
-                fig.clear()
-            else:
-                plt.show()
-
-            plt.close(fig)
+            save_or_show(fig, f"raster_{sub}_{cat}")
 
         if not np.any(total_sub_emissions):
             logger.info(f"passsed {sub},total_emissions, no emissions")
@@ -363,7 +381,7 @@ def plot_inventory(
                 total_sub_emissions,
                 norm=norm,
                 cmap=this_cmap,
-                extent=[x_min, x_max, y_min, y_max],
+                extent=spec_lims,
             )
         else:
             mask_polygons = (grid.gdf.geometry.geom_type == "Polygon").to_numpy()
@@ -398,16 +416,7 @@ def plot_inventory(
         add_country_borders(ax)
         fig.tight_layout()
 
-        if out_dir:
-            file_name = Path(out_dir) / f"raster_total_{sub}"
-
-            fig.savefig(file_name.with_suffix(".png"))
-            # fig.savefig(file_name.with_suffix(".pdf"))
-            fig.clear()
-        else:
-            plt.show()
-
-        plt.close(fig)
+        save_or_show(fig, f"raster_total_{sub}")
 
     # A bar plot of the total emissions for each substances and each category
     sorted_categories = sorted(inv.categories)
@@ -438,14 +447,39 @@ def plot_inventory(
     ax.set_xticklabels(sorted_categories, rotation=45, ha="right")
 
     fig.suptitle("Total emissions per category and substance [kg/y]")
-
     fig.tight_layout()
 
-    if out_dir:
-        file_name = Path(out_dir) / f"barplot_total_emissions"
-        fig.savefig(file_name.with_suffix(".png"))
-        fig.clear()
-    else:
-        plt.show()
+    save_or_show(fig, "barplot_total_emissions")
 
-    plt.close(fig)
+    if hasattr(inv, "t_profiles_groups") and inv.t_profiles_groups is not None:
+
+        if inv.year is None:
+            raise ValueError(
+                "inv.year is None. Cannot generate temporally scaled array without a valid year."
+            )
+        da = get_temporally_scaled_array(
+            inv, inv.year, sum_over_cells=True, freq=temporal_freq, chunk=True
+        )
+
+        fig, axes = plt.subplots(
+            figsize=(12, 4 * len(inv.substances)),
+            nrows=len(inv.substances),
+            sharex=True,
+            squeeze=False,
+        )
+        for i_sub, sub in enumerate(inv.substances):
+            ax = axes[i_sub, 0]
+            min_value, max_value = 0, 0
+            for cat in sorted(inv.categories):
+                serie = da.sel(category=cat, substance=sub).values
+                ax.plot(da.time.values, serie, label=cat)
+                min_value = min(min_value, np.min(serie))
+                max_value = max(max_value, np.max(serie))
+            ax.set_ylabel(f"{sub} kg/y")
+            scaling = 1.1
+            ax.set_ylim(min_value * scaling, max_value * scaling)
+        axes[-1, 0].legend()
+
+        fig.suptitle("Temporal distribution of the inventory")
+
+        save_or_show(fig, "temporal_profiles")

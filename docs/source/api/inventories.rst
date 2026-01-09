@@ -33,7 +33,7 @@ Available Inventories
 .. autoclass:: emiproc.inventories.zurich.duck.DuckDBInventory
     :special-members: __init__
 
-.. autoclass:: emiproc.inventories.EmiprocNetCDF
+.. autoclass:: emiproc.inventories.netcdf_raster.NetcdfRaster
     :special-members: __init__
 
 .. autoclass:: emiproc.inventories.gfas.GFAS_Inventory

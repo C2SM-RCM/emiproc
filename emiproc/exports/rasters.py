@@ -126,6 +126,8 @@ def export_raster_netcdf(
                             else f"emissions of {sub} from {cat}"
                         ),
                         "projection": f"{crs}",
+                        "substance": sub,
+                        "category": cat,
                     },
                 )
                 for sub in inv.substances
@@ -153,6 +155,7 @@ def export_raster_netcdf(
                         "units": unit_str,
                         "comment": f"emissions of {sub}",
                         "projection": f"{crs}",
+                        "substance": sub,
                     },
                 )
                 for sub in inv.substances

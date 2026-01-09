@@ -180,7 +180,10 @@ class Grid:
     @cached_property
     def centers(self) -> gpd.GeoSeries:
         """Return a GeoSeries with the points centers of the cells."""
-        return self.gdf.centroid
+        geom = self.gdf.geometry
+        if geom.crs == "EPSG:4326":
+            return geom.to_crs(epsg=WGS84_NSIDC).centroid.to_crs(self.crs)
+        return geom.centroid
 
     def __len__(self):
         """Return the number of cells in the grid."""

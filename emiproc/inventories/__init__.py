@@ -478,6 +478,8 @@ class Inventory:
             self.v_profiles_indexes = indexes_array
         elif isinstance(profile, list):
             self.t_profiles_indexes = indexes_array
+        else:
+            raise ValueError(f"Unknown profile type {type(profile)}")
 
         self.history.append(f"Set profile {profile_idx} to {category}, {substance}.")
 
@@ -544,16 +546,6 @@ class Inventory:
             self.t_profiles_indexes = indexes
         else:
             raise ValueError(f"Unknown profile type {type(profiles)}")
-
-
-class EmiprocNetCDF(Inventory):
-    """An output from emiproc.
-
-    Useful if you need to process again an inventory.
-    """
-
-    def __init__(self, file: PathLike) -> None:
-        super().__init__()
 
 
 if __name__ == "__main__":
