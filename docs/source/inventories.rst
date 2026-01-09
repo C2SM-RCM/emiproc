@@ -37,6 +37,8 @@ MapLuft Zurich
 
 :py:class:`emiproc.inventories.zurich.MapLuftZurich`
 
+:py:class:`emiproc.inventories.zurich.duck.DuckDBInventory`
+
 
 GFAS 
 ^^^^

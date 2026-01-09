@@ -237,11 +237,11 @@ def plot_inventory(
         out_dir.mkdir(parents=True, exist_ok=True)
 
     per_substances_per_sector_emissions = {}
-    for sub in inv.substances:
+    for sub in sorted(inv.substances):
         per_sector_emissions = {}
         per_substances_per_sector_emissions[sub] = per_sector_emissions
         total_sub_emissions = np.zeros(grid_shape).T
-        for cat in inv.categories:
+        for cat in sorted(inv.categories):
             if (cat, sub) not in inv.gdf:
                 # TODO: this will miss point sources for the total_sub_emissions
                 # And also miss point sources for that category
@@ -413,7 +413,7 @@ def plot_inventory(
     sorted_categories = sorted(inv.categories)
     n_substances = len(inv.substances)
     fig, axes = plt.subplots(
-        figsize=(len(inv.categories) * 0.5, n_substances),
+        figsize=(len(inv.categories) * 0.5, n_substances * 1.3),
         nrows=n_substances,
         sharex=True,
     )
@@ -431,11 +431,15 @@ def plot_inventory(
                 per_substances_per_sector_emissions[sub].get(cat, 0),
                 color=colors_of_categories.get(cat, "black"),
             )
-        ax.set_ylabel(f"{sub} [kg/y]")
+        ax.set_ylabel(sub)
 
     # Add ticks on the last ax (the one at the bottom)
     ax.set_xticks(range(len(sorted_categories)))
     ax.set_xticklabels(sorted_categories, rotation=45, ha="right")
+
+    fig.suptitle("Total emissions per category and substance [kg/y]")
+
+    fig.tight_layout()
 
     if out_dir:
         file_name = Path(out_dir) / f"barplot_total_emissions"

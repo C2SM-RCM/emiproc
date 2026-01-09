@@ -9,7 +9,6 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import fiona
 import geopandas as gpd
 import pandas as pd
 import numpy as np
@@ -36,6 +35,13 @@ if TYPE_CHECKING:
 
 def list_categories(file: PathLike) -> list[str]:
     """Return the emission categories for the desired dataset."""
+    try:
+        import fiona
+    except ImportError as e:
+        raise ImportError(
+            "Fiona is required to list the categories of the inventory."
+            " Please install it using 'pip install fiona'."
+        ) from e
     return fiona.listlayers(file)
 
 
