@@ -67,12 +67,12 @@ def _parse_duckdb_table_name(
 
 
 class DuckDBInventory(Inventory):
-    """Inventory backed by a DuckDB-file.
+    """Inventory backed on a DuckDB SQL file.
 
-    Organization of emissions in duckDB database.
+    Data is organized the following way:
 
-    * tables for each category
-    * columns for each substance (should follow a pattern eg emission_{substance})
+    * a table for each category
+    * columns for each substance
     * geometry column for shapes
     * year column if multiple years are present
 
@@ -82,8 +82,6 @@ class DuckDBInventory(Inventory):
     :param skip_suffixes: List of suffixes to skip when loading tables.
 
     """
-
-    duckdb_filepath: Path
 
     def __init__(
         self,
