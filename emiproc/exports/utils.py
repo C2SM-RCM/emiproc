@@ -14,6 +14,9 @@ def get_temporally_scaled_array(
     inv: Inventory,
     time_range: pd.DatetimeIndex | int,
     sum_over_cells: bool = True,
+    freq: str = "D",
+    chunk: bool = False,
+    n_chunks: int = 10,
 ) -> xr.DataArray:
     """Transform the inventory to a temporally resolved emissions array.
 
@@ -61,11 +64,11 @@ def get_temporally_scaled_array(
             "`emiproc.inventories.utils.country_to_cells()` ."
         )
 
-    if isinstance(time_range, int):
+    if isinstance(time_range, (int, np.integer)):
         time_range = pd.date_range(
             start=f"{time_range}-01-01",
             end=f"{time_range}-12-31",
-            freq="D",
+            freq=freq,
             inclusive="both",
         )
     elif not isinstance(time_range, pd.DatetimeIndex):
@@ -82,8 +85,9 @@ def get_temporally_scaled_array(
         # The profiles are usually only given on cells with emissions
         missing_cells = da_totals.cell.loc[~da_totals.cell.isin(profiles_indexes.cell)]
         # Check that the profiles are given for all cells
-        zero_cells_missing = da_totals.sel(cell=missing_cells).where(
-            da_totals.sel(cell=missing_cells) == 0, drop=True
+        da_totals_missing_cells = da_totals.sel(cell=missing_cells)
+        zero_cells_missing = da_totals_missing_cells.where(
+            da_totals_missing_cells != 0, drop=True
         )
         if zero_cells_missing.size > 0:
             raise ValueError(
@@ -97,22 +101,53 @@ def get_temporally_scaled_array(
 
     da_sf = get_scaling_factors_at_time(profiles, time_range)
 
+    if not chunk or "cell" not in profiles_indexes.dims:
+        return _scale_emission_temporally(
+            da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
+        )
+
+    # Chunking approach
+    cell_chunks = np.array_split(profiles_indexes["cell"].values, n_chunks)
+
+    scaled_chunks = [
+        _scale_emission_temporally(
+            da_sf,
+            da_totals.sel(cell=cell_chunk),
+            profiles_indexes.sel(cell=cell_chunk),
+            sum_over_cells=sum_over_cells,
+        )
+        for cell_chunk in cell_chunks
+    ]
+
+    return (
+        xr.concat(scaled_chunks, dim="cell")
+        if not sum_over_cells
+        else sum(scaled_chunks)
+    )
+
+
+def _scale_emission_temporally(
+    da_sf: xr.DataArray,
+    da_totals: xr.DataArray,
+    profiles_indexes: xr.DataArray,
+    sum_over_cells: bool = True,
+) -> xr.DataArray:
     # Get the scaling factors for each profile
     da_scaling_factors = da_sf.sel(
         # Apply similar strategy for missing profiles
         profile=profiles_indexes.where(profiles_indexes != -1, 0)
     ).drop_vars("profile")
-    # Apply similar strategy for missing profiles which is more performant (in place)
-    da_scaling_factors.loc[
-        profiles_indexes.where(profiles_indexes == -1, drop=True).coords
-    ] = 1.0
+    # Apply similar strategy for missing profiles
+    da_scaling_factors = da_scaling_factors.where(profiles_indexes != -1, 1.0)
 
     da_scaling_factors = da_scaling_factors.broadcast_like(da_totals)
 
     if sum_over_cells and "cell" in profiles_indexes.dims:
-        # instad of multilplying in a first step and summing in a second
+        # instead of multiplying in a first step and summing in a second
         # we can use the dot product to get the same result
-        temporally_scaled_emissions = da_totals.dot(da_scaling_factors, dim="cell")
+        temporally_scaled_emissions = da_totals.dot(
+            da_scaling_factors.fillna(0.0), dim="cell"
+        )
 
     else:
         # Finally scale the emissions at each time

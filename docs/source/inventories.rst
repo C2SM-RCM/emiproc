@@ -37,6 +37,8 @@ MapLuft Zurich
 
 :py:class:`emiproc.inventories.zurich.MapLuftZurich`
 
+:py:class:`emiproc.inventories.zurich.duck.DuckDBInventory`
+
 
 GFAS 
 ^^^^
@@ -71,6 +73,12 @@ WetCHARTs
 ^^^^^^^^^
 
 :py:class:`emiproc.inventories.wetcharts.WetCHARTs`
+
+
+NetCDF Raster
+^^^^^^^^^^^^^
+
+:py:class:`emiproc.inventories.netcdf_raster.NetcdfRaster`
 
 
 Grids 

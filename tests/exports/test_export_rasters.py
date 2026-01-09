@@ -10,6 +10,7 @@ from emiproc.tests_utils import TEST_OUTPUTS_DIR
 
 from emiproc.exports.rasters import export_raster_netcdf
 from emiproc.utilities import Units
+from emiproc.inventories.netcdf_raster import NetcdfRaster
 
 # Convert to the correct CRS
 raster_inv = inv_with_pnt_sources.copy()
@@ -113,3 +114,36 @@ def test_with_year():
         np.testing.assert_array_equal(
             ds["time"].values, np.array([date(2025, 7, 1)], dtype="datetime64[D]")
         )
+
+
+def test_can_be_later_read_by_raster_function():
+    """Simply test that the function works with defaults"""
+
+    raster_file = TEST_OUTPUTS_DIR / "test_raster_for_reading.nc"
+    export_raster_netcdf(
+        raster_inv,
+        raster_file,
+        regular_grid,
+        netcdf_attributes={},
+    )
+
+    inv = NetcdfRaster(raster_file)
+    # Assert that the inventory was read and has expected categories
+    assert set(inv.categories) == set(raster_inv.categories)
+
+
+def test_groupped_can_be_later_read_by_raster_function():
+    """Simply test that the function works with defaults"""
+
+    raster_file = TEST_OUTPUTS_DIR / "test_raster_for_reading_groupped.nc"
+    export_raster_netcdf(
+        raster_inv,
+        raster_file,
+        regular_grid,
+        netcdf_attributes={},
+        group_categories=True,
+    )
+
+    inv = NetcdfRaster(raster_file)
+    # Assert that the inventory was read and has expected categories
+    assert set(inv.categories) == set(raster_inv.categories)

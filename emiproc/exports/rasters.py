@@ -79,8 +79,14 @@ def export_raster_netcdf(
     if grid != inv.grid:
         inv = remap_inventory(inv, grid, weights_path)
 
-    if netcdf_attributes is None:
-        netcdf_attributes = nc_cf_attributes()
+    default_netcdf_attributes = nc_cf_attributes()
+    netcdf_attributes = (
+        default_netcdf_attributes
+        if netcdf_attributes is None
+        # update the default attributes with the given ones
+        else {**default_netcdf_attributes, **netcdf_attributes}
+    )
+
     # add the history
     netcdf_attributes["emiproc_history"] = str(inv.history)
 
@@ -120,6 +126,8 @@ def export_raster_netcdf(
                             else f"emissions of {sub} from {cat}"
                         ),
                         "projection": f"{crs}",
+                        "substance": sub,
+                        "category": cat,
                     },
                 )
                 for sub in inv.substances
@@ -147,6 +155,7 @@ def export_raster_netcdf(
                         "units": unit_str,
                         "comment": f"emissions of {sub}",
                         "projection": f"{crs}",
+                        "substance": sub,
                     },
                 )
                 for sub in inv.substances
