@@ -25,6 +25,19 @@ def plot_vprm_params_per_veg_type(
     2. Vegetation indices
     3. Emissions
     4. Scaling parameters (Tscale, Wscale, Pscale)
+
+    :param df: Dataframe with the observations.
+        Output from :py:func:`~emiproc.profiles.vprm.calculate_vprm_emissions`.
+    :param df_vprm: Dataframe with the VPRM parameters per vegetation type.
+        Same input as the `df_vprm` parameter in
+        :py:func:`~emiproc.profiles.vprm.calculate_vprm_emissions`.
+    :param veg_types: List of vegetation types to plot.
+        If None, all vegetation types in the dataframe will be plotted.
+    :param model: VPRM model to use. This is used to determine which parameters to plot.
+    :param plots: List of plots to create.
+    :param group_by: If provided, the dataframe will be grouped
+        by this temporal frequency before plotting.
+        e.g. "%m%H" to get daily profiles for each month.
     """
 
     model = VPRM_Model(model)
@@ -93,7 +106,7 @@ def plot_vprm_params_per_veg_type(
                     alpha=0.5,
                 )
 
-            vprm_params = vprm_params = [
+            vprm_params = [
                 "Tmin",
                 "Tmax",
                 "Topt",
@@ -157,16 +170,23 @@ def plot_vprm_params_per_veg_type(
                     color=color,
                     alpha=0.8,
                 )
-                if group_by is None:
-                    mask = df[(vegetation_type, index + "_mask")]
+                mask_col = (vegetation_type, index + "_mask")
+                extracted_col = (vegetation_type, index + "_extracted")
+                if (
+                    group_by is None
+                    and mask_col in df.columns
+                    and extracted_col in df.columns
+                ):
+                    mask = df[mask_col]
                     ax_inds.scatter(
                         x[mask],
-                        df.loc[mask, (vegetation_type, index + "_extracted")],
+                        df.loc[mask, extracted_col],
                         color=color,
                         marker="x",
                     )
-            if model in urban_vprm_models:
-                min_evi_ref = min(df[(vegetation_type, "evi_ref")])
+            evi_ref_col = (vegetation_type, "evi_ref")
+            if model in urban_vprm_models and evi_ref_col in df.columns:
+                min_evi_ref = np.nanmin(df[evi_ref_col])
                 ax_inds.hlines(
                     min_evi_ref,
                     x[0],
@@ -174,7 +194,7 @@ def plot_vprm_params_per_veg_type(
                     color="blue",
                     linestyles="dashed",
                     alpha=0.5,
-                    label="minumum evi_ref",
+                    label="minimum evi_ref",
                 )
 
             ax_inds.set_ylim(-0.5, 1.1)

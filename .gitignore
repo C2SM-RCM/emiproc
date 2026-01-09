@@ -14,6 +14,8 @@ docs/build/
 files/TNO_6x6_GHGco_v4_0/
 files/natural_earth/
 files/timezones/
+files/vprm/meteo.csv
+emiproc/_version.py
 
 # Drawio temp files
 docs/source/diagrams/.$pipeline.drawio.svg.bkp

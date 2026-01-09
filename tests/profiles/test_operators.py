@@ -35,9 +35,9 @@ from emiproc.tests_utils.vertical_profiles import (
 
 
 def test_reading_copernicus():
-    profiles = read_test_copernicus()
+    profiles, indexes = read_test_copernicus()
 
-    assert len(profiles) == len(TEST_COPENICUS_PROFILES)
+    assert len(profiles.types) == len(TEST_COPENICUS_PROFILES)
 
 
 def test_weighted_combination():

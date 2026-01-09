@@ -23,7 +23,8 @@ VPRM
 .. automodule:: emiproc.profiles.vprm
     :members:
 
-
+VRPM Plots
+""""""""""
 
 .. automodule:: emiproc.plots.vprm
     :members:

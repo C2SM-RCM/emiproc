@@ -374,6 +374,55 @@ class RegularGrid(Grid):
             np.tile(self.lat_range, self.nx),
         )
 
+    def clip_box(
+        self,
+        minx: float,
+        miny: float,
+        maxx: float,
+        maxy: float,
+    ) -> RegularGrid:
+        """Clip the grid to the given bounding box.
+
+        Returns a new RegularGrid object.
+
+        Clips in a similar way as the `cx` indexer of geopandas.
+        Uses intersection with the bounding box
+
+        :param minx: Minimum x coordinate of the bounding box.
+        :param miny: Minimum y coordinate of the bounding box.
+        :param maxx: Maximum x coordinate of the bounding box.
+        :param maxy: Maximum y coordinate of the bounding box.
+        """
+
+        def get_indices(range_arr, minv, maxv):
+            """Get the indices of the range array that are within the min and max values."""
+            minind = np.searchsorted(range_arr, minv, side="left") - 1
+            maxind = np.searchsorted(range_arr, maxv, side="right")
+            minind = max(minind, 0)
+            maxind = min(maxind, len(range_arr) - 1)
+            return minind, maxind
+
+        # Find the indices of the cells that are within the bounding box
+        xminind, xmaxind = get_indices(self.lon_bounds, minx, maxx)
+        yminind, ymaxind = get_indices(self.lat_bounds, miny, maxy)
+
+        if xminind == xmaxind or yminind == ymaxind:
+            raise ValueError("Bounding box does not intersect with grid.")
+
+        new_xmin = self.lon_bounds[xminind]
+        new_ymin = self.lat_bounds[yminind]
+
+        return RegularGrid(
+            xmin=new_xmin,
+            ymin=new_ymin,
+            dx=self.dx,
+            dy=self.dy,
+            nx=xmaxind - xminind,
+            ny=ymaxind - yminind,
+            name=f"{self.name}_clipped",
+            crs=self.crs,
+        )
+
     @classmethod
     def from_centers(
         cls,
@@ -761,13 +810,15 @@ class GeoPandasGrid(Grid):
 
     def __init__(
         self,
-        gdf: gpd.GeoDataFrame,
+        gdf: gpd.GeoDataFrame | gpd.GeoSeries,
         name: str = "gpd_grid",
         shape: tuple[int, int] | None = None,
     ):
         super().__init__(name, gdf.crs)
 
-        self._gdf = gdf
+        self._geometry = (
+            gdf if isinstance(gdf, gpd.GeoSeries) else gdf.geometry
+        ).copy()
 
         if shape is not None:
             self.nx, self.ny = shape
@@ -778,7 +829,7 @@ class GeoPandasGrid(Grid):
     @property
     def cells_as_polylist(self) -> list[Polygon]:
         """Return all the cells as a list of polygons."""
-        return self.gdf.geometry.tolist()
+        return self._geometry.tolist()
 
 
 class ICONGrid(Grid):

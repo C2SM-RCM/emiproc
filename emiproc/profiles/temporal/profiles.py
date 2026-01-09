@@ -90,6 +90,11 @@ class TemporalProfile:
             raise TypeError(f"{other=} must be a {TemporalProfile}.")
         return self.size < other.size
 
+    @property
+    def label(self) -> str:
+        """Return a label for the profile."""
+        return f"{self.__class__.__name__}"
+
 
 @dataclass(eq=False)
 class DailyProfile(TemporalProfile):
@@ -132,6 +137,11 @@ class SpecificDayProfile(DailyProfile):
         if isinstance(other, SpecificDayProfile):
             return self.specific_day < other.specific_day
         return super().__lt__(other)
+
+    @property
+    def label(self) -> str:
+        """Return a label for the profile."""
+        return f"{self.__class__.__name__} ({self.specific_day._name_})"
 
 
 @dataclass(eq=False)

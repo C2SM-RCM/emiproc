@@ -11,7 +11,6 @@ from emiproc.profiles.temporal.profiles import (
     SpecificDay,
 )
 from emiproc.profiles.temporal.io import (
-    from_csv,
     from_yaml,
     read_temporal_profiles,
     to_yaml,
@@ -58,15 +57,6 @@ def test_saving_and_loading_yamls_specific_days(name, profile):
     to_yaml([profile], yaml_file)
     loaded = from_yaml(yaml_file)
     assert loaded[0] == profile
-
-
-def test_load_csv_profiles():
-    copernicus_profiles_dir = emiproc.FILES_DIR / "profiles" / "copernicus"
-
-    profiles = ["hour_in_day", "day_in_week", "month_in_year"]
-    profiles = {
-        p: from_csv(copernicus_profiles_dir / f"timeprofiles-{p}.csv") for p in profiles
-    }
 
 
 def test_read_simple():
