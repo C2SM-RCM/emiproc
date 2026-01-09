@@ -10,8 +10,10 @@ from shapely import from_wkb
 
 try:
     import duckdb
+    from duckdb import DuckDBPyConnection
 except ImportError:
     duckdb = None
+    type DuckDBPyConnection = "DuckDBPyConnection"
 
 from emiproc.inventories import Inventory
 
@@ -20,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _parse_duckdb_table_name(
     table_name: str,
-    con: duckdb.DuckDBPyConnection,
+    con: DuckDBPyConnection,
     year: int,
     geometry_column: str = "geom",
     year_column: str = "jahr",
