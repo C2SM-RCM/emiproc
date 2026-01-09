@@ -448,9 +448,8 @@ def plot_inventory(
 
     fig.suptitle("Total emissions per category and substance [kg/y]")
     fig.tight_layout()
-    
-    save_or_show(fig, "barplot_total_emissions")
 
+    save_or_show(fig, "barplot_total_emissions")
 
     if hasattr(inv, "t_profiles_groups") and inv.t_profiles_groups is not None:
 
