@@ -132,7 +132,7 @@ class NetcdfRaster(Inventory):
     :param unit: Unit of the variables in the netcdf file. If None, the unit will be read
         from the netcdf file.
     :param temporal_profile: Temporal profile class to use for inventories
-        with multiple time steps. 
+        with multiple time steps.
     :param year: Year of the inventory. If None, will try to read from the netcdf file.
         If multiple years are present, must be specified.
 
