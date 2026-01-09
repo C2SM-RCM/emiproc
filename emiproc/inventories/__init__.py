@@ -204,6 +204,11 @@ class Inventory:
         if self.gdf is not None:
             return self.gdf.crs
         else:
+            if len(self.gdfs) == 0:
+                self.logger.warning(
+                    "No gdf or gdfs present in the inventory, cannot get crs."
+                )
+                return None
             return self.gdfs[list(self.gdfs.keys())[0]].crs
 
     @property

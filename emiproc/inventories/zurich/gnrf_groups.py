@@ -104,3 +104,83 @@ ZH_2_GNFR = {
         "c6401_Blitze_Emissionen_Kanton",
     ],
 }
+
+
+ZH_DUCK_2_GNFR = {
+    "GNFR_A": [
+        "bhkw",
+        "khkw",
+    ],
+    "GNFR_B": [
+        "notstromanlage",
+        "prozessenergie",
+        "gewerbebetriebe",
+    ],
+    "GNFR_C": [
+        "ölheizung",
+        "gasheizung",
+        "holzheizung_lokalisiert",
+        "holzheizung_dispers",
+        "warmwassererzeuger",
+    ],
+    "GNFR_D": [
+        "tankstelle",
+        "netzverluste",
+    ],
+    "GNFR_E": [
+        "lösemittel_IG",
+        "lösemittel_HH",
+    ],
+    "GNFR_F": [
+        "personenwagen",
+        "lastwagen",
+        "motorräder",
+        "linienbus",
+        "trolleybus",
+        "startstoptankatmung",
+        "lieferwagen",
+        "reisebus",
+    ],
+    "GNFR_G": [
+        "linienschiff",
+        "privater_bootsverkehr",
+    ],
+    "GNFR_I": [
+        "bahnpersonen",
+        "bahngüter",
+        "tram",
+        "hochbaustelle",
+        "bitumen",
+        "farben_baustelle",
+        "tiefbaustelle",
+        "strassenbelagsarbeiten",
+        "industrie_fahrzeug",
+        "forst_fahrzeug",
+        "landwirtschaft_fahrzeug",
+    ],
+    "GNFR_J": [
+        "abwasserreinigung",
+        "klärschlammverwertung",
+        "vergärwerk",
+        "krematorium",
+        "grünabfallverbrennung",
+        "holzofen_kleingarten",
+        "abfallverbrennung_haus",
+    ],
+    "GNFR_K": [
+        "nutztierhaltung",
+    ],
+    "GNFR_L": [
+        "nutzfläche",
+    ],
+    "GNFR_R": [
+        "haus_zoo_zirkustiere",
+        "feuerwerk",
+        "tabakwaren",
+        "brandfeuerschaden",
+        "wald",
+        "gras",
+        "gewässer",
+        "blitz",
+    ],
+}
