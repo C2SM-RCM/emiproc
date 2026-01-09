@@ -112,10 +112,15 @@ def _read_variable_to_catsub_mapping(
 class NetcdfRaster(Inventory):
     """Netcdf inventory.
 
-    Useful for custom inventories defined on a regular grid.
+    Read an inventory defined on a regular lat/lon grid.
 
     Can read inventories created by
     :py:func:`~emiproc.exports.rasters.export_raster_netcdf`.
+
+    By default, it will try to read the variables in the netcdf file
+    and infer their category and substance from the attributes.
+    If this doesn't work, you can provide a mapping from netcdf variable names
+    to (category, substance) tuples via the `variable_to_catsub` parameter.
 
 
     :param file: Path to the netcdf file.
@@ -126,6 +131,10 @@ class NetcdfRaster(Inventory):
     :param time_name: Name of the time variable in the netcdf file.
     :param unit: Unit of the variables in the netcdf file. If None, the unit will be read
         from the netcdf file.
+    :param temporal_profile: Temporal profile class to use for inventories
+        with multiple time steps. 
+    :param year: Year of the inventory. If None, will try to read from the netcdf file.
+        If multiple years are present, must be specified.
 
     """
 
