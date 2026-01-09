@@ -130,3 +130,20 @@ def test_can_be_later_read_by_raster_function():
     inv = NetcdfRaster(raster_file)
     # Assert that the inventory was read and has expected categories
     assert set(inv.categories) == set(raster_inv.categories)
+
+
+def test_groupped_can_be_later_read_by_raster_function():
+    """Simply test that the function works with defaults"""
+
+    raster_file = TEST_OUTPUTS_DIR / "test_raster_for_reading_groupped.nc"
+    export_raster_netcdf(
+        raster_inv,
+        raster_file,
+        regular_grid,
+        netcdf_attributes={},
+        group_categories=True,
+    )
+
+    inv = NetcdfRaster(raster_file)
+    # Assert that the inventory was read and has expected categories
+    assert set(inv.categories) == set(raster_inv.categories)

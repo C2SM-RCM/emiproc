@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from os import PathLike
 from pathlib import Path
 
@@ -46,6 +47,66 @@ def _array_to_series(da: xr.DataArray, time_name: str) -> pd.Series:
         )
 
     return da.to_pandas()
+
+
+def _read_variable_to_catsub_mapping(
+    variable_to_catsub: dict[str, tuple[Category, Substance]] | None,
+    ds: xr.Dataset,
+    lon_name: str,
+    lat_name: str,
+) -> tuple[list[str], list[tuple[Category, Substance]]]:
+    """Read the variable to (category, substance) mapping.
+
+    If None, assume all variables in the dataset are to be read,
+    and that they have category and substance coordinates.
+
+    :param variable_to_catsub: Mapping from variable names to (category, substance) tuples.
+    :return: Tuple of (variables, catsubs).
+    """
+    logger = logging.getLogger(__name__)
+
+    if variable_to_catsub is not None:
+        variables = list(variable_to_catsub.keys())
+        catsubs = list(variable_to_catsub.values())
+        return variables, catsubs
+
+    variables = []
+    catsubs = []
+
+    for var in ds.data_vars:
+        da = ds[var]
+        if lon_name not in da.dims or lat_name not in da.dims:
+            logger.debug(
+                f"Variable '{var}' does not have "
+                f"'{lon_name}' and '{lat_name}' dimensions and is skipped."
+            )
+            continue
+        attrs = da.attrs
+        substance = attrs.get("substance")
+        if substance and (category := attrs.get("category")):
+            variables.append(var)
+            catsubs.append((category, substance))
+        elif "category" in da.coords:
+            if substance is None:
+                substance = var
+            for cat in da.coords["category"].values:
+                variables.append(var)
+                catsubs.append((cat, substance))
+        else:
+            logger.debug(
+                f"Variable '{var}' does not have 'category' and 'substance' "
+                f"attributes and is skipped."
+            )
+
+    if not variables:
+        raise ValueError(
+            "variable_to_catsub is None and could not be inferred from the dataset. "
+            "Please provide a mapping from variable names to (category, substance) tuples."
+            "or make sure you have variables following this convention:"
+            f" ({lon_name=}, {lat_name=}, category and substance attributes)."
+        )
+
+    return variables, catsubs
 
 
 class NetcdfRaster(Inventory):
@@ -145,23 +206,16 @@ class NetcdfRaster(Inventory):
             das = {}
             das_ratios = []
 
-            if variable_to_catsub is None:
-                variable_to_catsub = {}
-                for var in ds.data_vars:
-                    attrs = ds[var].attrs
-                    if (substance := attrs.get("substance")) and (
-                        category := attrs.get("category")
-                    ):
-                        variable_to_catsub[var] = (category, substance)
-                if not variable_to_catsub:
-                    raise ValueError(
-                        "variable_to_catsub is None and could not be inferred from the dataset. "
-                        "Please provide a mapping from variable names to (category, substance) tuples."
-                    )
-            for var, (category, substance) in variable_to_catsub.items():
+            variables, catsubs = _read_variable_to_catsub_mapping(
+                variable_to_catsub, ds, lon_name, lat_name
+            )
+
+            for var, (category, substance) in zip(variables, catsubs):
+                da = ds[var]
+                if "category" in da.coords:
+                    da = da.sel(category=category)
                 da_stacked = (
-                    ds[var]
-                    .stack(cell=(lon_name, lat_name))
+                    da.stack(cell=(lon_name, lat_name))
                     # Reset the cell index
                     .reset_index("cell")
                     .drop_vars([lon_name, lat_name])
@@ -181,7 +235,7 @@ class NetcdfRaster(Inventory):
                     )
                     das_ratios.append(da_ratios)
                 # Unit conversion
-                this_unit = ds[var].attrs.get("units") if unit is None else unit
+                this_unit = da.attrs.get("units") if unit is None else unit
                 if this_unit is None:
                     raise ValueError(
                         f"Unit for variable '{var}' is not specified in the dataset and no unit was provided."
