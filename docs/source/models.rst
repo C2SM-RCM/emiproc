@@ -32,3 +32,17 @@ emiproc can export emissions to NetCDF files, which can then be used as input fo
 
 :py:func:`emiproc.exports.rasters.export_raster_netcdf`
 :py:func:`emiproc.exports.netcdf.nc_cf_attributes`
+
+
+Fluxy 
+-----
+
+Fluxy is a Python package for visualizing inversion model results. 
+It also supports inventories in the form of NetCDF files.
+
+See the
+:ref:`fluxy tutorial <edgar_2_fluxy>` 
+to learn how to export inventories to 
+fluxy and how to visualize them with fluxy.
+
+:py:func:`emiproc.exports.fluxy.export_fluxy`
