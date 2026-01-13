@@ -21,7 +21,6 @@ def inv(request):
 
 def test_export_to_geopackage(tmp_path, inv: Inventory):
     import geopandas as gpd
-    import fiona
 
     output_path = tmp_path / f"test_inventory_export_{inv}.gpkg"
 
@@ -34,7 +33,8 @@ def test_export_to_geopackage(tmp_path, inv: Inventory):
         assert output_path.exists(), "GeoPackage file was not created"
 
         # Get all layers in the GeoPackage
-        layers = fiona.listlayers(output_path)
+        layers_df = gpd.list_layers(output_path)
+        layers = layers_df["name"].tolist()
         assert len(layers) > 0, "No layers found in GeoPackage"
 
         # Build expected layers list
