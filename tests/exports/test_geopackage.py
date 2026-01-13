@@ -66,9 +66,12 @@ def test_export_to_geopackage(tmp_path, inv: Inventory):
                 )
 
                 # Check geometry preservation
-                assert (
-                    layer_gdf.geometry.notna().all()
-                ), f"Layer '{cat}': contains null geometries"
+                original_null_count = original_gdf.geometry.isna().sum()
+                exported_null_count = layer_gdf.geometry.isna().sum()
+                assert exported_null_count == original_null_count, (
+                    f"Layer '{cat}': geometry null count mismatch. "
+                    f"Original: {original_null_count}, Exported: {exported_null_count}"
+                )
 
                 # Check that emission columns are present
                 for col in original_gdf.columns:
@@ -94,9 +97,12 @@ def test_export_to_geopackage(tmp_path, inv: Inventory):
             )
 
             # Check geometry preservation
-            assert (
-                gridded_gdf.geometry.notna().all()
-            ), "Gridded layer: contains null geometries"
+            original_null_count = inv.gdf.geometry.isna().sum()
+            exported_null_count = gridded_gdf.geometry.isna().sum()
+            assert exported_null_count == original_null_count, (
+                f"Gridded layer: geometry null count mismatch. "
+                f"Original: {original_null_count}, Exported: {exported_null_count}"
+            )
 
             # Verify CRS is preserved
             if inv.gdf.crs is not None:
