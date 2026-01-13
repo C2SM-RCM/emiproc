@@ -24,8 +24,8 @@ def test_export_to_geopackage(tmp_path, inv: Inventory):
 
     output_path = tmp_path / f"test_inventory_export_{inv}.gpkg"
 
-    with warnings.catch_warnings(category=UserWarning):
-        warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
 
         export_to_geopackage(inv, output_path)
 
