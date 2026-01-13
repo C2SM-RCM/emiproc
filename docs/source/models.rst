@@ -53,7 +53,9 @@ GeoPackage
 
 GeoPackage is a spatial data format that can store vector and raster data.
 
-This file can be useful for visualization with `GIS software <https://qgis.org/>`_.
+All this can be stored in a single file, organized in various layers.
+
+This format can be easily visualized with GIS softwares like `QGIS <https://qgis.org/>`_.
 
 
 :py:func:`emiproc.exports.geopackage.export_to_geopackage`
