@@ -21,6 +21,8 @@ Exporting
 
 .. autofunction:: emiproc.exports.fluxy.export_fluxy
 
+.. autofunction:: emiproc.exports.geopackage.export_to_geopackage
+
 
 Gral
 ----

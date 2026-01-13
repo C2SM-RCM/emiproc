@@ -46,3 +46,14 @@ to learn how to export inventories to
 fluxy and how to visualize them with fluxy.
 
 :py:func:`emiproc.exports.fluxy.export_fluxy`
+
+
+GeoPackage
+----------
+
+GeoPackage is a spatial data format that can store vector and raster data.
+
+This file can be useful for visualization with `GIS software <https://qgis.org/>`_.
+
+
+:py:func:`emiproc.exports.geopackage.export_to_geopackage`
