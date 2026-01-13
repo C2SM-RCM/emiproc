@@ -51,6 +51,7 @@ from emiproc.utilities import SEC_PER_YR
 from emiproc.exports.netcdf import nc_cf_attributes
 from emiproc.exports.rasters import export_raster_netcdf
 from emiproc.utilities import Units
+from emiproc.exports.geopackage import export_to_geopackage
 
 # %% define some parameters for the output
 
@@ -139,6 +140,11 @@ for cat, gdf in inv.gdfs.items():
         # drop them 
         inv.gdfs[cat] = gdf[~mask_invalid]
 
+#%%
+export_to_geopackage(
+    inv, 
+    filepath=inv_file.with_suffix('.gpkg')
+)
 # %%
 def load_zurich_shape(
     zh_raw_file="/newhome/coli/Documents/zurich_footprints/data/Zurich_borders.txt",
