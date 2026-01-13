@@ -21,6 +21,7 @@ def inv(request):
 
 def test_export_to_geopackage(tmp_path, inv: Inventory):
     import geopandas as gpd
+    import fiona
 
     output_path = tmp_path / f"test_inventory_export_{inv}.gpkg"
 
@@ -29,5 +30,74 @@ def test_export_to_geopackage(tmp_path, inv: Inventory):
 
         export_to_geopackage(inv, output_path)
 
-        # Test we can read it later
-        gdf = gpd.read_file(output_path)
+        # Verify the file was created
+        assert output_path.exists(), "GeoPackage file was not created"
+
+        # Get all layers in the GeoPackage
+        layers = fiona.listlayers(output_path)
+        assert len(layers) > 0, "No layers found in GeoPackage"
+
+        # Build expected layers list
+        expected_layers = []
+
+        # Check for shaped emissions (gdfs)
+        if inv.gdfs:
+            expected_layers.extend(inv.gdfs.keys())
+
+        # Check for gridded emissions (gdf)
+        if hasattr(inv, "gdf") and inv.gdf is not None:
+            expected_layers.append("gridded_emissions")
+
+        # Verify all expected layers are present
+        assert set(expected_layers) == set(
+            layers
+        ), f"Layer mismatch. Expected: {set(expected_layers)}, Found: {set(layers)}"
+
+        # Validate each shaped emission layer
+        if inv.gdfs:
+            for cat, original_gdf in inv.gdfs.items():
+                # Read the layer
+                layer_gdf = gpd.read_file(output_path, layer=cat)
+
+                # Check data integrity - row count
+                assert len(layer_gdf) == len(original_gdf), (
+                    f"Layer '{cat}': row count mismatch. "
+                    f"Expected {len(original_gdf)}, got {len(layer_gdf)}"
+                )
+
+                # Check geometry preservation
+                assert (
+                    layer_gdf.geometry.notna().all()
+                ), f"Layer '{cat}': contains null geometries"
+
+                # Check that emission columns are present
+                for col in original_gdf.columns:
+                    if col != "geometry":
+                        assert (
+                            col in layer_gdf.columns
+                        ), f"Layer '{cat}': missing column '{col}'"
+
+                # Verify CRS is preserved
+                if original_gdf.crs is not None:
+                    assert (
+                        layer_gdf.crs == original_gdf.crs
+                    ), f"Layer '{cat}': CRS mismatch"
+
+        # Validate gridded emissions layer
+        if hasattr(inv, "gdf") and inv.gdf is not None:
+            gridded_gdf = gpd.read_file(output_path, layer="gridded_emissions")
+
+            # Check data integrity - row count
+            assert len(gridded_gdf) == len(inv.gdf), (
+                f"Gridded layer: row count mismatch. "
+                f"Expected {len(inv.gdf)}, got {len(gridded_gdf)}"
+            )
+
+            # Check geometry preservation
+            assert (
+                gridded_gdf.geometry.notna().all()
+            ), "Gridded layer: contains null geometries"
+
+            # Verify CRS is preserved
+            if inv.gdf.crs is not None:
+                assert gridded_gdf.crs == inv.gdf.crs, "Gridded layer: CRS mismatch"
