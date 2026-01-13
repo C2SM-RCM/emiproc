@@ -43,7 +43,7 @@ def export_to_geopackage(
     gdf = getattr(inv, "gdf", None)
     if gdf is not None:
         gdf: gpd.GeoDataFrame
-        # Check that gridded is not a category already e str, optionalxported
+        # Check that gridded is not a category already exported
         if name_gridded in gdfs:
             raise ValueError(
                 f"Category name '{name_gridded}' already exists in inventory categories."
