@@ -180,7 +180,7 @@ def get_profile_da(
         ts = pd.date_range(**daterange_kwargs, freq="h")
         offset = pd.Timedelta("30m")
     elif isinstance(profile, (WeeklyProfile, DayOfLeapYearProfile, DayOfYearProfile)):
-        ts = pd.date_range(**daterange_kwargs, freq="d")
+        ts = pd.date_range(**daterange_kwargs, freq="D")
         offset = pd.Timedelta("12h")
     elif isinstance(profile, MounthsProfile):
         ts = pd.date_range(**daterange_kwargs, freq="MS")
