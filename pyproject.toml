@@ -26,7 +26,6 @@ dependencies = [
     "numpy",
     "pandas",
     "geopandas",
-    "netCDF4",
     "dask",
     "scipy",
     "shapely",

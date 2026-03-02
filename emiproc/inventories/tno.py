@@ -73,6 +73,7 @@ class TNO_Inventory(Inventory):
         temporal_profiles_dir: PathLike = None,
         # I assume it is (no info in nc file)
         crs: str = WGS84,
+        engine: str | None = None
     ) -> None:
         """Create a TNO_Inventory.
 
@@ -88,6 +89,9 @@ class TNO_Inventory(Inventory):
             are stored. If None profiles_dir is used.
         :arg temporal_profiles_dir: The directory where the temporal profiles
             are stored. If None profiles_dir is used.
+        :arg engine: The engine to use to read the nc file. If None, xarray will try to
+            guess the engine. You can specify "netcdf4" or "h5netcdf" for example.
+            See `xarray.open_dataset` for more info.
         """
         super().__init__()
 
@@ -134,7 +138,7 @@ class TNO_Inventory(Inventory):
 
         self.name = nc_file.stem
 
-        ds = xr.load_dataset(nc_file, engine="netcdf4")
+        ds = xr.load_dataset(nc_file, engine=engine)
         self.tno_ds = ds
 
         self.grid = TNOGrid(nc_file)
