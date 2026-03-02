@@ -32,7 +32,6 @@ from emiproc.profiles.utils import (
     ratios_to_factors,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
