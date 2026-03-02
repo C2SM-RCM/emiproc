@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-
 accepted_category_colnames = [
     "Category",
     "GNFR_Category",

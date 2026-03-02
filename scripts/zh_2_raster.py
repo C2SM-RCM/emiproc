@@ -51,6 +51,7 @@ from emiproc.utilities import SEC_PER_YR
 from emiproc.exports.netcdf import nc_cf_attributes
 from emiproc.exports.rasters import export_raster_netcdf
 from emiproc.utilities import Units
+from emiproc.exports.geopackage import export_to_geopackage
 
 # %% define some parameters for the output
 
@@ -126,19 +127,13 @@ if inv_file.suffix == ".gdb":
 else:
     inv = DuckDBInventory(inv_file, year=YEAR)
 
-#%%
-# print gdf geo type for each gdf 
-for cat, gdf in inv.gdfs.items():
-    # Check if there are invalid geometries
-    if not gdf.is_valid.all():
-        print(f"Warning: Invalid geometries found in category {cat}.")
-        mask_invalid = ~gdf.is_valid
-        print(gdf.geometry.geom_type.unique())
-        print(gdf[mask_invalid].geometry)
-        gdf[mask_invalid].explore()
-        # drop them 
-        inv.gdfs[cat] = gdf[~mask_invalid]
 
+
+#%%
+export_to_geopackage(
+    inv, 
+    filepath=inv_file.with_suffix('.gpkg')
+)
 # %%
 def load_zurich_shape(
     zh_raw_file="/newhome/coli/Documents/zurich_footprints/data/Zurich_borders.txt",

@@ -53,6 +53,21 @@ def _parse_duckdb_table_name(
     column = con.execute(query).fetchall()
     geometry = [from_wkb(g[0]) for g in column]
 
+    geometry = gpd.GeoSeries(geometry, crs="LV95")
+
+    # Check if there are invalid geometries
+    if not geometry.is_valid.all():
+        mask_invalid = ~geometry.is_valid
+        logger.warning(
+            f"Invalid geometries {mask_invalid.sum()} found in table {table_name}. "
+            "They will be fixed using buffer(0) trick."
+        )
+        logger.debug(f"{geometry.loc[mask_invalid].geom_type.unique()}")
+        logger.debug(f"{geometry[mask_invalid]}")
+        # Make them valid (using buffer(0) trick)
+        geometry.loc[mask_invalid] = geometry[mask_invalid].buffer(0)
+        logger.debug(f"After fixing invalid geometries: {geometry.loc[mask_invalid]}")
+
     emission_columns = [col for col in columns if col.startswith("emission_")]
 
     query_emissions = f"SELECT {', '.join(emission_columns)} FROM {table_name} WHERE {year_column} = {year};"

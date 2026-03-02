@@ -3,7 +3,6 @@ from emiproc.regrid import geoserie_intersection
 from shapely.geometry import Polygon
 import numpy as np
 
-
 # prepare test data for the tests
 serie = gpd.GeoSeries(
     [

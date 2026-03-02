@@ -4,7 +4,6 @@ import xarray as xr
 
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from emiproc.inventories import Inventory
 

@@ -6,7 +6,6 @@ import xarray as xr
 from emiproc.exports.utils import get_temporally_scaled_array
 from emiproc.tests_utils import temporal_profiles, test_grids, test_inventories
 
-
 time_range = pd.date_range("2017-12-30", "2018-01-02", freq="h")
 
 
