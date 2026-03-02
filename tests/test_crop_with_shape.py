@@ -100,15 +100,16 @@ def test_with_gdfs():
 
 def test_with_modify_grid_and_cached():
     w_file = WEIGHTS_DIR / ".emiproc_test_with_modify_grid_and_cached"
-    w_file_real = w_file.with_suffix(".gpkg")
-    w_file_real = w_file.with_suffix(".npy")
-    # Unlink file if it exists to test the caching
-    w_file_real.unlink(missing_ok=True)
+
+    suffixes = [".npy", ".gpkg"]
+    w_files = [w_file.with_suffix(s) for s in suffixes]
+    # Unlink files if they exist to test the caching
+    list(map(lambda f: f.unlink(missing_ok=True), w_files))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
         cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
-    assert w_file_real.exists(), "Weight file was not created"
 
+    assert all(map(lambda f: f.is_file(), w_files)), "Weight files were not created"
     assert 4 not in cropped.gdf.index
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
