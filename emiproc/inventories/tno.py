@@ -89,8 +89,7 @@ class TNO_Inventory(Inventory):
             are stored. If None profiles_dir is used.
         :arg temporal_profiles_dir: The directory where the temporal profiles
             are stored. If None profiles_dir is used.
-        :arg engine: The engine to use to read the nc file. If None, xarray will try to
-            guess the engine. You can specify "netcdf4" or "h5netcdf" for example.
+        :arg engine: The engine to use by xarray to read the nc file.
             See `xarray.open_dataset` for more info.
         """
         super().__init__()
