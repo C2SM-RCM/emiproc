@@ -17,7 +17,6 @@ from emiproc.tests_utils import TEST_OUTPUTS_DIR
 from emiproc.tests_utils.test_grids import regular_grid
 from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
 
-
 # Grid dimensions from test_utils regular_grid (nx=10, ny=15)
 GRID_NX = regular_grid.nx
 GRID_NY = regular_grid.ny

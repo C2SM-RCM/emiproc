@@ -9,7 +9,6 @@ from shapely import LineString
 from shapely.geometry import Point, Polygon
 from emiproc.regrid import calculate_weights_mapping
 
-
 # Create the geometetries of an inventory
 squares = gpd.GeoSeries(
     [

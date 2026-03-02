@@ -1,11 +1,12 @@
+import warnings
+
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
 from emiproc.inventories import Inventory
 from emiproc.inventories.utils import crop_with_shape
 from emiproc.regrid import geoserie_intersection
-from emiproc.tests_utils import WEIGHTS_DIR
-from emiproc.tests_utils.test_inventories import inv_only_one_gdfs
+from emiproc.tests_utils import WEIGHTS_DIR, test_inventories
 
 serie = gpd.GeoSeries(
     [
@@ -99,8 +100,16 @@ def test_with_gdfs():
 
 def test_with_modify_grid_and_cached():
     w_file = WEIGHTS_DIR / ".emiproc_test_with_modify_grid_and_cached"
-    cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
+    suffixes = [".npy", ".gpkg"]
+    w_files = [w_file.with_suffix(s) for s in suffixes]
+    # Unlink files if they exist to test the caching
+    list(map(lambda f: f.unlink(missing_ok=True), w_files))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=UserWarning)
+        cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
+
+    assert all(map(lambda f: f.is_file(), w_files)), "Weight files were not created"
     assert 4 not in cropped.gdf.index
     cropped = crop_with_shape(inv, triangle, weight_file=w_file, modify_grid=True)
 
@@ -108,7 +117,7 @@ def test_with_modify_grid_and_cached():
 
 
 def test_different_points_and_polygons_in_gdfs():
-    inv = inv_only_one_gdfs
+    inv = test_inventories.inv_only_one_gdfs
 
     cropped = crop_with_shape(inv, triangle)
     # outside shapes are removed

@@ -5,7 +5,6 @@ from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 
 from emiproc.inventories.utils import scale_inventory
 
-
 scaled_inv = scale_inventory(inv, {"NH3": {"test": 2.42}})
 
 
