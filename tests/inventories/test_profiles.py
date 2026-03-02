@@ -1,7 +1,6 @@
 from emiproc.tests_utils import temporal_profiles, test_inventories
 
 
-
 def test_set_profiles():
 
     inv = test_inventories.inv.copy()
@@ -11,7 +10,7 @@ def test_set_profiles():
         indexes=temporal_profiles.indexes_inv_catsubcell,
     )
 
-    assert inv.t_profiles_indexes is not None 
+    assert inv.t_profiles_indexes is not None
 
 
 def test_set_profiles_with_type():
