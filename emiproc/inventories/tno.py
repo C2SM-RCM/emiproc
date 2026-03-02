@@ -73,7 +73,7 @@ class TNO_Inventory(Inventory):
         temporal_profiles_dir: PathLike = None,
         # I assume it is (no info in nc file)
         crs: str = WGS84,
-        engine: str | None = None
+        engine: str | None = None,
     ) -> None:
         """Create a TNO_Inventory.
 
