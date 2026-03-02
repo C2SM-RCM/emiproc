@@ -184,7 +184,7 @@ def get_profile_da(
         offset = pd.Timedelta("12h")
     elif isinstance(profile, MounthsProfile):
         ts = pd.date_range(**daterange_kwargs, freq="MS")
-        offset = pd.Timedelta("15d")
+        offset = pd.Timedelta("15D")
     elif isinstance(profile, Hour3OfDayPerMonth):
         ts = pd.date_range(**daterange_kwargs, freq="3h")
         offset = pd.Timedelta("1h30m")
