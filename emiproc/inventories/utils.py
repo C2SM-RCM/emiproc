@@ -224,8 +224,8 @@ def crop_with_shape(
             point_geometries = gdf.geometry.loc[mask_points]
             points_gdf = gdf.loc[mask_points].copy()
             # Simply remove the point sources outside
-            mask_intersects = point_geometries.intersects(shape)
-            mask_boundary = point_geometries.intersects(shape.boundary)
+            mask_intersects: pd.Series = point_geometries.intersects(shape)
+            mask_boundary: pd.Series = point_geometries.intersects(shape.boundary)
 
             # Takes shapes of interest (inside/outside and the boundary)
             mask_shapes = (
