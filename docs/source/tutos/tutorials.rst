@@ -39,4 +39,4 @@ The first tutorial to understand how emiproc works is the edgar_processing tutor
     temporal_profiles_from_traffic_counter
     vprm
     edgar_temporal
-    edgar_2_fluxy
+    edgar_2_fluxie

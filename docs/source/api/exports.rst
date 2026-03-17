@@ -19,7 +19,7 @@ Exporting
 
 .. autofunction:: emiproc.exports.wrf.export_wrf_hourly_emissions
 
-.. autofunction:: emiproc.exports.fluxy.export_fluxy
+.. autofunction:: emiproc.exports.fluxie.export_fluxie
 
 .. autofunction:: emiproc.exports.geopackage.export_to_geopackage
 
