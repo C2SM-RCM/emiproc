@@ -72,7 +72,9 @@ def test_export_fluxie():
         output_dir=TESTS_DIR / "fluxie",
     )
 
-    assert (TESTS_DIR / "fluxie" / "emiproc" / "CH4" / "emiproc_CH4_yearly.nc").is_file()
+    assert (
+        TESTS_DIR / "fluxie" / "emiproc" / "CH4" / "emiproc_CH4_yearly.nc"
+    ).is_file()
 
 
 def test_export_fluxie_monthly():
