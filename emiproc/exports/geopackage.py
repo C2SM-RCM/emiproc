@@ -13,7 +13,8 @@ def export_to_geopackage(
 ) -> None:
     """Export an inventory to a GeoPackage file.
 
-    The gridded emissions will be saved in a layer with :param:`name_gridded` .
+    The gridded emissions will be saved in a layer named `gridded_emissions` or
+    any name given by the `name_gridded` parameter.
 
     For shaped emissions, each category will be saved in a separate layer,
     with the name being the category name.

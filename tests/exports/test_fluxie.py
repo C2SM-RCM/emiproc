@@ -2,37 +2,37 @@ from __future__ import annotations
 import pytest
 
 from emiproc import TESTS_DIR
-from emiproc.exports.fluxy import export_fluxy
+from emiproc.exports.fluxie import export_fluxie
 from emiproc.regrid import remap_inventory
 from emiproc.tests_utils.temporal_profiles import three_profiles
 from emiproc.tests_utils.test_grids import regular_grid
 from emiproc.tests_utils.test_inventories import inv
 
 
-def test_export_fluxy_fails_on_non_regular_grid():
+def test_export_fluxie_fails_on_non_regular_grid():
 
     with pytest.raises(TypeError):
-        export_fluxy(
+        export_fluxie(
             invs=inv,
-            output_dir=TESTS_DIR / "fluxy",
+            output_dir=TESTS_DIR / "fluxie",
         )
 
 
-def test_export_fluxy_no_profiles_raises():
+def test_export_fluxie_no_profiles_raises():
     inventory = inv.copy()
     inventory.set_crs(regular_grid.crs)
     inventory.year = 2020
     with pytest.raises(
         ValueError, match="The inventory does not have temporal profiles"
     ):
-        export_fluxy(
+        export_fluxie(
             invs=remap_inventory(inventory, grid=regular_grid),
-            output_dir=TESTS_DIR / "fluxy",
+            output_dir=TESTS_DIR / "fluxie",
             frequency="monthly",
         )
 
 
-def test_export_fluxy_no_year_raises():
+def test_export_fluxie_no_year_raises():
     inventory = inv.copy()
     inventory.set_crs(regular_grid.crs)
 
@@ -45,13 +45,13 @@ def test_export_fluxy_no_year_raises():
         category="adf",
     )
     with pytest.raises(ValueError, match="All inventories must have a year"):
-        export_fluxy(
+        export_fluxie(
             invs=remap_inventory(inventory, grid=regular_grid),
-            output_dir=TESTS_DIR / "fluxy",
+            output_dir=TESTS_DIR / "fluxie",
         )
 
 
-def test_export_fluxy():
+def test_export_fluxie():
     """Main test where it works."""
 
     inventory = inv.copy()
@@ -67,15 +67,17 @@ def test_export_fluxy():
         category="adf",
     )
 
-    export_fluxy(
+    export_fluxie(
         invs=remap_inventory(inventory, grid=regular_grid),
-        output_dir=TESTS_DIR / "fluxy",
+        output_dir=TESTS_DIR / "fluxie",
     )
 
-    assert (TESTS_DIR / "fluxy" / "emiproc" / "CH4" / "emiproc_CH4_yearly.nc").is_file()
+    assert (
+        TESTS_DIR / "fluxie" / "emiproc" / "CH4" / "emiproc_CH4_yearly.nc"
+    ).is_file()
 
 
-def test_export_fluxy_monthly():
+def test_export_fluxie_monthly():
     """Main test with mounthly frequency."""
 
     inventory = inv.copy()
@@ -91,12 +93,12 @@ def test_export_fluxy_monthly():
         category="adf",
     )
 
-    export_fluxy(
+    export_fluxie(
         invs=remap_inventory(inventory, grid=regular_grid),
-        output_dir=TESTS_DIR / "fluxy",
+        output_dir=TESTS_DIR / "fluxie",
         frequency="monthly",
     )
 
     assert (
-        TESTS_DIR / "fluxy" / "emiproc" / "CH4" / "emiproc_CH4_monthly.nc"
+        TESTS_DIR / "fluxie" / "emiproc" / "CH4" / "emiproc_CH4_monthly.nc"
     ).is_file()
