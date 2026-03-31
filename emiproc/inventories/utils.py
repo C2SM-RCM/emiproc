@@ -32,6 +32,8 @@ from emiproc.profiles.operators import (
 if TYPE_CHECKING:
     from emiproc.inventories import Inventory, Category, Substance
 
+LAYER_NAME_INTERSECTION_SHAPES = "intersection_shapes_emiproc"
+
 
 def list_categories(file: PathLike) -> list[str]:
     """Return the emission categories for the desired dataset."""
@@ -155,21 +157,21 @@ def crop_with_shape(
         weight_file = Path(weight_file).with_suffix(".npy")
 
         if modify_grid:
-            shapes_file = Path(weight_file).with_suffix(".gdb")
+            shapes_file = Path(weight_file).with_suffix(".gpkg")
 
     if inv.gdf is not None:
         # Check if the weights are already computed
         if weight_file is not None and weight_file.is_file():
             weights = np.load(weight_file)
             if modify_grid:
-                if not shapes_file.is_dir():
+                if not shapes_file.is_file():
                     raise RuntimeError(
                         f"A {weight_file=} was found but no {shapes_file=}."
                         " Delete the weight file to recompute it."
                     )
                 # Load cached shapes
                 gdf_cached_shapes: gpd.GeoDataFrame = gpd.read_file(
-                    shapes_file, engine="pyogrio"
+                    shapes_file, layer=LAYER_NAME_INTERSECTION_SHAPES
                 )
                 # Index was set with cache
                 intersection_shapes = gdf_cached_shapes.set_index(
@@ -184,11 +186,12 @@ def crop_with_shape(
                 # Save the weight file
                 np.save(weight_file, weights)
                 if modify_grid:
-                    gpd.GeoDataFrame(
+                    gdf = gpd.GeoDataFrame(
                         {"index": intersection_shapes.index},
-                        geometry=intersection_shapes,
+                        geometry=intersection_shapes.geometry,
                         index=intersection_shapes.index,
-                    ).to_file(shapes_file, engine="pyogrio")
+                    )
+                    gdf.to_file(shapes_file, layer=LAYER_NAME_INTERSECTION_SHAPES)
 
         inv_out.gdf = gpd.GeoDataFrame(
             {
@@ -224,8 +227,8 @@ def crop_with_shape(
             point_geometries = gdf.geometry.loc[mask_points]
             points_gdf = gdf.loc[mask_points].copy()
             # Simply remove the point sources outside
-            mask_intersects = point_geometries.intersects(shape)
-            mask_boundary = point_geometries.intersects(shape.boundary)
+            mask_intersects: pd.Series = point_geometries.intersects(shape)
+            mask_boundary: pd.Series = point_geometries.intersects(shape.boundary)
 
             # Takes shapes of interest (inside/outside and the boundary)
             mask_shapes = (

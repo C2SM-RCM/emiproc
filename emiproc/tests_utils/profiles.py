@@ -1,7 +1,6 @@
 import xarray as xr
 import numpy as np
 
-
 da_profiles_indexes_catsub = xr.DataArray(
     data=np.array([[0, 1, 1], [2, 0, 3]]),
     coords=[["a", "b"], ["CO2", "CH4", "NOx"]],

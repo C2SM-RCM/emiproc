@@ -33,19 +33,22 @@ class WRF_Grid(RegularGrid):
 
     attributes: dict[any, any]
 
-    def __init__(self, grid_filepath: PathLike):
+    def __init__(self, grid_filepath: PathLike, engine: str | None = None) -> None:
         """Initialize the grid.
 
         Parameters
         ----------
         grid_filepath : Pathlike
             The path to the grid file.
+        engine: str | None
+            The engine to use by xarray to read the grid file.
+            See `xarray.open_dataset` for more info.
         """
 
         grid_filepath = Path(grid_filepath)
         Grid.__init__(self, name=grid_filepath.stem, crs=WGS84)
 
-        ds = xr.open_dataset(grid_filepath, engine="netcdf4")
+        ds = xr.open_dataset(grid_filepath, engine=engine)
         self.attributes = ds.attrs
 
         # This will be necessary to reshape the arrays to a 1D array following the

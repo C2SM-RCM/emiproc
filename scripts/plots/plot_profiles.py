@@ -35,7 +35,7 @@ fig
 
 # %%  plot a single profile
 
-plot_profile(profile[0])
+plot_profile(yaml_profiles["light"][0])
 
 
 # %%

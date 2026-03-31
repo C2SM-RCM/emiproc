@@ -285,12 +285,12 @@ def plot_inventory(
                     weights_mapping, inv.gdfs[cat][sub], len(emissions)
                 )
                 # TODO: could check and plot only the point sources as well
-                emissions += gdfs_emissions
+                emissions = emissions + gdfs_emissions
 
             per_sector_emissions[cat] = np.sum(emissions)
 
             # from ha to m2
-            emissions /= inv.cell_areas
+            emissions = emissions / inv.cell_areas
             y_slice = slice(None, None, 1 if reverse_y else -1)
             emissions = emissions.reshape(grid_shape).T[y_slice, :]
             total_sub_emissions += emissions

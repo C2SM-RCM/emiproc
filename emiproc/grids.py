@@ -17,7 +17,6 @@ import geopandas as gpd
 import numpy as np
 import pyproj
 import xarray as xr
-from netCDF4 import Dataset
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.ops import split
 from shapely.creation import polygons
@@ -644,9 +643,9 @@ class TNOGrid(RegularGrid):
         """
         self.dataset_path = dataset_path
 
-        with Dataset(dataset_path) as dataset:
-            self.lon_var = np.array(dataset["longitude"][:])
-            self.lat_var = np.array(dataset["latitude"][:])
+        with xr.open_dataset(dataset_path) as dataset:
+            self.lon_var = dataset["longitude"].to_numpy()
+            self.lat_var = dataset["latitude"].to_numpy()
 
         self.nx = len(self.lon_var)
         self.ny = len(self.lat_var)
@@ -728,9 +727,9 @@ class EDGARGrid(Grid):
         """
         self.dataset_path = dataset_path
 
-        with Dataset(dataset_path) as dataset:
-            self.lon_var = np.array(dataset["lon"][:])
-            self.lat_var = np.array(dataset["lat"][:])
+        with xr.open_dataset(dataset_path) as dataset:
+            self.lon_var = dataset["lon"].to_numpy()
+            self.lat_var = dataset["lat"].to_numpy()
 
         self.nx = len(self.lon_var)
         self.ny = len(self.lat_var)
@@ -857,14 +856,14 @@ class ICONGrid(Grid):
         if name is None:
             name = self.dataset_path.stem
 
-        with Dataset(dataset_path) as dataset:
-            self.clon_var = np.rad2deg(dataset["clon"][:])
-            self.clat_var = np.rad2deg(dataset["clat"][:])
-            self.cell_areas = np.array(dataset["cell_area"][:])
-            self.vlat = np.rad2deg(dataset["vlat"][:])
-            self.vlon = np.rad2deg(dataset["vlon"][:])
-            self.vertex_of_cell = np.array(dataset["vertex_of_cell"][:])
-            self.cell_of_vertex = np.array(dataset["cells_of_vertex"][:])
+        with xr.open_dataset(dataset_path) as dataset:
+            self.clon_var = np.rad2deg(dataset["clon"].to_numpy())
+            self.clat_var = np.rad2deg(dataset["clat"].to_numpy())
+            self.cell_areas = dataset["cell_area"].to_numpy()
+            self.vlat = np.rad2deg(dataset["vlat"].to_numpy())
+            self.vlon = np.rad2deg(dataset["vlon"].to_numpy())
+            self.vertex_of_cell = dataset["vertex_of_cell"].to_numpy()
+            self.cell_of_vertex = dataset["cells_of_vertex"].to_numpy()
 
             self.ncell = len(self.clat_var)
 

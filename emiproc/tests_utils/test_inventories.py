@@ -11,7 +11,6 @@ from emiproc.tests_utils.test_grids import (
     basic_serie_of_size_2,
 )
 
-
 serie = basic_serie
 
 inv = Inventory.from_gdf(

@@ -5,7 +5,6 @@ from emiproc.tests_utils.test_inventories import inv, inv_with_pnt_sources
 
 from emiproc.inventories.utils import get_total_emissions
 
-
 total_emissions = get_total_emissions(inv)
 
 

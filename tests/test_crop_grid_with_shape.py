@@ -12,7 +12,6 @@ from emiproc.regrid import (
 from emiproc.inventories import Inventory
 from emiproc.tests_utils import WEIGHTS_DIR
 
-
 xmin = 0
 dx = 1
 nx = 10

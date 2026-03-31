@@ -517,7 +517,7 @@ class Inventory:
                 values_in_inv = self.categories
             elif coord == "substance":
                 values_in_inv = self.substances
-            elif coord in ["country", "day_type", "time"]:
+            elif coord in ["country", "day_type", "time", "type"]:
                 # No check needed to be performed
                 continue
             else:

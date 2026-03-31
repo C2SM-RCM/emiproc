@@ -17,7 +17,6 @@ from emiproc.profiles.temporal.constants import (
 )
 from emiproc.profiles.temporal.specific_days import SpecificDay
 
-
 logger = logging.getLogger(__name__)
 
 

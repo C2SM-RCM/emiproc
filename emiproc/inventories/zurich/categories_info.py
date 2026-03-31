@@ -2,7 +2,6 @@
 
 from emiproc.inventories import EmissionInfo
 
-
 LARGE_ROAD_TRANSPORT = EmissionInfo(height=0.3, width=7.0)
 ZURICH_SOURCES = {
     "c1101_Linienschiffe_Emissionen_Kanton": EmissionInfo(height=1.5, width=5.0),

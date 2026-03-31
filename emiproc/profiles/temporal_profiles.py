@@ -14,7 +14,6 @@ from emiproc.profiles.temporal.operators import *
 from emiproc.profiles.temporal.specific_days import *
 from emiproc.profiles.temporal.utils import *
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -51,3 +51,12 @@ Bibliography
     Journal of Open Source Software, 10(105), 7509, 2025
 
     https://doi.org/10.21105/joss.07509
+
+
+.. [uba_arcgis_2016]
+    ArcGIS basierte Lösung zur detaillierten, deutschlandweiten Verteilung (Gridding) nationaler Emissionsjahreswerte auf Basis des Inventars zur Emissionsberichterstattung
+
+    Christiane Schneider, Michael Pelzer, Nicola Toenges-Schuller, Michael Nacken, Arnold Niederau
+    Umweltbundesamt (UBA) Luft, 2016
+
+    https://www.uba.de/n47428de

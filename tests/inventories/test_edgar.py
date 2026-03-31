@@ -3,7 +3,6 @@ from emiproc.inventories.edgar import download_edgar_files, EDGARv8
 import pytest
 from emiproc.inventories.edgar.temporal import read_edgar_auxilary_profiles
 
-
 edgar_test_dir = TESTS_DIR / "inventories" / "edgar_test"
 edgar_test_dir.mkdir(exist_ok=True, parents=True)
 

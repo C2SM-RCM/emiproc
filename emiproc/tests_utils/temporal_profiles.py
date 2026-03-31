@@ -212,6 +212,14 @@ indexes_inv_catsubcell = xr.DataArray(
         "cell": np.arange(5),
     },
 )
+indexes_with_gridded_shapped = xr.DataArray(
+    data=np.array([0, 1]),
+    dims=["type"],
+    # omit many on purpose
+    coords={
+        "type": ["gridded", "shapped"],
+    },
+)
 
 
 @dataclass(eq=False)

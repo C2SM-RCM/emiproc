@@ -21,26 +21,26 @@ logger = logging.getLogger(__name__)
 Frequency = Literal["yearly", "monthly"]
 
 
-def export_fluxy(
+def export_fluxie(
     invs: Inventory | list[Inventory],
     output_dir: PathLike,
     transport_model: str = "emiproc",
     frequency: Frequency = "yearly",
 ) -> Path:
-    """Export emissions to Fluxy format.
+    """Export emissions to Fluxie format.
 
-    https://github.com/openghg/fluxy
+    https://github.com/openghg/fluxie
 
-    Fluxy is a python plotting tool for comparing inverse modeling results.
-    As part of fluxy, it is possible to plot prior emissions.
+    Fluxie is a python plotting tool for comparing inverse modeling results.
+    As part of fluxie, it is possible to plot prior emissions.
 
-    The following conditions are required on inventories to be exported to fluxy:
+    The following conditions are required on inventories to be exported to fluxie:
 
     * Must have a :py:class:`~emiproc.grids.RegularGrid`.
     * Must have a year value given.
     * Must have temporal profiles if monthly frequency is used.
 
-    Fluxy files must have a specific format.
+    Fluxie files must have a specific format.
     The files are generated in the following way:
 
     * <transport_model>_<substance>_<frequency>.nc
