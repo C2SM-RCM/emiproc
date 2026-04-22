@@ -201,7 +201,7 @@ def calculate_vprm_emissions(
     if (df_vprm["lambda"] < 0.0).any():
         logger.warning(
             "Some lambda values in the VPRM parameters are negative. "
-            "Emiproc expects lambda to be positive"
+            "Emiproc expects lambda to be positive. "
             "If you encounter positive GEE values, check your lambda values."
         )
 
