@@ -252,6 +252,8 @@ def plot_inventory(
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
 
+    def set_lims(ax: mpl.axes.Axes):
+
         ax.set_xlim(spec_lims[0], spec_lims[1])
         ax.set_ylim(spec_lims[2], spec_lims[3])
 
@@ -353,6 +355,7 @@ def plot_inventory(
                 )
                 im.set_array(emissions.flatten()[mask_polygons])
                 ax.add_collection(im)
+            set_lims(ax)
             if bare_plot:
                 ax.set_axis_off()
             else:
@@ -414,6 +417,7 @@ def plot_inventory(
             im.set_array(total_sub_emissions.flatten()[mask_polygons])
             ax.add_collection(im)
 
+        set_lims(ax)
         if bare_plot:
             ax.set_axis_off()
         else:
