@@ -50,7 +50,7 @@ where the different scales are:
 - :math:`T_{scale}`: Temperature scale
 
 .. math::
-    T_{\text{scale}} = \frac{(T - T_{\text{min}}) \cdot (T - T_{\text{max}})}{(T - T_{\text{min}}) \cdot (T - T_{\text{max}}) + (T - T_{\text{opt}})^2} \text{if } T \geq T_{\text{min}} \text{ else } 0
+    T_{scale} = \frac{(T - T_{\text{min}}) \cdot (T - T_{\text{max}})}{(T - T_{\text{min}}) \cdot (T - T_{\text{max}}) + (T - T_{\text{opt}})^2} \text{if } T \geq T_{\text{min}} \text{ else } 0
 
 - :math:`P_{scale}`: Photosynthesis scale
 
@@ -99,7 +99,7 @@ Urban VPRM with winbourne
 This is a variant of the urban VPRM model that uses a different formulation for :math:`T_{scale}`:
 
 .. math::
-    T_{\text{scale}} = \begin{cases}
+    T_{scale} = \begin{cases}
     \frac{(T - 0) \cdot (T - 40)}{(T - 0) \cdot (T - 40) + (T - 20)^2} & \text{if } T \leq 20 \\
     1 & \text{if } 20 < T < 30 \\
     \frac{(T - 0) \cdot (T - 40)}{(T - 0) \cdot (T - 40) + (T - 30)^2} & \text{if } T \geq 30
