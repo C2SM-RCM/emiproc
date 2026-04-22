@@ -61,7 +61,7 @@ write_to = "emiproc/_version.py"
 
 [project.optional-dependencies]
 doc = [
-    # Currently won't build with sphinx 9 on read the docs because of dependencies not updated yet
+    # Currently won't build with sphinx 9 on Read the Docs because of dependencies not updated yet
     "sphinx<9",
     "furo",
     "enum-tools",
