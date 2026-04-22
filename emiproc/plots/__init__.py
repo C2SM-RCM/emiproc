@@ -131,6 +131,7 @@ def plot_inventory(
     y_label: str | None = None,
     add_country_borders: bool = False,
     total_only: bool = False,
+    bare_plot: bool = False,
     reverse_y: bool = False,
     temporal_freq: str = "h",
     poly_collection_kwargs: dict[str, Any] = {
@@ -164,6 +165,8 @@ def plot_inventory(
         after the . , which is useful for swiss coordinates.
     :arg add_country_borders: if True, will add country borders to the plot.
     :arg total_only: if True, will plot only the total emissions.
+    :arg bare_plot: if True, removes
+        all non-data elements (axes, labels, title and colorbar).
     :arg reverse_y: if True, will reverse the y-axis.
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     :arg country_borders_kwargs: additional keyword arguments for the country borders.
@@ -214,6 +217,11 @@ def plot_inventory(
         spec_lims = tuple(spec_lims)
 
     if add_country_borders:
+        if grid.crs is None:
+            raise ValueError(
+                "Grid has no CRS, cannot add country borders. "
+                "Please set the grid CRS or set add_country_borders to False."
+            )
         gdf_countries = get_natural_earth(
             resolution="10m", category="cultural", name="admin_0_countries"
         )
@@ -243,6 +251,8 @@ def plot_inventory(
             ax.yaxis.set_major_formatter(axis_formatter)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
+
+    def set_lims(ax: mpl.axes.Axes):
 
         ax.set_xlim(spec_lims[0], spec_lims[1])
         ax.set_ylim(spec_lims[2], spec_lims[3])
@@ -345,15 +355,21 @@ def plot_inventory(
                 )
                 im.set_array(emissions.flatten()[mask_polygons])
                 ax.add_collection(im)
-            add_ax_info(ax)
-            ax.set_title(f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y")
-            fig.colorbar(
-                im,
-                label="kg/y/m2",
-                extend="both",
-                extendfrac=0.02,
-                # cax=cax,
-            )
+            set_lims(ax)
+            if bare_plot:
+                ax.set_axis_off()
+            else:
+                add_ax_info(ax)
+                ax.set_title(
+                    f"{sub} - {cat}: " f"{per_sector_emissions[cat]:.2} " f"kg/y"
+                )
+                fig.colorbar(
+                    im,
+                    label="kg/y/m2",
+                    extend="both",
+                    extendfrac=0.02,
+                    # cax=cax,
+                )
 
             add_country_borders(ax)
 
@@ -401,18 +417,23 @@ def plot_inventory(
             im.set_array(total_sub_emissions.flatten()[mask_polygons])
             ax.add_collection(im)
 
-        ax.set_title(
-            f"Total {sub}: " f"{sum(per_sector_emissions.values()):.2} " f"kg/y"
-        )
-        fig.colorbar(
-            im,
-            label="kg/y/m2",
-            extend="both",
-            extendfrac=0.02,
-            # cax=cax,
-        )
+        set_lims(ax)
+        if bare_plot:
+            ax.set_axis_off()
+        else:
+            ax.set_title(
+                f"Total {sub}: " f"{sum(per_sector_emissions.values()):.2} " f"kg/y"
+            )
+            fig.colorbar(
+                im,
+                label="kg/y/m2",
+                extend="both",
+                extendfrac=0.02,
+                # cax=cax,
+            )
 
-        add_ax_info(ax)
+            add_ax_info(ax)
+
         add_country_borders(ax)
         fig.tight_layout()
 
