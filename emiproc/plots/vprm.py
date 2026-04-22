@@ -59,6 +59,7 @@ def plot_vprm_params_per_veg_type(
         sharey="row",
         gridspec_kw={"hspace": 0.1, "wspace": 0.01},
         figsize=(5 * len(veg_types), 3 * len(plots)),
+        squeeze=False,
     )
 
     if group_by is not None:
