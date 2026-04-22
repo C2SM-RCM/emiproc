@@ -198,6 +198,13 @@ def calculate_vprm_emissions(
                 "Please add the ('T', 'urban') column to the dataframe."
             )
 
+    if (df_vprm["lambda"] < 0.0).any():
+        logger.warning(
+            "Some lambda values in the VPRM parameters are negative. "
+            "Emiproc expects lambda to be positive"
+            "If you encounter positive GEE values, check your lambda values."
+        )
+
     for vegetation_type in df_vprm.index:
         if not all(
             [(vegetation_type, index) in df.columns for index in ["lswi", "evi"]]
