@@ -165,7 +165,7 @@ def plot_inventory(
         after the . , which is useful for swiss coordinates.
     :arg add_country_borders: if True, will add country borders to the plot.
     :arg total_only: if True, will plot only the total emissions.
-    :arg bare_plot: if True, plots only total emissions and removes
+    :arg bare_plot: if True, removes
         all non-data elements (axes, labels, title and colorbar).
     :arg reverse_y: if True, will reverse the y-axis.
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
