@@ -56,9 +56,10 @@ def plot_vprm_params_per_veg_type(
         nrows=len(plots),
         ncols=len(veg_types),
         sharex=True,
-        sharey=False,
+        sharey="row",
         gridspec_kw={"hspace": 0.1, "wspace": 0.01},
         figsize=(5 * len(veg_types), 3 * len(plots)),
+        squeeze=False,
     )
 
     if group_by is not None:
@@ -229,12 +230,6 @@ def plot_vprm_params_per_veg_type(
                     continue
                 ax.legend()
 
-        if not is_left_col:
-
-            for ax in axes:
-                # Hide y ticks
-                ax.set_yticks([], [])
-
         # Set x ticks rotation
         axes[-1].tick_params(
             "x",
@@ -264,6 +259,7 @@ def plot_vprm_params_per_veg_type(
         ticks = {
             "%m%H": (np.arange(0, 12 * 24, 24), months),
             "%m%d": (np.arange(0, 12 * 31, 31), months),
+            "%m": (np.arange(0, 12), months),
         }.get(group_by_clean, None)
         if ticks is None:
             raise ValueError(
