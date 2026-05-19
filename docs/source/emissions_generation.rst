@@ -43,7 +43,7 @@ Respiration is calculated from the temperature:
 The Gross Ecosystem Exchange (GEE) is calculated from the temperature, PAR and the vegetation indices:
 
 .. math::
-    \\mathrm{GEE} = \\lambda * T_{scale} * P_{scale} * W_{scale} * \\mathrm{EVI} * \\frac{ \\mathrm{PAR} }{1 + \\frac{\\mathrm{PAR}}{PAR0}}
+    \\mathrm{GEE} = - \\lambda * T_{scale} * P_{scale} * W_{scale} * \\mathrm{EVI} * \\frac{ \\mathrm{PAR} }{1 + \\frac{\\mathrm{PAR}}{PAR0}}
 
 where the different scales are:
 
