@@ -12,7 +12,7 @@ Various extensions of the VPRM model have been implemented in emiproc.
 from __future__ import annotations
 from enum import Enum
 import logging
-from typing import Union
+from typing import Iterable, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -41,6 +41,147 @@ urban_vprm_models = [
     VPRM_Model.urban,
     VPRM_Model.urban_winbourne,
 ]
+
+
+def interpolate_satellite_index_series(
+    series: pd.Series,
+    filter_len: int = 5,
+    outlier_threshold: float = 0.2,
+    max_filter_duration: pd.Timedelta | str | None = "31D",
+    fill_edges: bool = True,
+) -> pd.Series:
+    """Filter and interpolate a satellite vegetation index timeseries.
+
+    The function matches the original VPRM notebook workflow:
+
+    1. Keep only the observed values of the series.
+    2. Apply a rolling-mean based outlier filter on these observations.
+    3. Put the filtered observations back on the original sparse timeline.
+    4. Interpolate the missing values on the full series.
+
+    :param series: Timeseries to process.
+    :param filter_len: Window size used for the rolling mean outlier filter.
+        Must be > 0.
+    :param outlier_threshold: Relative threshold used to reject outliers.
+        Values farther than ``threshold`` from the local rolling mean are set
+        to NaN before interpolation.
+    :param max_filter_duration: Maximum time distance to an adjacent observation
+        before a point is exempted from outlier filtering. This prevents points
+        next to long gaps from being filtered against distant observations. Set
+        to None to disable this exemption.
+    :param fill_edges: If True, apply backward/forward fill after interpolation
+        to fill boundary values.
+    :return: Interpolated series with the same index as input.
+    """
+    if filter_len < 1:
+        raise ValueError("filter_len must be >= 1")
+    if outlier_threshold < 0.0:
+        raise ValueError("outlier_threshold must be >= 0")
+
+    if series.empty:
+        return series.copy()
+
+    observed = series.dropna()
+    if observed.empty:
+        return series.copy()
+    if observed.size < 2:
+        interpolated = series.copy()
+        if fill_edges:
+            interpolated = interpolated.bfill().ffill()
+        return interpolated
+
+    rolling_mean = np.convolve(
+        observed.to_numpy(dtype=float),
+        np.ones(filter_len, dtype=float) / filter_len,
+        mode="same",
+    )
+    mask_keep = (observed > rolling_mean * (1 - outlier_threshold)) & (
+        observed < rolling_mean * (1 + outlier_threshold)
+    )
+    if max_filter_duration is not None and isinstance(
+        observed.index, (pd.DatetimeIndex, pd.TimedeltaIndex)
+    ):
+        threshold = pd.to_timedelta(max_filter_duration)
+        timestamps = observed.index.to_numpy()
+        prev_gap = np.abs(timestamps - np.roll(timestamps, 1)).astype("timedelta64[ns]")
+        next_gap = np.abs(np.roll(timestamps, -1) - timestamps).astype(
+            "timedelta64[ns]"
+        )
+        prev_gap[0], next_gap[-1] = np.timedelta64("NaT"), np.timedelta64("NaT")
+        mask_keep |= (prev_gap > threshold) | (next_gap > threshold)
+
+    filtered_observed = observed.where(mask_keep, np.nan)
+
+    interpolated = series.copy()
+    interpolated.loc[observed.index] = filtered_observed
+    if filtered_observed.notna().sum() >= 2:
+        interpolated = interpolated.interpolate(
+            method="akima",
+            limit_direction="both",
+        )
+
+    if fill_edges:
+        interpolated = interpolated.bfill().ffill()
+
+    return interpolated
+
+
+method_mapping = {
+    "akima": interpolate_satellite_index_series,
+}
+
+
+def interpolate_satellite_indices(
+    df: pd.DataFrame,
+    vegetation_types: Iterable[str] | None = None,
+    bands: Iterable[str] = ("evi", "lswi"),
+    interpolation_method: str = "akima",
+    add_diagnostics: bool = True,
+    **kwargs,
+) -> pd.DataFrame:
+    """Interpolate satellite vegetation index columns in a MultiIndex dataframe.
+
+    This helper processes columns following the ``(vegetation_type, band)``
+    convention used by VPRM utilities in emiproc.
+
+    :param df: Input dataframe.
+    :param vegetation_types: Vegetation types to process. If None, all
+        vegetation types that contain requested bands are used.
+    :param bands: Index names to interpolate (e.g. ``evi``, ``lswi``).
+    :param interpolation_method: Interpolation method passed to
+        :py:meth:`pandas.Series.interpolate`.
+    :param add_diagnostics: If True, add ``*_mask`` and ``*_extracted`` columns.
+    :param kwargs: Additional keyword arguments passed to
+        :py:func:`interpolate_satellite_index_series`.
+    :return: Copy of the dataframe with interpolated vegetation indices.
+    """
+    if not isinstance(df.columns, pd.MultiIndex):
+        raise TypeError("df.columns must be a pandas.MultiIndex")
+
+    out_df = df.copy()
+    bands = tuple(bands)
+
+    if vegetation_types is None:
+        vegetation_types = []
+        for vegetation_type in out_df.columns.get_level_values(0).unique():
+            if all((vegetation_type, band) in out_df.columns for band in bands):
+                vegetation_types.append(vegetation_type)
+
+    for vegetation_type in vegetation_types:
+        for band in bands:
+            column = (vegetation_type, band)
+            if column not in out_df.columns:
+                continue
+
+            extracted = out_df[column].copy(deep=True)
+
+            if add_diagnostics:
+                out_df[(vegetation_type, f"{band}_mask")] = extracted.notnull()
+                out_df[(vegetation_type, f"{band}_extracted")] = extracted
+
+            out_df[column] = method_mapping[interpolation_method](extracted, **kwargs)
+
+    return out_df
 
 
 def calculate_vegetation_indices(

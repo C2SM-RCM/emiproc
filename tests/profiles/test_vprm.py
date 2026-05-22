@@ -8,7 +8,12 @@ import pytest
 import pandas as pd
 
 import numpy as np
-from emiproc.profiles.vprm import calculate_vprm_emissions, calculate_vegetation_indices
+from emiproc.profiles.vprm import (
+    calculate_vprm_emissions,
+    calculate_vegetation_indices,
+    interpolate_satellite_index_series,
+    interpolate_satellite_indices,
+)
 
 
 @pytest.fixture
@@ -127,3 +132,35 @@ def test_calculate_vegetation_indices():
     assert evi.shape == (4,)
     assert lswi.shape == (4,)
     assert ndvi.shape == (4,)
+
+
+def test_interpolate_satellite_index_series_filters_outlier():
+    index = pd.date_range("2023-01-01", periods=9, freq="h")
+    series = pd.Series(
+        [0.22, 0.24, 0.25, 0.4, 0.27, 0.29, 0.3, 0.31, 0.32], index=index
+    )
+
+    interpolated = interpolate_satellite_index_series(series, outlier_threshold=0.25)
+
+    assert interpolated.notna().all()
+    # Outlier should be strongly corrected toward neighborhood values.
+    assert interpolated.iloc[3] < 0.35
+
+
+def test_interpolate_satellite_indices_dataframe():
+    index = pd.date_range("2023-01-01", periods=8, freq="h")
+    df = pd.DataFrame(
+        {
+            ("Deciduous", "evi"): [0.1, 0.12, np.nan, 0.17, 0.4, 0.2, np.nan, 0.22],
+            ("Deciduous", "lswi"): [0.05, np.nan, 0.07, 0.08, 0.09, 0.1, 0.11, np.nan],
+            ("RAD", ""): np.linspace(100, 200, 8),
+        },
+        index=index,
+    )
+
+    out = interpolate_satellite_indices(df, vegetation_types=["Deciduous"])
+
+    assert out[("Deciduous", "evi")].notna().all()
+    assert out[("Deciduous", "lswi")].notna().all()
+    assert ("Deciduous", "evi_mask") in out.columns
+    assert ("Deciduous", "evi_extracted") in out.columns
