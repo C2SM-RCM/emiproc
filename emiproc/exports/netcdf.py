@@ -1,4 +1,5 @@
 from datetime import datetime
+from os import PathLike
 
 NetcdfAttributes = dict[str, str]
 
@@ -12,6 +13,7 @@ def nc_cf_attributes(
     institution: str = "Empa, Swiss Federal Laboratories for Materials Science and Technology",
     history: str = "",
     references: str = "Produced by emiproc.",
+    script: PathLike | None = None,
     additional_attributes: NetcdfAttributes = {},
 ) -> NetcdfAttributes:
     """Create attributes for a nc file based on cf conventions.
@@ -40,11 +42,22 @@ def nc_cf_attributes(
         Published or web-based references that describe the data or methods used to produce it.
     :param comment:
         Miscellaneous information about the data or methods used to produce it.
+    :param script:
+        The path to the script that was used to generate the file.
     :param additional_attributes:
         Any attribute you want to add to the netcdf file produced.
 
     """
     dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if script is not None:
+        with open(script, "r") as f:
+            script_content = f.read()
+        if "processing_script" in additional_attributes:
+            raise ValueError(
+                "The 'processing_script' attribute is reserved for the content of the script that generated the file. Please choose another key for your additional attributes."
+            )
+        additional_attributes["processing_script"] = script_content
     return {
         "Conventions": "CF-1.10",
         "title": title,
