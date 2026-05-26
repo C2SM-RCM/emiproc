@@ -59,17 +59,23 @@ def load_data_from_quartieranalyse(
     if grid:
         kwargs["bbox"] = grid.bounds
 
+    columns_mapping = {
+        "U_EINW": "people_living",
+        "U_BESCH": "people_working",
+    }
     gdf = gpd.read_file(file, **kwargs)
-    gdf_interest = gdf[["U_EINW", "U_BESCH", "geometry"]]
+    try:
+        gdf_interest = gdf[["geometry"] + list(columns_mapping.keys())]
+    except KeyError as e:
+        # Set lowercase (new version)
+        columns_mapping = {k.lower(): v for k, v in columns_mapping.items()}
+        gdf_interest = gdf[["geometry"] + list(columns_mapping.keys())]
 
     # Replace missing values
     gdf_interest = gdf_interest.replace(-999.0, 0)
 
     gdf_interest = gdf_interest.rename(
-        columns={
-            "U_BESCH": "people_working",
-            "U_EINW": "people_living",
-        }
+        columns=columns_mapping
     )
 
     return gdf_interest
