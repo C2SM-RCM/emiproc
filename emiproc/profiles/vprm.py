@@ -197,7 +197,7 @@ def interpolate_satellite_index_series_kalman(
 def interpolate_satellite_index_series(
     series: pd.Series,
     filter_len: int = 5,
-    outlier_threshold: float = 0.2,
+    outlier_threshold: float = 0.25,
     max_filter_duration: pd.Timedelta | str | None = "90D",
     fill_edges: bool = True,
 ) -> pd.Series:
@@ -261,15 +261,15 @@ def interpolate_satellite_index_series(
         prev_gap[0], next_gap[-1] = np.timedelta64("NaT"), np.timedelta64("NaT")
         mask_keep |= (prev_gap > threshold) | (next_gap > threshold)
 
-    filtered_observed = observed.where(mask_keep, np.nan)
+    filtered_observed = np.where(mask_keep, observed, np.nan)
 
     interpolated = series.copy()
     interpolated.loc[observed.index] = filtered_observed
-    if filtered_observed.notna().sum() >= 2:
-        interpolated = interpolated.interpolate(
-            method="akima",
-            limit_direction="both",
-        )
+
+    interpolated = interpolated.interpolate(
+        method="akima",
+        limit_direction="both",
+    )
 
     if fill_edges:
         interpolated = interpolated.bfill().ffill()
