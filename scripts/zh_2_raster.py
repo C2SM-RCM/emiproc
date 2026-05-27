@@ -130,7 +130,9 @@ else:
 
     inv = DuckDBInventory(inv_file, year=YEAR)
     # Convert substances to upper case 
-    inv = merge_substances(inv, {sub.upper(): [sub] for sub in inv.substances})
+    rename_dict = {sub.upper(): [sub] for sub in inv.substances if sub != "nox"}
+    rename_dict["NOx"] = ["nox"]
+    inv = merge_substances(inv, rename_dict)
 
 
 
@@ -515,8 +517,8 @@ plots_dir = out_path.with_suffix(".plots")
 
 if INCLUDE_SWISS_OUTSIDE:
     iterator = zip(
-        [rescaled_ch, ch_inside_zh, rasters_inv],
-        ["ch_outside_rescaled", "ch_inside_zh", "combined"],
+        [rasters_inv, rescaled_ch, ch_inside_zh, ],
+        ["combined", "ch_outside_rescaled", "ch_inside_zh"],
     )
 else:
     iterator = zip([rasters_inv], ["zurich_only"])
