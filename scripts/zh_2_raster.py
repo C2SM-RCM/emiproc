@@ -7,13 +7,14 @@ It is possible put the rasters inside the swiss inventory as well.
 
 # %%
 # autoreload modules in interactive python
-%load_ext autoreload
-%autoreload 2
+#%load_ext autoreload
+#%autoreload 2
 # %%
 from datetime import datetime
 from enum import Enum
 from math import floor
 from pathlib import Path
+import logging
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -43,7 +44,6 @@ from emiproc.human_respiration import (
     EmissionFactor,
 )
 from emiproc.inventories.zurich import MapLuftZurich
-from emiproc.inventories.zurich.duck import DuckDBInventory
 
 from emiproc.regrid import remap_inventory
 from emiproc.speciation import merge_substances, speciate, speciate_inventory
@@ -52,14 +52,16 @@ from emiproc.exports.netcdf import nc_cf_attributes
 from emiproc.exports.rasters import export_raster_netcdf
 from emiproc.utilities import Units
 from emiproc.exports.geopackage import export_to_geopackage
+from emiproc.inventories.zurich.duck import DuckDBInventory
 
 # %% define some parameters for the output
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 YEAR = 2024
 
 
-INCLUDE_SWISS_OUTSIDE = False
+INCLUDE_SWISS_OUTSIDE = True
 
 # Paths to data
 data_dir = Path("/newhome/coli/emiproc/files/ch")
@@ -79,21 +81,20 @@ OUTPUT_CRS = LV95
 # edge of the raster cells (in meters)
 RASTER_EDGE = 100
 
-OUTPUT_GRID = "Regular"
-# OUTPUT_GRID = "footprints"
+# OUTPUT_GRID = "Regular"
+OUTPUT_GRID = "footprints"
+footprint_file = data_dir / "footprints/zurich_footprint_220713.nc"
 
 
-VERSION = "v3.0"
+VERSION = "v3.1"
 
 # Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
 
 # Whether to add the human respiration
-ADD_HUMAN_RESPIRATION = False
+ADD_HUMAN_RESPIRATION = True
 # File with the data required for the human respiration
-quartier_anlyse_dir = Path(
-    r"C:\Users\coli\Documents\Data\Quartieranalyse_zurich"
-) / str(YEAR)
+quartier_anlyse_dir = Path("/input/GIS/Zuerich/Quartieranalyse/v202605")
 quartier_anlyse_file = quartier_anlyse_dir / "Quartieranalyse_-OGD.gpkg"
 
 
@@ -109,7 +110,8 @@ SPLIT_GNRF_ROAD_TRANSPORT = False
 
 
 # %% Check some parameters and create the output directory
-weights_dir = outdir / f"weights_files_{RASTER_EDGE}_{YEAR}_{VERSION}_crs{OUTPUT_CRS}"
+weights_dir = outdir / f"weights_files_{OUTPUT_GRID}_{RASTER_EDGE}_{YEAR}_{VERSION}_crs{OUTPUT_CRS}"
+weights_dir.mkdir(exist_ok=True, parents=True)
 
 if SPLIT_GNRF_ROAD_TRANSPORT and not USE_GNRF:
     raise ValueError("Cannot split GNRF if not using GNRF")
@@ -125,7 +127,13 @@ if INCLUDE_SWISS_OUTSIDE:
 if inv_file.suffix == ".gdb":
     inv = MapLuftZurich(inv_file)
 else:
+
     inv = DuckDBInventory(inv_file, year=YEAR)
+    # Convert substances to upper case 
+    rename_dict = {sub.upper(): [sub] for sub in inv.substances if sub != "nox"}
+    rename_dict["NOx"] = ["nox"]
+    inv = merge_substances(inv, rename_dict)
+
 
 
 
@@ -193,8 +201,7 @@ if OUTPUT_GRID == "Regular":
         name="Zurich",
     )
 elif OUTPUT_GRID == "footprints":
-    # TODO: must retest this part
-    footprint_file = "/path/to/zurich_footprint_220808_correct.nc"
+
     ds = xr.open_dataset(footprint_file)
 
     measurement_coordinates = 2680911.322, 1248390.798
@@ -228,6 +235,7 @@ elif OUTPUT_GRID == "footprints":
         dx=d_out,
         dy=d_out,
         crs="LV95",
+        name="Zurich_footprints",
     )
 
 grid
@@ -292,7 +300,7 @@ if INCLUDE_SWISS_OUTSIDE:
     data_path = Path("/newhome/coli/emiproc/files/ch")
     inv_ch = SwissRasters(
         filepath_csv_totals=data_path / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv",
-        filepath_point_sources=data_path / "SwissPRTR-Daten_2007-2023.xlsx",
+        filepath_point_sources=data_path / "swissprtr-daten-2007-2024.xlsx",
         rasters_dir=data_path / "ekat_gridascii",
         rasters_str_dir=data_path / "ekat_str_gridascii",
         requires_grid=True,
@@ -345,18 +353,18 @@ if INCLUDE_SWISS_OUTSIDE:
         load_zurich_shape(),
         keep_outside=True,
         modify_grid=False,
-        weight_file=weights_dir / "ch_out_zh",
+        #weight_file=weights_dir / "ch_out_zh",
     )
     ch_inside_zh = crop_with_shape(
         groupped_ch,
         load_zurich_shape(),
         keep_outside=False,
         modify_grid=False,
-        weight_file=weights_dir / "ch_in_zh",
+        #weight_file=weights_dir / "ch_in_zh",
     )
 
 
-# %%
+# %% Remap the swiss inventory 
 if INCLUDE_SWISS_OUTSIDE:
     ch_outside_zh.to_crs(OUTPUT_CRS)
     remapped_ch_out = remap_inventory(
@@ -416,12 +424,14 @@ if ADD_HUMAN_RESPIRATION:
     )
 
     # Group the categories
-    resp_inv = group_categories(
-        raw_resp_inv,
-        {
-            "GNFR_O": ["people_living", "people_working"],
-        },
-    )
+    resp_inv = raw_resp_inv.copy()
+    if USE_GNRF:
+        resp_inv = group_categories(
+            resp_inv,
+            {
+                "GNFR_O": ["people_living", "people_working"],
+            },
+        )
     # If keep inside, crop the inventory to the zurich shape
     if not INCLUDE_SWISS_OUTSIDE:
         resp_inv = crop_with_shape(resp_inv, zh_shape)
@@ -446,7 +456,7 @@ out_path = export_raster_netcdf(
             "zurich",
             "inside_swiss" if INCLUDE_SWISS_OUTSIDE else "cropped",
             "Fsplit" if SPLIT_GNRF_ROAD_TRANSPORT else "",
-            f"{RASTER_EDGE}x{RASTER_EDGE}",
+            f"{RASTER_EDGE}x{RASTER_EDGE}" if OUTPUT_GRID == "Regular" else "footprints",
             inv_file.stem,
             VERSION,
             f"crs{OUTPUT_CRS}",
@@ -475,6 +485,7 @@ out_path = export_raster_netcdf(
             "script_version": VERSION,
             "emiproc_history": str(rasters_inv.history),
         },
+        script=Path(__file__) if "__file__" in globals() else None,
     ),
     categories_description={
         "GNFR_A": "Public Power",
@@ -506,8 +517,8 @@ plots_dir = out_path.with_suffix(".plots")
 
 if INCLUDE_SWISS_OUTSIDE:
     iterator = zip(
-        [rescaled_ch, ch_inside_zh, rasters_inv],
-        ["ch_outside_rescaled", "ch_inside_zh", "combined"],
+        [rasters_inv, rescaled_ch, ch_inside_zh, ],
+        ["combined", "ch_outside_rescaled", "ch_inside_zh"],
     )
 else:
     iterator = zip([rasters_inv], ["zurich_only"])

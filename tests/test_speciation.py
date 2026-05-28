@@ -329,6 +329,36 @@ def test_merge_substances():
     )
 
 
+def test_merge_substances_with_multiple_substances_and_gdfs():
+
+    merged = merge_substances(
+        inv_with_pnt_sources, substances={"GHG": ["CO2", "CH4"], "STAI": ["AITS"]}
+    )
+
+    assert "GHG" in merged.substances
+    assert "CO2" not in merged.substances
+    assert "CH4" not in merged.substances
+    assert "STAI" in merged.substances
+    assert "AITS" not in merged.substances
+
+    # Check that the total emissions are the same
+    merged_emissions = merged.total_emissions.loc[["GHG", "STAI"]].fillna(0)
+    previous_emissions = inv_with_pnt_sources.total_emissions.loc[["CO2", "CH4"]].sum(
+        axis="index"
+    )
+    aits_emissions = inv_with_pnt_sources.total_emissions.loc["AITS"].fillna(0)
+    pd.testing.assert_series_equal(
+        merged_emissions.loc["GHG"].sort_index(),
+        previous_emissions.sort_index(),
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        merged_emissions.loc["STAI"].sort_index(),
+        aits_emissions.sort_index(),
+        check_names=False,
+    )
+
+
 def test_merge_substances_no_drop():
 
     merged = merge_substances(
