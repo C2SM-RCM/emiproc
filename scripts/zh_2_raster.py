@@ -52,6 +52,7 @@ from emiproc.exports.netcdf import nc_cf_attributes
 from emiproc.exports.rasters import export_raster_netcdf
 from emiproc.utilities import Units
 from emiproc.exports.geopackage import export_to_geopackage
+from emiproc.inventories.zurich.duck import DuckDBInventory
 
 # %% define some parameters for the output
 
@@ -126,7 +127,6 @@ if INCLUDE_SWISS_OUTSIDE:
 if inv_file.suffix == ".gdb":
     inv = MapLuftZurich(inv_file)
 else:
-    from emiproc.inventories.zurich.duck import DuckDBInventory
 
     inv = DuckDBInventory(inv_file, year=YEAR)
     # Convert substances to upper case 
