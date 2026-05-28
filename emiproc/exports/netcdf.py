@@ -50,7 +50,7 @@ def nc_cf_attributes(
     """
     dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    additional_attrs = additional_attributes or {} 
+    additional_attrs = additional_attributes or {}
 
     if script is not None:
         with open(script, "r") as f:
