@@ -47,6 +47,14 @@ If order changes, document why and validate totals before/after.
 - Validate emissions totals around every major transformation.
 - Look at the data (plots) when possible. 
 - Make sure the user is not implementing operations that could create silent data loss (dropping emission sources in a non justified way).
+- Define a script version variable (for example `VERSION = "v1.0"`) and pass it into export metadata attributes.
+
+## Script Style Preferences
+
+- Write a flat script for operational workflows; avoid creating helper functions for each step when direct emiproc calls are sufficient.
+- Do not wrap template scripts in a `main()` function
+- Use Python `logging` for runtime status and checks instead of `print`, as emiproc is compatible with logging. Create a logger object for the script.
+- Use f-strings for any string formatting. (also in logging messages)
 
 ## Project Pointers
 - Inventory implementations: [emiproc/inventories](../../../emiproc/inventories)
