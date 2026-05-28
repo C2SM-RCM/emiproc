@@ -46,7 +46,7 @@ If order changes, document why and validate totals before/after.
 
 - Validate emissions totals around every major transformation.
 - Look at the data (plots) when possible. 
-- Make sure the user is not implementing operations that could create silent data loss (dropping emission sources in a non justified way).
+- Make sure the user is not implementing operations that could create silent data loss (dropping emission sources in an unjustified way).
 - Define a script version variable (for example `VERSION = "v1.0"`) and pass it into export metadata attributes.
 
 ## Script Style Preferences
