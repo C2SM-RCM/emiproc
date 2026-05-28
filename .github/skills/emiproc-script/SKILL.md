@@ -1,6 +1,6 @@
 ---
 name: emiproc-script
-description: "Use when processing emission inventories with emiproc. Helps to create processing script that loads, processes and export an inventory"
+description: "Use when processing emission inventories with emiproc. Helps create a processing script that loads, processes, and exports an inventory"
 argument-hint: "inventory=<name> year=<year> grid=<target> output=<format>"
 user-invocable: true
 ---
