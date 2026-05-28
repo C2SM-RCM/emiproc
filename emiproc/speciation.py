@@ -509,10 +509,15 @@ def merge_substances(
 ) -> Inventory:
     """Merge substances in an inventory.
 
+    Can also be used to rename substances by merging them with a single substance
+    and dropping the old one.
+    ex `merge_substances(inv, {'NOx': ['NOX']}, drop=True)` to rename NOX to NOx.
+
     :arg inv: The inventory to merge substances.
     :arg substances: A dict with the substances to merge.
         The keys are the new substance names.
         The values are the list of substances to merge.
+        ex: `{'NOx': ['NO', 'NO2']}` will merge NO and NO2 into NOx.
     :arg drop: Whether to drop the merged substances.
     :arg inplace: Whether to modify the inventory in place.
 
