@@ -14,7 +14,7 @@ def nc_cf_attributes(
     history: str = "",
     references: str = "Produced by emiproc.",
     script: PathLike | None = None,
-    additional_attributes: NetcdfAttributes = {},
+    additional_attributes: NetcdfAttributes | None = None,
 ) -> NetcdfAttributes:
     """Create attributes for a nc file based on cf conventions.
 
@@ -50,14 +50,16 @@ def nc_cf_attributes(
     """
     dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    additional_attrs = additional_attributes or {} 
+
     if script is not None:
         with open(script, "r") as f:
             script_content = f.read()
-        if "processing_script" in additional_attributes:
+        if "processing_script" in additional_attrs:
             raise ValueError(
                 "The 'processing_script' attribute is reserved for the content of the script that generated the file. Please choose another key for your additional attributes."
             )
-        additional_attributes["processing_script"] = script_content
+        additional_attrs["processing_script"] = script_content
     return {
         "Conventions": "CF-1.10",
         "title": title,
@@ -69,7 +71,7 @@ def nc_cf_attributes(
         "author": author,
         "contact": contact,
         "creation_time": dt,
-        **additional_attributes,
+        **additional_attrs,
     }
 
 
