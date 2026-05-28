@@ -509,10 +509,15 @@ def merge_substances(
 ) -> Inventory:
     """Merge substances in an inventory.
 
+    Can also be used to rename substances by merging them with a single substance
+    and dropping the old one.
+    ex `merge_substances(inv, {'NOx': ['NOX']}, drop=True)` to rename NOX to NOx.
+
     :arg inv: The inventory to merge substances.
     :arg substances: A dict with the substances to merge.
         The keys are the new substance names.
         The values are the list of substances to merge.
+        ex: `{'NOx': ['NO', 'NO2']}` will merge NO and NO2 into NOx.
     :arg drop: Whether to drop the merged substances.
     :arg inplace: Whether to modify the inventory in place.
 
@@ -553,16 +558,17 @@ def merge_substances(
                     inplace=True,
                 )
 
-    # Apply the same operation to the gdfs
-    for cat, gdf in inv.gdfs.items():
-        cols_to_merge = [old_s for old_s in old_substances if old_s in gdf.columns]
-        if not cols_to_merge:
-            continue
-        new_inv.gdfs[cat][new_substance] = gdf.loc[:, cols_to_merge].sum(axis=1)
-        if drop:
-            new_inv.gdfs[cat].drop(
-                columns=[s for s in cols_to_merge if s != new_substance], inplace=True
-            )
+        # Apply the same operation to the gdfs
+        for cat, gdf in inv.gdfs.items():
+            cols_to_merge = [old_s for old_s in old_substances if old_s in gdf.columns]
+            if not cols_to_merge:
+                continue
+            new_inv.gdfs[cat][new_substance] = gdf.loc[:, cols_to_merge].sum(axis=1)
+            if drop:
+                new_inv.gdfs[cat].drop(
+                    columns=[s for s in cols_to_merge if s != new_substance],
+                    inplace=True,
+                )
 
     new_inv.history.append(f"Merged substances with {substances}.")
 
