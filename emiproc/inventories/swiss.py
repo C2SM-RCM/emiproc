@@ -447,7 +447,7 @@ def read_prtr(
         raise ValueError(
             "Could not find the 'Source type' column in the PRTR file. Please check the header line and how it is read."
         )
-    
+
     substance_matching = {
         key: value
         for key, value in polluant_matching.items()

@@ -561,7 +561,8 @@ def merge_substances(
             new_inv.gdfs[cat][new_substance] = gdf.loc[:, cols_to_merge].sum(axis=1)
             if drop:
                 new_inv.gdfs[cat].drop(
-                    columns=[s for s in cols_to_merge if s != new_substance], inplace=True
+                    columns=[s for s in cols_to_merge if s != new_substance],
+                    inplace=True,
                 )
 
     new_inv.history.append(f"Merged substances with {substances}.")

@@ -74,9 +74,7 @@ def load_data_from_quartieranalyse(
     # Replace missing values
     gdf_interest = gdf_interest.replace(-999.0, 0)
 
-    gdf_interest = gdf_interest.rename(
-        columns=columns_mapping
-    )
+    gdf_interest = gdf_interest.rename(columns=columns_mapping)
 
     return gdf_interest
 
