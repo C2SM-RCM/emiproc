@@ -244,7 +244,10 @@ def crop_with_shape(
             new_geometry, weights = geoserie_intersection(
                 polys_gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
             )
-            mask_non_zero = weights > 0
+
+            # When the main grid is kept, preserve line rows with zero emissions
+            # to avoid empty category GeoDataFrames.
+            mask_non_zero = (weights > 0) if modify_grid else slice(None)
             inv_out.add_gdf(
                 cat,
                 gpd.GeoDataFrame(

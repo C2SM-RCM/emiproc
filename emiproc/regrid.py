@@ -385,13 +385,29 @@ def geoserie_intersection(
     mask_within = geometry.within(shape)
     mask_boundary_intersect = mask_intersect & (~mask_within)
 
-    # Find the intersection sahpes of the boundary shapes
-    shapes_boundary_intersect = geometry.loc[mask_boundary_intersect].intersection(
-        shape
-    )
-    weights_boundary_intersect = (
-        shapes_boundary_intersect.area / geometry.loc[mask_boundary_intersect].area
-    )
+    # Find intersection shapes for boundary geometries and compute weights.
+    # Polygons use area ratios; line-like geometries use length ratios.
+    geometry_boundary = geometry.loc[mask_boundary_intersect]
+    shapes_boundary_intersect = geometry_boundary.intersection(shape)
+
+    boundary_area = geometry_boundary.area.to_numpy()
+    intersected_area = shapes_boundary_intersect.area.to_numpy()
+    boundary_length = geometry_boundary.length.to_numpy()
+    intersected_length = shapes_boundary_intersect.length.to_numpy()
+
+    weights_boundary_intersect = np.zeros(len(shapes_boundary_intersect), dtype=float)
+
+    mask_area = boundary_area > 0
+    with np.errstate(divide="ignore", invalid="ignore"):
+        weights_boundary_intersect[mask_area] = (
+            intersected_area[mask_area] / boundary_area[mask_area]
+        )
+
+    mask_length = (~mask_area) & (boundary_length > 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        weights_boundary_intersect[mask_length] = (
+            intersected_length[mask_length] / boundary_length[mask_length]
+        )
 
     weights = np.zeros(len(geometry))
     weights[mask_within] = 1.0
