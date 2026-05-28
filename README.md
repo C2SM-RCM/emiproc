@@ -55,6 +55,14 @@ If you’d like to support a new model, emission inventory, or temporal profile,
 We're happy to help and collaborate!
 
 
+## 🤖 Agentic Programming
+
+Want a smoother workflow? Try our agent skills to help you process emissions faster with AI tools:
+
+* `emiproc-script`: Create or update processing scripts that load inventories, apply transformations, and export outputs.
+* `emiproc-developer`: Change `emiproc` internals, including inventories, exports, regridding, profiles, and related tests with maintainer-level validation.
+
+
 ## 🪪 License
 
 This work is licensed under a BSD-3-Clause licence. See the LICENSE file for details or https://opensource.org/license/bsd-3-clause

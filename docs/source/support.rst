@@ -39,6 +39,17 @@ which is a group from the
 The prefered way of contacting us is through the github page.
 
 
+Agentic Programming
+-------------------
+
+`emiproc` provides agent skills to help you work with AI tools:
+
+- `emiproc-script`: Create or update processing scripts that load inventories, apply transformations, and export outputs.
+
+- `emiproc-developer`: Change `emiproc` internals such as inventories, exports, regridding, profiles, and related tests with maintainer-level validation.
+
+Learn more: https://code.visualstudio.com/docs/copilot/customization/agent-skills
+
 History 
 -------
 
