@@ -32,11 +32,11 @@ Provide a reliable workflow for operational emissions processing tasks in emipro
 
 ## Safe Transformation Order
 
-When transforming inventories, you might aggregate data in ways that create a data loss. 
+When transforming inventories, you might aggregate data in ways that cause data loss. 
 To minimize this risk, follow this order of operations:
 
 1. Load inventory.
-2. Non aggregative transformations (for example cropping, masking, filtering, speciation, scaling).
+2. Non-aggregative transformations (for example cropping, masking, filtering, speciation, scaling).
 3. Aggregative transformations (for example grouping, remapping/regridding).
 4. Export.
 
