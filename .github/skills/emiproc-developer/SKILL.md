@@ -23,7 +23,7 @@ Support maintainers and contributors making code changes in emiproc with minimal
 
 ## Change Guidance By Area
 
-In general make sure to read the developpers tutorials in the docs.
+In general make sure to read the developer tutorials in the docs.
 
 ### Inventories
 - Keep parsing and normalization logic explicit.
