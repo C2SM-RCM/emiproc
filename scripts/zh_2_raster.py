@@ -110,7 +110,7 @@ SPLIT_GNRF_ROAD_TRANSPORT = False
 
 
 # %% Check some parameters and create the output directory
-weights_dir = outdir / f"weights_files__{OUTPUT_GRID}_{RASTER_EDGE}_{YEAR}_{VERSION}_crs{OUTPUT_CRS}"
+weights_dir = outdir / f"weights_files_{OUTPUT_GRID}_{RASTER_EDGE}_{YEAR}_{VERSION}_crs{OUTPUT_CRS}"
 weights_dir.mkdir(exist_ok=True, parents=True)
 
 if SPLIT_GNRF_ROAD_TRANSPORT and not USE_GNRF:
@@ -485,7 +485,7 @@ out_path = export_raster_netcdf(
             "script_version": VERSION,
             "emiproc_history": str(rasters_inv.history),
         },
-        script= Path(__file__),
+        script=Path(__file__) if "__file__" in globals() else None,
     ),
     categories_description={
         "GNFR_A": "Public Power",
