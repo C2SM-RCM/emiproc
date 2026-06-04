@@ -229,11 +229,11 @@ elif OUTPUT_GRID == "footprints":
     d_out = 10.0  # meters, size of the cells of the output grid
     grid = RegularGrid(
         xmin=x_coords.min() - d2,
-        xmax=x_coords.max() + d2,
         ymin=y_coords.min() - d2,
-        ymax=y_coords.max() + d2,
         dx=d_out,
         dy=d_out,
+        nx=len(x_coords),
+        ny=len(y_coords),
         crs="LV95",
         name="Zurich_footprints",
     )
