@@ -48,6 +48,7 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
         year: int = 2015,
+        scenario: str = "",
         point_source_correction: dict[
             Category, PointSourceCorrection
         ] = default_point_source_correction,
@@ -112,6 +113,57 @@ class SwissRasters(Inventory):
 
         # Load data
         gdfs = read_prtr(filepath_point_sources, year, substances=substances)
+        # point source scaling factors from TNO scenarios 
+        if year == 2050 or year == 2030:
+            ch_gnfrb_fut = {}
+            eipwp_fut = {}
+            tno_ps_frac_gnfrb = {}
+            
+            # scaling factors
+            tno_ps_frac_gnfrb["2050_MFR"] = {
+                "NOx": 0.5244679719792756,
+                "VOC": 0.21174628741013116,
+                "CO": 0.8363300696692673,
+                "CH4": 0.5807544122521959,
+                "PM10": 0.199225435364509,
+                "PM25": 0.20784283411226803,
+                "NH3": 0.9690569496318987,
+                "SO2": 0.9470210028375976,
+            }
+
+            tno_ps_frac_gnfrb["2050_CLE"] = {
+                "NOx": 0.5669035574022593,
+                "VOC": 0.1567887479343855,
+                "CO": 0.836330069717184,
+                "CH4": 0.5807544110677273,
+                "PM10": 0.17759045071096188,
+                "PM25": 0.17275189278927477,
+                "NH3": 0.9708881845125773,
+                "SO2": 0.950199074728389,
+            }
+
+            tno_ps_frac_gnfrb["2030_MFR"] = {
+                "NOx": 0.5852065353608393,
+                "VOC": 0.22888542152633465,
+                "CO": 0.8363300697135612,
+                "CH4": 0.5807544107970681,
+                "PM10": 0.19879448187034604,
+                "PM25": 0.2136164028246392,
+                "NH3": 0.969321115037605,
+                "SO2": 0.9454186968614107,
+            }
+
+            tno_ps_frac_gnfrb["2030_CLE"] = {
+                "NOx": 0.6268120976317354,
+                "VOC": 0.17044302419416016,
+                "CO": 0.8363300696700406,
+                "CH4": 0.5807544158309499,
+                "PM10": 0.17578782758509465,
+                "PM25": 0.17413754683039384,
+                "NH3": 0.9728437483765232,
+                "SO2": 0.9469768300675998,
+            }
+
 
         # Remove the total values in the rasters
         for cat, gdf in gdfs.items():
@@ -142,6 +194,7 @@ class SwissRasters(Inventory):
 
             totals = gdf.drop(columns=["geometry"]).sum(axis="rows")
             for sub in totals.index:
+                #print(f"Category: {cat}, Substance: {sub}")
                 catsub = cat + "_" + sub
 
                 if cat not in point_source_correction:
@@ -174,6 +227,30 @@ class SwissRasters(Inventory):
                     correction
                     == PointSourceCorrection.REMOVE_POINT_SOURCE_FROM_RASTER_TOTAL
                 ):
+                    if (year == 2050 or year == 2030) and cat == "eipro":
+                        year_scen = str(year) + "_" + scenario
+                        # tmp check:
+                        print(catsub)
+                        print(f"Before scaling: prtr: {totals[sub]*1.e-3}, total emissions: {emissions.loc[catsub]*1.e-3}")
+                        # -- For 2050 we don't have point source information in PRTR
+                        # -- We assume that 
+                        # ---- the location of the point sources is the same as in 2019
+                        # ---- the fraction of PS of the total GNFR B emissions in 2050 is taken from TNO
+                        # -- Formulas
+                        # ---- CH GNFR B 2050 = eipro + eipzm 2050
+                        # ---- CH PS 2050 = (CH GNFR B 2050) * (TNO GNFR B PS 2050) / (TNO GNFR B 2050)
+                        # ---- eipwp 2050 = (CH PS 2050) - eipzm 2050
+                                                
+                        eipzm_sub =  "eipzm_" + sub
+                        eipro_sub = "eipro_" + sub
+                        ch_gnfrb_fut[sub] = emissions.loc[eipro_sub] + emissions.loc[eipzm_sub]
+                        
+                        eipwp_fut[sub] = (ch_gnfrb_fut[sub] * tno_ps_frac_gnfrb[year_scen][sub]) - emissions.loc[eipzm_sub]
+                        gdf[sub] = gdf[sub] / totals[sub] * eipwp_fut[sub]
+                        
+                        # update the total ps emissions
+                        totals = gdf.drop(columns=["geometry"]).sum(axis="rows")
+                        
                     if emissions.loc[catsub] < totals[sub]:
                         self.logger.warning(
                             f"Total emissions for {cat=} and {sub=} are negative."
@@ -185,6 +262,7 @@ class SwissRasters(Inventory):
                         emissions.loc[catsub] = 0.0
                     else:
                         emissions.loc[catsub] -= totals[sub]
+                        print(f"After scaling: ps: {totals[sub]*1.e-3}, as: {emissions.loc[catsub]*1.e-3}")
                 else:
                     raise ValueError(f"Unknown correction {correction}")
 
@@ -465,7 +543,8 @@ def read_prtr(
     :returns: A dictionary with the categories as keys and the GeoDataFrames as values.
         Can be used to create the Inventory object.
     """
-
+    if (year == 2050 or year == 2030):
+        year = 2019 # take 2019 point source data and scale to match 205/2030 predictions from TNO
     df_prtr = pd.read_excel(prtr_file, skiprows=[0, 1, 3])
 
     substance_matching = {
