@@ -4,6 +4,7 @@ from enum import Enum
 import logging
 from datetime import datetime, timedelta
 from typing import Type
+import warnings
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -459,16 +460,18 @@ def create_scaling_factors_time_serie(
         same as `pd.date_range <https://pandas.pydata.org/docs/reference/api/pandas.date_range.html#pandas-date-range>`_
         Include boundaries; Whether to set each bound as closed or open.
     """
-
-    kwargs = {}
     if local_tz is not None:
-        kwargs["tz"] = "UTC"
+        warnings.warn(
+            "The `local_tz` argument is deprecated and will be removed in a future version. "
+            "Please ensure that the `start_time` and `end_time` are timezone-aware"
+            " and in the desired timezone.",
+            DeprecationWarning,
+        )
+
     # Create the time serie
     time_serie = pd.date_range(
-        start_time, end_time, freq=freq, inclusive=inclusive, **kwargs
+        start_time, end_time, freq=freq, inclusive=inclusive,
     )
-    if local_tz is not None:
-        time_serie = time_serie.tz_convert(local_tz)
 
     # Create the scaling factors
     scaling_factors = np.ones(len(time_serie))

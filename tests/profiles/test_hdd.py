@@ -52,7 +52,6 @@ def test_create_hdd_scaling_factor_matches_dhw_profile_when_dhw_scaling_is_one()
         serie_t.index.min(),
         serie_t.index.max(),
         dhw_profile,
-        local_tz="UTC",
     )
 
     np.testing.assert_allclose(scaling.values, expected.values)
@@ -75,3 +74,31 @@ def test_create_hdd_scaling_factor_deactivates_heating_on_warm_days():
     assert day_means.iloc[0] > 0
     assert np.isclose(day_means.iloc[1], 0.0)
     assert day_means.iloc[2] > 0
+
+
+
+def test_create_hdd_scaling_factor_with_naive_datetime_index():
+    index = pd.date_range("2022-01-01 00:00", periods=24, freq="h")
+    serie_t = pd.Series(np.full(24, 5.0), index=index)
+    no_factor = from_yaml(FILES_DIR / "profiles" / "yamls" / "no_factor.yaml")
+
+    create_HDD_scaling_factor(
+        serie_t,
+        heating_profile=no_factor,
+        dhw_profile=no_factor,
+    )
+
+
+def test_create_hdd_scaling_factor_other_tz():
+    index = pd.date_range("2022-01-01 00:00", periods=24, freq="h", tz="Europe/Zurich")
+    serie_t = pd.Series(np.full(24, 5.0), index=index)
+    no_factor = from_yaml(FILES_DIR / "profiles" / "yamls" / "no_factor.yaml")
+
+    sf = create_HDD_scaling_factor(
+        serie_t,
+        heating_profile=no_factor,
+        dhw_profile=no_factor,
+    )
+
+    assert sf.index.tz == serie_t.index.tz
+

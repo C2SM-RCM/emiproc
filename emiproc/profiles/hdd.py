@@ -81,11 +81,7 @@ def create_HDD_scaling_factor(
         .reindex(hdd_ts.index)
     )
 
-    heating_ts = create_scaling_factors_time_serie(
-        start, end, heating_profile, local_tz=serie_T.index.tz
-    )
-    dhw_ts = create_scaling_factors_time_serie(
-        start, end, dhw_profile, local_tz=serie_T.index.tz
-    )
+    heating_ts = create_scaling_factors_time_serie(start, end, heating_profile)
+    dhw_ts = create_scaling_factors_time_serie(start, end, dhw_profile)
 
     return (1.0 - dhw_scaling) * a_HDD_hourly * heating_ts + dhw_ts * dhw_scaling
