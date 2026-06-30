@@ -76,7 +76,6 @@ def test_create_hdd_scaling_factor_deactivates_heating_on_warm_days():
     assert day_means.iloc[2] > 0
 
 
-
 def test_create_hdd_scaling_factor_with_naive_datetime_index():
     index = pd.date_range("2022-01-01 00:00", periods=24, freq="h")
     serie_t = pd.Series(np.full(24, 5.0), index=index)
@@ -101,4 +100,3 @@ def test_create_hdd_scaling_factor_other_tz():
     )
 
     assert sf.index.tz == serie_t.index.tz
-
