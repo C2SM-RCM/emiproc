@@ -48,7 +48,7 @@ def create_HDD_scaling_factor(
     with a hourly resolution.
 
     :arg serie_T: the timeserie of the temperature (in Celsius)
-        Index should be a timezone aware datetime index on hourly frequency.
+        Index should be a DatetimeIndex on hourly frequency. If timezone-aware, its timezone is used when applying temporal profiles.
     :arg heating_profile: the heating profile
     :arg dhw_profile: the domestic hot water profile
     :arg min_heating_T: the minimum temperature for which heating is activated
