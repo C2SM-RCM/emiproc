@@ -470,7 +470,10 @@ def create_scaling_factors_time_serie(
 
     # Create the time serie
     time_serie = pd.date_range(
-        start_time, end_time, freq=freq, inclusive=inclusive,
+        start_time,
+        end_time,
+        freq=freq,
+        inclusive=inclusive,
     )
 
     # Create the scaling factors
