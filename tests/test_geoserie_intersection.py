@@ -82,8 +82,7 @@ def test_with_lines():
 
     assert np.allclose(weights, [1, 2.0 / 5.0])
 
-
-    assert len(cropped_out) == 2 
+    assert len(cropped_out) == 2
     assert np.allclose(weights_out, [1, 3.0 / 5.0])
 
     assert len(cropped_keep_grid) == 3
