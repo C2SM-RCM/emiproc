@@ -1,14 +1,9 @@
 from warnings import catch_warnings, simplefilter
 
-import geopandas as gpd
 import matplotlib
 import matplotlib.pyplot as plt
 import pytest
-from shapely import LineString
-from shapely.geometry import Polygon
 
-from emiproc.inventories import Inventory
-from emiproc.inventories.utils import crop_with_shape
 from emiproc.plots import plot_inventory
 from emiproc.tests_utils.african_case import african_inv_regular_grid
 from emiproc.tests_utils.test_inventories import (
@@ -64,41 +59,3 @@ def test_plot_inventory(inventory, plot_inventory_kwargs):
             run_plot()
     else:
         run_plot()
-
-
-def test_plot_inventory_after_crop_with_empty_line_gdf_raises():
-    shapes = {
-        "cat": LineString([(0, 0), (1, 1)]),
-        "cat_outside": LineString([(2, 2), (3, 3)]),
-        "cat_cross": LineString([(-2, -2), (3, 3)]),
-    }
-
-    inv = Inventory.from_gdf(
-        gdfs={
-            cat: gpd.GeoDataFrame({"CO2": [1.0]}, geometry=[shape])
-            for cat, shape in shapes.items()
-        },
-    )
-
-    inv_cropped = crop_with_shape(
-        inv,
-        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
-        modify_grid=True,
-    )
-    inv_cropped_grid_kept = crop_with_shape(
-        inv,
-        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
-        modify_grid=False,
-    )
-
-    for cat in shapes.keys():
-        assert len(inv.gdfs[cat]) == 1
-        assert len(inv_cropped_grid_kept.gdfs[cat]) == 1
-        assert inv_cropped_grid_kept.gdfs[cat].is_valid.all()
-        assert len(inv_cropped.gdfs[cat]) == (1 if cat != "cat_outside" else 0)
-        assert inv_cropped.gdfs[cat].is_valid.all()
-
-    total_emissions = inv_cropped.total_emissions
-    assert total_emissions.loc["CO2", "cat_outside"] == 0.0
-    assert total_emissions.loc["CO2", "cat"] == 1.0
-    assert total_emissions.loc["CO2", "cat_cross"] == 2.0 / 5.0

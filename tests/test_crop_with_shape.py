@@ -1,6 +1,7 @@
 import warnings
 
 import geopandas as gpd
+from shapely import LineString
 from shapely.geometry import Point, Polygon
 
 from emiproc.inventories import Inventory
@@ -137,3 +138,48 @@ def test_no_emission():
 
     assert "blek" not in cropped.gdfs
     assert "liku" in cropped.gdfs
+
+
+def test_plot_inventory_after_crop_with_empty_line():
+    shapes = {
+        "cat": LineString([(0, 0), (1, 1)]),
+        "cat_outside": LineString([(2, 2), (3, 3)]),
+        "cat_cross": LineString([(-2, -2), (3, 3)]),
+    }
+
+    inv = Inventory.from_gdf(
+        gdfs={
+            cat: gpd.GeoDataFrame({"CO2": [1.0]}, geometry=[shape])
+            for cat, shape in shapes.items()
+        },
+    )
+
+    inv_cropped = crop_with_shape(
+        inv,
+        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
+        modify_grid=True,
+    )
+    inv_cropped_grid_kept = crop_with_shape(
+        inv,
+        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
+        modify_grid=False,
+    )
+
+    for cat in shapes.keys():
+        # Check that the number of shapes not changed in input
+        assert len(inv.gdfs[cat]) == 1
+
+        # If grid kept, the shape should be there
+        assert len(inv_cropped_grid_kept.gdfs[cat]) == 1
+        assert inv_cropped_grid_kept.gdfs[cat].is_valid.all()
+
+        # If grid is removed, the shape should be removed if outside
+        assert len(inv_cropped.gdfs[cat]) == (1 if cat != "cat_outside" else 0)
+        assert inv_cropped.gdfs[cat].is_valid.all()
+
+    for inv in [inv_cropped, inv_cropped_grid_kept]:
+        # check correct emissions
+        total_emissions = inv_cropped.total_emissions
+        assert total_emissions.loc["CO2", "cat_outside"] == 0.0
+        assert total_emissions.loc["CO2", "cat"] == 1.0
+        assert total_emissions.loc["CO2", "cat_cross"] == 2.0 / 5.0
