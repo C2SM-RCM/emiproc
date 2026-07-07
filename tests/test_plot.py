@@ -5,7 +5,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import pytest
 from shapely import LineString
-from shapely.errors import GEOSException
 from shapely.geometry import Polygon
 
 from emiproc.inventories import Inventory
