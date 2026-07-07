@@ -441,7 +441,7 @@ if ADD_HUMAN_RESPIRATION:
     remapped_resp = remap_inventory(
         resp_inv,
         grid,
-        weights_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}",
+        weights_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}_{quartier_anlyse_dir.stem}_{quartier_anlyse_file.stem}",
     )
 
     rasters_inv = add_inventories(rasters_inv, remapped_resp)
