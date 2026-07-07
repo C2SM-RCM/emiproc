@@ -86,7 +86,7 @@ OUTPUT_GRID = "footprints"
 footprint_file = data_dir / "footprints/zurich_footprint_220713.nc"
 
 
-VERSION = "v3.1"
+VERSION = "v3.2"
 
 # Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
