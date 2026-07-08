@@ -1,4 +1,5 @@
 import geopandas as gpd
+from shapely import LineString
 from emiproc.regrid import geoserie_intersection
 from shapely.geometry import Polygon
 import numpy as np
@@ -52,3 +53,37 @@ def test_intersection_keep_outside():
     intersection, weights = geoserie_intersection(serie, triangle, keep_outside=True)
 
     assert np.all(expected_weights_undroped == (1 - weights))
+
+
+def test_with_lines():
+
+    shapes = {
+        "cat": LineString([(0, 0), (1, 1)]),
+        "cat_outside": LineString([(2, 2), (3, 3)]),
+        "cat_cross": LineString([(-2, -2), (3, 3)]),
+    }
+
+    cropped, weights = geoserie_intersection(
+        gpd.GeoSeries(shapes),
+        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
+    )
+    cropped_out, weights_out = geoserie_intersection(
+        gpd.GeoSeries(shapes),
+        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
+        keep_outside=True,
+    )
+    cropped_keep_grid, weights_keep_grid = geoserie_intersection(
+        gpd.GeoSeries(shapes),
+        shape=Polygon(((-1, -1), (-1, 1), (1, 1), (1, -1))),
+        drop_unused=False,
+    )
+
+    assert len(cropped) == 2
+
+    assert np.allclose(weights, [1, 2.0 / 5.0])
+
+    assert len(cropped_out) == 2
+    assert np.allclose(weights_out, [1, 3.0 / 5.0])
+
+    assert len(cropped_keep_grid) == 3
+    assert np.allclose(weights_keep_grid, [1, 0.0, 2.0 / 5.0])
