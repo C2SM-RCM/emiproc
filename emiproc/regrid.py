@@ -398,16 +398,14 @@ def geoserie_intersection(
     weights_boundary_intersect = np.zeros(len(shapes_boundary_intersect), dtype=float)
 
     mask_area = boundary_area > 0
-    with np.errstate(divide="ignore", invalid="ignore"):
-        weights_boundary_intersect[mask_area] = (
-            intersected_area[mask_area] / boundary_area[mask_area]
-        )
+    weights_boundary_intersect[mask_area] = (
+        intersected_area[mask_area] / boundary_area[mask_area]
+    )
 
     mask_length = (~mask_area) & (boundary_length > 0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        weights_boundary_intersect[mask_length] = (
-            intersected_length[mask_length] / boundary_length[mask_length]
-        )
+    weights_boundary_intersect[mask_length] = (
+        intersected_length[mask_length] / boundary_length[mask_length]
+    )
 
     weights = np.zeros(len(geometry))
     weights[mask_within] = 1.0
