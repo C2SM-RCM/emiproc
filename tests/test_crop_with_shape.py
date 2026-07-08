@@ -120,7 +120,7 @@ def test_with_modify_grid_and_cached():
 def test_different_points_and_polygons_in_gdfs():
     inv = test_inventories.inv_only_one_gdfs
 
-    cropped = crop_with_shape(inv, triangle)
+    cropped = crop_with_shape(inv, triangle, modify_grid=True)
     # outside shapes are removed
 
     assert len(cropped.gdfs["adf"]) == 5, "Did not crop expected number of shapes"
