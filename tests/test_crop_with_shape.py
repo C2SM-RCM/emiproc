@@ -179,7 +179,7 @@ def test_plot_inventory_after_crop_with_empty_line():
 
     for inv in [inv_cropped, inv_cropped_grid_kept]:
         # check correct emissions
-        total_emissions = inv_cropped.total_emissions
+        total_emissions = inv.total_emissions
         assert total_emissions.loc["CO2", "cat_outside"] == 0.0
         assert total_emissions.loc["CO2", "cat"] == 1.0
         assert total_emissions.loc["CO2", "cat_cross"] == 2.0 / 5.0
