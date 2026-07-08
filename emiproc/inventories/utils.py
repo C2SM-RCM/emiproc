@@ -245,7 +245,7 @@ def crop_with_shape(
                 polys_gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
             )
 
-            # When the main grid is kept, preserve line rows with zero emissions
+            # When the main grid is kept, preserve rows with zero emissions
             # to avoid empty category GeoDataFrames.
             mask_non_zero = (weights > 0) if modify_grid else slice(None)
             inv_out.add_gdf(
