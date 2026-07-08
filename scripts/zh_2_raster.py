@@ -86,7 +86,7 @@ OUTPUT_GRID = "footprints"
 footprint_file = data_dir / "footprints/zurich_footprint_220713.nc"
 
 
-VERSION = "v3.1"
+VERSION = "v3.2"
 
 # Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
@@ -229,11 +229,11 @@ elif OUTPUT_GRID == "footprints":
     d_out = 10.0  # meters, size of the cells of the output grid
     grid = RegularGrid(
         xmin=x_coords.min() - d2,
-        xmax=x_coords.max() + d2,
         ymin=y_coords.min() - d2,
-        ymax=y_coords.max() + d2,
         dx=d_out,
         dy=d_out,
+        nx=len(x_coords),
+        ny=len(y_coords),
         crs="LV95",
         name="Zurich_footprints",
     )
@@ -441,7 +441,7 @@ if ADD_HUMAN_RESPIRATION:
     remapped_resp = remap_inventory(
         resp_inv,
         grid,
-        weights_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}",
+        weights_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}_{quartier_anlyse_dir.stem}_{quartier_anlyse_file.stem}",
     )
 
     rasters_inv = add_inventories(rasters_inv, remapped_resp)

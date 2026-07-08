@@ -72,7 +72,7 @@ def load_data_from_quartieranalyse(
         gdf_interest = gdf[["geometry"] + list(columns_mapping.keys())]
 
     # Replace missing values
-    gdf_interest = gdf_interest.replace(-999.0, 0)
+    gdf_interest = gdf_interest.replace(-999.0, 0).fillna(0)
 
     gdf_interest = gdf_interest.rename(columns=columns_mapping)
 
