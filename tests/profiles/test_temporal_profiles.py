@@ -123,47 +123,60 @@ def test_wrong_list_concatenate():
     )
 
 
-def test_merging_profiles():
-    profiles = AnyProfiles(
-        [
-            MounthsProfile(
-                [
-                    [0.1, 0.2, 0.3, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                    [0.1, 0.2, 0.4, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                ],
-            ),
-            WeeklyProfile([0.1, 0.2, 0.3, 0.1, 0.0, 0.0, 0.3]),
-        ]
-    )
-    assert profiles.n_profiles == 3
-    dss = [
-        xr.DataArray(
-            np.array([[0, 1, 0], [1, -1, 0]]),
-            coords={
-                "category": ["blek", "liku"],
-                "substance": ["CO2", "CH4", "N2O"],
-            },
-        ).expand_dims(
-            {
-                "profile": ["MounthsProfile"],
-            }
+test_profiles_merge = AnyProfiles(
+    [
+        MounthsProfile(
+            [
+                [0.1, 0.2, 0.3, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.1, 0.2, 0.4, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            ],
         ),
-        xr.DataArray(
-            np.array([[2, -1], [2, 2]]),
-            coords={
-                "category": ["blek", "liku"],
-                "substance": ["CO2", "CH4"],
-            },
-        ).expand_dims(
-            {
-                "profile": ["WeeklyProfile"],
-            }
-        ),
+        WeeklyProfile([0.1, 0.2, 0.3, 0.1, 0.0, 0.0, 0.3]),
     ]
+)
+dss_indices_merge = [
+    xr.DataArray(
+        np.array([[0, 1, 0], [1, -1, 0]]),
+        coords={
+            "category": ["blek", "liku"],
+            "substance": ["CO2", "CH4", "N2O"],
+        },
+    ).expand_dims(
+        {
+            "profile": ["MounthsProfile"],
+        }
+    ),
+    xr.DataArray(
+        np.array([[2, -1], [2, 2]]),
+        coords={
+            "category": ["blek", "liku"],
+            "substance": ["CO2", "CH4"],
+        },
+    ).expand_dims(
+        {
+            "profile": ["WeeklyProfile"],
+        }
+    ),
+]
 
-    combined_indexes = merge_indexes(dss)
 
-    make_composite_profiles(profiles, combined_indexes)
+def test_merging_profiles():
+    assert test_profiles_merge.n_profiles == 3
+
+    combined_indexes = merge_indexes(dss_indices_merge)
+
+    make_composite_profiles(test_profiles_merge, combined_indexes)
+
+
+def test_make_composite_profiles_preserves_types():
+
+    combined_indexes = merge_indexes(dss_indices_merge)
+    assert np.issubdtype(combined_indexes.coords["category"].dtype, np.str_)
+
+    _, composite_indexes = make_composite_profiles(
+        test_profiles_merge, combined_indexes
+    )
+    assert np.issubdtype(composite_indexes.coords["category"].dtype, np.str_)
 
 
 def test_weighted_combination():
