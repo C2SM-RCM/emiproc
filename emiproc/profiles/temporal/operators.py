@@ -4,7 +4,6 @@ from enum import Enum
 import logging
 from datetime import datetime, timedelta
 from typing import Type
-import warnings
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -461,11 +460,10 @@ def create_scaling_factors_time_serie(
         Include boundaries; Whether to set each bound as closed or open.
     """
     if local_tz is not None:
-        warnings.warn(
-            "The `local_tz` argument is deprecated and will be removed in a future version. "
+        raise ValueError(
+            "The `local_tz` argument is no longer supported. "
             "Please ensure that the `start_time` and `end_time` are timezone-aware"
-            " and in the desired timezone.",
-            DeprecationWarning,
+            " and in the desired timezone."
         )
 
     # Create the time serie
