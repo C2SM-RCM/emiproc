@@ -41,6 +41,18 @@ def test_temporally_scaled_array_sum_over_cells():
     inv.set_profiles(profiles, indexes=profiles_indexes)
 
     scaled = get_temporally_scaled_array(inv, time_range, sum_over_cells=True)
+    scaled_on_cell = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+
+    assert "cell" not in scaled.dims
+    assert "time" in scaled.dims
+    assert "cell" in scaled_on_cell.dims
+    assert len(scaled.time) == len(time_range)
+
+
+    xr.testing.assert_allclose(
+        *xr.align(scaled, scaled_on_cell.sum("cell"), join="outer"),
+    )
+
 
 
 def test_temporally_scaled_array_missing_cell_profile_fails():

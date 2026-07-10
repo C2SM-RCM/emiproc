@@ -102,9 +102,14 @@ def get_temporally_scaled_array(
     da_sf = get_scaling_factors_at_time(profiles, time_range)
 
     if not chunk or "cell" not in profiles_indexes.dims:
-        return _scale_emission_temporally(
-            da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
-        )
+        if sum_over_cells:
+            return _scale_emission_temporally_sum_total_first(
+                da_sf, da_totals, profiles_indexes
+            )
+        else:
+            _scale_emission_temporally(
+                da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
+            )
 
     # Chunking approach
     cell_chunks = np.array_split(profiles_indexes["cell"].values, n_chunks)
@@ -140,17 +145,92 @@ def _scale_emission_temporally(
     # Apply similar strategy for missing profiles
     da_scaling_factors = da_scaling_factors.where(profiles_indexes != -1, 1.0)
 
-    da_scaling_factors = da_scaling_factors.broadcast_like(da_totals)
+    da_scaling_factors = da_scaling_factors.broadcast_like(da_totals).fillna(1.0)
 
     if sum_over_cells and "cell" in profiles_indexes.dims:
         # instead of multiplying in a first step and summing in a second
         # we can use the dot product to get the same result
-        temporally_scaled_emissions = da_totals.dot(
-            da_scaling_factors.fillna(0.0), dim="cell"
-        )
+        temporally_scaled_emissions = da_totals.dot(da_scaling_factors, dim="cell")
 
     else:
         # Finally scale the emissions at each time
         temporally_scaled_emissions = da_totals * da_scaling_factors
 
     return temporally_scaled_emissions
+
+
+def _scale_emission_temporally_sum_total_first(
+    da_sf: xr.DataArray,
+    da_totals: xr.DataArray,
+    profiles_indexes: xr.DataArray,
+) -> xr.DataArray:
+    """Scale the emissions temporally, but sum over cells first.
+
+    This is useful if you have a large number of cells and want to reduce the memory usage.
+    However, this approach is only valid if you have the same profiles for all cells.
+    If you have different profiles for different cells, you need to use the `_scale_emission_temporally` function.
+
+    :param da_sf: The scaling factors for each profile at each time step.
+    :param da_totals: The total emissions for each cell, category and substance.
+    :param profiles_indexes: The indexes of the profiles for each cell, category and substance.
+    :return: The temporally scaled emissions array.
+    """
+
+    profiles_indexes = profiles_indexes.broadcast_like(da_totals)
+    profiles_indexes, da_totals = xr.align(profiles_indexes, da_totals, join="outer")
+
+    profiles_indexes = profiles_indexes.fillna(-1).astype(int)
+    da_totals = da_totals.fillna(0.0)
+    # First group the total values by the profiles they belong to
+    total_dims = list(da_totals.dims)
+    total_dims.remove("cell")
+
+    # Stack the total values on the profile dimension, so we can multiply with the scaling factors
+    da_total_stacked = da_totals.stack(z=da_totals.dims)
+    da_profiles_indexes_stacked = profiles_indexes.stack(z=profiles_indexes.dims)
+
+    totals = np.zeros(
+        (len(da_sf.profile),) + tuple(da_totals[dim].size for dim in total_dims)
+    )
+
+    mask_no_profiles = da_profiles_indexes_stacked == -1
+
+    da_pis_masked = da_profiles_indexes_stacked.loc[~mask_no_profiles]
+    da_pis_constant = da_profiles_indexes_stacked.loc[mask_no_profiles]
+
+    uniques_of_dim = [
+        np.unique(da_pis_masked[dim].values, return_inverse=True) for dim in total_dims
+    ]
+
+    print(totals)
+    print(da_pis_masked)
+    print(uniques_of_dim)
+    np.add.at(
+        totals,
+        (da_pis_masked.values,)
+        + tuple(inverse_array for unique_array, inverse_array in uniques_of_dim),
+        da_total_stacked.values[~mask_no_profiles],
+    )
+
+    da_out = (
+        xr.DataArray(
+            data=totals,
+            dims=["profile"] + total_dims,
+            coords={
+                "profile": da_sf.profile.values,
+                **{dim: da_totals[dim].values for dim in total_dims},
+            },
+        )
+        * da_sf
+    ).sum("profile")
+
+    # Handle the missing profiles by assigning them to a dummy profile
+
+    print(da_totals)
+    print(profiles_indexes)
+
+    mask = profiles_indexes == -1
+    if mask.any():
+        da_out += da_totals.where(mask, 0.0).sum("cell") * 1.0  # constant profile
+
+    return da_out
