@@ -48,11 +48,9 @@ def test_temporally_scaled_array_sum_over_cells():
     assert "cell" in scaled_on_cell.dims
     assert len(scaled.time) == len(time_range)
 
-
     xr.testing.assert_allclose(
         *xr.align(scaled, scaled_on_cell.sum("cell"), join="outer"),
     )
-
 
 
 def test_temporally_scaled_array_missing_cell_profile_fails():
