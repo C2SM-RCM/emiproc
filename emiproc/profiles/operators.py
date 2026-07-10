@@ -614,8 +614,10 @@ def remap_profiles(
     if dont_merge:
         if (emissions_weights < 0).any():
             raise ValueError(
-                "Cannot use dont_merge with negative emissions weights, as it will"
-                " not be possible to choose the most dominant profile."
+                "Cannot use 'dont_remap_profiles' or 'dont_merge' with inventory"
+                " containing negative emissions, as it will"
+                " not be possible to choose the most dominant temporal profile "
+                " when remapping between positive and negative emissions cells."
             )
         # Change the weight mapping to only use the most dominant profile
         mask = np.argsort(weights_mapping["weights"], descending=True)
