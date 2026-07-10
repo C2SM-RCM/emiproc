@@ -11,8 +11,10 @@ from emiproc.profiles.temporal.constants import N_HOUR_YEAR
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
+    DayOfLeapYearProfile,
     HourOfYearProfile,
     HourOfLeapYearProfile,
+    DayOfYearProfile,
     MounthsProfile,
     SpecificDayProfile,
     WeeklyProfile,
@@ -27,6 +29,8 @@ def get_x_axis(
         return "Height", np.concatenate([profile.height, profile.height[-1:]])
     elif isinstance(profile, (HourOfYearProfile, HourOfLeapYearProfile)):
         return "Hour of year", np.arange(profile.size + 1)
+    elif isinstance(profile, (DayOfYearProfile, DayOfLeapYearProfile)):
+        return "Day of year", np.arange(profile.size + 1)
     elif isinstance(profile, MounthsProfile):
         return "", [
             "January",
