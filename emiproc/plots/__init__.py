@@ -478,9 +478,18 @@ def plot_inventory(
             raise ValueError(
                 "inv.year is None. Cannot generate temporally scaled array without a valid year."
             )
-        da = get_temporally_scaled_array(
-            inv, inv.year, sum_over_cells=True, freq=temporal_freq, chunk=True
-        )
+        try:
+            da = get_temporally_scaled_array(
+                inv,
+                inv.year,
+                sum_over_cells=True,
+                freq=temporal_freq,
+            )
+        except Exception as e:
+            logger.error(
+                f"Cannot plot temporal emissions. Failed to get temporally scaled array for {inv}. Error: {e}"
+            )
+            return
 
         fig, axes = plt.subplots(
             figsize=(12, 4 * len(inv.substances)),
