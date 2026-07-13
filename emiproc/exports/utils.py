@@ -49,6 +49,8 @@ def get_temporally_scaled_array(
         by the number of your time resolution that fits in a year.
     """
 
+    logger = logging.getLogger(__name__)
+
     profiles, profiles_indexes = inv.t_profiles_groups, inv.t_profiles_indexes
 
     if profiles is None or profiles_indexes is None:
@@ -91,7 +93,7 @@ def get_temporally_scaled_array(
             da_totals_missing_cells != 0, drop=True
         )
         if zero_cells_missing.size > 0:
-            raise ValueError(
+            logger.warning(
                 "Some cells have emissions but no profiles are given for them."
                 f" Missing cells: {zero_cells_missing}"
             )

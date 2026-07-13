@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -53,7 +55,29 @@ def test_temporally_scaled_array_sum_over_cells():
     )
 
 
-def test_temporally_scaled_array_missing_cell_profile_fails():
+def test_temporally_scaled_array_sum_over_cells_missing_cell():
+
+    inv = test_inventories.inv.copy()
+
+    profiles = temporal_profiles.three_composite_profiles
+    profiles_indexes = temporal_profiles.indexes_inv_catsubcell_missing_cell
+
+    inv.set_profiles(profiles, indexes=profiles_indexes)
+
+    scaled = get_temporally_scaled_array(inv, time_range, sum_over_cells=True)
+    scaled_on_cell = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+
+    assert "cell" not in scaled.dims
+    assert "time" in scaled.dims
+    assert "cell" in scaled_on_cell.dims
+    assert len(scaled.time) == len(time_range)
+
+    xr.testing.assert_allclose(
+        *xr.align(scaled, scaled_on_cell.sum("cell"), join="outer"),
+    )
+
+
+def test_temporally_scaled_array_missing_cell_profile_warns(caplog):
 
     bad_index = temporal_profiles.indexes_inv_catsubcell.copy()
     # Drop one cell on purpose
@@ -65,9 +89,9 @@ def test_temporally_scaled_array_missing_cell_profile_fails():
 
     inv.set_profiles(profiles, indexes=bad_index)
 
-    with pytest.raises(ValueError, match="Some cells have emissions but no profiles"):
-
+    with caplog.at_level(logging.WARNING):
         get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+    assert "Some cells have emissions but no profiles" in caplog.text
 
 
 def test_temporally_scaled_array_missing_cell_profile_okay():
