@@ -167,9 +167,8 @@ def _scale_emission_temporally_sum_total_first(
 ) -> xr.DataArray:
     """Scale the emissions temporally, but sum over cells first.
 
-    This is useful if you have a large number of cells and want to reduce the memory usage.
-    However, this approach is only valid if you have the same profiles for all cells.
-    If you have different profiles for different cells, you need to use the `_scale_emission_temporally` function.
+    This is useful if you have a large number of cells with the same
+    temporal profiles and want to reduce the memory usage.
 
     :param da_sf: The scaling factors for each profile at each time step.
     :param da_totals: The total emissions for each cell, category and substance.
