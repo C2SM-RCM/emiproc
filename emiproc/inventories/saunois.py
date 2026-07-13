@@ -3,6 +3,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import xarray as xr
+import pandas as pd
 
 from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
@@ -66,6 +67,8 @@ class SaunoisInventory(Inventory):
             name="Saunois_Grid",
             rounding=2,
         )
+
+        self.year = int(pd.to_datetime(da_stacked["time"].values[0]).year)
 
         # Unit conversion
         # Units are gCH4/m2/day
