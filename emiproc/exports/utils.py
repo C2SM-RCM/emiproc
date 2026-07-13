@@ -227,18 +227,16 @@ def _scale_emission_temporally_sum_total_first(
         * da_sf
     ).sum("profile")
 
+    # Broadcast missing values when no emissions where given in a dimension
+    for coord in total_dims:
+        da_out = da_out.reindex({coord: da_totals[coord]}, fill_value=0.0)
     # Handle the missing profiles by assigning them to a dummy profile
     mask = profiles_indexes == -1
     if mask.any():
         da_out += (
-            da_totals.where(mask, 0.0)
-            .sum("cell")
-            .sel(**{dim: da_out[dim] for dim in total_dims})
+            da_totals.where(mask, 0.0).sum("cell")
+            # constant profile
             * 1.0
-        )  # constant profile
-
-    # Broadcast missing values when no emissions where given in a dimension
-    for coord in total_dims:
-        da_out = da_out.reindex({coord: da_totals[coord]}, fill_value=0.0)
+        )
 
     return da_out
