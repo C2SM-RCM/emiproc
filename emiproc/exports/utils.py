@@ -108,7 +108,7 @@ def get_temporally_scaled_array(
                 da_sf, da_totals, profiles_indexes
             )
         else:
-            _scale_emission_temporally(
+            return _scale_emission_temporally(
                 da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
             )
 
@@ -190,10 +190,6 @@ def _scale_emission_temporally_sum_total_first(
     da_total_stacked = da_totals.stack(z=total_dims_with_cell)
     da_profiles_indexes_stacked = profiles_indexes.stack(z=total_dims_with_cell)
 
-    totals = np.zeros(
-        (len(da_sf.profile),) + tuple(da_totals[dim].size for dim in total_dims)
-    )
-
     mask_no_profiles = da_profiles_indexes_stacked == -1
 
     da_pis_masked = da_profiles_indexes_stacked.loc[~mask_no_profiles]
@@ -202,6 +198,13 @@ def _scale_emission_temporally_sum_total_first(
     uniques_of_dim = [
         np.unique(da_pis_masked[dim].values, return_inverse=True) for dim in total_dims
     ]
+    totals = np.zeros(
+        (len(da_sf.profile),)
+        + tuple(
+            len(unique_array)
+            for (unique_array, _), dim in zip(uniques_of_dim, total_dims)
+        )
+    )
 
     np.add.at(
         totals,
@@ -234,5 +237,9 @@ def _scale_emission_temporally_sum_total_first(
             .sel(**{dim: da_out[dim] for dim in total_dims})
             * 1.0
         )  # constant profile
+
+    # Broadcast missing values when no emissions where given in a dimension
+    for coord in total_dims:
+        da_out = da_out.reindex({coord: da_totals[coord]}, fill_value=0.0)
 
     return da_out
