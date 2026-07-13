@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -182,12 +183,12 @@ def _scale_emission_temporally_sum_total_first(
     profiles_indexes = profiles_indexes.fillna(-1).astype(int)
     da_totals = da_totals.fillna(0.0)
     # First group the total values by the profiles they belong to
-    total_dims = list(da_totals.dims)
-    total_dims.remove("cell")
+    total_dims_with_cell = list(da_totals.dims)
+    total_dims = [dim for dim in total_dims_with_cell if dim != "cell"]
 
     # Stack the total values on the profile dimension, so we can multiply with the scaling factors
-    da_total_stacked = da_totals.stack(z=da_totals.dims)
-    da_profiles_indexes_stacked = profiles_indexes.stack(z=profiles_indexes.dims)
+    da_total_stacked = da_totals.stack(z=total_dims_with_cell)
+    da_profiles_indexes_stacked = profiles_indexes.stack(z=total_dims_with_cell)
 
     totals = np.zeros(
         (len(da_sf.profile),) + tuple(da_totals[dim].size for dim in total_dims)
@@ -215,7 +216,10 @@ def _scale_emission_temporally_sum_total_first(
             dims=["profile"] + total_dims,
             coords={
                 "profile": da_sf.profile.values,
-                **{dim: da_totals[dim].values for dim in total_dims},
+                **{
+                    dim: unique_array
+                    for (unique_array, _), dim in zip(uniques_of_dim, total_dims)
+                },
             },
         )
         * da_sf
@@ -224,6 +228,11 @@ def _scale_emission_temporally_sum_total_first(
     # Handle the missing profiles by assigning them to a dummy profile
     mask = profiles_indexes == -1
     if mask.any():
-        da_out += da_totals.where(mask, 0.0).sum("cell") * 1.0  # constant profile
+        da_out += (
+            da_totals.where(mask, 0.0)
+            .sum("cell")
+            .sel(**{dim: da_out[dim] for dim in total_dims})
+            * 1.0
+        )  # constant profile
 
     return da_out
