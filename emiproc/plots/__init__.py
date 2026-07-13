@@ -7,6 +7,7 @@ import logging
 from os import PathLike
 from pathlib import Path
 from typing import Any
+import xarray as xr
 
 import geopandas as gpd
 import matplotlib as mpl
@@ -142,6 +143,7 @@ def plot_inventory(
         # "alpha": 0.6,
     },
     country_borders_kwargs: dict[str, Any] = {},
+    show_total_temporal_emissions: bool = True,
 ):
     """Plot an inventory.
 
@@ -171,6 +173,8 @@ def plot_inventory(
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     :arg country_borders_kwargs: additional keyword arguments for the country borders.
         See `geopandas.Geoseries.plot` for more information.
+    :arg show_total_temporal_emissions: if True, will plot the total emissions
+        for each substance in the temporal plot.
     """
 
     logger = logging.getLogger(__name__)
@@ -443,7 +447,7 @@ def plot_inventory(
     sorted_categories = sorted(inv.categories)
     n_substances = len(inv.substances)
     fig, axes = plt.subplots(
-        figsize=(len(inv.categories) * 0.5, n_substances * 1.3),
+        figsize=(len(inv.categories) * 1.0, n_substances * 2.6),
         nrows=n_substances,
         sharex=True,
     )
@@ -486,8 +490,9 @@ def plot_inventory(
                 freq=temporal_freq,
             )
         except Exception as e:
-            logger.error(
-                f"Cannot plot temporal emissions. Failed to get temporally scaled array for {inv}. Error: {e}"
+            logger.exception(
+                f"Cannot plot temporal emissions. "
+                f"Failed to get temporally scaled array for {inv}."
             )
             return
 
@@ -500,12 +505,18 @@ def plot_inventory(
         for i_sub, sub in enumerate(inv.substances):
             ax = axes[i_sub, 0]
             min_value, max_value = 0, 0
+            total = xr.zeros_like(da.time, dtype=float)
             for cat in sorted(inv.categories):
                 serie = da.sel(category=cat, substance=sub).values
+                total += serie
                 ax.plot(da.time.values, serie, label=cat)
                 min_value = min(min_value, np.min(serie))
                 max_value = max(max_value, np.max(serie))
             ax.set_ylabel(f"{sub} kg/y")
+            if show_total_temporal_emissions and len(inv.categories) > 1:
+                ax.plot(da.time.values, total.values, label="total", color="black")
+                min_value = min(min_value, np.min(total.values))
+                max_value = max(max_value, np.max(total.values))
             scaling = 1.1
             ax.set_ylim(min_value * scaling, max_value * scaling)
         axes[-1, 0].legend()
