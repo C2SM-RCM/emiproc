@@ -33,6 +33,21 @@ def test_temporally_scaled_array_on_simple_inv():
     # scaled.sum("cell").stack(catsub=["category", "substance"]).plot.line(x="time")
 
 
+def test_index_no_cell():
+
+    inv = test_inventories.inv.copy()
+
+    profiles = temporal_profiles.three_composite_profiles
+    profiles_indexes = temporal_profiles.indexes_inv_catsub.copy()
+    # Remove the profile indexes too large
+    profiles_indexes = profiles_indexes.where(profiles_indexes < 3, -1)
+
+    inv.set_profiles(profiles, indexes=profiles_indexes)
+
+    get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+    get_temporally_scaled_array(inv, time_range, sum_over_cells=True)
+
+
 def test_temporally_scaled_array_sum_over_cells():
 
     inv = test_inventories.inv.copy()
@@ -71,6 +86,9 @@ def test_temporally_scaled_array_sum_over_cells_missing_cell():
     assert "time" in scaled.dims
     assert "cell" in scaled_on_cell.dims
     assert len(scaled.time) == len(time_range)
+
+    # Check that the cells are as in the inventory
+    np.testing.assert_array_equal(scaled_on_cell.cell.to_numpy(), np.arange(5))
 
     xr.testing.assert_allclose(
         *xr.align(scaled, scaled_on_cell.sum("cell"), join="outer"),

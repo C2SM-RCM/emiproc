@@ -97,6 +97,8 @@ def get_temporally_scaled_array(
                 "Some cells have emissions but no profiles are given for them."
                 f" Missing cells: {zero_cells_missing}"
             )
+        # Add missing profiles for the missing cells
+        profiles_indexes = profiles_indexes.reindex(cell=da_totals.cell, fill_value=-1)
     else:
         # If cell not given, we can speed up the calculation
         if sum_over_cells:
@@ -104,15 +106,15 @@ def get_temporally_scaled_array(
 
     da_sf = get_scaling_factors_at_time(profiles, time_range)
 
-    if not chunk or "cell" not in profiles_indexes.dims:
-        if sum_over_cells:
-            return _scale_emission_temporally_sum_total_first(
-                da_sf, da_totals, profiles_indexes
-            )
-        else:
-            return _scale_emission_temporally(
-                da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
-            )
+    if "cell" not in profiles_indexes.dims:
+        return _scale_emission_temporally(
+            da_sf, da_totals, profiles_indexes, sum_over_cells=sum_over_cells
+        )
+    elif not chunk and sum_over_cells:
+        # More efficient method, generating only once each profile
+        return _scale_emission_temporally_sum_total_first(
+            da_sf, da_totals, profiles_indexes
+        )
 
     # Chunking approach
     cell_chunks = np.array_split(profiles_indexes["cell"].values, n_chunks)
@@ -194,7 +196,6 @@ def _scale_emission_temporally_sum_total_first(
     mask_no_profiles = da_profiles_indexes_stacked == -1
 
     da_pis_masked = da_profiles_indexes_stacked.loc[~mask_no_profiles]
-    da_pis_constant = da_profiles_indexes_stacked.loc[mask_no_profiles]
 
     uniques_of_dim = [
         np.unique(da_pis_masked[dim].values, return_inverse=True) for dim in total_dims
