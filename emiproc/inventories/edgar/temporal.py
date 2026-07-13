@@ -92,11 +92,11 @@ def read_hourly_profiles_file(
         dims=["index", "hour"],
         coords={
             "hour": np.arange(1, 25),
-            "index": df.index,
-            "country": ("index", df["Country_code_A3"].values),
-            "category": ("index", df["activity_code"].values),
-            "month": ("index", df["month_id"].values),
-            "daytype_id": ("index", df["Daytype_id"].values),
+            "index": df.index.to_numpy(),
+            "country": ("index", df["Country_code_A3"].to_numpy()),
+            "category": ("index", df["activity_code"].to_numpy()),
+            "month": ("index", df["month_id"].to_numpy()),
+            "daytype_id": ("index", df["Daytype_id"].to_numpy()),
         },
     )
 
