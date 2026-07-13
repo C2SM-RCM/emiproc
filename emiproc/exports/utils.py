@@ -202,9 +202,6 @@ def _scale_emission_temporally_sum_total_first(
         np.unique(da_pis_masked[dim].values, return_inverse=True) for dim in total_dims
     ]
 
-    print(totals)
-    print(da_pis_masked)
-    print(uniques_of_dim)
     np.add.at(
         totals,
         (da_pis_masked.values,)
@@ -225,10 +222,6 @@ def _scale_emission_temporally_sum_total_first(
     ).sum("profile")
 
     # Handle the missing profiles by assigning them to a dummy profile
-
-    print(da_totals)
-    print(profiles_indexes)
-
     mask = profiles_indexes == -1
     if mask.any():
         da_out += da_totals.where(mask, 0.0).sum("cell") * 1.0  # constant profile
