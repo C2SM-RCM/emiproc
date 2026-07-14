@@ -215,7 +215,7 @@ def _scale_emission_temporally_sum_total_first(
         da_total_stacked.values[~mask_no_profiles],
     )
 
-    da_out = (
+    da_sf_weighted = da_sf.weighted(
         xr.DataArray(
             data=totals,
             dims=["profile"] + total_dims,
@@ -227,8 +227,10 @@ def _scale_emission_temporally_sum_total_first(
                 },
             },
         )
-        * da_sf
-    ).sum("profile")
+    )
+    da_out = da_sf_weighted.sum(dim="profile")
+    # Change dimensions to have time at the end for compatibility
+    da_out = da_out.transpose(*total_dims, "time")
 
     # Broadcast missing values when no emissions where given in a dimension
     for coord in total_dims:
