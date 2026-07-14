@@ -84,6 +84,8 @@ class GFED_Grid(RegularGrid):
         self.lon_range = unique_lons[0]
         self.lat_range = unique_lats[0]
 
+        self.lat_reversed = True
+
         # Get the grid cell size (here also ensure that the grid is regular)
         unique_dx = np.unique(np.diff(self.lon_range))
         unique_dy = np.unique(np.diff(self.lat_range))
@@ -96,6 +98,13 @@ class GFED_Grid(RegularGrid):
 
         self.nx = len(self.lon_range)
         self.ny = len(self.lat_range)
+
+        self.lon_bounds = np.concatenate(
+            [self.lon_range - self.dx / 2, self.lon_range[-1:] + self.dx / 2]
+        )
+        self.lat_bounds = np.concatenate(
+            [self.lat_range + self.dy / 2, self.lat_range[-1:] - self.dy / 2]
+        )
 
         # Bypass the RegularGrid __init__ method because we already have the grid coordinates
         Grid.__init__(self, gfed_filepath.stem)
