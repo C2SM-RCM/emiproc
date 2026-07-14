@@ -23,6 +23,7 @@ from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.utilities import get_natural_earth
 from emiproc.exports.utils import get_temporally_scaled_array
+from emiproc.profiles.temporal.operators import get_pandas_lower_resolution
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
@@ -134,7 +135,7 @@ def plot_inventory(
     total_only: bool = False,
     bare_plot: bool = False,
     reverse_y: bool = False,
-    temporal_freq: str = "h",
+    temporal_freq: str | None = None,
     poly_collection_kwargs: dict[str, Any] = {
         "edgecolors": "black",
         "linewidth": 0.04,
@@ -482,6 +483,8 @@ def plot_inventory(
             raise ValueError(
                 "inv.year is None. Cannot generate temporally scaled array without a valid year."
             )
+        if temporal_freq is None:
+            temporal_freq = get_pandas_lower_resolution(inv.t_profiles_groups)
         try:
             da = get_temporally_scaled_array(
                 inv,
@@ -502,21 +505,30 @@ def plot_inventory(
             sharex=True,
             squeeze=False,
         )
+        method = "step" if temporal_freq == "MS" else "plot"
+        kwargs = {"where": "post"} if method == "step" else {}
         for i_sub, sub in enumerate(inv.substances):
             ax = axes[i_sub, 0]
             min_value, max_value = 0, 0
-            total = xr.zeros_like(da.time, dtype=float)
+            x = da.time.values
+            if method == "step":
+                x = np.append(
+                    x, x[-1] + pd.to_timedelta(da.time.diff("time").mean().values)
+                )
+            total = np.zeros_like(x, dtype=float)
             for cat in sorted(inv.categories):
                 serie = da.sel(category=cat, substance=sub).values
+                if method == "step":
+                    serie = np.append(serie, serie[-1])
                 total += serie
-                ax.plot(da.time.values, serie, label=cat)
+                getattr(ax, method)(x, serie, label=cat, **kwargs)
                 min_value = min(min_value, np.min(serie))
                 max_value = max(max_value, np.max(serie))
             ax.set_ylabel(f"{sub} kg/y")
             if show_total_temporal_emissions and len(inv.categories) > 1:
-                ax.plot(da.time.values, total.values, label="total", color="black")
-                min_value = min(min_value, np.min(total.values))
-                max_value = max(max_value, np.max(total.values))
+                getattr(ax, method)(x, total, label="total", color="black", **kwargs)
+                min_value = min(min_value, np.min(total))
+                max_value = max(max_value, np.max(total))
             scaling = 1.1
             ax.set_ylim(min_value * scaling, max_value * scaling)
         axes[-1, 0].legend()

@@ -15,8 +15,10 @@ from emiproc.profiles.temporal.profiles import (
     DailyProfile,
     DayOfLeapYearProfile,
     DayOfYearProfile,
+    Hour3OfDay,
     Hour3OfDayPerMonth,
     HourOfLeapYearProfile,
+    HourOfWeekProfile,
     HourOfWeekPerMonthProfile,
     HourOfYearProfile,
     MounthsProfile,
@@ -44,6 +46,62 @@ class TemporalProfilesInterpolated(Enum):
 
     HOUR_OF_YEAR = "hour_of_year"
     THREE_CYCLES = "three_cycles"
+
+
+def get_pandas_lower_resolution(
+    profile_types: (
+        list[Type[TemporalProfile] | tuple[Type[TemporalProfile], SpecificDay]]
+        | CompositeTemporalProfiles
+    ),
+) -> str:
+    """Return the finest pandas frequency required for the given profile types.
+
+    :param profile_types: Temporal profile types (or specific-day tuples) to inspect.
+    :return: pandas frequency string ("MS", "D", "3h", or "h").
+    """
+    if isinstance(profile_types, CompositeTemporalProfiles):
+        profile_types = profile_types.types
+    if len(profile_types) == 0:
+        raise ValueError("`profile_types` must not be empty.")
+
+    normalized_types = [_get_type(profile_type) for profile_type in profile_types]
+
+    if any(
+        issubclass(
+            profile_type,
+            (
+                DailyProfile,
+                SpecificDayProfile,
+                HourOfYearProfile,
+                HourOfLeapYearProfile,
+                HourOfWeekProfile,
+                HourOfWeekPerMonthProfile,
+            ),
+        )
+        for profile_type in normalized_types
+    ):
+        return "h"
+    elif any(
+        issubclass(profile_type, (Hour3OfDay, Hour3OfDayPerMonth))
+        for profile_type in normalized_types
+    ):
+        return "3h"
+    elif any(
+        issubclass(
+            profile_type, (WeeklyProfile, DayOfYearProfile, DayOfLeapYearProfile)
+        )
+        for profile_type in normalized_types
+    ):
+        return "D"
+    elif any(
+        issubclass(profile_type, MounthsProfile) for profile_type in normalized_types
+    ):
+        return "MS"
+
+    else:
+        raise NotImplementedError(
+            f"Cannot determine pandas frequency for profile types: {profile_types}"
+        )
 
 
 def get_index_in_profile(
