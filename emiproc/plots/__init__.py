@@ -7,7 +7,6 @@ import logging
 from os import PathLike
 from pathlib import Path
 from typing import Any
-import xarray as xr
 
 import geopandas as gpd
 import matplotlib as mpl
