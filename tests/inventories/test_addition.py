@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+import pandas as pd
 
 from emiproc.inventories.utils import add_inventories, scale_inventory
 from emiproc.profiles.temporal.profiles import HourOfYearProfile, WeeklyProfile
@@ -65,3 +66,46 @@ def test_profiles():
     )
 
     summed_inv = add_inventories(inv1, inv2)
+
+    total_summed = summed_inv.total_emissions
+
+    pd.testing.assert_frame_equal(
+        total_summed,
+        inv1.total_emissions.add(inv2.total_emissions, fill_value=0)[
+            total_summed.columns
+        ],
+    )
+
+
+def test_profiles_values():
+    """Test the addition of two inventories with profiles and values."""
+
+    inv1 = test_inventories.inv.copy()
+    inv2 = test_inventories.inv.copy()
+
+    weekly_profile = WeeklyProfile(
+        ratios=[],
+    )
+
+    inv1.set_profiles(
+        temporal_profiles.three_composite_profiles,
+        indexes=temporal_profiles.indexes_inv_catsubcell,
+    )
+    inv2.set_profiles(
+        temporal_profiles.get_random_profiles(
+            temporal_profiles.indexes_inv_catsub_missing.max().values + 1,
+            profile_types=[HourOfYearProfile, WeeklyProfile],
+        ),
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+
+    summed_inv = add_inventories(inv1, inv2)
+
+    total_summed = summed_inv.total_emissions
+
+    pd.testing.assert_frame_equal(
+        total_summed,
+        inv1.total_emissions.add(inv2.total_emissions, fill_value=0)[
+            total_summed.columns
+        ],
+    )
