@@ -296,7 +296,7 @@ def get_profile_da(
 def interpolate_profiles(
     profiles: CompositeTemporalProfiles,
     year: int,
-    interpolation_method: str = "linear",
+    interpolation_method: str | dict[AnyTimeProfile, str] = "linear",
     return_profiles: bool = False,
     output_type: TemporalProfilesInterpolated = TemporalProfilesInterpolated.HOUR_OF_YEAR,
 ) -> (
@@ -311,6 +311,7 @@ def interpolate_profiles(
     :arg interpolation_method: The interpolation method to use.
         See `xarray <https://docs.xarray.dev/en/stable/user-guide/interpolation.html>`_
         for more details.
+        Using a dict, you can have different interpolation methods for different profiles.
     :arg return_profiles: If True, return the profiles instead of the ratios.
     :arg output_type: The type of the output profile.
 
@@ -337,7 +338,10 @@ def interpolate_profiles(
     offset = 0
     for t in profiles.types:
         if _get_type(t) == SpecificDayProfile:
-            raise ValueError(f"Cannot interpolate {t=}, it is a specific day profile.")
+            raise ValueError(
+                f"Cannot interpolate {t=}, it is a specific day profile. "
+                "Use `emiproc.profiles.temporal.resolve_daytype` to resolve."
+            )
         # create an array with the ratios
         t_len = t.size
         this_ratios = ratios[:, offset : offset + t_len]
@@ -346,9 +350,14 @@ def interpolate_profiles(
         # Create a data array for these ratios and convert to scaling factors
         da_sf = get_profile_da(profile=t(this_ratios), year=year) * t_len
         # Interpolate the data array
+        method = (
+            interpolation_method
+            if isinstance(interpolation_method, str)
+            else interpolation_method[t]
+        )
         da_interp = da_sf.interp(
             datetime=serie,
-            method=interpolation_method,
+            method=method,
             assume_sorted=True,
             kwargs={"fill_value": "extrapolate"},
         )
