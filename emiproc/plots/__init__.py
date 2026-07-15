@@ -525,7 +525,9 @@ def plot_inventory(
                 max_value = max(max_value, np.max(serie))
             ax.set_ylabel(f"{sub} kg/y")
             if show_total_temporal_emissions and len(inv.categories) > 1:
-                getattr(ax, method)(x, total, label="total", color="black", **kwargs)
+                getattr(ax, method)(
+                    x, total, label="total", color="black", alpha=0.5, **kwargs
+                )
                 min_value = min(min_value, np.min(total))
                 max_value = max(max_value, np.max(total))
             scaling = 1.1
