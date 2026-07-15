@@ -5,6 +5,7 @@ import pandas as pd
 import xarray as xr
 
 from emiproc.inventories import Inventory
+from emiproc.profiles.temporal.profiles import HourOfYearProfile, HourOfLeapYearProfile
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles, _get_type
 from emiproc.profiles.temporal.operators import get_scaling_factors_at_time
 from emiproc.profiles.temporal.specific_days import get_days_as_ints
@@ -52,7 +53,6 @@ def get_temporally_scaled_array(
     logger = logging.getLogger(__name__)
 
     profiles, profiles_indexes = inv.t_profiles_groups, inv.t_profiles_indexes
-
     if profiles is None or profiles_indexes is None:
         raise ValueError(
             "The inventory does not have temporal profiles."
@@ -67,22 +67,35 @@ def get_temporally_scaled_array(
             "`emiproc.inventories.utils.country_to_cells()` ."
         )
 
+    if not isinstance(profiles, CompositeTemporalProfiles):
+        profiles = CompositeTemporalProfiles(profiles)
+    da_sf = None
+
     if isinstance(time_range, (int, np.integer)):
         time_range = pd.date_range(
             start=f"{time_range}-01-01",
-            end=f"{time_range}-12-31",
+            end=f"{time_range+1}-01-01",
             freq=freq,
-            inclusive="both",
+            inclusive="left",
         )
+        # Check if there is only a hour of year profile we can directly take the scaling
+        # factors
+        if (
+            freq == "h"
+            and len(profiles.types) == 1
+            and profiles.types[0] in [HourOfYearProfile, HourOfLeapYearProfile]
+        ):
+            # Special case, optimize by taking the scaling factor directly
+            da_sf = xr.DataArray(
+                profiles.scaling_factors,
+                coords={"profile": np.arange(len(profiles)), "time": time_range},
+            )
     elif not isinstance(time_range, pd.DatetimeIndex):
         raise TypeError(
             f"Expected a pd.DatetimeIndex or int for `time_range`, got {type(time_range)}."
         )
 
     da_totals = inv_to_xarray(inv)
-
-    if not isinstance(profiles, CompositeTemporalProfiles):
-        profiles = CompositeTemporalProfiles(profiles)
 
     if "cell" in profiles_indexes.dims:
         # The profiles are usually only given on cells with emissions
@@ -104,7 +117,8 @@ def get_temporally_scaled_array(
         if sum_over_cells:
             da_totals = da_totals.sum("cell")
 
-    da_sf = get_scaling_factors_at_time(profiles, time_range)
+    if da_sf is None:
+        da_sf = get_scaling_factors_at_time(profiles, time_range)
 
     if "cell" not in profiles_indexes.dims:
         return _scale_emission_temporally(
