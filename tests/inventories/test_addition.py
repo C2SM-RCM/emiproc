@@ -83,10 +83,6 @@ def test_profiles_values():
     inv1 = test_inventories.inv.copy()
     inv2 = test_inventories.inv.copy()
 
-    weekly_profile = WeeklyProfile(
-        ratios=[],
-    )
-
     inv1.set_profiles(
         temporal_profiles.three_composite_profiles,
         indexes=temporal_profiles.indexes_inv_catsubcell,
