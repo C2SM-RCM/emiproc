@@ -922,9 +922,14 @@ def clip_box(
             indexes: xr.DataArray | None = getattr(out_inv, index_name, None)
             if indexes is not None and "cell" in indexes.dims:
                 cell_out = out_gdf.index
+                # Some cell might not be in the indexes, so we need to select only the ones that are
+                mask_cell_in_indexes = cell_out.isin(indexes.cell.values)
+                cell_out = cell_out[mask_cell_in_indexes]
                 indexes = indexes.sel(cell=cell_out)
                 # Reindex the cell dimension
-                indexes = indexes.assign_coords(cell=("cell", np.arange(len(cell_out))))
+                indexes = indexes.assign_coords(
+                    cell=("cell", np.arange(len(out_gdf.index))[mask_cell_in_indexes])
+                )
                 setattr(out_inv, index_name, indexes)
         out_gdf = out_gdf.reset_index(drop=True)
 

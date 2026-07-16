@@ -15,8 +15,10 @@ from emiproc.profiles.temporal.profiles import (
     DailyProfile,
     DayOfLeapYearProfile,
     DayOfYearProfile,
+    Hour3OfDay,
     Hour3OfDayPerMonth,
     HourOfLeapYearProfile,
+    HourOfWeekProfile,
     HourOfWeekPerMonthProfile,
     HourOfYearProfile,
     MounthsProfile,
@@ -44,6 +46,62 @@ class TemporalProfilesInterpolated(Enum):
 
     HOUR_OF_YEAR = "hour_of_year"
     THREE_CYCLES = "three_cycles"
+
+
+def get_pandas_lower_resolution(
+    profile_types: (
+        list[Type[TemporalProfile] | tuple[Type[TemporalProfile], SpecificDay]]
+        | CompositeTemporalProfiles
+    ),
+) -> str:
+    """Return the finest pandas frequency required for the given profile types.
+
+    :param profile_types: Temporal profile types (or specific-day tuples) to inspect.
+    :return: pandas frequency string ("MS", "D", "3h", or "h").
+    """
+    if isinstance(profile_types, CompositeTemporalProfiles):
+        profile_types = profile_types.types
+    if len(profile_types) == 0:
+        raise ValueError("`profile_types` must not be empty.")
+
+    normalized_types = [_get_type(profile_type) for profile_type in profile_types]
+
+    if any(
+        issubclass(
+            profile_type,
+            (
+                DailyProfile,
+                SpecificDayProfile,
+                HourOfYearProfile,
+                HourOfLeapYearProfile,
+                HourOfWeekProfile,
+                HourOfWeekPerMonthProfile,
+            ),
+        )
+        for profile_type in normalized_types
+    ):
+        return "h"
+    elif any(
+        issubclass(profile_type, (Hour3OfDay, Hour3OfDayPerMonth))
+        for profile_type in normalized_types
+    ):
+        return "3h"
+    elif any(
+        issubclass(
+            profile_type, (WeeklyProfile, DayOfYearProfile, DayOfLeapYearProfile)
+        )
+        for profile_type in normalized_types
+    ):
+        return "D"
+    elif any(
+        issubclass(profile_type, MounthsProfile) for profile_type in normalized_types
+    ):
+        return "MS"
+
+    else:
+        raise NotImplementedError(
+            f"Cannot determine pandas frequency for profile types: {profile_types}"
+        )
 
 
 def get_index_in_profile(
@@ -238,7 +296,7 @@ def get_profile_da(
 def interpolate_profiles(
     profiles: CompositeTemporalProfiles,
     year: int,
-    interpolation_method: str = "linear",
+    interpolation_method: str | dict[AnyTimeProfile, str] = "linear",
     return_profiles: bool = False,
     output_type: TemporalProfilesInterpolated = TemporalProfilesInterpolated.HOUR_OF_YEAR,
 ) -> (
@@ -253,6 +311,7 @@ def interpolate_profiles(
     :arg interpolation_method: The interpolation method to use.
         See `xarray <https://docs.xarray.dev/en/stable/user-guide/interpolation.html>`_
         for more details.
+        Using a dict, you can have different interpolation methods for different profiles.
     :arg return_profiles: If True, return the profiles instead of the ratios.
     :arg output_type: The type of the output profile.
 
@@ -279,7 +338,10 @@ def interpolate_profiles(
     offset = 0
     for t in profiles.types:
         if _get_type(t) == SpecificDayProfile:
-            raise ValueError(f"Cannot interpolate {t=}, it is a specific day profile.")
+            raise ValueError(
+                f"Cannot interpolate {t=}, it is a specific day profile. "
+                "Use `emiproc.profiles.temporal.resolve_daytype` to resolve."
+            )
         # create an array with the ratios
         t_len = t.size
         this_ratios = ratios[:, offset : offset + t_len]
@@ -288,9 +350,14 @@ def interpolate_profiles(
         # Create a data array for these ratios and convert to scaling factors
         da_sf = get_profile_da(profile=t(this_ratios), year=year) * t_len
         # Interpolate the data array
+        method = (
+            interpolation_method
+            if isinstance(interpolation_method, str)
+            else interpolation_method[t]
+        )
         da_interp = da_sf.interp(
             datetime=serie,
-            method=interpolation_method,
+            method=method,
             assume_sorted=True,
             kwargs={"fill_value": "extrapolate"},
         )

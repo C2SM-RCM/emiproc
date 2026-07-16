@@ -11,14 +11,22 @@ from emiproc.profiles.operators import (
     weighted_combination,
 )
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
-from emiproc.profiles.temporal.operators import get_index_in_profile
+from emiproc.profiles.temporal.operators import (
+    get_index_in_profile,
+    get_pandas_lower_resolution,
+)
 from emiproc.profiles.temporal.profiles import (
     DailyProfile,
+    DayOfYearProfile,
+    Hour3OfDay,
     Hour3OfDayPerMonth,
     HourOfLeapYearProfile,
+    HourOfWeekProfile,
     HourOfYearProfile,
+    MounthsProfile,
     SpecificDayProfile,
     WeeklyProfile,
+    TemporalProfile,
 )
 from emiproc.profiles.temporal.specific_days import SpecificDay
 from emiproc.tests_utils import temporal_profiles, vertical_profiles
@@ -178,6 +186,38 @@ def test_index_in_profile(profile_type, expected):
 
     indices = get_index_in_profile(profile_type, test_data_index_in_profles)
     pd.testing.assert_index_equal(indices, pd.Index(expected, dtype=indices.dtype))
+
+
+@pytest.mark.parametrize(
+    "profile_types, expected",
+    [
+        ([MounthsProfile], "MS"),
+        ([WeeklyProfile], "D"),
+        ([DayOfYearProfile], "D"),
+        ([Hour3OfDay], "3h"),
+        ([Hour3OfDayPerMonth], "3h"),
+        ([DailyProfile], "h"),
+        ([HourOfYearProfile], "h"),
+        ([HourOfLeapYearProfile], "h"),
+        ([HourOfWeekProfile], "h"),
+        ([(SpecificDayProfile, SpecificDay.WEEKDAY)], "h"),
+        ([MounthsProfile, WeeklyProfile], "D"),
+        ([MounthsProfile, Hour3OfDay], "3h"),
+        ([MounthsProfile, HourOfYearProfile], "h"),
+    ],
+)
+def test_get_pandas_lower_resolution(profile_types, expected):
+    assert get_pandas_lower_resolution(profile_types) == expected
+
+
+def test_get_pandas_lower_resolution_empty_fails():
+    with pytest.raises(ValueError):
+        get_pandas_lower_resolution([])
+
+
+def test_get_pandas_lower_resolution_unknown_profile_fails():
+    with pytest.raises(NotImplementedError):
+        get_pandas_lower_resolution([TemporalProfile])
 
 
 if __name__ == "__main__":
