@@ -612,11 +612,19 @@ def remap_profiles(
         weights_mapping = {k: v[~mask_missing] for k, v in weights_mapping.items()}
 
     if dont_merge:
-        # Change the weight mapping to only use one of the profiles
-        _, ind = np.unique(weights_mapping["output_indexes"], return_index=True)
+        if (emissions_weights < 0).any():
+            raise ValueError(
+                "Cannot use 'dont_remap_profiles' or 'dont_merge' with inventory"
+                " containing negative emissions, as it will"
+                " not be possible to choose the most dominant temporal profile "
+                " when remapping between positive and negative emissions cells."
+            )
+        # Change the weight mapping to only use the most dominant profile
+        mask = np.argsort(weights_mapping["weights"], descending=True)
+        _, ind = np.unique(weights_mapping["output_indexes"][mask], return_index=True)
         weights_mapping = {
-            "output_indexes": weights_mapping["output_indexes"][ind],
-            "inv_indexes": weights_mapping["inv_indexes"][ind],
+            "output_indexes": weights_mapping["output_indexes"][mask][ind],
+            "inv_indexes": weights_mapping["inv_indexes"][mask][ind],
             "weights": np.ones_like(ind, dtype=float),
         }
 

@@ -199,7 +199,7 @@ def get_profiles_indexes(
         coord_values = coord_values.astype(expected_type)
         if expected_type == str:
             # Clean the strings from tabs and spaces at the sides
-            coord_values = [v.strip() for v in coord_values]
+            coord_values = [str(v).strip() for v in coord_values]
             df[col] = df[col].str.strip()
         coords[dim] = coord_values
     # Create the empty xarray

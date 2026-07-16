@@ -22,6 +22,7 @@ from emiproc.plots import nclcmaps
 from emiproc.regrid import get_weights_mapping, weights_remap
 from emiproc.utilities import get_natural_earth
 from emiproc.exports.utils import get_temporally_scaled_array
+from emiproc.profiles.temporal.operators import get_pandas_lower_resolution
 
 
 def explore_multilevel(gdf: gpd.GeoDataFrame, colum: Any, logscale: bool = False):
@@ -133,7 +134,7 @@ def plot_inventory(
     total_only: bool = False,
     bare_plot: bool = False,
     reverse_y: bool = False,
-    temporal_freq: str = "h",
+    temporal_freq: str | None = None,
     poly_collection_kwargs: dict[str, Any] = {
         "edgecolors": "black",
         "linewidth": 0.04,
@@ -142,6 +143,7 @@ def plot_inventory(
         # "alpha": 0.6,
     },
     country_borders_kwargs: dict[str, Any] = {},
+    show_total_temporal_emissions: bool = True,
 ):
     """Plot an inventory.
 
@@ -171,6 +173,8 @@ def plot_inventory(
     :arg poly_collection_kwargs: additional keyword arguments for the PolyCollection.
     :arg country_borders_kwargs: additional keyword arguments for the country borders.
         See `geopandas.Geoseries.plot` for more information.
+    :arg show_total_temporal_emissions: if True, will plot the total emissions
+        for each substance in the temporal plot.
     """
 
     logger = logging.getLogger(__name__)
@@ -443,7 +447,7 @@ def plot_inventory(
     sorted_categories = sorted(inv.categories)
     n_substances = len(inv.substances)
     fig, axes = plt.subplots(
-        figsize=(len(inv.categories) * 0.5, n_substances * 1.3),
+        figsize=(len(inv.categories) * 1.0, n_substances * 2.6),
         nrows=n_substances,
         sharex=True,
     )
@@ -478,9 +482,21 @@ def plot_inventory(
             raise ValueError(
                 "inv.year is None. Cannot generate temporally scaled array without a valid year."
             )
-        da = get_temporally_scaled_array(
-            inv, inv.year, sum_over_cells=True, freq=temporal_freq, chunk=True
-        )
+        if temporal_freq is None:
+            temporal_freq = get_pandas_lower_resolution(inv.t_profiles_groups)
+        try:
+            da = get_temporally_scaled_array(
+                inv,
+                inv.year,
+                sum_over_cells=True,
+                freq=temporal_freq,
+            )
+        except Exception as e:
+            logger.exception(
+                f"Cannot plot temporal emissions. "
+                f"Failed to get temporally scaled array for {inv}."
+            )
+            return
 
         fig, axes = plt.subplots(
             figsize=(12, 4 * len(inv.substances)),
@@ -488,15 +504,32 @@ def plot_inventory(
             sharex=True,
             squeeze=False,
         )
+        method = "step" if temporal_freq == "MS" else "plot"
+        kwargs = {"where": "post"} if method == "step" else {}
         for i_sub, sub in enumerate(inv.substances):
             ax = axes[i_sub, 0]
             min_value, max_value = 0, 0
+            x = da.time.values
+            if method == "step":
+                x = np.append(
+                    x, x[-1] + pd.to_timedelta(da.time.diff("time").mean().values)
+                )
+            total = np.zeros_like(x, dtype=float)
             for cat in sorted(inv.categories):
                 serie = da.sel(category=cat, substance=sub).values
-                ax.plot(da.time.values, serie, label=cat)
+                if method == "step":
+                    serie = np.append(serie, serie[-1])
+                total += serie
+                getattr(ax, method)(x, serie, label=cat, **kwargs)
                 min_value = min(min_value, np.min(serie))
                 max_value = max(max_value, np.max(serie))
             ax.set_ylabel(f"{sub} kg/y")
+            if show_total_temporal_emissions and len(inv.categories) > 1:
+                getattr(ax, method)(
+                    x, total, label="total", color="black", alpha=0.5, **kwargs
+                )
+                min_value = min(min_value, np.min(total))
+                max_value = max(max_value, np.max(total))
             scaling = 1.1
             ax.set_ylim(min_value * scaling, max_value * scaling)
         axes[-1, 0].legend()

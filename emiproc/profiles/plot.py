@@ -11,13 +11,32 @@ from emiproc.profiles.temporal.constants import N_HOUR_YEAR
 from emiproc.profiles.temporal.profiles import (
     AnyTimeProfile,
     DailyProfile,
+    DayOfLeapYearProfile,
     HourOfYearProfile,
     HourOfLeapYearProfile,
+    DayOfYearProfile,
     MounthsProfile,
     SpecificDayProfile,
     WeeklyProfile,
+    Hour3OfDayPerMonth,
 )
 from emiproc.profiles.vertical_profiles import VerticalProfile
+
+months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+    "",
+]
 
 
 def get_x_axis(
@@ -27,22 +46,14 @@ def get_x_axis(
         return "Height", np.concatenate([profile.height, profile.height[-1:]])
     elif isinstance(profile, (HourOfYearProfile, HourOfLeapYearProfile)):
         return "Hour of year", np.arange(profile.size + 1)
+    elif isinstance(profile, (DayOfYearProfile, DayOfLeapYearProfile)):
+        return "Day of year", np.arange(profile.size + 1)
+    elif isinstance(profile, (Hour3OfDayPerMonth)):
+        return "Hour3 of day per month", [
+            m if h3 == 0 else "" for m in months[:-1] for h3 in range(0, 24, 3)
+        ] + [""]
     elif isinstance(profile, MounthsProfile):
-        return "", [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-            "",
-        ]
+        return "", months
     elif isinstance(profile, WeeklyProfile):
         return "", [
             "Monday",
@@ -115,6 +126,13 @@ def plot_profile(
     # Get the x axis
     x_label, x_axis = get_x_axis(profile)
 
+    x_axis = np.array(x_axis)
+    if np.issubdtype(x_axis.dtype, np.number):
+        x_ticks = None
+    else:
+        x_ticks = x_axis
+        x_axis = np.arange(len(x_axis))
+
     # Add a duplicate in the end of the profile to close the loop
     profile_slice = (
         slice(None, None)
@@ -132,6 +150,10 @@ def plot_profile(
         ax.set_ylabel("Ratio [-]")
         # Add rotation
         ax.tick_params(axis="x", rotation=45)
+        if x_ticks is not None:
+            mask_has_ticks = np.where(x_ticks != "")[0]
+            ax.set_xticks(x_axis[mask_has_ticks])
+            ax.set_xticklabels(x_ticks[mask_has_ticks])
     else:
         # Hide the ticks
         ax.set_xticks([])
