@@ -526,16 +526,20 @@ def create_scaling_factors_time_serie(
         same as `pd.date_range <https://pandas.pydata.org/docs/reference/api/pandas.date_range.html#pandas-date-range>`_
         Include boundaries; Whether to set each bound as closed or open.
     """
-
-    kwargs = {}
     if local_tz is not None:
-        kwargs["tz"] = "UTC"
+        raise ValueError(
+            "The `local_tz` argument is no longer supported. "
+            "Please ensure that the `start_time` and `end_time` are timezone-aware"
+            " and in the desired timezone."
+        )
+
     # Create the time serie
     time_serie = pd.date_range(
-        start_time, end_time, freq=freq, inclusive=inclusive, **kwargs
+        start_time,
+        end_time,
+        freq=freq,
+        inclusive=inclusive,
     )
-    if local_tz is not None:
-        time_serie = time_serie.tz_convert(local_tz)
 
     # Create the scaling factors
     scaling_factors = np.ones(len(time_serie))

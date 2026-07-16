@@ -24,11 +24,7 @@ from emiproc.profiles.temporal.profiles import (
     HourOfLeapYearProfile,
     get_leap_year_or_normal,
 )
-from emiproc.profiles.temporal.operators import (
-    create_scaling_factors_time_serie,
-    TemporalProfilesInterpolated,
-    interpolate_profiles,
-)
+from emiproc.profiles.temporal.operators import TemporalProfilesInterpolated
 from emiproc.profiles.vertical_profiles import (
     VerticalProfile,
     VerticalProfiles,
