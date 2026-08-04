@@ -609,11 +609,15 @@ def _profile_to_scaling_factors(
         if apply_month_interpolation:
             # Apply the factor to the 15 th of each month by getting the exact datetime
             # of the 15th of each month
-            mid_months = pd.date_range(
-                start=time_serie[0],
-                end=time_serie[-1],
-                freq="MS",
-            ) + timedelta(days=14)
+            start, end = time_serie[0], time_serie[-1]
+            if end - start < pd.Timedelta(days=32):
+                # Need to adapt the start and end to cover at least 2 months,
+                # otherwise the interpolation will not work
+                start = start - pd.Timedelta(days=16)
+                end = end + pd.Timedelta(days=16)
+            mid_months = pd.date_range(start=start, end=end, freq="MS") + timedelta(
+                days=14
+            )
             mid_months_factors = np.ones(len(mid_months))
             # Set the value to each month
             for month, factor in enumerate(factors):
