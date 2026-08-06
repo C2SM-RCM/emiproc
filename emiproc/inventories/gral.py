@@ -290,18 +290,18 @@ class GralInventory(Inventory):
             # Create geseries with the start points and end points
             df_group = df.loc[mask_source_group]
 
-            half_x_ext = df_group[df.columns[CadastreCols.X_EXTENSION]] / 2
-            half_y_ext = df_group[df.columns[CadastreCols.Y_EXTENSION]] / 2
+            half_x_ext = df_group[df.columns[CadastreCols.X_EXTENSION]] / 2.0
+            half_y_ext = df_group[df.columns[CadastreCols.Y_EXTENSION]] / 2.0
 
             gs_sqaures = gpd.GeoSeries(
                 [
                     Polygon(
                         (
-                            (x - half_x_ext, y - half_y_ext),
-                            (x + half_x_ext, y - half_y_ext),
-                            (x + half_x_ext, y + half_y_ext),
-                            (x - half_x_ext, y + half_y_ext),
-                            (x - half_x_ext, y - half_y_ext),
+                            (x - x_ext, y - y_ext),
+                            (x + x_ext, y - y_ext),
+                            (x + x_ext, y + y_ext),
+                            (x - x_ext, y + y_ext),
+                            (x - x_ext, y - y_ext),
                         )
                     )
                     for x, y, x_ext, y_ext in zip(
