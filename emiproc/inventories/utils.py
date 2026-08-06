@@ -580,10 +580,13 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     return out_inv
 
 
-def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
+def get_total_emissions(
+    inv: Inventory, include_total: bool = True
+) -> dict[str, dict[str, float]]:
     """Get the total emissions from the inventory.
 
     :arg inv: The inventory from which to get the total emissions.
+    :arg include_total: Whether to include the total emissions for each substance.
 
     :return: A dictionary mapping substances to another dictionary
         which maps categories to values.
@@ -625,8 +628,9 @@ def get_total_emissions(inv: Inventory) -> dict[str, dict[str, float]]:
             # Add the total emissions
             out_dic[sub][cat] += gdf[sub].sum()
     # Add the total
-    for dic in out_dic.values():
-        dic["__total__"] = sum(dic.values())
+    if include_total:
+        for dic in out_dic.values():
+            dic["__total__"] = sum(dic.values())
 
     return out_dic
 
