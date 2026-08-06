@@ -76,6 +76,7 @@ class GralInventory(Inventory):
         emissions_dir: PathLike,
         source_group_mapping: dict[int, tuple[Substance, Category]] | None = None,
         crs: str | int = WGS84,
+        skip_missing: bool = False,
     ) -> None:
 
         emissions_dir = Path(emissions_dir)
@@ -90,15 +91,17 @@ class GralInventory(Inventory):
 
         group_mapping_file = self.path / "source_groups.json"
 
+
+        self.skip_missing = skip_missing
+
         super().__init__()
 
         # Read the source group mapping
         if source_group_mapping is None:
             if not group_mapping_file.is_file():
-                raise FileNotFoundError(
-                    f"{group_mapping_file=} not found. Please provide"
-                    " 'source_group_mapping' of source groups to substances and"
-                    " categories. Or generate the file."
+                self.logger.warning(
+                    f"{group_mapping_file=} not found."
+                    "source group values will be used as category names."
                 )
             with open(group_mapping_file) as f:
                 source_group_mapping = json.load(f)
@@ -129,7 +132,12 @@ class GralInventory(Inventory):
 
     def _get_sub_cat(self, source_group: int) -> tuple[Substance, Category]:
         """Get the substance and category for a source group."""
+
+        source_group = int(source_group)
+
         if source_group not in self.source_group_mapping:
+            if self.skip_missing:
+                return None
             raise ValueError(
                 f"{source_group=} not found in {self.source_group_mapping=}"
             )
@@ -174,7 +182,10 @@ class GralInventory(Inventory):
         source_groups = df[df.columns[PointsCols.SOURCE_GROUP]].unique()
 
         for source_group in source_groups:
-            substance, category = self._get_sub_cat(source_group)
+            subcat = self._get_sub_cat(source_group)
+            if subcat is None:
+                continue
+            substance, category = subcat
             mask_source_group = df[df.columns[PointsCols.SOURCE_GROUP]] == source_group
             # Create the GeoDataFrame
             emission_col = df.columns[PointsCols.EMISSION]
@@ -210,7 +221,10 @@ class GralInventory(Inventory):
         source_groups = df[df.columns[LinesCols.SOURCE_GROUP]].unique()
 
         for source_group in source_groups:
-            substance, category = self._get_sub_cat(source_group)
+            subcat = self._get_sub_cat(source_group)
+            if subcat is None:
+                continue
+            substance, category = subcat
             self.logger.debug(f"{source_group=}, {substance=}, {category=}")
             mask_source_group = df[df.columns[LinesCols.SOURCE_GROUP]] == source_group
             # Create the GeoDataFrame
@@ -264,7 +278,10 @@ class GralInventory(Inventory):
         source_groups = df[df.columns[CadastreCols.SOURCE_GROUP]].unique()
         self.logger.debug(f"{source_groups=}")
         for source_group in source_groups:
-            substance, category = self._get_sub_cat(source_group)
+            subcat = self._get_sub_cat(source_group)
+            if subcat is None:
+                continue
+            substance, category = subcat
             self.logger.debug(f"{source_group=}, {substance=}, {category=}")
             mask_source_group = (
                 df[df.columns[CadastreCols.SOURCE_GROUP]] == source_group
