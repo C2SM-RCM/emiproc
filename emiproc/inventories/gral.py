@@ -91,7 +91,6 @@ class GralInventory(Inventory):
 
         group_mapping_file = self.path / "source_groups.json"
 
-
         self.skip_missing = skip_missing
 
         super().__init__()
@@ -291,22 +290,25 @@ class GralInventory(Inventory):
             # Create geseries with the start points and end points
             df_group = df.loc[mask_source_group]
 
+            half_x_ext = df_group[df.columns[CadastreCols.X_EXTENSION]] / 2
+            half_y_ext = df_group[df.columns[CadastreCols.Y_EXTENSION]] / 2
+
             gs_sqaures = gpd.GeoSeries(
                 [
                     Polygon(
                         (
-                            (x, y),
-                            (x + x_ext, y),
-                            (x + x_ext, y + y_ext),
-                            (x, y + y_ext),
-                            (x, y),
+                            (x - half_x_ext, y - half_y_ext),
+                            (x + half_x_ext, y - half_y_ext),
+                            (x + half_x_ext, y + half_y_ext),
+                            (x - half_x_ext, y + half_y_ext),
+                            (x - half_x_ext, y - half_y_ext),
                         )
                     )
                     for x, y, x_ext, y_ext in zip(
                         df_group[df.columns[CadastreCols.X]],
                         df_group[df.columns[CadastreCols.Y]],
-                        df_group[df.columns[CadastreCols.X_EXTENSION]],
-                        df_group[df.columns[CadastreCols.Y_EXTENSION]],
+                        half_x_ext,
+                        half_y_ext,
                     )
                 ],
                 crs=self._requested_crs,
