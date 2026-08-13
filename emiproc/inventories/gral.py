@@ -194,7 +194,7 @@ class GralInventory(Inventory):
                 df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
             # Convert the units from kg/h to kg/y
-            emissions_values *= HOUR_PER_YR
+            emissions_values = emissions_values * HOUR_PER_YR
             gdf = gpd.GeoDataFrame(
                 {substance: emissions_values},
                 geometry=gpd.points_from_xy(
@@ -253,7 +253,7 @@ class GralInventory(Inventory):
 
             line_lenghts = gs_lines.length.to_numpy()
             # Convert the units from kg/h/km to kg/y(/shape)
-            emission_values *= HOUR_PER_YR * line_lenghts * 1e-3
+            emission_values = emission_values * HOUR_PER_YR * line_lenghts * 1e-3
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame
@@ -320,8 +320,8 @@ class GralInventory(Inventory):
             emission_values = (
                 df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
-            # Convert the units from kg/h(/shape?) to kg/y(/shape)
-            emission_values *= HOUR_PER_YR
+            # Convert the units from kg/h(/shape) to kg/y(/shape)
+            emission_values = emission_values * HOUR_PER_YR
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame
