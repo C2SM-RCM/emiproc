@@ -61,8 +61,6 @@ LPJ-GUESS
 Saunois
 ^^^^^^^
 
-:py:class:`emiproc.inventories.saunois.SaunoisInventory`
-
 :py:class:`emiproc.inventories.saunois.Saunois`
 
 CAMS Regional Air Quality

@@ -21,6 +21,12 @@ class SaunoisInventory(Inventory):
     had some other files as sources, but very similar.
     https://www.icos-cp.eu/GCP-CH4-2024
 
+    .. deprecated::
+
+        This class expects one file per category and is kept only for
+        backwards compatibility. Please use :py:class:`Saunois` instead,
+        which reads the single merged GCP-CH4 netcdf file.
+
     """
 
     def __init__(self, saunois_files: list[Path]):
@@ -37,6 +43,12 @@ class SaunoisInventory(Inventory):
             Or change the code for this inventory.
         """
         super().__init__()
+
+        self.logger.warning(
+            "SaunoisInventory is deprecated and will be removed in the future. "
+            "Please use the Saunois class instead, which reads the single "
+            "merged GCP-CH4 netcdf file."
+        )
 
         da = xr.concat(
             [
@@ -170,6 +182,25 @@ class Saunois(Inventory):
             if var.startswith("flux_ch4_")
         )
 
+        units_per_category = {
+            cat: ds[f"flux_ch4_{cat}"].attrs.get("units") for cat in categories
+        }
+        unique_units = set(units_per_category.values())
+        if len(unique_units) > 1:
+            raise ValueError(
+                "Inconsistent units across Saunois categories: "
+                f"{units_per_category}. All flux_ch4_<category> variables "
+                "must share the same units."
+            )
+        (units,) = unique_units
+        if units != "kg/m2/s":
+            raise ValueError(
+                f"Saunois categories have units {units!r}, but this class "
+                "only supports 'kg/m2/s' (the unit conversion assumes it). "
+                "See emiproc.utils.units for other supported units and "
+                "adapt the conversion if needed."
+            )
+
         days_in_month = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
         if calendar.isleap(year):
             days_in_month[1] = 29
@@ -177,14 +208,6 @@ class Saunois(Inventory):
         das = []
         for cat in categories:
             da = ds[f"flux_ch4_{cat}"]
-            units = da.attrs.get("units")
-            if units != "kg/m2/s":
-                raise ValueError(
-                    f"Variable 'flux_ch4_{cat}' has units {units!r}, but this "
-                    "class only supports 'kg/m2/s' (the unit conversion "
-                    "assumes it). See emiproc.utils.units for other supported "
-                    "units and adapt the conversion if needed."
-                )
             if "time" in da.dims:
                 da = da.sel(time=da["time"].dt.year == year)
                 if da.sizes["time"] != 12:
