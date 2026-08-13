@@ -102,6 +102,5 @@ def test_profiles_values():
     pd.testing.assert_frame_equal(
         total_summed,
         inv1.total_emissions.add(inv2.total_emissions, fill_value=0),
-        # Ignore index ordering 
-        check_like=True
+        check_like=True,  # Ignore index ordering
     )
