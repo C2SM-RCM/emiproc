@@ -325,8 +325,7 @@ class GFED51_Inventory(Inventory):
 
         files_dir = Path(file_dir)
         files = [
-            files_dir / f"GFED5.1_daily_{year}-{month:02d}.nc"
-            for month in range(1, 13)
+            files_dir / f"GFED5.1_daily_{year}-{month:02d}.nc" for month in range(1, 13)
         ]
 
         # Check that all files exists
