@@ -35,7 +35,6 @@ dependencies = [
     "pyogrio",
     "pyyaml",
     "filelock",
-    "paramiko",
 ]
 license = {text = "BSD-3-Clause"}
 readme = "README.md"

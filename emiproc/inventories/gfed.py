@@ -4,7 +4,6 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
-import paramiko
 import xarray as xr
 
 from emiproc.grids import Grid, RegularGrid
@@ -22,6 +21,8 @@ from emiproc.profiles.utils import ratios_dataarray_to_profiles
 def download_gfedv51(
     data_dir: PathLike,
     year: int,
+    # Public credentials, published at
+    # https://www.globalfiredata.org/ancill/GFED5_SFTP_info.txt
     host: str = "ftp.prd.dip.wur.nl",
     port: int = 1022,
     username: str = "sftp0041-1-r",
@@ -40,6 +41,13 @@ def download_gfedv51(
     :param remote_dir: Remote directory containing the .nc files
     :param filename_template: Template for the remote filename, with year/month placeholders
     """
+    try:
+        import paramiko
+    except ImportError as e:
+        raise ImportError(
+            "paramiko is required to download the GFED5 files via SFTP."
+            " Please install it using 'pip install paramiko'."
+        ) from e
 
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
