@@ -142,20 +142,20 @@ class SaunoisInventory(Inventory):
 class Saunois(Inventory):
     """Inventory based on the Global Carbon Project methane budget prior fluxes.
 
-    Unlike :py:class:`SaunoisInventory`, which reads one file per category,
-    this reads a single merged file (e.g. ``GCP_Prior_CH4_fluxes.nc``) where
-    each category is a ``flux_ch4_<category>`` data variable in units of
-    kg CH4/m2/s.
-
-    https://doi.org/10.5194/essd-12-1561-2020
+    To download the file, you can use the following links:
     https://www.icos-cp.eu/GCP-CH4-2024
 
-    Most categories have a monthly time series covering several years
-    (dim ``time``); the requested ``year`` is sliced out of those. A few
-    categories (e.g. ``freshwaters``, ``geological``, ``ocean``, ``termites``,
-    ``wetlands``) are only available as a fixed 12-month climatology
-    (dim ``time_climato``), which is reused as-is regardless of the
-    requested year.
+    Then go to the "Download" section and select
+    `Download the complete dataset in one zip file`
+
+    Extract the zip file and the `GCP_Prior_CH4_fluxes.tar.gz` in that file to 
+    obtatin the `GCP_Prior_CH4_fluxes.nc` file.
+
+    https://doi.org/10.5194/essd-12-1561-2020
+
+    Sectors have either a monthly time series covering several years
+    or a fixed 12-month climatology,
+    which is reused as-is regardless of the requested year.
     """
 
     def __init__(self, saunois_file: Path, year: int):
@@ -176,20 +176,22 @@ class Saunois(Inventory):
 
         self.year = year
 
+        str_flux = "flux_ch4_"
+
         categories = sorted(
-            var[len("flux_ch4_") :]
+            var[len(str_flux) :]
             for var in ds.data_vars
-            if var.startswith("flux_ch4_")
+            if var.startswith(str_flux)
         )
 
         units_per_category = {
-            cat: ds[f"flux_ch4_{cat}"].attrs.get("units") for cat in categories
+            cat: ds[f"{str_flux}{cat}"].attrs.get("units") for cat in categories
         }
         unique_units = set(units_per_category.values())
         if len(unique_units) > 1:
             raise ValueError(
                 "Inconsistent units across Saunois categories: "
-                f"{units_per_category}. All flux_ch4_<category> variables "
+                f"{units_per_category}. All {str_flux}<category> variables "
                 "must share the same units."
             )
         (units,) = unique_units
@@ -207,7 +209,7 @@ class Saunois(Inventory):
 
         das = []
         for cat in categories:
-            da = ds[f"flux_ch4_{cat}"]
+            da = ds[f"{str_flux}{cat}"]
             if "time" in da.dims:
                 da = da.sel(time=da["time"].dt.year == year)
                 if da.sizes["time"] != 12:
