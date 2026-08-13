@@ -4,6 +4,7 @@ from __future__ import annotations
 from enum import Enum, IntEnum
 import json
 import logging
+import warnings
 from os import PathLike
 from pathlib import Path
 from typing import Any
@@ -190,10 +191,7 @@ class GralInventory(Inventory):
             emission_col = df.columns[PointsCols.EMISSION]
             # Select only the emission column renamed to the substance
             emissions_values = (
-                df[mask_source_group]
-                .rename(columns={emission_col: substance})[substance]
-                .to_numpy()
-                .astype(float)
+                df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
             # Convert the units from kg/h to kg/y
             emissions_values *= HOUR_PER_YR
@@ -246,13 +244,16 @@ class GralInventory(Inventory):
 
             # Select only the emission column renamed to the substance
             emission_values = (
-                df[mask_source_group]
-                .rename(columns={emission_col: substance})[substance]
-                .to_numpy()
+                df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
+            if gs_lines.crs.is_geographic:
+                raise ValueError(
+                    f"crs {gs_lines.crs} is geographic. Lines emissions need a projected crs in meters to work"
+                )
+
+            line_lenghts = gs_lines.length.to_numpy()
             # Convert the units from kg/h/km to kg/y(/shape)
-            line_lenghts = gs_lines.length * 1e-3
-            emission_values *= HOUR_PER_YR * line_lenghts
+            emission_values *= HOUR_PER_YR * line_lenghts * 1e-3
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame
@@ -317,9 +318,7 @@ class GralInventory(Inventory):
 
             # Select only the emission column renamed to the substance
             emission_values = (
-                df[mask_source_group]
-                .rename(columns={emission_col: substance})[substance]
-                .to_numpy()
+                df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
             # Convert the units from kg/h(/shape?) to kg/y(/shape)
             emission_values *= HOUR_PER_YR
