@@ -31,6 +31,7 @@ The first tutorial to understand how emiproc works is the edgar_processing tutor
     :maxdepth: 2
 
     edgar_processing
+    saunois
     gfed
     icon_oem
     grids
