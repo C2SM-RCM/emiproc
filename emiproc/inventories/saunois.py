@@ -10,6 +10,7 @@ from emiproc.grids import RegularGrid
 from emiproc.inventories import Inventory
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.temporal.profiles import MounthsProfile
+from emiproc.utils.constants import SEC_PER_DAY
 
 
 class SaunoisInventory(Inventory):
@@ -148,8 +149,8 @@ class Saunois(Inventory):
     Then go to the "Download" section and select
     `Download the complete dataset in one zip file`
 
-    Extract the zip file and the `GCP_Prior_CH4_fluxes.tar.gz` in that file to 
-    obtatin the `GCP_Prior_CH4_fluxes.nc` file.
+    Extract the zip file and the `GCP_Prior_CH4_fluxes.tar.gz` in that file to
+    obtain the `GCP_Prior_CH4_fluxes.nc` file.
 
     https://doi.org/10.5194/essd-12-1561-2020
 
@@ -158,7 +159,7 @@ class Saunois(Inventory):
     which is reused as-is regardless of the requested year.
     """
 
-    def __init__(self, saunois_file: Path, year: int):
+    def __init__(self, saunois_file: Path, year: int, sectors: list[str] | None = None):
         """Initialize the inventory.
 
         Parameters
@@ -168,6 +169,8 @@ class Saunois(Inventory):
             Path to the merged Saunois/GCP-CH4 netcdf file.
         year :
             The year to extract from the categories with a yearly time series.
+        sectors :
+            The sectors to include in the inventory. If None, all sectors are included.
         """
         super().__init__()
 
@@ -179,10 +182,17 @@ class Saunois(Inventory):
         str_flux = "flux_ch4_"
 
         categories = sorted(
-            var[len(str_flux) :]
-            for var in ds.data_vars
-            if var.startswith(str_flux)
+            var[len(str_flux) :] for var in ds.data_vars if var.startswith(str_flux)
         )
+
+        if sectors is not None:
+            missing_sectors = set(sectors) - set(categories)
+            if missing_sectors:
+                raise ValueError(
+                    f"Requested sectors {missing_sectors} are not present in the "
+                    f"Saunois file {saunois_file}. Available sectors: {categories}"
+                )
+            categories = [cat for cat in categories if cat in sectors]
 
         units_per_category = {
             cat: ds[f"{str_flux}{cat}"].attrs.get("units") for cat in categories
@@ -235,14 +245,7 @@ class Saunois(Inventory):
         da["category"] = da["category"].astype(str)
 
         # replace the lat lon by cell
-        da_stacked_all = da.stack(cell=("lon", "lat"))
-        da_stacked = da_stacked_all.drop_vars(
-            [
-                c
-                for c in ["lat", "lon", "lat_bnds", "lon_bnds"]
-                if c in da_stacked_all.coords
-            ]
-        )
+        da_stacked = da.stack(cell=("lon", "lat")).drop_vars(["cell", "lon", "lat"])
         # Use a simple integer index for the cell
         da_stacked["cell"] = np.arange(da_stacked.sizes["cell"])
 
@@ -257,7 +260,7 @@ class Saunois(Inventory):
         # Units are kg CH4 / m2 / s -> kg / year / cell
         # Multiply each month by the number of seconds in that month and
         # sum the months, then scale by the grid cell area.
-        seconds_in_month = days_in_month * 86400
+        seconds_in_month = days_in_month * SEC_PER_DAY
         da_stacked_total = (
             da_stacked
             * xr.DataArray(
