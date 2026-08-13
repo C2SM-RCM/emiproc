@@ -48,6 +48,9 @@ Available Inventories
 .. autoclass:: emiproc.inventories.saunois.SaunoisInventory
     :special-members: __init__
 
+.. autoclass:: emiproc.inventories.saunois.Saunois
+    :special-members: __init__
+
 .. autoclass:: emiproc.inventories.gral.GralInventory
     :special-members: __init__
 

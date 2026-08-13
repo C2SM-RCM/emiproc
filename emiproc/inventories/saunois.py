@@ -127,7 +127,7 @@ class SaunoisInventory(Inventory):
         )
 
 
-class Saunois_Inventory_v2(Inventory):
+class Saunois(Inventory):
     """Inventory based on the Global Carbon Project methane budget prior fluxes.
 
     Unlike :py:class:`SaunoisInventory`, which reads one file per category,
@@ -177,6 +177,14 @@ class Saunois_Inventory_v2(Inventory):
         das = []
         for cat in categories:
             da = ds[f"flux_ch4_{cat}"]
+            units = da.attrs.get("units")
+            if units != "kg/m2/s":
+                raise ValueError(
+                    f"Variable 'flux_ch4_{cat}' has units {units!r}, but this "
+                    "class only supports 'kg/m2/s' (the unit conversion "
+                    "assumes it). See emiproc.utils.units for other supported "
+                    "units and adapt the conversion if needed."
+                )
             if "time" in da.dims:
                 da = da.sel(time=da["time"].dt.year == year)
                 if da.sizes["time"] != 12:
