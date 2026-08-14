@@ -69,7 +69,9 @@ def test_plot_inventory_with_monthly_temporal_profile(monkeypatch):
     monthly_inv.year = 2020
 
     profile_indexes = xr.DataArray(
-        data=np.zeros((len(monthly_inv.categories), len(monthly_inv.substances)), dtype=int),
+        data=np.zeros(
+            (len(monthly_inv.categories), len(monthly_inv.substances)), dtype=int
+        ),
         dims=["category", "substance"],
         coords={
             "category": monthly_inv.categories,
