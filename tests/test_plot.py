@@ -2,9 +2,12 @@ from warnings import catch_warnings, simplefilter
 
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
+import xarray as xr
 
 from emiproc.plots import plot_inventory
+from emiproc.profiles.temporal.profiles import MounthsProfile
 from emiproc.tests_utils.african_case import african_inv_regular_grid
 from emiproc.tests_utils.test_inventories import (
     inv,
@@ -59,3 +62,30 @@ def test_plot_inventory(inventory, plot_inventory_kwargs):
             run_plot()
     else:
         run_plot()
+
+
+def test_plot_inventory_with_monthly_temporal_profile(monkeypatch):
+    monthly_inv = inv.copy()
+    monthly_inv.year = 2020
+
+    profile_indexes = xr.DataArray(
+        data=np.zeros((len(monthly_inv.categories), len(monthly_inv.substances)), dtype=int),
+        dims=["category", "substance"],
+        coords={
+            "category": monthly_inv.categories,
+            "substance": monthly_inv.substances,
+        },
+    )
+    monthly_inv.set_profiles([[MounthsProfile()]], indexes=profile_indexes)
+
+    step_x_dtypes = []
+    original_step = matplotlib.axes.Axes.step
+
+    def record_step(self, x, y, *args, **kwargs):
+        step_x_dtypes.append(np.asarray(x).dtype)
+        return original_step(self, x, y, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.axes.Axes, "step", record_step)
+    plot_inventory(monthly_inv, total_only=True)
+    assert step_x_dtypes
+    assert all(dtype.kind == "M" for dtype in step_x_dtypes)
