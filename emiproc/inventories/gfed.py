@@ -386,7 +386,7 @@ class GFEDv51(Inventory):
         da_profiles: xr.DataArray = (
             xr.concat(list(profiles.values()), dim="substance")
             .stack(cell=("lon", "lat"))
-            .drop_vars(["lon", "lat"])
+            .drop_vars(["lon", "lat", "cell"])
             .rename({"time": "ratio"})
         )
 
