@@ -71,9 +71,8 @@ def test_profiles():
 
     pd.testing.assert_frame_equal(
         total_summed,
-        inv1.total_emissions.add(inv2.total_emissions, fill_value=0)[
-            total_summed.columns
-        ],
+        inv1.total_emissions.add(inv2.total_emissions, fill_value=0),
+        check_like=True,  # Ignore index ordering
     )
 
 
