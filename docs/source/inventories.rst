@@ -49,6 +49,8 @@ GFAS
 GFED
 ^^^^
 
+:py:class:`emiproc.inventories.gfed.GFED51_Inventory`
+
 :py:class:`emiproc.inventories.gfed.GFED4_Inventory`
 
 
