@@ -42,6 +42,11 @@ Available Inventories
 .. autoclass:: emiproc.inventories.gfed.GFED4_Inventory
     :special-members: __init__
 
+.. autoclass:: emiproc.inventories.gfed.GFEDv51
+    :special-members: __init__
+
+.. autofunction:: emiproc.inventories.gfed.download_gfedv51
+
 .. autoclass:: emiproc.inventories.lpjguess.LPJ_GUESS_Inventory
     :special-members: __init__
 
