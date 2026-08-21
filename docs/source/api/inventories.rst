@@ -56,5 +56,32 @@ Available Inventories
 
 .. autoclass:: emiproc.inventories.cams_glob_ant.CAMSGlobAnt
     :special-members: __init__
+
+.. autoclass:: emiproc.inventories.corso.CorsoEmissions
+    :members:
+
+CORSO point sources can optionally be removed from their corresponding CAMS
+grid cells. Pass the raw dataset returned by the processing-chain importer::
+
+    from emiproc.inventories.corso import CorsoEmissions
+    from emiproc.inventories.cams_glob_ant import CAMSGlobAnt
+
+    corso = CorsoEmissions(
+        "/capstor/store/cscs/empa/em05/vhess/input_data/corso"
+    ).get_dataset()
+    inventory = CAMSGlobAnt(
+        "CAMS-GLOB-ANT_v6.2_nitrogen-oxides_2021.nc",
+        corso_dataset=corso,
+    )
+
+The ``*_kty`` values are interpreted as annual totals in kilotonnes per year,
+converted to annual-mean ``kg s-1``, divided by the CAMS cell area, and removed
+from every monthly mean. By default, CORSO sectors are mapped as ``power`` to
+``ene``, ``cement`` and ``iron&steel`` to ``ind``, and ``syntheticfuel`` to
+``ref``. Pass ``corso_sector_mapping`` to override these assignments. If a
+CORSO source is larger than CAMS in a month, the residual is clipped to zero;
+use ``corso_negative_policy="raise"`` for strict validation or ``"allow"`` to
+retain negative values.
+
 .. autoclass:: emiproc.inventories.wetcharts.WetCHARTs
     :special-members: __init__
