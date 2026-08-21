@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 import warnings
 from functools import cache, cached_property
-from typing import Iterable
+from typing import Iterable, Literal
 
 import geopandas as gpd
 import numpy as np
@@ -20,6 +20,8 @@ import xarray as xr
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.ops import split
 from shapely.creation import polygons
+from pyproj.aoi import AreaOfInterest
+from pyproj.database import query_utm_crs_info
 
 WGS84 = 4326
 WGS84_PROJECTED = 3857
@@ -496,6 +498,108 @@ class RegularGrid(Grid):
             ) from e
 
         return grid
+
+
+MicroHHAnchor = Literal[
+    "center",
+    "lower left",
+    "lower right",
+    "upper left",
+    "upper right",
+    "lower center",
+    "upper center",
+    "center left",
+    "center right",
+]
+
+
+class MicroHHGrid(RegularGrid):
+    """Projected regular grid matching the horizontal MicroHH scalar grid.
+
+    ``lon`` and ``lat`` locate an anchor inside the domain. If ``crs`` is not
+    supplied, the local WGS84 UTM zone is selected automatically.
+    """
+
+    x_offset: float
+    y_offset: float
+    reference_lon: float
+    reference_lat: float
+
+    def __init__(
+        self,
+        xsize: float,
+        ysize: float,
+        itot: int,
+        jtot: int,
+        lon: float,
+        lat: float,
+        anchor: MicroHHAnchor | tuple[float, float] = "center",
+        crs: str | int | pyproj.CRS | None = None,
+        name: str = "MicroHH",
+    ) -> None:
+        if xsize <= 0 or ysize <= 0 or itot <= 0 or jtot <= 0:
+            raise ValueError("MicroHH grid sizes and cell counts must be positive.")
+        if crs is None:
+            matches = query_utm_crs_info(
+                datum_name="WGS 84",
+                area_of_interest=AreaOfInterest(lon, lat, lon, lat),
+            )
+            if not matches:
+                raise ValueError("Could not infer a UTM CRS for the MicroHH domain.")
+            crs = f"EPSG:{matches[0].code}"
+
+        target_crs = pyproj.CRS.from_user_input(crs)
+        if target_crs.is_geographic:
+            raise ValueError("The MicroHH grid CRS must be projected and use metres.")
+        transformer = pyproj.Transformer.from_crs(
+            WGS84, target_crs, always_xy=True
+        )
+        reference_x, reference_y = transformer.transform(lon, lat)
+
+        anchor_offsets: dict[str, tuple[float, float]] = {
+            "center": (xsize / 2, ysize / 2),
+            "lower left": (0, 0),
+            "lower right": (xsize, 0),
+            "upper left": (0, ysize),
+            "upper right": (xsize, ysize),
+            "lower center": (xsize / 2, 0),
+            "upper center": (xsize / 2, ysize),
+            "center left": (0, ysize / 2),
+            "center right": (xsize, ysize / 2),
+        }
+        if isinstance(anchor, tuple):
+            anchor_x, anchor_y = anchor
+        else:
+            try:
+                anchor_x, anchor_y = anchor_offsets[anchor]
+            except KeyError as exc:
+                raise ValueError(f"Unknown MicroHH grid anchor {anchor!r}.") from exc
+
+        self.x_offset = reference_x - anchor_x
+        self.y_offset = reference_y - anchor_y
+        self.reference_lon = lon
+        self.reference_lat = lat
+
+        super().__init__(
+            xmin=self.x_offset,
+            ymin=self.y_offset,
+            nx=itot,
+            ny=jtot,
+            dx=xsize / itot,
+            dy=ysize / jtot,
+            name=name,
+            crs=target_crs,
+        )
+
+    @property
+    def x(self) -> np.ndarray:
+        """MicroHH-local scalar-cell x coordinates."""
+        return self.lon_range - self.x_offset
+
+    @property
+    def y(self) -> np.ndarray:
+        """MicroHH-local scalar-cell y coordinates."""
+        return self.lat_range - self.y_offset
 
 
 class HexGrid(Grid):

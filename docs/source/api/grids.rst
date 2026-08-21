@@ -19,4 +19,7 @@ Model Grids
 
 .. autoclass:: emiproc.exports.wrf.WRF_Grid
 
+.. autoclass:: emiproc.grids.MicroHHGrid
+    :special-members: __init__
+
 .. autoclass:: emiproc.grids.ICONGrid

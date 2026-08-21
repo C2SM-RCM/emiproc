@@ -54,5 +54,7 @@ Available Inventories
 .. autoclass:: emiproc.inventories.cams_reg_aq.CAMS_REG_AQ
     :special-members: __init__
 
+.. autoclass:: emiproc.inventories.cams_glob_ant.CAMSGlobAnt
+    :special-members: __init__
 .. autoclass:: emiproc.inventories.wetcharts.WetCHARTs
     :special-members: __init__
