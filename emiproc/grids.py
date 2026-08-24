@@ -500,6 +500,79 @@ class RegularGrid(Grid):
         return grid
 
 
+class RectilinearGrid(Grid):
+    """Longitude/latitude grid whose one-dimensional spacing may vary.
+
+    Cell edges are placed halfway between adjacent centers. Latitude edges are
+    limited to the poles. Cells use the same longitude-major, latitude-minor
+    ordering as :class:`RegularGrid`.
+    """
+
+    def __init__(
+        self,
+        x_centers: np.ndarray,
+        y_centers: np.ndarray,
+        name: str | None = None,
+        crs: int | str = WGS84,
+    ) -> None:
+        self.lon_range = np.asarray(x_centers, dtype=float)
+        self.lat_range = np.asarray(y_centers, dtype=float)
+        if self.lon_range.ndim != 1 or self.lat_range.ndim != 1:
+            raise ValueError("Rectilinear grid centers must be one-dimensional.")
+        if len(self.lon_range) < 2 or len(self.lat_range) < 2:
+            raise ValueError(
+                "Rectilinear grids require at least two centers on each axis."
+            )
+        if np.any(np.diff(self.lon_range) <= 0) or np.any(
+            np.diff(self.lat_range) <= 0
+        ):
+            raise ValueError("Rectilinear grid centers must be strictly increasing.")
+
+        def centers_to_bounds(centers: np.ndarray) -> np.ndarray:
+            midpoints = (centers[:-1] + centers[1:]) / 2
+            return np.concatenate(
+                (
+                    [centers[0] - (midpoints[0] - centers[0])],
+                    midpoints,
+                    [centers[-1] + (centers[-1] - midpoints[-1])],
+                )
+            )
+
+        self.lon_bounds = centers_to_bounds(self.lon_range)
+        self.lat_bounds = centers_to_bounds(self.lat_range)
+        if pyproj.CRS.from_user_input(crs).is_geographic:
+            self.lat_bounds = np.clip(self.lat_bounds, -90.0, 90.0)
+
+        self.nx = len(self.lon_range)
+        self.ny = len(self.lat_range)
+        self.xmin = float(self.lon_bounds[0])
+        self.xmax = float(self.lon_bounds[-1])
+        self.ymin = float(self.lat_bounds[0])
+        self.ymax = float(self.lat_bounds[-1])
+        super().__init__(name, crs)
+
+    @cached_property
+    def cells_as_polylist(self) -> list[Polygon]:
+        return [
+            box(
+                self.lon_bounds[i],
+                self.lat_bounds[j],
+                self.lon_bounds[i + 1],
+                self.lat_bounds[j + 1],
+            )
+            for i in range(self.nx)
+            for j in range(self.ny)
+        ]
+
+    @cached_property
+    def centers(self) -> gpd.GeoSeries:
+        return gpd.GeoSeries.from_xy(
+            np.repeat(self.lon_range, self.ny),
+            np.tile(self.lat_range, self.nx),
+            crs=self.crs,
+        )
+
+
 MicroHHAnchor = Literal[
     "center",
     "lower left",

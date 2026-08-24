@@ -54,7 +54,7 @@ Available Inventories
 .. autoclass:: emiproc.inventories.cams_reg_aq.CAMS_REG_AQ
     :special-members: __init__
 
-.. autoclass:: emiproc.inventories.cams_glob_ant.CAMSGlobAnt
+.. autoclass:: emiproc.inventories.cams_global.CAMSGlobal
     :special-members: __init__
 
 .. autoclass:: emiproc.inventories.corso.CorsoEmissions
@@ -64,12 +64,12 @@ CORSO point sources can optionally be removed from their corresponding CAMS
 grid cells. Pass the raw dataset returned by the processing-chain importer::
 
     from emiproc.inventories.corso import CorsoEmissions
-    from emiproc.inventories.cams_glob_ant import CAMSGlobAnt
+    from emiproc.inventories.cams_global import CAMSGlobal
 
     corso = CorsoEmissions(
         "/capstor/store/cscs/empa/em05/vhess/input_data/corso"
     ).get_dataset()
-    inventory = CAMSGlobAnt(
+    inventory = CAMSGlobal(
         "CAMS-GLOB-ANT_v6.2_nitrogen-oxides_2021.nc",
         corso_dataset=corso,
     )

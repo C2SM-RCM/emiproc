@@ -9,6 +9,8 @@ General Grids
 .. autoclass:: emiproc.grids.RegularGrid
     :members: from_centers
 
+.. autoclass:: emiproc.grids.RectilinearGrid
+
 .. autoclass:: emiproc.grids.HexGrid
 
 .. autoclass:: emiproc.grids.GeoPandasGrid

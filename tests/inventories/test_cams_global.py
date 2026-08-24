@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from emiproc.inventories.cams_glob_ant import (
-    CAMSGlobAnt,
+from emiproc.inventories.cams_global import (
+    CAMSGlobal,
 )
 from emiproc.utilities import SEC_PER_YR
 
@@ -73,8 +73,8 @@ def corso_dataset() -> xr.Dataset:
     )
 
 
-def test_import_cams_glob_ant(cams_file: Path) -> None:
-    inventory = CAMSGlobAnt(cams_file)
+def test_import_cams_global(cams_file: Path) -> None:
+    inventory = CAMSGlobal(cams_file)
 
     assert inventory.year == 2025
     assert inventory.substance_name == "CH4"
@@ -83,6 +83,12 @@ def test_import_cams_glob_ant(cams_file: Path) -> None:
     assert list(inventory.monthly_flux.category.values) == ["ene", "res"]
     assert pd.Timestamp(inventory.monthly_flux.time.values[0]).month == 1
     assert np.all(inventory.monthly_flux.sel(category="ene").isel(time=0) == 1)
+
+
+def test_previous_inventory_name_remains_compatible() -> None:
+    from emiproc.inventories.cams_glob_ant import CAMSGlobAnt
+
+    assert CAMSGlobAnt is CAMSGlobal
 
 
 def test_import_accepts_float32_coordinate_roundoff(tmp_path: Path) -> None:
@@ -108,7 +114,7 @@ def test_import_accepts_float32_coordinate_roundoff(tmp_path: Path) -> None:
     path = tmp_path / "CAMS-GLOB-ANT_v6.2_methane_2025_float32.nc"
     ds.to_netcdf(path)
 
-    inventory = CAMSGlobAnt(path, variables=["sum"])
+    inventory = CAMSGlobal(path, variables=["sum"])
 
     assert inventory.grid.dx == pytest.approx(0.1)
     assert inventory.grid.dy == pytest.approx(0.1)
@@ -117,8 +123,8 @@ def test_import_accepts_float32_coordinate_roundoff(tmp_path: Path) -> None:
 def test_subtract_corso_converts_units_and_maps_point_to_cell(
     cams_file: Path, corso_dataset: xr.Dataset
 ) -> None:
-    original = CAMSGlobAnt(cams_file)
-    adjusted = CAMSGlobAnt(
+    original = CAMSGlobal(cams_file)
+    adjusted = CAMSGlobal(
         cams_file,
         corso_dataset=corso_dataset,
         corso_sector_mapping={"cement": "res"},
@@ -150,8 +156,8 @@ def test_subtract_corso_converts_units_and_maps_point_to_cell(
 def test_subtract_all_corso_sectors_from_cams_sum(
     cams_file: Path, corso_dataset: xr.Dataset
 ) -> None:
-    original = CAMSGlobAnt(cams_file, variables=["sum"])
-    adjusted = CAMSGlobAnt(
+    original = CAMSGlobal(cams_file, variables=["sum"])
+    adjusted = CAMSGlobal(
         cams_file,
         variables=["sum"],
         corso_dataset=corso_dataset,
@@ -175,12 +181,12 @@ def test_corso_negative_policy_clip_and_raise(
     excessive["ch4_kty"][:] = 1e20
 
     with pytest.warns(RuntimeWarning, match="residuals were clipped"):
-        clipped = CAMSGlobAnt(cams_file, corso_dataset=excessive)
+        clipped = CAMSGlobal(cams_file, corso_dataset=excessive)
     assert np.all(clipped.monthly_flux.sel(category="ene").isel(cell=0) == 0)
     assert clipped.corso_subtraction_summary["clipped_values"] == 12
 
     with pytest.raises(ValueError, match="negative CAMS values"):
-        CAMSGlobAnt(
+        CAMSGlobal(
             cams_file,
             corso_dataset=excessive,
             corso_negative_policy="raise",
