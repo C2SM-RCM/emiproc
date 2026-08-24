@@ -59,7 +59,7 @@ def get_weights_mapping(
     :arg shapes_inv: The shapes of the inventory.
         Shapes from which the remapping will be done.
     :arg shapes_out: The shapes to which the remapping will be done.
-    :arg loop_over_inv_objects: Whether the loop should happend on the
+    :arg loop_over_inv_objects: Whether the loop should happen on the
         the inventory objects instead of the output shapes.
         This will be where the performance bottleneck resides.
         It is difficult to guess what is the good option but it

@@ -35,6 +35,8 @@ dependencies = [
     "pyogrio",
     "pyyaml",
     "filelock",
+    "matplotlib",
+    "duckdb",
 ]
 license = {text = "BSD-3-Clause"}
 readme = "README.md"
