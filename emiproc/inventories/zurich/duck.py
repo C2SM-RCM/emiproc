@@ -26,7 +26,6 @@ def _parse_duckdb_table_name(
     year: int,
     geometry_column: str = "geom",
     year_column: str = "jahr",
-    substances: list[str] | None = None,
 ) -> gpd.GeoDataFrame:
     """Parse the duck db table to a GeoDataFrame."""
     columns = con.execute(f"PRAGMA table_info('{table_name}');").fetchall()
@@ -70,16 +69,6 @@ def _parse_duckdb_table_name(
         logger.debug(f"After fixing invalid geometries: {geometry.loc[mask_invalid]}")
 
     emission_columns = [col for col in columns if col.startswith("emission_")]
-    if substances is not None:
-        requested_columns = {f"emission_{substance}" for substance in substances}
-        emission_columns = [
-            col for col in emission_columns if col in requested_columns
-        ]
-        if not emission_columns:
-            raise ValueError(
-                f"None of the requested substances {substances} are available "
-                f"in table '{table_name}'."
-            )
 
     query_emissions = f"SELECT {', '.join(emission_columns)} FROM {table_name} WHERE {year_column} = {year};"
     df_emissions = con.execute(query_emissions).fetchdf()
@@ -106,7 +95,6 @@ class DuckDBInventory(Inventory):
     :param duckdb_filepath: Path to the duckDB file.
     :param year: Year of the emissions to load.
     :param skip_suffixes: List of suffixes to skip when loading tables.
-    :param substances: List of substances to load. If None, load all substances.
 
     """
 
@@ -115,7 +103,6 @@ class DuckDBInventory(Inventory):
         duckdb_filepath: PathLike,
         year: int,
         skip_suffixes: list[str] = ["_ef", "_p"],
-        substances: list[str] | None = None,
     ) -> None:
 
         if duckdb is None:
@@ -151,9 +138,7 @@ class DuckDBInventory(Inventory):
                     self.logger.debug(f"Skipping table {table} due to suffix filter.")
                     continue
                 try:
-                    gdf = _parse_duckdb_table_name(
-                        table, con, year=year, substances=substances
-                    )
+                    gdf = _parse_duckdb_table_name(table, con, year=year)
                     self.gdfs[table] = gdf
                 except Exception as e:
                     self.logger.warning(f"Skipping table {table}: {e}")
@@ -178,8 +163,8 @@ if __name__ == "__main__":
 
     # Example usage
     duckdb_file = "/home/coli/Data/zurich/Emissionskataster/emikat.db"
-    inv = DuckDBInventory(duckdb_file, year=2024, substances=["CO2"])
-    
+    inv = DuckDBInventory(duckdb_file, year=2024)
+
     inv.logger.info(f"Inventory initialized: {inv.name}")
 
     inv.logger.info(

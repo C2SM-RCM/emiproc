@@ -44,7 +44,7 @@ class MapLuftZurich(Inventory):
         :arg mapluft_gdb: The Mapluft file
         :arg substances: A list of substances to load.
             (by default all of them).
-            Categories not containing any of the substances are not loaded.
+            Categories not contianing any of the substances are not loaded.
         :arg categories: A list of categories to load (if one is interested
             in only a subset).
             If not specified, all categories are loaded.
