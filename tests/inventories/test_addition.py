@@ -11,7 +11,7 @@ from emiproc.tests_utils import temporal_profiles, test_inventories
 
 
 def _clean_total(df: pd.DataFrame, like: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Clean the total emissions dataframe for comparison.."""
+    """Clean the total emissions dataframe for comparison."""
     if like is not None:
         df = df.reindex_like(like)
     return df.fillna(0)
@@ -55,7 +55,7 @@ def test_cannot_add_different_grid():
 
 
 def test_add_different_grid_with_option():
-    """Different grids can be merged if 'different_grids_to_gdfs' is set."""
+    """Different grids can be merged if 'remove_grid=True' is set."""
 
     inv1 = test_inventories.inv_on_grid_serie2_bis
     inv2 = test_inventories.inv_on_grid_serie2
@@ -100,6 +100,40 @@ def test_gdf_to_gdfs_keeps_existing_gdfs():
     pd.testing.assert_frame_equal(
         inv.total_emissions, converted.total_emissions, check_like=True
     )
+
+
+def test_gdf_to_gdfs_fails_on_profiles():
+    """Test that gdf_to_gdfs fails if the inventory has profiles defined over cells."""
+
+    inv = test_inventories.inv.copy()
+    inv.set_profiles(
+        temporal_profiles.three_composite_profiles,
+        indexes=temporal_profiles.indexes_inv_catsubcell,
+    )
+
+    pytest.raises(NotImplementedError, gdf_to_gdfs, inv)
+
+
+def test_add_different_grid_with_profiles():
+
+    inv1 = test_inventories.inv_on_grid_serie2.copy()
+    inv2 = test_inventories.inv_on_grid_serie2_bis.copy()
+
+    inv1.set_profiles(
+        temporal_profiles.three_composite_profiles,
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+    inv2.set_profiles(
+        temporal_profiles.get_random_profiles(
+            temporal_profiles.indexes_inv_catsub_missing.max().values + 1,
+            profile_types=[HourOfYearProfile, WeeklyProfile],
+        ),
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+
+    with pytest.raises(NotImplementedError):
+        # Currently the case
+        add_inventories(inv1, inv2, remove_grid=True)
 
 
 def test_profiles():

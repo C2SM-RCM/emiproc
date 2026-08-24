@@ -488,7 +488,7 @@ def gdf_to_gdfs(inv: Inventory) -> Inventory:
     """
     for profiles_indexes_name in ("v_profiles_indexes", "t_profiles_indexes"):
         indexes = getattr(inv, profiles_indexes_name)
-        if indexes is not None and "cell" in indexes.dims:
+        if indexes is not None:  # and "cell" in indexes.dims:
             raise NotImplementedError(
                 f"Cannot convert {inv} to gdfs: {profiles_indexes_name} is"
                 " defined over the 'cell' dimension, which has no meaning"
