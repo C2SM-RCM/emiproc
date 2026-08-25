@@ -55,7 +55,7 @@ from rasterio.features import rasterize
 from rasterio.transform import from_bounds
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon
 
-from emiproc.inventories import EmissionInfo, Inventory
+from emiproc.inventories import Category, EmissionInfo, Inventory, Substance
 
 if TYPE_CHECKING:
     # pygg module for gram gral processing
@@ -70,6 +70,7 @@ class EmissionWriter:
         grid: GralGrid,
         # Egde size of the rasterized polygons (crs units)
         polygon_raster_size: float = 1.0,
+        source_groups: dict[tuple[Substance, Category], int] | None = None,
     ) -> None:
 
         # Path where to write the emissons
@@ -78,13 +79,28 @@ class EmissionWriter:
         self.inventory = inventory
         self.grid = grid
         self.polygon_raster_size = polygon_raster_size
-
-        # Maps the (cat/sub) to source groups
-        self.source_groups = {
-            (sub, cat): i * len(self.inventory.categories) + j
-            for i, sub in enumerate(self.inventory.substances)
-            for j, cat in enumerate(self.inventory.categories)
-        }
+        
+        if source_groups is None:
+            # Maps the (cat/sub) to source groups
+            source_groups = {
+                (sub, cat): i * len(self.inventory.categories) + j
+                for i, sub in enumerate(self.inventory.substances)
+                for j, cat in enumerate(self.inventory.categories)
+            }
+        else:
+            # check that all the substances and categories are in the source_groups
+            missing = [
+                (sub, cat)
+                for sub in self.inventory.substances
+                for cat in self.inventory.categories
+                if (sub, cat) not in source_groups
+            ]
+            if any(missing):
+                raise ValueError(
+                    "The source_groups dictionary must contain all the substances"
+                    f" and categories. Missing: {missing}"
+                )
+        self.source_groups = source_groups
 
         self._make_files()
 
@@ -250,7 +266,9 @@ class EmissionWriter:
         # split the emission between the lines based on the length
         line_lengths = np.array([line.length for line in lines])
         line_emission_ratios = line_lengths / line_lengths.sum()
-        line_emissions = line_emission_ratios * emission / line_lengths * 1e3 # kg/h/m to kg/h/km
+        line_emissions = (
+            line_emission_ratios * emission / line_lengths * 1e3
+        )  # kg/h/m to kg/h/km
 
         for i, (line, line_emission) in enumerate(zip(lines, line_emissions)):
             self._write_staight_line(
@@ -336,6 +354,7 @@ def export_to_gral(
     grid: GralGrid,
     path: os.PathLike,
     polygon_raster_size: float = 1.0,
+    source_groups: dict[tuple[Substance, Category], int] | None = None,
 ) -> None:
     """Export an inventory to GRAL.
 
@@ -344,10 +363,17 @@ def export_to_gral(
     :param inventory: Inventory to export.
     :param path: Path where to write the emissions.
     :param grid: Grid to use.
+    :param polygon_raster_size: Edge size of the rasterized polygons (in crs units).
+    :param source_groups: Optional dictionary mapping (substance, category) to source group.
     """
 
-    writer = EmissionWriter(Path(path), inventory, grid, polygon_raster_size)
-
+    writer = EmissionWriter(
+        Path(path),
+        inventory,
+        grid,
+        polygon_raster_size,
+        source_groups=source_groups,
+    )
     writer.write_gdfs()
 
 

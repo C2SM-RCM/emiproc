@@ -10,13 +10,29 @@ from emiproc.exports.gral import export_to_gral
 from emiproc.inventories import EmissionInfo, Inventory
 
 
+def _get_grid():
+    from pygg.grids import GralGrid
+
+    grid = GralGrid(
+        nx=10,
+        ny=10,
+        xmin=0,
+        xmax=10,
+        ymin=0,
+        ymax=10,
+        dz0=1.0,
+        ddz=1.0,
+        crs="EPSG:4326",
+    )
+    grid.building_heights = np.zeros((grid.ny, grid.nx), dtype=float)
+    return grid
+
 @pytest.mark.skipif(
     pytest.importorskip("pygg", reason="pygg is required for GRAL export tests")
     is None,
     reason="pygg is required for GRAL export tests",
 )
 def test_export_gral_inventory(tmp_path):
-    from pygg.grids import GralGrid
 
     inv = Inventory.from_gdf(
         gdfs={
@@ -35,18 +51,7 @@ def test_export_gral_inventory(tmp_path):
     )
     inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
 
-    grid = GralGrid(
-        nx=10,
-        ny=10,
-        xmin=0,
-        xmax=10,
-        ymin=0,
-        ymax=10,
-        dz0=1.0,
-        ddz=1.0,
-        crs=inv.crs,
-    )
-    grid.building_heights = np.zeros((grid.ny, grid.nx), dtype=float)
+    grid = _get_grid()
 
     out_dir = tmp_path / "gral_output"
     out_dir.mkdir()
@@ -101,8 +106,48 @@ def test_export_gral_inventory(tmp_path):
     is None,
     reason="pygg is required for GRAL export tests",
 )
+def test_export_with_source_groups(tmp_path):
+
+    inv = Inventory.from_gdf(
+        gdfs={
+            "adf": gpd.GeoDataFrame(
+                {
+                    "CO2": [2.0],
+                    "CH4": [1.0],
+                },
+                geometry=[
+                    Point(0.5, 0.5),
+                ],
+            ),
+        }
+    )
+    inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
+
+    grid = _get_grid()
+
+    out_dir = tmp_path / "gral_output_with_sg"
+    out_dir.mkdir()
+
+    source_groups = {
+        ("CO2", "adf"): 42,
+        ("CH4", "adf"): 2,
+    }
+
+    export_to_gral(inv, grid, out_dir, polygon_raster_size=1.0, source_groups=source_groups)
+
+    assert (out_dir / "point.dat").exists()
+    df_point = pd.read_csv(out_dir / "point.dat", header=1)
+
+    assert len(df_point) == 2
+    assert set(df_point["source_group"]) == {42, 2}
+
+
+@pytest.mark.skipif(
+    pytest.importorskip("pygg", reason="pygg is required for GRAL export tests")
+    is None,
+    reason="pygg is required for GRAL export tests",
+)
 def test_export_gral_polygons(tmp_path):
-    from pygg.grids import GralGrid
 
     inv = Inventory.from_gdf(
         gdfs={
@@ -119,18 +164,7 @@ def test_export_gral_polygons(tmp_path):
     )
     inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
 
-    grid = GralGrid(
-        nx=10,
-        ny=10,
-        xmin=0,
-        xmax=10,
-        ymin=0,
-        ymax=10,
-        dz0=1.0,
-        ddz=1.0,
-        crs=inv.crs,
-    )
-    grid.building_heights = np.zeros((grid.ny, grid.nx), dtype=float)
+    grid = _get_grid()
 
     out_dir = tmp_path / "gral_output_polygon"
     out_dir.mkdir()
