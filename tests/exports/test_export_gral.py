@@ -4,6 +4,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pytest
+from pygg.grids import GralGrid
 from shapely.geometry import LineString, Point, Polygon
 
 from emiproc.exports.gral import export_to_gral
@@ -11,8 +12,6 @@ from emiproc.inventories import EmissionInfo, Inventory
 
 
 def _get_grid():
-    from pygg.grids import GralGrid
-
     grid = GralGrid(
         nx=10,
         ny=10,
@@ -27,11 +26,7 @@ def _get_grid():
     grid.building_heights = np.zeros((grid.ny, grid.nx), dtype=float)
     return grid
 
-@pytest.mark.skipif(
-    pytest.importorskip("pygg", reason="pygg is required for GRAL export tests")
-    is None,
-    reason="pygg is required for GRAL export tests",
-)
+
 def test_export_gral_inventory(tmp_path):
 
     inv = Inventory.from_gdf(
@@ -92,7 +87,7 @@ def test_export_gral_inventory(tmp_path):
         check_index=False,
     )
 
-    # Note this is a special case where we have only one polygon, if this part 
+    # Note this is a special case where we have only one polygon, if this part
     # breaks, it might be because of another issue.
     pd.testing.assert_series_equal(
         df_polygon.set_index("source_group").loc[sg_index, "emission_rate[kg/h]"],
@@ -101,11 +96,6 @@ def test_export_gral_inventory(tmp_path):
     )
 
 
-@pytest.mark.skipif(
-    pytest.importorskip("pygg", reason="pygg is required for GRAL export tests")
-    is None,
-    reason="pygg is required for GRAL export tests",
-)
 def test_export_with_source_groups(tmp_path):
 
     inv = Inventory.from_gdf(
@@ -133,7 +123,9 @@ def test_export_with_source_groups(tmp_path):
         ("CH4", "adf"): 2,
     }
 
-    export_to_gral(inv, grid, out_dir, polygon_raster_size=1.0, source_groups=source_groups)
+    export_to_gral(
+        inv, grid, out_dir, polygon_raster_size=1.0, source_groups=source_groups
+    )
 
     assert (out_dir / "point.dat").exists()
     df_point = pd.read_csv(out_dir / "point.dat", header=1)
@@ -142,11 +134,6 @@ def test_export_with_source_groups(tmp_path):
     assert set(df_point["source_group"]) == {42, 2}
 
 
-@pytest.mark.skipif(
-    pytest.importorskip("pygg", reason="pygg is required for GRAL export tests")
-    is None,
-    reason="pygg is required for GRAL export tests",
-)
 def test_export_gral_polygons(tmp_path):
 
     inv = Inventory.from_gdf(
@@ -187,7 +174,7 @@ def test_export_gral_polygons(tmp_path):
     sg_of_sub = {tup[0]: int(sg) for sg, tup in source_groups.items()}
     sg_index = [sg_of_sub["CO2"], sg_of_sub["CH4"]]
 
-    # Note this is a special case where we have only one polygon, if this part 
+    # Note this is a special case where we have only one polygon, if this part
     # breaks, it might be because of another issue.
     pd.testing.assert_series_equal(
         df_polygon.groupby("source_group").sum().loc[sg_index, "emission_rate[kg/h]"],
