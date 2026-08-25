@@ -1,20 +1,16 @@
 """Read an the input for a gramgral simulation as an inventory."""
 
 from __future__ import annotations
-from enum import Enum, IntEnum
+from enum import IntEnum
 import json
-import logging
-import warnings
 from os import PathLike
 from pathlib import Path
-from typing import Any
-from emiproc.grids import LV95, WGS84
+from emiproc.grids import WGS84
 from emiproc.inventories import Category, Inventory, Substance
-from emiproc.exports.gral import EmissionWriter
 from emiproc.utilities import HOUR_PER_YR
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point, LineString, Polygon
+from shapely.geometry import LineString, Polygon
 
 
 class PointsCols(IntEnum):
@@ -130,7 +126,7 @@ class GralInventory(Inventory):
         self._read_cadastre()
         self._read_portals()
 
-    def _get_sub_cat(self, source_group: int) -> tuple[Substance, Category]:
+    def _get_sub_cat(self, source_group: int) -> tuple[Substance, Category] | None:
         """Get the substance and category for a source group."""
 
         source_group = int(source_group)
@@ -251,9 +247,9 @@ class GralInventory(Inventory):
                     f"crs {gs_lines.crs} is geographic. Lines emissions need a projected crs in meters to work"
                 )
 
-            line_lenghts = gs_lines.length.to_numpy()
+            line_lengths = gs_lines.length.to_numpy()
             # Convert the units from kg/h/km to kg/y(/shape)
-            emission_values = emission_values * HOUR_PER_YR * line_lenghts * 1e-3
+            emission_values = emission_values * HOUR_PER_YR * line_lengths * 1e-3
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame
