@@ -79,7 +79,7 @@ class EmissionWriter:
         self.inventory = inventory
         self.grid = grid
         self.polygon_raster_size = polygon_raster_size
-        
+
         if source_groups is None:
             # Maps the (cat/sub) to source groups
             source_groups = {
