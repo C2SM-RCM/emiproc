@@ -187,12 +187,13 @@ class EmissionWriter:
                         " are not implemented."
                     )
 
-        # Write all the points as a singl batch
-        pd.concat(self.points_dfs).to_csv(
-            self.file_points,
-            mode="a",
-            index=False,
-        )
+        if self.points_dfs:
+            # Write all the points as a single batch
+            pd.concat(self.points_dfs).to_csv(
+                self.file_points,
+                mode="a",
+                index=False,
+            )
 
     def _add_points(
         self,
@@ -249,7 +250,7 @@ class EmissionWriter:
         # split the emission between the lines based on the length
         line_lengths = np.array([line.length for line in lines])
         line_emission_ratios = line_lengths / line_lengths.sum()
-        line_emissions = line_emission_ratios * emission
+        line_emissions = line_emission_ratios * emission / line_lengths * 1e3 # kg/h/m to kg/h/km
 
         for i, (line, line_emission) in enumerate(zip(lines, line_emissions)):
             self._write_staight_line(
@@ -306,7 +307,7 @@ class EmissionWriter:
         average_cells_proportion = (self.polygon_raster_size**2) / shapes_serie.area
         cell_emissions = np.array(emissions) * average_cells_proportion
 
-        # WARNING: this might be not exactly mass convserving
+        # WARNING: this might be not exactly mass conserving
         rasterized_emissions = rasterize(
             shapes=zip(shapes, cell_emissions),
             out_shape=(len(x), len(y)),
@@ -326,7 +327,7 @@ class EmissionWriter:
                 f.write(
                     f"{x[i_x]},{y[i_y]},{info.height},"
                     f"{self.polygon_raster_size},{self.polygon_raster_size},{info.vertical_extension},"
-                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{source_group},\n"
+                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{source_group}\n"
                 )
 
 
