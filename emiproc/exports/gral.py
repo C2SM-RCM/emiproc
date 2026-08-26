@@ -55,6 +55,7 @@ from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, P
 from emiproc.grids import RegularGrid
 from emiproc.regrid import calculate_weights_mapping, weights_remap
 from emiproc.inventories import Category, EmissionInfo, Inventory, Substance
+from emiproc.utils.constants import HOUR_PER_YR
 
 if TYPE_CHECKING:
     # pygg module for gram gral processing
@@ -162,14 +163,20 @@ class EmissionWriter:
                 if any(mask_polygons):
                     gdf_polygons = gdf.loc[mask_polygons]
                     self._write_polygons(
-                        gdf_polygons.geometry, gdf_polygons[sub], info, source_group
+                        gdf_polygons.geometry,
+                        gdf_polygons[sub] / HOUR_PER_YR,
+                        info,
+                        source_group,
                     )
 
                 mask_points = gdf.geom_type == "Point"
                 if any(mask_points):
                     gdf_points = gdf.loc[mask_points]
                     self._add_points(
-                        gdf_points.geometry, gdf_points[sub], info, source_group
+                        gdf_points.geometry,
+                        gdf_points[sub] / HOUR_PER_YR,
+                        info,
+                        source_group,
                     )
 
                 mask_lines = gdf.geom_type.isin(["LineString"])
@@ -265,8 +272,8 @@ class EmissionWriter:
         line_lengths = np.array([line.length for line in lines])
         line_emission_ratios = line_lengths / line_lengths.sum()
         line_emissions = (
-            line_emission_ratios * emission / line_lengths * 1e3
-        )  # kg/h/m to kg/h/km
+            line_emission_ratios * emission / line_lengths * 1e3 / HOUR_PER_YR
+        )  # kg/y/m to kg/h/km
 
         for i, (line, line_emission) in enumerate(zip(lines, line_emissions)):
             self._write_staight_line(

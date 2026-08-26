@@ -242,9 +242,10 @@ class GralInventory(Inventory):
             emission_values = (
                 df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
-            if gs_lines.crs.is_geographic:
+            if gs_lines.crs is not None and gs_lines.crs.is_geographic:
                 raise ValueError(
-                    f"crs {gs_lines.crs} is geographic. Lines emissions need a projected crs in meters to work"
+                    f"crs {gs_lines.crs} is geographic. "
+                    "Lines emissions need a projected crs in meters to work"
                 )
 
             line_lengths = gs_lines.length.to_numpy()

@@ -9,6 +9,8 @@ from shapely.geometry import LineString, Point, Polygon
 
 from emiproc.exports.gral import export_to_gral
 from emiproc.inventories import EmissionInfo, Inventory
+from emiproc.inventories.gral import GralInventory
+from emiproc.utils.constants import HOUR_PER_YR
 
 
 def _get_grid():
@@ -21,30 +23,31 @@ def _get_grid():
         ymax=10,
         dz0=1.0,
         ddz=1.0,
-        crs="EPSG:4326",
+        crs=None,
     )
     grid.building_heights = np.zeros((grid.ny, grid.nx), dtype=float)
     return grid
 
 
-def test_export_gral_inventory(tmp_path):
+inv = Inventory.from_gdf(
+    gdfs={
+        "adf": gpd.GeoDataFrame(
+            {
+                "CO2": [2.0, 3.0, 4.0],
+                "CH4": [1.0, 2.0, 3.0],
+            },
+            geometry=[
+                Point(0.5, 0.5),
+                LineString([(1.0, 1.0), (3.0, 1.0)]),
+                Polygon([(6.0, 6.0), (6.0, 7.0), (7.0, 7.0), (7.0, 6.0)]),
+            ],
+        ),
+    }
+)
+inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
 
-    inv = Inventory.from_gdf(
-        gdfs={
-            "adf": gpd.GeoDataFrame(
-                {
-                    "CO2": [2.0, 3.0, 4.0],
-                    "CH4": [1.0, 2.0, 3.0],
-                },
-                geometry=[
-                    Point(0.5, 0.5),
-                    LineString([(1.0, 1.0), (3.0, 1.0)]),
-                    Polygon([(6.0, 6.0), (6.0, 7.0), (7.0, 7.0), (7.0, 6.0)]),
-                ],
-            ),
-        }
-    )
-    inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
+
+def test_export_gral_inventory(tmp_path):
 
     grid = _get_grid()
 
@@ -65,7 +68,6 @@ def test_export_gral_inventory(tmp_path):
     df_polygon = pd.read_csv(out_dir / "cadastre.dat", header=0)
 
     for df in [df_point, df_line, df_polygon]:
-        print(df)
         assert len(df) == 2
 
     source_groups = json.load(open(out_dir / "source_groups.json"))
@@ -75,13 +77,14 @@ def test_export_gral_inventory(tmp_path):
 
     pd.testing.assert_series_equal(
         df_point.set_index("source_group").loc[sg_index, "emission[kg/h]"],
-        pd.Series([2.0, 1.0], name="emission[kg/h]"),
+        pd.Series([2.0, 1.0], name="emission[kg/h]") / HOUR_PER_YR,
         check_index=False,
     )
     pd.testing.assert_series_equal(
         # Convert back to shape emissions from /km
         df_line.set_index("source_group").loc[sg_index, "emission_rate[kg/h/km]"]
-        * 2e-3,
+        * 2e-3
+        * HOUR_PER_YR,
         # Total emissions per shape
         pd.Series([3.0, 2.0], name="emission_rate[kg/h/km]"),
         check_index=False,
@@ -91,7 +94,7 @@ def test_export_gral_inventory(tmp_path):
     # breaks, it might be because of another issue.
     pd.testing.assert_series_equal(
         df_polygon.set_index("source_group").loc[sg_index, "emission_rate[kg/h]"],
-        pd.Series([4.0, 3.0], name="emission_rate[kg/h]"),
+        pd.Series([4.0, 3.0], name="emission_rate[kg/h]") / HOUR_PER_YR,
         check_index=False,
     )
 
@@ -178,6 +181,26 @@ def test_export_gral_polygons(tmp_path):
     # breaks, it might be because of another issue.
     pd.testing.assert_series_equal(
         df_polygon.groupby("source_group").sum().loc[sg_index, "emission_rate[kg/h]"],
-        pd.Series([2.0, 1.0], name="emission_rate[kg/h]"),
+        pd.Series([2.0, 1.0], name="emission_rate[kg/h]") / HOUR_PER_YR,
         check_index=False,
+    )
+
+
+def test_export_can_be_read(tmp_path):
+
+    grid = _get_grid()
+
+    out_dir = tmp_path / "gral_output_read"
+    out_dir.mkdir()
+
+    export_to_gral(inv, grid, out_dir, polygon_raster_size=1.0)
+
+    # Now read the exported inventory and check that it matches the original
+    # inventory.
+    inv_read = GralInventory(out_dir, crs=grid.crs)
+
+    print(inv_read.gdfs)
+
+    pd.testing.assert_frame_equal(
+        inv.total_emissions, inv_read.total_emissions, check_like=True
     )
