@@ -50,11 +50,10 @@ from typing import TYPE_CHECKING, Iterable
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from rasterio.enums import MergeAlg
-from rasterio.features import rasterize
-from rasterio.transform import from_bounds
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon
 
+from emiproc.grids import RegularGrid
+from emiproc.regrid import calculate_weights_mapping, weights_remap
 from emiproc.inventories import Category, EmissionInfo, Inventory, Substance
 
 if TYPE_CHECKING:
@@ -314,38 +313,38 @@ class EmissionWriter:
         """Write a polygon source to the file."""
 
         # Rasterize the polygon on a grid
-        shapes_serie = gpd.GeoSeries(shapes)
+        shapes_serie = gpd.GeoSeries(list(shapes))
         # get polygon bounds
         minx, miny, maxx, maxy = shapes_serie.total_bounds
+        d = self.polygon_raster_size
         # Create a grid for the rasterization
-        x = np.arange(minx, maxx, self.polygon_raster_size)
-        y = np.arange(miny, maxy, self.polygon_raster_size)
+        grid = RegularGrid(
+            xmin=minx, xmax=maxx, ymin=miny, ymax=maxy, dx=d, dy=d, crs=shapes_serie.crs
+        )
 
-        # Get the emission per cell
-        average_cells_proportion = (self.polygon_raster_size**2) / shapes_serie.area
-        cell_emissions = np.array(emissions) * average_cells_proportion
+        x = grid.centers.x
+        y = grid.centers.y
 
-        # WARNING: this might be not exactly mass conserving
-        rasterized_emissions = rasterize(
-            shapes=zip(shapes, cell_emissions),
-            out_shape=(len(x), len(y)),
-            transform=from_bounds(minx, miny, maxx, maxy, len(x), len(y)),
-            all_touched=False,
-            merge_alg=MergeAlg.add,
-        )[
-            ::-1, :
-        ]  # flip the y axis
+        wm = calculate_weights_mapping(
+            shapes_inv=shapes_serie,
+            shapes_out=grid.gdf.geometry,
+        )
+        cell_emissions = weights_remap(
+            wm,
+            remapped_values=np.array(emissions),
+            output_size=len(grid.gdf),
+        )
 
         # Get the coordinates of the rasterized polygon
-        indices = np.array(np.where(rasterized_emissions)).T
+        indices = np.where(cell_emissions)[0]
 
         # Write the polygon
         with open(self.file_cadastre, "a") as f:
-            for i_x, i_y in indices:
+            for i in indices:
                 f.write(
-                    f"{x[i_x]},{y[i_y]},{info.height},"
-                    f"{self.polygon_raster_size},{self.polygon_raster_size},{info.vertical_extension},"
-                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{source_group}\n"
+                    f"{x[i]},{y[i]},{info.height},"
+                    f"{d},{d},{info.vertical_extension},"
+                    f"{cell_emissions[i]},0,0,0,{source_group}\n"
                 )
 
 
