@@ -64,16 +64,15 @@ if TYPE_CHECKING:
 class EmissionWriter:
     def __init__(
         self,
-        path: os.PathLike,
+        path: Path,
         inventory: Inventory,
         grid: GralGrid,
-        # Egde size of the rasterized polygons (crs units)
-        polygon_raster_size: float = 1.0,
-        source_groups: dict[tuple[Substance, Category], int] | None = None,
+        polygon_raster_size: float,
+        source_groups: dict[tuple[Substance, Category], int] | None,
     ) -> None:
 
         # Path where to write the emissons
-        self.path = Path(path)
+        self.path = path
 
         self.inventory = inventory
         self.grid = grid
@@ -352,9 +351,9 @@ def export_to_gral(
     inventory: Inventory,
     grid: GralGrid,
     path: os.PathLike,
-    polygon_raster_size: float = 1.0,
+    polygon_raster_size: float = 10.0,
     source_groups: dict[tuple[Substance, Category], int] | None = None,
-) -> None:
+) -> Path:
     """Export an inventory to GRAL.
 
     .. note:: This requires the external python package `pygg` to be installed.
@@ -364,16 +363,22 @@ def export_to_gral(
     :param grid: Grid to use.
     :param polygon_raster_size: Edge size of the rasterized polygons (in crs units).
     :param source_groups: Optional dictionary mapping (substance, category) to source group.
-    """
 
+    :return: Path where the emissions were written.
+    """
+    path = Path(path)
+    if not path.is_dir():
+        path.mkdir(parents=True, exist_ok=True)
     writer = EmissionWriter(
-        Path(path),
+        path,
         inventory,
         grid,
         polygon_raster_size,
         source_groups=source_groups,
     )
     writer.write_gdfs()
+
+    return path
 
 
 if __name__ == "__main__":
@@ -394,6 +399,9 @@ if __name__ == "__main__":
     from emiproc.inventories import EmissionInfo, Inventory
     from emiproc.tests_utils import TEST_OUTPUTS_DIR
     from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
     gral_test_inv = inv_with_pnt_sources.copy()
     # Addintg some shapes that should be supported
@@ -431,19 +439,17 @@ if __name__ == "__main__":
 
     grid = GralGrid(
         dz0=1.5,
-        stretch=0.5,
+        ddz=0.5,
         nx=20,
         ny=20,
-        nslice=20,
         sourcegroups="",
         xmin=0,
         xmax=10,
         ymin=0,
         ymax=4,
-        latitude=0,
         crs=inv.crs,
     )
-    grid.building_heights = np.zeros(size=(grid.ny, grid.nx))
+    grid.building_heights = np.zeros(shape=(grid.ny, grid.nx))
 
     inv.emission_infos = {
         "adf": EmissionInfo(),
@@ -453,4 +459,6 @@ if __name__ == "__main__":
         "test": EmissionInfo(),
     }
 
-    export_to_gral(inv, grid, TEST_OUTPUTS_DIR, 1)
+    path = export_to_gral(inv, grid, TEST_OUTPUTS_DIR / "gral", 5.0)
+
+    logger.info(f"GRAL emissions written to {path}")
