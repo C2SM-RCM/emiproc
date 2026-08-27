@@ -2,9 +2,10 @@
 
 This module contains functions to prepare emissions for GRAL.
 
-Gral only has one polluant available, but can contain more than one category.
-
-To counter that issue, we make a source group for each substance/category.
+Different pollutants and emission categories can be simulated in a single
+GRAL simulation. They pollutant/category combinations are identified by a 
+unique source_group number stored in the EmissionsInfo structure of the
+inventory.
 
 
 .. warning:: For PM, it seems that there are some additional parameters:
@@ -13,7 +14,7 @@ To counter that issue, we make a source group for each substance/category.
 
     We don't use them for now.
 
-.. warning:: The current version of emiproc does not support lines and portals.
+.. warning:: The current version of emiproc does not support portals.
 
 
 4 types of emissions are supported with their respective files:
@@ -30,7 +31,7 @@ The following methods are applied:
 
 - points: simply write the coordinates and the emission rate
 - lines: write the coordinates of the line and the emission rate
-    The Multi-lines have to be split into single lines, which increases the
+    Multi-lines have to be split into single lines, which increases the
     size of the problem.
 - areas: polygons have to be rasterized into squares before writing them.
 - tunnels: not implemented
@@ -79,13 +80,6 @@ class EmissionWriter:
         self.grid = grid
         self.polygon_raster_size = polygon_raster_size
 
-        # Maps the (cat/sub) to source groups
-        self.source_groups = {
-            (sub, cat): i * len(self.inventory.categories) + j
-            for i, sub in enumerate(self.inventory.substances)
-            for j, cat in enumerate(self.inventory.categories)
-        }
-
         self._make_files()
 
     def _make_files(self):
@@ -129,18 +123,19 @@ class EmissionWriter:
             f.write(header)
 
         # File to save the source groups values
-        self.file_source_groups = self.path / "source_groups.json"
-        with open(self.file_source_groups, "w") as f:
-            # reverse the dict (items become keys and vice versa)
-            reversed_source_groups = {v: k for k, v in self.source_groups.items()}
-            json.dump(reversed_source_groups, f, indent=2)
+        # this json file needs to be written elsewhere since the necessary
+        # information is not provided with the inventory
+#        self.file_source_groups = self.path / "source_groups.json"
+#        with open(self.file_source_groups, "w") as f:
+#            # reverse the dict (items become keys and vice versa)
+#            reversed_source_groups = {v: k for k, v in self.source_groups.items()}
+#            json.dump(reversed_source_groups, f, indent=2)
 
     def write_gdfs(self):
         """Write the gdfs emissions to the files."""
         for cat, gdf in self.inventory.gdfs.items():
             info = self.inventory.emission_infos[cat]
             for sub in self.inventory.substances:
-                source_group = self.source_groups[(sub, cat)]
                 if sub not in gdf.columns:
                     continue
 
@@ -148,21 +143,21 @@ class EmissionWriter:
                 if any(mask_polygons):
                     gdf_polygons = gdf.loc[mask_polygons]
                     self._write_polygons(
-                        gdf_polygons.geometry, gdf_polygons[sub], info, source_group
+                        gdf_polygons.geometry, gdf_polygons[sub], info
                     )
 
                 mask_points = gdf.geom_type == "Point"
                 if any(mask_points):
                     gdf_points = gdf.loc[mask_points]
                     self._add_points(
-                        gdf_points.geometry, gdf_points[sub], info, source_group
+                        gdf_points.geometry, gdf_points[sub], info
                     )
 
                 mask_lines = gdf.geom_type.isin(["LineString"])
                 if any(mask_lines):
                     gdf_lines = gdf.loc[mask_lines]
                     self._write_lines(
-                        gdf_lines.geometry, gdf_lines[sub], info, source_group
+                        gdf_lines.geometry, gdf_lines[sub], info
                     )
 
                 mask_multilines = gdf.geom_type.isin(["MultiLineString"])
@@ -176,7 +171,7 @@ class EmissionWriter:
                         proprtions = lenghts / shape.length
                         for line, prop in zip(shape.geoms, proprtions):
                             self._write_line(
-                                line, shape_emission * prop, info, source_group
+                                line, shape_emission * prop, info
                             )
                 mask_missing = ~(
                     mask_multilines | mask_lines | mask_points | mask_polygons
@@ -199,7 +194,6 @@ class EmissionWriter:
         shapes: gpd.GeoSeries,
         emissions: pd.Series,
         info: EmissionInfo,
-        source_group: int,
     ):
         z = info.height
         if info.height_over_buildings:
@@ -218,7 +212,7 @@ class EmissionWriter:
                     "exit_velocity[m/s]": info.speed,
                     "diameter[m]": info.width,
                     "temperature[K]": info.temperature,
-                    "source_group": source_group,
+                    "source_group": info.source_group,
                 }
             )
         )
@@ -228,17 +222,15 @@ class EmissionWriter:
         shapes: gpd.GeoSeries,
         emissions: pd.Series,
         info: EmissionInfo,
-        source_group: int,
     ):
         for shape, emission in zip(shapes, emissions):
-            self._write_line(shape, emission, info, source_group)
+            self._write_line(shape, emission, info)
 
     def _write_line(
         self,
         shape: LineString,
         emission: float,
         info: EmissionInfo,
-        source_group: int,
     ):
         """Write a line source to the file."""
         # split the line string in single lines
@@ -257,7 +249,6 @@ class EmissionWriter:
                 Point(line.coords[1]),
                 line_emission,
                 info,
-                source_group,
                 section=i,
             )
 
@@ -267,7 +258,6 @@ class EmissionWriter:
         end: Point,
         emission: float,
         info: EmissionInfo,
-        source_group: int,
         section: int,  # Section number of the line
     ):
         """Write a straight line source to the file."""
@@ -280,7 +270,7 @@ class EmissionWriter:
         with open(self.file_lines, "a") as f:
             # Write the line
             f.write(
-                f"unnamed,{section},{source_group},{start.x},{start.y},{z_start},"
+                f"0,{section},{info.source_group},{start.x},{start.y},{z_start},"
                 f"{end.x},{end.y},{z_end},{info.width},-{info.vertical_extension},0,0,"
                 f"{emission},0,0,0,0\n"
             )
@@ -290,7 +280,6 @@ class EmissionWriter:
         shapes: Iterable[Polygon],
         emissions: Iterable[float],
         info: EmissionInfo,
-        source_group: int,
     ):
         """Write a polygon source to the file."""
 
@@ -326,7 +315,7 @@ class EmissionWriter:
                 f.write(
                     f"{x[i_x]},{y[i_y]},{info.height},"
                     f"{self.polygon_raster_size},{self.polygon_raster_size},{info.vertical_extension},"
-                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{source_group},\n"
+                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{info.source_group},\n"
                 )
 
 
@@ -334,7 +323,6 @@ def export_to_gral(
     inventory: Inventory,
     grid: GralGrid,
     path: os.PathLike,
-    polygon_raster_size: float = 1.0,
 ) -> None:
     """Export an inventory to GRAL.
 
@@ -344,6 +332,11 @@ def export_to_gral(
     :param path: Path where to write the emissions.
     :param grid: Grid to use.
     """
+
+    if grid.dy != grid.dx:
+        raise ValueError(f"GRAL grid must have identical dx and dy values")
+
+    polygon_raster_size = grid.dx
 
     writer = EmissionWriter(Path(path), inventory, grid, polygon_raster_size)
 
