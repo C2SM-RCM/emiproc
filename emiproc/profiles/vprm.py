@@ -12,7 +12,7 @@ Various extensions of the VPRM model have been implemented in emiproc.
 from __future__ import annotations
 from enum import Enum
 import logging
-from typing import Union
+from typing import Iterable, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -41,6 +41,307 @@ urban_vprm_models = [
     VPRM_Model.urban,
     VPRM_Model.urban_winbourne,
 ]
+
+
+def _series_index_to_numeric(index: pd.Index) -> np.ndarray:
+    """Convert series index to a monotonic numeric axis for smoothing."""
+    if isinstance(index, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        # Use days to avoid very large numbers from nanoseconds.
+        return index.view("i8").astype(float) / 86_400_000_000_000.0
+    return np.arange(len(index), dtype=float)
+
+
+def interpolate_satellite_index_series_lowess(
+    series: pd.Series,
+    frac: float = 0.1,
+    it: int = 3,
+    fill_edges: bool = True,
+) -> pd.Series:
+    """Interpolate a satellite vegetation index timeseries with LOWESS.
+
+    This is a lightweight NumPy implementation of robust LOWESS smoothing,
+    inspired by the pyVPRM workflow.
+
+    :param series: Timeseries to process.
+    :param frac: Fraction of observations used in each local regression.
+        Must be in (0, 1]. Smaller values keep the fit more local and are
+        usually better for seasonal satellite series with long gaps.
+    :param it: Number of robust reweighting iterations. Must be >= 1.
+    :param fill_edges: If True, fill boundary NaNs after smoothing.
+    :return: Smoothed/interpolated series with the same index as input.
+    """
+    try:
+        from statsmodels.nonparametric.smoothers_lowess import lowess
+    except ImportError as e:
+        raise ImportError(
+            "statsmodels is required for LOWESS interpolation. "
+            "Please install it with 'pip install statsmodels'."
+        ) from e
+    if not (0.0 < frac <= 1.0):
+        raise ValueError("frac must be in (0, 1]")
+    if it < 1:
+        raise ValueError("it must be >= 1")
+    if series.empty:
+        return series.copy()
+
+    observed = series.dropna()
+    if observed.empty:
+        return series.copy()
+    if observed.size == 1:
+        interpolated = series.copy()
+        if fill_edges:
+            interpolated = interpolated.bfill().ffill()
+        return interpolated
+
+    x_all = _series_index_to_numeric(series.index)
+    x_obs = _series_index_to_numeric(observed.index)
+    y_obs = observed.to_numpy(dtype=float)
+
+    # Standard LOWESS implementation from statsmodels.
+    y_all = lowess(
+        y_obs,
+        x_obs,
+        frac=frac,
+        it=it,
+        is_sorted=True,
+        xvals=x_all,
+        return_sorted=False,
+    )
+
+    out = pd.Series(y_all, index=series.index, dtype=float)
+    if fill_edges:
+        out = out.bfill().ffill()
+    return out
+
+
+def interpolate_satellite_index_series_kalman(
+    series: pd.Series,
+    transition_covariance: float = 0.01,
+    observation_covariance: float = 0.05,
+    initial_state_covariance: float = 1.0,
+    fill_edges: bool = True,
+) -> pd.Series:
+    """Interpolate a satellite vegetation index timeseries with a Kalman smoother.
+
+    Implements a scalar random-walk state model:
+    state_t = state_{t-1} + w_t, observation_t = state_t + v_t.
+
+    :param series: Timeseries to process.
+    :param transition_covariance: Process noise variance (Q), must be > 0.
+    :param observation_covariance: Observation noise variance (R), must be > 0.
+    :param initial_state_covariance: Initial covariance, must be > 0.
+    :param fill_edges: If True, fill any remaining boundary NaNs.
+    :return: Smoothed/interpolated series with the same index as input.
+    """
+    if transition_covariance <= 0.0:
+        raise ValueError("transition_covariance must be > 0")
+    if observation_covariance <= 0.0:
+        raise ValueError("observation_covariance must be > 0")
+    if initial_state_covariance <= 0.0:
+        raise ValueError("initial_state_covariance must be > 0")
+    if series.empty:
+        return series.copy()
+
+    y = series.to_numpy(dtype=float)
+    valid = np.isfinite(y)
+    if not valid.any():
+        return series.copy()
+
+    n = y.size
+    x_f = np.full(n, np.nan, dtype=float)
+    p_f = np.full(n, np.nan, dtype=float)
+    x_pred = np.full(n, np.nan, dtype=float)
+    p_pred = np.full(n, np.nan, dtype=float)
+
+    first_valid = int(np.argmax(valid))
+    x_prev = y[first_valid]
+    p_prev = initial_state_covariance
+
+    for t in range(n):
+        x_pr = x_prev
+        p_pr = p_prev + transition_covariance
+
+        x_pred[t] = x_pr
+        p_pred[t] = p_pr
+
+        if valid[t]:
+            k = p_pr / (p_pr + observation_covariance)
+            x_upd = x_pr + k * (y[t] - x_pr)
+            p_upd = (1.0 - k) * p_pr
+        else:
+            x_upd = x_pr
+            p_upd = p_pr
+
+        x_f[t] = x_upd
+        p_f[t] = p_upd
+        x_prev = x_upd
+        p_prev = p_upd
+
+    # Rauch-Tung-Striebel smoother for the scalar random-walk model.
+    x_s = np.copy(x_f)
+    p_s = np.copy(p_f)
+    for t in range(n - 2, -1, -1):
+        denom = p_pred[t + 1]
+        if not np.isfinite(denom) or denom <= 0.0:
+            continue
+        gain = p_f[t] / denom
+        x_s[t] = x_f[t] + gain * (x_s[t + 1] - x_pred[t + 1])
+        p_s[t] = p_f[t] + gain * gain * (p_s[t + 1] - p_pred[t + 1])
+
+    out = pd.Series(x_s, index=series.index, dtype=float)
+    if fill_edges:
+        out = out.bfill().ffill()
+    return out
+
+
+def interpolate_satellite_index_series(
+    series: pd.Series,
+    filter_len: int = 5,
+    outlier_threshold: float = 0.25,
+    max_filter_duration: pd.Timedelta | str | None = "90D",
+    fill_edges: bool = True,
+) -> pd.Series:
+    """Filter and interpolate a satellite vegetation index timeseries.
+
+    The function matches the original VPRM notebook workflow:
+
+    1. Keep only the observed values of the series.
+    2. Apply a rolling-mean based outlier filter on these observations.
+    3. Put the filtered observations back on the original sparse timeline.
+    4. Interpolate the missing values on the full series.
+
+    :param series: Timeseries to process.
+    :param filter_len: Window size used for the rolling mean outlier filter.
+        Must be > 0.
+    :param outlier_threshold: Relative threshold used to reject outliers.
+        Values farther than ``threshold`` from the local rolling mean are set
+        to NaN before interpolation.
+    :param max_filter_duration: Maximum time distance to an adjacent observation
+        before a point is exempted from outlier filtering. This prevents points
+        next to long gaps from being filtered against distant observations. Set
+        to None to disable this exemption.
+    :param fill_edges: If True, apply backward/forward fill after interpolation
+        to fill boundary values.
+    :return: Interpolated series with the same index as input.
+    """
+    if filter_len < 1:
+        raise ValueError("filter_len must be >= 1")
+    if outlier_threshold < 0.0:
+        raise ValueError("outlier_threshold must be >= 0")
+
+    if series.empty:
+        return series.copy()
+
+    observed = series.dropna()
+    if observed.empty:
+        return series.copy()
+    if observed.size < 2:
+        interpolated = series.copy()
+        if fill_edges:
+            interpolated = interpolated.bfill().ffill()
+        return interpolated
+
+    rolling_mean = np.convolve(
+        observed.to_numpy(dtype=float),
+        np.ones(filter_len, dtype=float) / filter_len,
+        mode="same",
+    )
+    mask_keep = (observed > rolling_mean * (1 - outlier_threshold)) & (
+        observed < rolling_mean * (1 + outlier_threshold)
+    )
+    if max_filter_duration is not None and isinstance(
+        observed.index, (pd.DatetimeIndex, pd.TimedeltaIndex)
+    ):
+        threshold = pd.to_timedelta(max_filter_duration)
+        timestamps = observed.index.to_numpy()
+        prev_gap = np.abs(timestamps - np.roll(timestamps, 1)).astype("timedelta64[ns]")
+        next_gap = np.abs(np.roll(timestamps, -1) - timestamps).astype(
+            "timedelta64[ns]"
+        )
+        prev_gap[0], next_gap[-1] = np.timedelta64("NaT"), np.timedelta64("NaT")
+        mask_keep |= (prev_gap > threshold) | (next_gap > threshold)
+
+    filtered_observed = np.where(mask_keep, observed, np.nan)
+
+    interpolated = series.copy()
+    interpolated.loc[observed.index] = filtered_observed
+
+    interpolated = interpolated.interpolate(
+        method="akima",
+        limit_direction="both",
+    )
+
+    if fill_edges:
+        interpolated = interpolated.bfill().ffill()
+
+    return interpolated
+
+
+method_mapping = {
+    "akima": interpolate_satellite_index_series,
+    "lowess": interpolate_satellite_index_series_lowess,
+    "kalman": interpolate_satellite_index_series_kalman,
+}
+
+
+def interpolate_satellite_indices(
+    df: pd.DataFrame,
+    vegetation_types: Iterable[str] | None = None,
+    bands: Iterable[str] = ("evi", "lswi"),
+    interpolation_method: str = "akima",
+    add_diagnostics: bool = True,
+    **kwargs,
+) -> pd.DataFrame:
+    """Interpolate satellite vegetation index columns in a MultiIndex dataframe.
+
+    This helper processes columns following the ``(vegetation_type, band)``
+    convention used by VPRM utilities in emiproc.
+
+    :param df: Input dataframe.
+    :param vegetation_types: Vegetation types to process. If None, all
+        vegetation types that contain requested bands are used.
+    :param bands: Index names to interpolate (e.g. ``evi``, ``lswi``).
+    :param interpolation_method: Interpolation method key. Available methods:
+        ``akima``, ``lowess``, ``kalman``.
+    :param add_diagnostics: If True, add ``*_mask`` and ``*_extracted`` columns.
+    :param kwargs: Additional keyword arguments passed to
+        :py:func:`interpolate_satellite_index_series`.
+    :return: Copy of the dataframe with interpolated vegetation indices.
+    """
+    if not isinstance(df.columns, pd.MultiIndex):
+        raise TypeError("df.columns must be a pandas.MultiIndex")
+
+    out_df = df.copy()
+    bands = tuple(bands)
+
+    if vegetation_types is None:
+        vegetation_types = []
+        for vegetation_type in out_df.columns.get_level_values(0).unique():
+            if all((vegetation_type, band) in out_df.columns for band in bands):
+                vegetation_types.append(vegetation_type)
+
+    for vegetation_type in vegetation_types:
+        for band in bands:
+            column = (vegetation_type, band)
+            if column not in out_df.columns:
+                continue
+
+            extracted = out_df[column].copy(deep=True)
+
+            if add_diagnostics:
+                out_df[(vegetation_type, f"{band}_mask")] = extracted.notnull()
+                out_df[(vegetation_type, f"{band}_extracted")] = extracted
+
+            if interpolation_method not in method_mapping:
+                available = ", ".join(sorted(method_mapping.keys()))
+                raise ValueError(
+                    f"Unknown interpolation method '{interpolation_method}'. "
+                    f"Available methods: {available}."
+                )
+
+            out_df[column] = method_mapping[interpolation_method](extracted, **kwargs)
+
+    return out_df
 
 
 def calculate_vegetation_indices(

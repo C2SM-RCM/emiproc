@@ -16,6 +16,7 @@ def plot_vprm_params_per_veg_type(
     model: VPRM_Model | str = VPRM_Model.standard,
     plots: list[str] = ["meteo", "indices", "emissions", "scaling"],
     group_by: str | None = None,
+    ax_indices_lims: tuple[float, float] = (-0.5, 1.1),
 ):
     """Plot the VPRM parameters per vegetation type.
 
@@ -198,7 +199,7 @@ def plot_vprm_params_per_veg_type(
                     label="minimum evi_ref",
                 )
 
-            ax_inds.set_ylim(-0.5, 1.1)
+            ax_inds.set_ylim(ax_indices_lims)
 
         # plot the emissions
         if "emissions" in plots:
