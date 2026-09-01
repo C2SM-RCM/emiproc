@@ -27,14 +27,14 @@ def get_scaling_factor_to_emiproc(
 
     Supported units are of the form: weight / time [/ area]
 
-    They can be specified in different ways, e.g. "kg/m2/s", "kg cell-2 year-1". 
-    
+    They can be specified in different ways, e.g. "kg/m2/s", "kg cell-2 year-1".
+
     :param unit: Unit string.
     :param substance: Substance string, e.g. "CO2", "CH4".
         Required for units based on moles.
 
     :return: A tuple containing
-    
+
         * Scaling factor
         * A boolean indicating that scaling with the cell area is needed
 
