@@ -142,7 +142,7 @@ class NetcdfRaster(Inventory):
     :param year: Year of the inventory. If None, will try to read from the netcdf file.
         If multiple years are present, must be specified.
     :param grid_rounding: Rounding for the grid coordinates.
-        See :py:method:`emiproc.grids.RegularGrid.from_centers`.
+        See :py:meth:`emiproc.grids.RegularGrid.from_centers`.
 
     """
 
