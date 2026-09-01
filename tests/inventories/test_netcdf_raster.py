@@ -207,7 +207,7 @@ def netcdf_file_with_multiple_years(tmp_path):
 
     # Create time values for each month of a single year
     time_values = pd.to_datetime(
-        [f"{2023 + int(m / 12)}-{int(m % 12 + 1):02d}-15" for m in range(1, 25)]
+        [f"{2023 + m // 12}-{m % 12 + 1:02d}-15" for m in range(1, 25)]
     )
 
     emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
@@ -242,7 +242,7 @@ def netcdf_file_with_unknown_time_profiles(tmp_path):
 
     # Create time values for each month of a single year
     time_values = pd.to_datetime(
-        [f"2023-{int(m/2 + 1):02d}-{int(15 * (m % 2) + 1):02d}" for m in range(0, 24)]
+        [f"2023-{m//2 + 1:02d}-{15 * (m % 2) + 1:02d}" for m in range(0, 24)]
     )
     emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
 
