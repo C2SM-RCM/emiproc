@@ -68,9 +68,3 @@ def test_plot_inventory(inventory, plot_inventory_kwargs):
             run_plot()
     else:
         run_plot()
-
-
-if __name__ == "__main__":
-    matplotlib.use("qtagg")
-
-    plot_inventory(inv_with_monthly_profiles)
