@@ -236,8 +236,8 @@ def netcdf_file_with_multiple_years(tmp_path):
 
 
 @pytest.fixture
-def netcdf_file_with_unkown_time_profiles(tmp_path):
-    """Create a NetCDF file with bi-monthly time steps (unkown frequency)."""
+def netcdf_file_with_unknown_time_profiles(tmp_path):
+    """Create a NetCDF file with bi-monthly time steps (unknown frequency)."""
     file_path = tmp_path / "monthly_raster.nc"
 
     # Create time values for each month of a single year
