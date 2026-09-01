@@ -16,7 +16,7 @@ Emissions Informations
 .. autoclass:: emiproc.inventories.EmissionInfo
 
 
-Units 
+Units
 -----
 
 .. autofunction:: emiproc.utils.units.get_scaling_factor_to_emiproc
