@@ -15,7 +15,11 @@ from emiproc.profiles.temporal.composite import (
     AnyTimeProfile,
     CompositeTemporalProfiles,
 )
-from emiproc.profiles.temporal.profiles import MounthsProfile, WeeklyProfile
+from emiproc.profiles.temporal.profiles import (
+    DayOfLeapYearProfile,
+    DayOfYearProfile,
+    MounthsProfile,
+)
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utils.units import get_scaling_factor_to_emiproc
 
@@ -197,8 +201,9 @@ class NetcdfRaster(Inventory):
                 if temporal_profile is None:
                     # Guess
                     targets = {
-                        7: WeeklyProfile,
                         12: MounthsProfile,
+                        365: DayOfYearProfile,
+                        366: DayOfLeapYearProfile,
                     }
                     temporal_profile = targets.get(length_temporal)
                     if temporal_profile is None:
