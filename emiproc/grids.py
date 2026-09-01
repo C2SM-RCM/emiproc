@@ -466,7 +466,7 @@ class RegularGrid(Grid):
 
         if not np.allclose(dxs, dx) or not np.allclose(dys, dy):
             raise ValueError(
-                "The centers are not equally spaced."
+                "The centers are not equally spaced. "
                 f"{dx=}, {np.unique(dxs)=}, {dy=}, {np.unique(dys)=}"
             )
 
