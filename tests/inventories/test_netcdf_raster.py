@@ -201,6 +201,40 @@ def netcdf_file_with_monthly_profiles(tmp_path):
 
 
 @pytest.fixture
+def netcdf_file_with_unkown_time_profiles(tmp_path):
+    """Create a NetCDF file with bi-monthly time steps (unkown frequency)."""
+    file_path = tmp_path / "monthly_raster.nc"
+
+    # Create time values for each month of a single year
+    time_values = pd.to_datetime(
+        [f"2023-{int(m/2 + 1):02d}-{int(15 * (m % 2) + 1):02d}" for m in range(0, 24)]
+    )
+    emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
+
+    ds = xr.Dataset(
+        data_vars={
+            "CO2_seasonal": (
+                ["time", "lat", "lon"],
+                emission_data,
+                {
+                    "units": "kg/year/cell",
+                    "substance": "CO2",
+                    "category": "seasonal",
+                },
+            ),
+        },
+        coords={
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
+            "time": time_values,
+        },
+    )
+
+    ds.to_netcdf(file_path)
+    return file_path
+
+
+@pytest.fixture
 def netcdf_file_no_unit_attr(tmp_path):
     """Create a NetCDF file without unit attribute."""
     file_path = tmp_path / "no_unit_raster.nc"
@@ -462,10 +496,20 @@ def test_single_time_step(netcdf_file_with_time):
     assert "heating" in inv.categories
 
 
-def test_multiple_time_steps_requires_profile(netcdf_file_with_monthly_profiles):
+def test_multiple_time_steps_requires_profile(netcdf_file_with_unkown_time_profiles):
     """Test that multiple time steps require a temporal profile."""
     with pytest.raises(ValueError, match="Temporal profile must be provided"):
-        NetcdfRaster(netcdf_file_with_monthly_profiles)
+        NetcdfRaster(netcdf_file_with_unkown_time_profiles)
+
+
+def test_multiple_time_steps_can_guess_monthly_profiles(
+    netcdf_file_with_monthly_profiles,
+):
+    """Test that multiple time steps can be guessed as monthly profiles."""
+    inv = NetcdfRaster(netcdf_file_with_monthly_profiles)
+
+    assert "seasonal" in inv.categories
+    assert inv.t_profiles_groups.types == [MounthsProfile]
 
 
 def test_monthly_profiles(netcdf_file_with_monthly_profiles):

@@ -15,6 +15,7 @@ from emiproc.profiles.temporal.composite import (
     AnyTimeProfile,
     CompositeTemporalProfiles,
 )
+from emiproc.profiles.temporal.profiles import MounthsProfile, WeeklyProfile
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utils.units import get_scaling_factor_to_emiproc
 
@@ -135,6 +136,8 @@ class NetcdfRaster(Inventory):
         with multiple time steps.
     :param year: Year of the inventory. If None, will try to read from the netcdf file.
         If multiple years are present, must be specified.
+    :param grid_rounding: Rounding for the grid coordinates.
+        See :py:method:`emiproc.grids.RegularGrid.from_centers`.
 
     """
 
@@ -148,6 +151,7 @@ class NetcdfRaster(Inventory):
         unit: str | None = None,
         temporal_profile: type[AnyTimeProfile] | None = None,
         year: int | None = None,
+        grid_rounding: int | None = None,
     ) -> None:
         file = Path(file)
         self.name = f"NetcdfRaster_Inventory_{file.stem}"
@@ -159,6 +163,7 @@ class NetcdfRaster(Inventory):
                 x_centers=ds[lon_name].values,
                 y_centers=ds[lat_name].values,
                 name="NetcdfRaster_grid",
+                rounding=grid_rounding,
             )
 
             cell_areas = self.grid.cell_areas
@@ -170,10 +175,18 @@ class NetcdfRaster(Inventory):
                 # Time dimension, must read the temporal profile
                 # Check the size of the time dimension
                 if temporal_profile is None:
-                    raise ValueError(
-                        "Temporal profile must be provided for inventories "
-                        "with multiple time steps."
-                    )
+                    # Guess
+                    length_temporal = len(ds[time_name])
+                    targets = {
+                        7: WeeklyProfile,
+                        12: MounthsProfile,
+                    }
+                    temporal_profile = targets.get(length_temporal)
+                    if temporal_profile is None:
+                        raise ValueError(
+                            "Temporal profile must be provided for inventories "
+                            f"with {length_temporal} time steps."
+                        )
                 years_in_data = pd.to_datetime(ds[time_name].values).year
                 if year is None:
                     # Check only one year is present
