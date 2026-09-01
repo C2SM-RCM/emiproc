@@ -134,6 +134,7 @@ class NetcdfRaster(Inventory):
         from the netcdf file.
     :param temporal_profile: Temporal profile class to use for inventories
         with multiple time steps.
+        If None, will try to guess from the number of time steps.
     :param year: Year of the inventory. If None, will try to read from the netcdf file.
         If multiple years are present, must be specified.
     :param grid_rounding: Rounding for the grid coordinates.
