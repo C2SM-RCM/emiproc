@@ -11,6 +11,10 @@ from emiproc.tests_utils.test_inventories import (
     inv_on_grid_serie2,
     inv_with_pnt_sources,
 )
+from emiproc.tests_utils.test_inventories_with_profiles import (
+    inv_with_monthly_profiles,
+    inv_with_weekly_and_monthly_profiles,
+)
 
 matplotlib.use("Agg")
 
@@ -29,6 +33,11 @@ def plot_test_context():
         pytest.param(inv_on_grid_serie2, id="inv_on_grid_serie2"),
         pytest.param(inv_with_pnt_sources, id="inv_with_pnt_sources"),
         pytest.param(african_inv_regular_grid, id="african_inv_regular_grid"),
+        pytest.param(inv_with_monthly_profiles, id="inv_with_monthly_profiles"),
+        pytest.param(
+            inv_with_weekly_and_monthly_profiles,
+            id="inv_with_weekly_and_monthly_profiles",
+        ),
     ]
 )
 def inventory(request):
@@ -59,3 +68,9 @@ def test_plot_inventory(inventory, plot_inventory_kwargs):
             run_plot()
     else:
         run_plot()
+
+
+if __name__ == "__main__":
+    matplotlib.use("qtagg")
+
+    plot_inventory(inv_with_monthly_profiles)
