@@ -202,12 +202,12 @@ def netcdf_file_with_monthly_profiles(tmp_path):
 
 @pytest.fixture
 def netcdf_file_with_multiple_years(tmp_path):
-    """Create a NetCDF file with 2 years of monthly time steps."""
+    """Create a NetCDF file with 2 years (24 months) of monthly time steps."""
     file_path = tmp_path / "monthly_raster.nc"
 
-    # Create time values for each month of a single year
+    # Create monthly time values spanning two years
     time_values = pd.to_datetime(
-        [f"{2023 + m // 12}-{m % 12 + 1:02d}-15" for m in range(1, 25)]
+        [f"{2023 + m // 12}-{m % 12 + 1:02d}-15" for m in range(0, 24)]
     )
 
     emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
