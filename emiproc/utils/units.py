@@ -16,7 +16,7 @@ _REPLACE = {
     "h-1": "/h",
     "s-1": "/s",
     "cell-1": "/cell",
-    " ": "",
+    "kgch4": "kg",
 }
 
 
@@ -33,6 +33,8 @@ def get_scaling_factor_to_emiproc(
     :return: Scaling factor. and a boolean indicating that we need to scale (multiply) with the cell area.
     """
     unit_original = unit
+
+    unit = unit.lower().replace(" ", "")
     for old, new in _REPLACE.items():
         unit = unit.replace(old, new)
     if unit == "kg/m2/s":
@@ -46,7 +48,7 @@ def get_scaling_factor_to_emiproc(
         return 1.0, True
     elif unit == "kg/y/cell":
         return 1.0, False
-    elif unit == "PgC/y":
+    elif unit == "pgc/y":
         # Carbon to CO2 conversion
         if substance != "CO2":
             raise ValueError("PgC/y unit can only be used for CO2 substance.")
