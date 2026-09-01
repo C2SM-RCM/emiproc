@@ -531,10 +531,10 @@ def test_single_time_step(netcdf_file_with_time):
     assert "heating" in inv.categories
 
 
-def test_multiple_time_steps_requires_profile(netcdf_file_with_unkown_time_profiles):
+def test_multiple_time_steps_requires_profile(netcdf_file_with_unknown_time_profiles):
     """Test that multiple time steps require a temporal profile."""
     with pytest.raises(ValueError, match="Temporal profile must be provided"):
-        NetcdfRaster(netcdf_file_with_unkown_time_profiles)
+        NetcdfRaster(netcdf_file_with_unknown_time_profiles)
 
 
 def test_multiple_time_steps_can_guess_monthly_profiles(
