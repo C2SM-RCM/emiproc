@@ -47,6 +47,22 @@ inv = Inventory.from_gdf(
 inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
 
 
+inv_polygon = Inventory.from_gdf(
+    gdfs={
+        "adf": gpd.GeoDataFrame(
+            {
+                "CO2": [2.0],
+                "CH4": [1.0],
+            },
+            geometry=[
+                Polygon([(6.5, 6.5), (6.5, 8.0), (8.0, 8.0), (8.0, 6.5)]),
+            ],
+        ),
+    }
+)
+inv_polygon.emission_infos = {cat: EmissionInfo() for cat in inv_polygon.categories}
+
+
 def test_export_gral_inventory(tmp_path):
 
     grid = _get_grid()
@@ -126,9 +142,7 @@ def test_export_with_source_groups(tmp_path):
         ("CH4", "adf"): 2,
     }
 
-    export_to_gral(
-        inv, grid, out_dir, polygon_raster_size=1.0, source_groups=source_groups
-    )
+    export_to_gral(inv, grid, out_dir, source_groups=source_groups)
 
     assert (out_dir / "point.dat").exists()
     df_point = pd.read_csv(out_dir / "point.dat", header=1)
@@ -137,29 +151,26 @@ def test_export_with_source_groups(tmp_path):
     assert set(df_point["source_group"]) == {42, 2}
 
 
-def test_export_gral_polygons(tmp_path):
+def test_export_no_size_uses_grid_resolution(tmp_path):
+    grid = _get_grid()
+    export_to_gral(inv_polygon, grid, tmp_path)
 
-    inv = Inventory.from_gdf(
-        gdfs={
-            "adf": gpd.GeoDataFrame(
-                {
-                    "CO2": [2.0],
-                    "CH4": [1.0],
-                },
-                geometry=[
-                    Polygon([(6.5, 6.5), (6.5, 8.0), (8.0, 8.0), (8.0, 6.5)]),
-                ],
-            ),
-        }
-    )
-    inv.emission_infos = {cat: EmissionInfo() for cat in inv.categories}
+    assert (tmp_path / "cadastre.dat").exists()
+
+
+def test_export_align_to_grid(tmp_path):
+    grid = _get_grid()
+    export_to_gral(inv_polygon, grid, tmp_path, align_to_grid=True)
+
+
+def test_export_gral_polygons(tmp_path):
 
     grid = _get_grid()
 
     out_dir = tmp_path / "gral_output_polygon"
     out_dir.mkdir()
 
-    export_to_gral(inv, grid, out_dir, polygon_raster_size=1.0)
+    export_to_gral(inv_polygon, grid, out_dir, polygon_raster_size=1.0)
 
     assert (out_dir / "cadastre.dat").exists()
     assert (out_dir / "source_groups.json").exists()

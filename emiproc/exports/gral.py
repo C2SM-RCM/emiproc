@@ -3,7 +3,7 @@
 This module contains functions to prepare emissions for GRAL.
 
 Different pollutants and emission categories can be simulated in a single
-GRAL simulation. They pollutant/category combinations are identified by a 
+GRAL simulation. They pollutant/category combinations are identified by a
 unique source_group number that can be specified when writing the emissions
 and will be saved as a json file.
 
@@ -83,6 +83,7 @@ class EmissionWriter:
         grid: GralGrid,
         polygon_raster_size: float,
         source_groups: dict[tuple[Substance, Category], int] | None,
+        align_to_grid: bool = False,
     ) -> None:
 
         # Path where to write the emissons
@@ -91,6 +92,7 @@ class EmissionWriter:
         self.inventory = inventory
         self.grid = grid
         self.polygon_raster_size = polygon_raster_size
+        self.align_to_grid = align_to_grid
 
         if source_groups is None:
             # Maps the (cat/sub) to source groups
@@ -334,7 +336,16 @@ class EmissionWriter:
         # Rasterize the polygon on a grid
         shapes_serie = gpd.GeoSeries(list(shapes))
         # get polygon bounds
-        minx, miny, maxx, maxy = shapes_serie.total_bounds
+        if not self.align_to_grid:
+            minx, miny, maxx, maxy = shapes_serie.total_bounds
+        else:
+            # Align the bounds to the grid
+            minx, miny, maxx, maxy = (
+                self.grid.xmin,
+                self.grid.ymin,
+                self.grid.xmax,
+                self.grid.ymax,
+            )
         d = self.polygon_raster_size
         # Create a grid for the rasterization
         grid = RegularGrid(
@@ -371,8 +382,9 @@ def export_to_gral(
     inventory: Inventory,
     grid: GralGrid,
     path: os.PathLike,
-    polygon_raster_size: float = 10.0,
+    polygon_raster_size: float | None = None,
     source_groups: dict[tuple[Substance, Category], int] | None = None,
+    align_to_grid: bool = False,
 ) -> Path:
     """Export an inventory to GRAL.
 
@@ -382,19 +394,26 @@ def export_to_gral(
     :param path: Path where to write the emissions.
     :param grid: Grid to use.
     :param polygon_raster_size: Edge size of the rasterized polygons (in crs units).
+        if None, the grid resolution will be used.
     :param source_groups: Optional dictionary mapping (substance, category) to source group.
+    :param align_to_grid: If True, the polygon rasterization will be aligned to the grid.
 
     :return: Path where the emissions were written.
     """
     path = Path(path)
     if not path.is_dir():
         path.mkdir(parents=True, exist_ok=True)
+
+    if polygon_raster_size is None:
+        polygon_raster_size = min(grid.dx, grid.dy)
+
     writer = EmissionWriter(
         path,
         inventory,
         grid,
         polygon_raster_size,
         source_groups=source_groups,
+        align_to_grid=align_to_grid,
     )
     writer.write_gdfs()
 
