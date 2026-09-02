@@ -2,9 +2,10 @@
 
 This module contains functions to prepare emissions for GRAL.
 
-Gral only has one polluant available, but can contain more than one category.
-
-To counter that issue, we make a source group for each substance/category.
+Different pollutants and emission categories can be simulated in a single
+GRAL simulation. They pollutant/category combinations are identified by a 
+unique source_group number that can be specified when writing the emissions
+and will be saved as a json file.
 
 
 .. warning:: For PM, it seems that there are some additional parameters:
@@ -13,7 +14,7 @@ To counter that issue, we make a source group for each substance/category.
 
     We don't use them for now.
 
-.. warning:: The current version of emiproc does not support lines and portals.
+.. warning:: The current version of emiproc does not support portals (tunnels).
 
 
 4 types of emissions are supported with their respective files:
@@ -30,7 +31,7 @@ The following methods are applied:
 
 - points: simply write the coordinates and the emission rate
 - lines: write the coordinates of the line and the emission rate
-    The Multi-lines have to be split into single lines, which increases the
+    Multi-lines have to be split into single lines, which increases the
     size of the problem.
 - areas: polygons have to be rasterized into squares before writing them.
 - tunnels: not implemented
