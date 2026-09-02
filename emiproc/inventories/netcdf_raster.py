@@ -15,6 +15,11 @@ from emiproc.profiles.temporal.composite import (
     AnyTimeProfile,
     CompositeTemporalProfiles,
 )
+from emiproc.profiles.temporal.profiles import (
+    DayOfLeapYearProfile,
+    DayOfYearProfile,
+    MounthsProfile,
+)
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utils.units import get_scaling_factor_to_emiproc
 
@@ -133,8 +138,11 @@ class NetcdfRaster(Inventory):
         from the netcdf file.
     :param temporal_profile: Temporal profile class to use for inventories
         with multiple time steps.
+        If None, will try to guess from the number of time steps.
     :param year: Year of the inventory. If None, will try to read from the netcdf file.
         If multiple years are present, must be specified.
+    :param grid_rounding: Rounding for the grid coordinates.
+        See :py:meth:`emiproc.grids.RegularGrid.from_centers`.
 
     """
 
@@ -148,6 +156,7 @@ class NetcdfRaster(Inventory):
         unit: str | None = None,
         temporal_profile: type[AnyTimeProfile] | None = None,
         year: int | None = None,
+        grid_rounding: int | None = None,
     ) -> None:
         file = Path(file)
         self.name = f"NetcdfRaster_Inventory_{file.stem}"
@@ -159,6 +168,7 @@ class NetcdfRaster(Inventory):
                 x_centers=ds[lon_name].values,
                 y_centers=ds[lat_name].values,
                 name="NetcdfRaster_grid",
+                rounding=grid_rounding,
             )
 
             cell_areas = self.grid.cell_areas
@@ -168,12 +178,6 @@ class NetcdfRaster(Inventory):
                 year = pd.to_datetime(ds[time_name].values[0]).year
             elif time_name in ds.variables:
                 # Time dimension, must read the temporal profile
-                # Check the size of the time dimension
-                if temporal_profile is None:
-                    raise ValueError(
-                        "Temporal profile must be provided for inventories "
-                        "with multiple time steps."
-                    )
                 years_in_data = pd.to_datetime(ds[time_name].values).year
                 if year is None:
                     # Check only one year is present
@@ -190,14 +194,27 @@ class NetcdfRaster(Inventory):
                         f" available: {sum(years_in_data == year)} time steps."
                     )
                     ds = ds.sel({time_name: years_in_data == year})
-                    if len(ds[time_name]) == 0:
+                # Check the size of the time dimension
+                length_temporal = len(ds[time_name])
+                if length_temporal == 0:
+                    raise ValueError(f"No data found for year {year} in the inventory.")
+                if temporal_profile is None:
+                    # Guess
+                    targets = {
+                        12: MounthsProfile,
+                        365: DayOfYearProfile,
+                        366: DayOfLeapYearProfile,
+                    }
+                    temporal_profile = targets.get(length_temporal)
+                    if temporal_profile is None:
                         raise ValueError(
-                            f"No data found for year {year} in the inventory."
+                            "Temporal profile must be provided for inventories "
+                            f"with {length_temporal} time steps."
                         )
-                if temporal_profile.size != len(ds[time_name]):
+                if temporal_profile.size != length_temporal:
                     raise ValueError(
                         f"Temporal profile size {temporal_profile.size} does not "
-                        f"match number of time steps {len(ds[time_name])}."
+                        f"match number of time steps {length_temporal}."
                     )
 
             elif "year" in ds.attrs and year is None:

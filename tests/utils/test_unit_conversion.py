@@ -13,7 +13,14 @@ def test_unit_scaling_factor_kg_per_m2_per_s():
 
 def test_unit_scaling_factor_kg_per_year_per_cell():
     """Test unit scaling factor for kg/year/cell variants."""
-    for unit in ["kg/y/cell", "kg y-1 cell-1", "kg/year/cell"]:
+    for unit in [
+        "kg/y/cell",
+        "kg y-1 cell-1",
+        "kg/year/cell",
+        "kg/Y/cell",
+        "kg / y / cell",
+        "KG/Y/CELL",
+    ]:
         factor, multiply_by_area = get_scaling_factor_to_emiproc(unit)
         assert factor == 1.0
         assert multiply_by_area is False
@@ -25,6 +32,13 @@ def test_carbon_unit_only_for_co2():
         get_scaling_factor_to_emiproc("PgC/yr", substance="CH4")
     factor, multiply_by_area = get_scaling_factor_to_emiproc("PgC/yr", substance="CO2")
     assert factor == 1e12 * (get_molar_mass("CO2") / get_molar_mass("C"))
+    assert multiply_by_area is False
+
+
+def test_kgCH4_is_kg():
+    """Test unit scaling factor for kgCH4."""
+    factor, multiply_by_area = get_scaling_factor_to_emiproc("kgCH4/y/cell")
+    assert factor == 1.0
     assert multiply_by_area is False
 
 
