@@ -35,7 +35,19 @@ The following methods are applied:
 - areas: polygons have to be rasterized into squares before writing them.
 - tunnels: not implemented
 
+.. note:: Information about height
 
+    When GRAL generates the particle's elevation, it checks if the particle is
+    inside a building.
+    If it is the case, the particle will be assigned a new height, just above the
+    building.
+
+    With emiproc you can specify not only the height, but also a
+    `height_over_buildings` if you want the particle to be emitted above the building
+    in the cell.
+    this can be useful for domestic heating, where if you have an emission cell that
+    does not exactly match the building grid, you could enforce the source to be
+    above the building or if no building, at a specific height.
 
 """
 
