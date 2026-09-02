@@ -1,0 +1,4 @@
+Generated: 13/08/2026 17:12
+x,y,z,poll[kg/h],--,--,--,exit vel.[m/s],diameter[m],Temp.[K],Source group
+2.5,3.5,15,2.0,0,0,0,5,1,353,1
+6.5,7.5,15,4.0,0,0,0,5,1,353,2
