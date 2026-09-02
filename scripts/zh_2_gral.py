@@ -2,45 +2,55 @@
 
 For this exercise we need an additional package called pygg.
 """
+
+# %%
+# %load_ext autoreload
+# %autoreload 2
 # %%
 from pathlib import Path
-from emiproc.inventories.zurich import MapLuftZurich, ZURICH_SOURCES
 from emiproc.exports.gral import export_to_gral
+from emiproc.inventories.zurich.duck import DuckDBInventory
 from emiproc.tests_utils import TEST_OUTPUTS_DIR
-from emiproc.inventories.utils import crop_with_shape
+from emiproc.inventories.utils import crop_with_shape, drop
 from emiproc.inventories.utils import group_categories, validate_group
-from emiproc.inventories.zurich.gral_groups import ZH_CO2_Groups
+from emiproc.inventories.zurich.gral_groups import ZH_CO2_DUCK_GROUPS
+from emiproc.inventories.zurich.categories_info import (
+    ZURICH_GROUPPED_SOURCES,
+)
+
 # pygg module for gram gral preprocessing
 from pygg.grids import GralGrid
 import numpy as np
 
 # %%
-file = Path("/store/empa/em05/mapluft/mapLuft_2020_v2021.gdb")
 
-zh_inv = MapLuftZurich(file, ['CO2'], convert_lines_to_polygons=False)
-zh_inv.emission_infos = ZURICH_SOURCES
-zh_inv 
-#%% Read the gral grid from a generated geb
-grid = GralGrid.from_gral_rundir("/scratch/snx3000/lconstan/gramm_gral2/")
+YEAR = 2024
+duckdbs_dir = Path("/input/CH_EMISSIONS/MapLuft/Emissions/duckdbs")
+gral_run_dir = Path("/project/leob/gg/zurich/Zurich_CO2_clean")
+inv_file = duckdbs_dir / f"emikat_v2026a.db"
+substances = ["CO2"]
 
-#%% Crop the invenotry over the gral grid 
-
-zh_cropped = crop_with_shape(zh_inv, grid.get_bounding_polygon())
-
-#%%
-
-validate_group(ZH_CO2_Groups, zh_inv.categories)
-
-# TODO: group should also group emission infos
-zh_groupped = group_categories(zh_cropped, ZH_CO2_Groups, ignore_missing=False)
-
-#%%
-out_dir = TEST_OUTPUTS_DIR / 'test_gral_emissions'
-out_dir.mkdir(exist_ok=True)
-export_to_gral(
-    zh_groupped,
-    grid,
-    out_dir,
-    polygon_raster_size = 5
+# %%
+inv_zh = DuckDBInventory(
+    inv_file,
+    year=YEAR,
+    substances=[s.lower() for s in substances],
 )
+inv_zh.to_crs("LV03")
+
+# %% Process inventory
+ignore_categories = ["brandfeuerschaden", "feuerwerk", "tabakwaren"]
+zh_cleaned = drop(inv_zh, categories=ignore_categories)
+zh_groupped = group_categories(zh_cleaned, ZH_CO2_DUCK_GROUPS, ignore_missing=False)
+
+# %% Read the gral grid from a generated geb
+grid = GralGrid.from_gral_rundir(gral_run_dir)
+
+# %%
+inv_export = zh_groupped
+inv_export.emission_infos = ZURICH_GROUPPED_SOURCES
+
+out_dir = TEST_OUTPUTS_DIR / "test_gral_emissions"
+out_dir.mkdir(exist_ok=True)
+export_to_gral(inv_export, grid, out_dir, polygon_raster_size=5)
 # %%

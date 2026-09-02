@@ -3,8 +3,9 @@
 from emiproc.inventories import EmissionInfo
 
 LARGE_ROAD_TRANSPORT = EmissionInfo(height=0.3, width=7.0)
+SHIPS = EmissionInfo(height=1.5, width=5.0)
 ZURICH_SOURCES = {
-    "c1101_Linienschiffe_Emissionen": EmissionInfo(height=1.5, width=5.0),
+    "c1101_Linienschiffe_Emissionen": SHIPS,
     "c1102_PrivaterBootsverkehr_Emissionen": EmissionInfo(height=0.5),
     "c1201_BahnPersonenverkehr_Emissionen": EmissionInfo(height=0.3, width=3.0),
     "c1202_BahnGueterverkehr_Emissionen": EmissionInfo(height=0.3, width=3.0),
@@ -206,4 +207,18 @@ ZURICH_CH_SOURCES = {
     "ehhan": CH_EMISSIONS,
     "ehmgh": CH_EMISSIONS,
     "eivgn": CH_EMISSIONS,
+}
+
+
+ZURICH_GROUPPED_SOURCES = {
+    "KHKW": EmissionInfo(height=87.0),
+    "Industrie": EmissionInfo(),
+    "FeuerungenFossil": EmissionInfo(height=3.0),
+    "FeuerungenBio": EmissionInfo(),
+    "Strassenverkehr": EmissionInfo(),
+    "Schwerverkehr": LARGE_ROAD_TRANSPORT,
+    "OeffentlicherVerkehr": LARGE_ROAD_TRANSPORT,
+    "Schiffahrt": SHIPS,
+    "FahrzeugeMaschinen": EmissionInfo(),
+    "Umschwung": EmissionInfo(),
 }
