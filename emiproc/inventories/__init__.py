@@ -49,20 +49,20 @@ class EmissionInfo:
 
     :param height: The height of the emission source (over the ground). [m]
     :param height_over_buildings: If True, the height is taken over buildings.
-    :param width: The width of the emission source. [m]
+    :param width: The width of the line emission source. [m]
     :param vertical_extension:
         The vertical extension (thickness) of the emission source. [m]
         This implies that the emission starts at height
         and ends at height + vertical_extension.
     :param temperature: The temperature of the emission source. [K]
-    :param speed: The speed of the emission of the substances. [m/s]
+    :param speed: The speed of the emission. [m/s]
     :param comment: A comment about the emission source.
 
     """
 
     # Height
     height: float = 0.0
-    # weight the height is taken over buildings
+    # whether the height is taken over buildings
     height_over_buildings: bool = True
 
     width: float = 0.5
