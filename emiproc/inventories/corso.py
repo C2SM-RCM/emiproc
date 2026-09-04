@@ -58,9 +58,10 @@ class CorsoEmissions:
 
     Args:
         csv_path: Directory containing the CORSO point-source CSV files.
+        read_short_name: Whether to read the short name column.
     """
 
-    def __init__(self, csv_path: str | Path) -> None:
+    def __init__(self, csv_path: str | Path, read_short_name: bool = True) -> None:
         csv_directory = Path(csv_path)
 
         def read_csv(csv_file: str, drop_last_col: bool = False) -> pd.DataFrame:
@@ -88,8 +89,12 @@ class CorsoEmissions:
         self.df_month = read_csv("corso_ps_monthly_profiles_v2.0.csv", True)
         self.df_vert = read_csv("corso_ps_vertical_profiles_v2.0.csv", True)
 
+
         # Read emissions.
-        self.df_emiss = read_csv("corso_ps_catalogue_v2.0.csv")
+        if Path(csv_directory / "corso_ps_catalogue_v2.0_with_short_name.csv").exists() and read_short_name:
+            self.df_emiss = read_csv("corso_ps_catalogue_v2.0_with_short_name.csv")
+        else:
+            self.df_emiss = read_csv("corso_ps_catalogue_v2.0.csv")
 
     def filter_emissions(
         self,
@@ -119,7 +124,10 @@ class CorsoEmissions:
         lat = self.df_emiss.latitude
         lon = self.df_emiss.longitude
 
-        mask = (lon > lon_min) & (lon < lon_max) & (lat > lat_min) & (lat < lat_max)
+        if lon_min < lon_max:
+            mask = (lon > lon_min) & (lon < lon_max) & (lat > lat_min) & (lat < lat_max)
+        else:
+            mask = (lon > lon_min) | (lon < lon_max) & (lat > lat_min) & (lat < lat_max)
         if min_emission is not None:
             mask &= emission_mask
 
