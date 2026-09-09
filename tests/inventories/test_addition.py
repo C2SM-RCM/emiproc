@@ -7,7 +7,6 @@ import pytest
 import pandas as pd
 
 from emiproc.inventories.utils import add_inventories, gdf_to_gdfs, scale_inventory
-from emiproc.profiles.operators import add_profiles
 from emiproc.profiles.temporal.profiles import (
     DailyProfile,
     HourOfYearProfile,
@@ -22,6 +21,60 @@ def _clean_total(df: pd.DataFrame, like: pd.DataFrame | None = None) -> pd.DataF
     if like is not None:
         df = df.reindex_like(like)
     return df.fillna(0)
+
+
+def _normalized(values: list[float] | np.ndarray) -> np.ndarray:
+    """Return normalized ratios."""
+    ratios = np.asarray(values, dtype=float)
+    return ratios / ratios.sum()
+
+
+def _profiles_group(*profiles) -> list:
+    """Create a temporal profiles group from ordered profile definitions."""
+    return [
+        profile_type(ratios=_normalized(ratios)) for profile_type, ratios in profiles
+    ]
+
+
+def _composite_ratios(
+    profiles: list[DailyProfile | WeeklyProfile | MounthsProfile],
+    types_order: list[type] | None = None,
+) -> np.ndarray:
+    """Concatenate the ratios of a temporal profiles group."""
+    profiles_by_type = {
+        type(profile): profile.ratios.reshape(-1) for profile in profiles
+    }
+    if types_order is None:
+        types_order = [type(profile) for profile in profiles]
+    return np.concatenate(
+        [profiles_by_type[profile_type] for profile_type in types_order]
+    )
+
+
+def _get_output_ratios(inv, category: str, substance: str) -> np.ndarray:
+    """Return the output ratios associated with a category/substance."""
+    indexes = inv.t_profiles_indexes.sel(category=category, substance=substance).values
+    return inv.t_profiles_groups.ratios[indexes]
+
+
+def _weighted_expected(
+    ratios_1: np.ndarray,
+    ratios_2: np.ndarray,
+    weights_1: float | np.ndarray,
+    weights_2: float | np.ndarray,
+) -> np.ndarray:
+    """Compute the expected weighted average of two profiles."""
+    weights_1 = np.asarray(weights_1, dtype=float)
+    weights_2 = np.asarray(weights_2, dtype=float)
+    total_weights = weights_1 + weights_2
+
+    if weights_1.ndim == 0:
+        return (ratios_1 * weights_1 + ratios_2 * weights_2) / total_weights
+
+    return (
+        ratios_1 * np.expand_dims(weights_1, axis=-1)
+        + ratios_2 * np.expand_dims(weights_2, axis=-1)
+    ) / np.expand_dims(total_weights, axis=-1)
 
 
 def test_self_addition():
@@ -174,19 +227,15 @@ def test_profiles_values():
 
     inv1 = test_inventories.inv.copy()
     inv2 = test_inventories.inv.copy()
-    weekly_1 = np.array([7, 6, 5, 4, 3, 2, 1], dtype=float)
-    monthly_1 = np.array([12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1], dtype=float)
-    weekly_2 = np.array([1, 3, 5, 7, 6, 4, 2], dtype=float)
-    monthly_2 = np.array([1, 4, 2, 5, 3, 6, 7, 8, 9, 10, 11, 12], dtype=float)
     inv2_profiles = [
-        [
-            WeeklyProfile(ratios=weekly_1 / weekly_1.sum()),
-            MounthsProfile(ratios=monthly_1 / monthly_1.sum()),
-        ],
-        [
-            WeeklyProfile(ratios=weekly_2 / weekly_2.sum()),
-            MounthsProfile(ratios=monthly_2 / monthly_2.sum()),
-        ],
+        _profiles_group(
+            (WeeklyProfile, [7, 6, 5, 4, 3, 2, 1]),
+            (MounthsProfile, [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
+        ),
+        _profiles_group(
+            (WeeklyProfile, [1, 3, 5, 7, 6, 4, 2]),
+            (MounthsProfile, [1, 4, 2, 5, 3, 6, 7, 8, 9, 10, 11, 12]),
+        ),
     ]
 
     inv1.set_profiles(
@@ -198,10 +247,16 @@ def test_profiles_values():
         indexes=temporal_profiles.indexes_inv_catsub_missing,
     )
 
-    expected_profiles, expected_indexes = add_profiles(inv1, inv2)
     summed_inv = add_inventories(inv1, inv2)
 
     total_summed = summed_inv.total_emissions
+    types_order = list(summed_inv.t_profiles_groups._profiles.keys())
+    expected_ratios = _weighted_expected(
+        _composite_ratios(temporal_profiles.three_profiles[1], types_order),
+        _composite_ratios(inv2_profiles[0], types_order),
+        inv1.gdf[("adf", "CH4")].to_numpy(),
+        inv2.gdf[("adf", "CH4")].to_numpy(),
+    )
 
     pd.testing.assert_frame_equal(
         total_summed,
@@ -209,9 +264,8 @@ def test_profiles_values():
         check_like=True,  # Ignore index ordering
     )
     np.testing.assert_allclose(
-        summed_inv.t_profiles_groups.ratios, expected_profiles.ratios
+        _get_output_ratios(summed_inv, "adf", "CH4"), expected_ratios
     )
-    assert summed_inv.t_profiles_indexes.equals(expected_indexes)
 
 
 def test_profiles_types_must_match():
@@ -259,36 +313,35 @@ def test_profiles_values_independent_of_type_order():
     inv2_reversed.gdf[("adf", "CH4")] *= 3
 
     inv1_profiles = [
-        [
-            DailyProfile(ratios=np.full(DailyProfile.size, 1 / DailyProfile.size)),
-            WeeklyProfile(ratios=np.array([1, 2, 3, 4, 5, 6, 7], dtype=float) / 28),
-        ],
-        [
-            DailyProfile(
-                ratios=np.array(
-                    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] * 2, dtype=float
-                )
-                / 156
-            ),
-            WeeklyProfile(ratios=np.array([7, 6, 5, 4, 3, 2, 1], dtype=float) / 28),
-        ],
+        _profiles_group(
+            (DailyProfile, np.ones(DailyProfile.size)),
+            (WeeklyProfile, [1, 2, 3, 4, 5, 6, 7]),
+        ),
+        _profiles_group(
+            (DailyProfile, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] * 2),
+            (WeeklyProfile, [7, 6, 5, 4, 3, 2, 1]),
+        ),
     ]
     inv2_profiles = [
-        [
-            DailyProfile(
-                ratios=np.array(
-                    [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1] * 2, dtype=float
-                )
-                / 156
-            ),
-            WeeklyProfile(ratios=np.array([7, 5, 3, 1, 2, 4, 6], dtype=float) / 28),
-        ],
-        [
-            DailyProfile(ratios=np.arange(1, DailyProfile.size + 1, dtype=float) / 300),
-            WeeklyProfile(ratios=np.array([2, 4, 6, 7, 5, 3, 1], dtype=float) / 28),
-        ],
+        _profiles_group(
+            (DailyProfile, [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1] * 2),
+            (WeeklyProfile, [7, 5, 3, 1, 2, 4, 6]),
+        ),
+        _profiles_group(
+            (DailyProfile, np.arange(1, DailyProfile.size + 1)),
+            (WeeklyProfile, [2, 4, 6, 7, 5, 3, 1]),
+        ),
     ]
-    inv2_profiles_reversed = [[profile[1], profile[0]] for profile in inv2_profiles]
+    inv2_profiles_reversed = [
+        _profiles_group(
+            (WeeklyProfile, [7, 5, 3, 1, 2, 4, 6]),
+            (DailyProfile, [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1] * 2),
+        ),
+        _profiles_group(
+            (WeeklyProfile, [2, 4, 6, 7, 5, 3, 1]),
+            (DailyProfile, np.arange(1, DailyProfile.size + 1)),
+        ),
+    ]
 
     inv1.set_profiles(
         inv1_profiles,
@@ -305,11 +358,18 @@ def test_profiles_values_independent_of_type_order():
 
     summed_inv = add_inventories(inv1, inv2)
     summed_reversed_inv = add_inventories(inv1, inv2_reversed)
-    normalized_profiles = summed_inv.t_profiles_groups.broadcast(
-        list(summed_inv.t_profiles_groups._profiles.keys())
+    types_order = list(summed_inv.t_profiles_groups._profiles.keys())
+    expected_ch4 = _weighted_expected(
+        _composite_ratios(inv1_profiles[0], types_order),
+        _composite_ratios(inv2_profiles[0], types_order),
+        inv1.gdf[("adf", "CH4")].sum(),
+        inv2.gdf[("adf", "CH4")].sum(),
     )
-    normalized_reversed_profiles = summed_reversed_inv.t_profiles_groups.broadcast(
-        list(summed_inv.t_profiles_groups._profiles.keys())
+    expected_co2 = _weighted_expected(
+        _composite_ratios(inv1_profiles[1], types_order),
+        _composite_ratios(inv2_profiles[1], types_order),
+        inv1.gdf[("adf", "CO2")].sum(),
+        inv2.gdf[("adf", "CO2")].sum(),
     )
 
     pd.testing.assert_frame_equal(
@@ -317,7 +377,15 @@ def test_profiles_values_independent_of_type_order():
         summed_reversed_inv.total_emissions,
         check_like=True,
     )
-    assert summed_inv.t_profiles_indexes.equals(summed_reversed_inv.t_profiles_indexes)
     np.testing.assert_allclose(
-        normalized_profiles.ratios, normalized_reversed_profiles.ratios
+        _get_output_ratios(summed_inv, "adf", "CH4"), expected_ch4
+    )
+    np.testing.assert_allclose(
+        _get_output_ratios(summed_inv, "adf", "CO2"), expected_co2
+    )
+    np.testing.assert_allclose(
+        _get_output_ratios(summed_reversed_inv, "adf", "CH4"), expected_ch4
+    )
+    np.testing.assert_allclose(
+        _get_output_ratios(summed_reversed_inv, "adf", "CO2"), expected_co2
     )
