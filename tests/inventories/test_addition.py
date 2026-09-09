@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import pandas as pd
 
@@ -143,14 +144,11 @@ def test_profiles():
     inv2 = test_inventories.inv.copy()
 
     inv1.set_profiles(
-        temporal_profiles.three_composite_profiles,
+        temporal_profiles.three_profiles,
         indexes=temporal_profiles.indexes_inv_catsubcell,
     )
     inv2.set_profiles(
-        temporal_profiles.get_random_profiles(
-            temporal_profiles.indexes_inv_catsub_missing.max().values + 1,
-            profile_types=[HourOfYearProfile, WeeklyProfile],
-        ),
+        temporal_profiles.three_profiles,
         indexes=temporal_profiles.indexes_inv_catsub_missing,
     )
 
@@ -165,30 +163,35 @@ def test_profiles():
     )
 
 
-def test_profiles_values():
-    """Test the addition of two inventories with profiles and values."""
+def test_profiles_types_must_match():
+    """Test that adding different temporal profile types raises an error."""
 
     inv1 = test_inventories.inv.copy()
     inv2 = test_inventories.inv.copy()
 
     inv1.set_profiles(
-        temporal_profiles.three_composite_profiles,
-        indexes=temporal_profiles.indexes_inv_catsubcell,
-    )
-    inv2.set_profiles(
-        temporal_profiles.get_random_profiles(
-            temporal_profiles.indexes_inv_catsub_missing.max().values + 1,
-            profile_types=[HourOfYearProfile, WeeklyProfile],
-        ),
+        temporal_profiles.three_profiles,
         indexes=temporal_profiles.indexes_inv_catsub_missing,
     )
-
-    summed_inv = add_inventories(inv1, inv2)
-
-    total_summed = summed_inv.total_emissions
-
-    pd.testing.assert_frame_equal(
-        total_summed,
-        inv1.total_emissions.add(inv2.total_emissions, fill_value=0),
-        check_like=True,  # Ignore index ordering
+    inv2.set_profiles(
+        [
+            [
+                WeeklyProfile(
+                    ratios=np.full(WeeklyProfile.size, 1 / WeeklyProfile.size)
+                ),
+                HourOfYearProfile(
+                    ratios=np.full(
+                        HourOfYearProfile.size,
+                        1 / HourOfYearProfile.size,
+                    )
+                ),
+            ]
+        ],
+        indexes=temporal_profiles.indexes_inv_catsub_missing * 0,
     )
+
+    with pytest.raises(
+        ValueError,
+        match="Please interpolate the temporal profiles to a common temporal resolution",
+    ):
+        add_inventories(inv1, inv2)
