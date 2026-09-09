@@ -49,27 +49,29 @@ class EmissionInfo:
 
     :param height: The height of the emission source (over the ground). [m]
     :param height_over_buildings: If True, the height is taken over buildings.
-    :param width: The width of the emission source. [m]
+    :param width: The width of the line emission source. [m]
     :param vertical_extension:
         The vertical extension (thickness) of the emission source. [m]
         This implies that the emission starts at height
         and ends at height + vertical_extension.
-    :param temperature: The temperature of the emission source. [K]
-    :param speed: The speed of the emission of the substances. [m/s]
+    :param temperature: The temperature of the point source emission. [K]
+    :param speed: The speed of the emission of the point source emission. [m/s]
     :param comment: A comment about the emission source.
+    :param source_group: Source group to which this source belongs.
 
     """
 
     # Height
     height: float = 0.0
-    # weight the height is taken over buildings
+    # whether the height is taken over buildings
     height_over_buildings: bool = True
 
-    width: float = 0.5
+    width: float = 0.5          # only relevant for line sources
     vertical_extension: float = 3.0
-    temperature: float = 353.0
-    speed: float = 5.0
+    temperature: float = 353.0  # only relevant for point sources
+    speed: float = 5.0          # only relevant for point sources
     comment: str = ""
+    source_group: int = 0       # GRAMM/GRAL source group
 
 
 class Inventory:
