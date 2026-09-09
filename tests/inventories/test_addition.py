@@ -8,7 +8,11 @@ import pandas as pd
 
 from emiproc.inventories.utils import add_inventories, gdf_to_gdfs, scale_inventory
 from emiproc.profiles.operators import add_profiles
-from emiproc.profiles.temporal.profiles import HourOfYearProfile, WeeklyProfile
+from emiproc.profiles.temporal.profiles import (
+    HourOfYearProfile,
+    MounthsProfile,
+    WeeklyProfile,
+)
 from emiproc.tests_utils import temporal_profiles, test_inventories
 
 
@@ -169,13 +173,27 @@ def test_profiles_values():
 
     inv1 = test_inventories.inv.copy()
     inv2 = test_inventories.inv.copy()
+    weekly_1 = np.array([7, 6, 5, 4, 3, 2, 1], dtype=float)
+    monthly_1 = np.array([12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1], dtype=float)
+    weekly_2 = np.array([1, 3, 5, 7, 6, 4, 2], dtype=float)
+    monthly_2 = np.array([1, 4, 2, 5, 3, 6, 7, 8, 9, 10, 11, 12], dtype=float)
+    inv2_profiles = [
+        [
+            WeeklyProfile(ratios=weekly_1 / weekly_1.sum()),
+            MounthsProfile(ratios=monthly_1 / monthly_1.sum()),
+        ],
+        [
+            WeeklyProfile(ratios=weekly_2 / weekly_2.sum()),
+            MounthsProfile(ratios=monthly_2 / monthly_2.sum()),
+        ],
+    ]
 
     inv1.set_profiles(
         temporal_profiles.three_profiles,
         indexes=temporal_profiles.indexes_inv_catsubcell,
     )
     inv2.set_profiles(
-        temporal_profiles.three_profiles,
+        inv2_profiles,
         indexes=temporal_profiles.indexes_inv_catsub_missing,
     )
 
