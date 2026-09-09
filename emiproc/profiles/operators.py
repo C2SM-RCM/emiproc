@@ -699,7 +699,9 @@ def add_profiles(
         raise ValueError(
             "Temporal profiles of both inventories must use the same profile types. "
             "Please interpolate the temporal profiles to a common temporal "
-            "resolution before adding inventories."
+            "resolution with "
+            "emiproc.inventories.utils.interpolate_temporal_profiles before "
+            "adding inventories."
         )
     common_types = list(profiles1._profiles.keys())
     profiles1 = profiles1.broadcast(common_types)
