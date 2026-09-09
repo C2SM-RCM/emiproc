@@ -9,6 +9,7 @@ import pandas as pd
 from emiproc.inventories.utils import add_inventories, gdf_to_gdfs, scale_inventory
 from emiproc.profiles.operators import add_profiles
 from emiproc.profiles.temporal.profiles import (
+    DailyProfile,
     HourOfYearProfile,
     MounthsProfile,
     WeeklyProfile,
@@ -245,3 +246,78 @@ def test_profiles_types_must_match():
         match="Please interpolate the temporal profiles to a common temporal resolution",
     ):
         add_inventories(inv1, inv2)
+
+
+def test_profiles_values_independent_of_type_order():
+    """Test that temporal profile addition is independent of type ordering."""
+
+    inv1 = test_inventories.inv.copy()
+    inv2 = test_inventories.inv.copy()
+    inv2_reversed = test_inventories.inv.copy()
+
+    inv2.gdf[("adf", "CH4")] *= 3
+    inv2_reversed.gdf[("adf", "CH4")] *= 3
+
+    inv1_profiles = [
+        [
+            DailyProfile(ratios=np.full(DailyProfile.size, 1 / DailyProfile.size)),
+            WeeklyProfile(ratios=np.array([1, 2, 3, 4, 5, 6, 7], dtype=float) / 28),
+        ],
+        [
+            DailyProfile(
+                ratios=np.array(
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] * 2, dtype=float
+                )
+                / 156
+            ),
+            WeeklyProfile(ratios=np.array([7, 6, 5, 4, 3, 2, 1], dtype=float) / 28),
+        ],
+    ]
+    inv2_profiles = [
+        [
+            DailyProfile(
+                ratios=np.array(
+                    [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1] * 2, dtype=float
+                )
+                / 156
+            ),
+            WeeklyProfile(ratios=np.array([7, 5, 3, 1, 2, 4, 6], dtype=float) / 28),
+        ],
+        [
+            DailyProfile(ratios=np.arange(1, DailyProfile.size + 1, dtype=float) / 300),
+            WeeklyProfile(ratios=np.array([2, 4, 6, 7, 5, 3, 1], dtype=float) / 28),
+        ],
+    ]
+    inv2_profiles_reversed = [[profile[1], profile[0]] for profile in inv2_profiles]
+
+    inv1.set_profiles(
+        inv1_profiles,
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+    inv2.set_profiles(
+        inv2_profiles,
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+    inv2_reversed.set_profiles(
+        inv2_profiles_reversed,
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+
+    summed_inv = add_inventories(inv1, inv2)
+    summed_reversed_inv = add_inventories(inv1, inv2_reversed)
+    normalized_profiles = summed_inv.t_profiles_groups.broadcast(
+        list(summed_inv.t_profiles_groups._profiles.keys())
+    )
+    normalized_reversed_profiles = summed_reversed_inv.t_profiles_groups.broadcast(
+        list(summed_inv.t_profiles_groups._profiles.keys())
+    )
+
+    pd.testing.assert_frame_equal(
+        summed_inv.total_emissions,
+        summed_reversed_inv.total_emissions,
+        check_like=True,
+    )
+    assert summed_inv.t_profiles_indexes.equals(summed_reversed_inv.t_profiles_indexes)
+    np.testing.assert_allclose(
+        normalized_profiles.ratios, normalized_reversed_profiles.ratios
+    )

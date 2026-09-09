@@ -701,6 +701,9 @@ def add_profiles(
             "Please interpolate the temporal profiles to a common temporal "
             "resolution before adding inventories."
         )
+    common_types = list(profiles1._profiles.keys())
+    profiles1 = profiles1.broadcast(common_types)
+    profiles2 = profiles2.broadcast(common_types)
 
     # Case simple concatenation instead of weighted combination
     if all("category" in ind.coords for ind in [indexes1, indexes2]) and set(
