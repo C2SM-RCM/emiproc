@@ -7,6 +7,7 @@ import pytest
 import pandas as pd
 
 from emiproc.inventories.utils import add_inventories, gdf_to_gdfs, scale_inventory
+from emiproc.profiles.operators import add_profiles
 from emiproc.profiles.temporal.profiles import HourOfYearProfile, WeeklyProfile
 from emiproc.tests_utils import temporal_profiles, test_inventories
 
@@ -161,6 +162,37 @@ def test_profiles():
         inv1.total_emissions.add(inv2.total_emissions, fill_value=0),
         check_like=True,  # Ignore index ordering
     )
+
+
+def test_profiles_values():
+    """Test the addition of two inventories with matching temporal profiles."""
+
+    inv1 = test_inventories.inv.copy()
+    inv2 = test_inventories.inv.copy()
+
+    inv1.set_profiles(
+        temporal_profiles.three_profiles,
+        indexes=temporal_profiles.indexes_inv_catsubcell,
+    )
+    inv2.set_profiles(
+        temporal_profiles.three_profiles,
+        indexes=temporal_profiles.indexes_inv_catsub_missing,
+    )
+
+    expected_profiles, expected_indexes = add_profiles(inv1, inv2)
+    summed_inv = add_inventories(inv1, inv2)
+
+    total_summed = summed_inv.total_emissions
+
+    pd.testing.assert_frame_equal(
+        total_summed,
+        inv1.total_emissions.add(inv2.total_emissions, fill_value=0),
+        check_like=True,  # Ignore index ordering
+    )
+    np.testing.assert_allclose(
+        summed_inv.t_profiles_groups.ratios, expected_profiles.ratios
+    )
+    assert summed_inv.t_profiles_indexes.equals(expected_indexes)
 
 
 def test_profiles_types_must_match():
