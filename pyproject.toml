@@ -52,6 +52,10 @@ testpaths = ["tests"]
 markers = [
     "incremental: mark a test as part of an incremental test suite"
 ]
+# Dump a thread traceback and fail instead of hanging forever (helps diagnose
+# intermittent CI hangs). Requires the pytest-timeout plugin.
+timeout = 360
+timeout_method = "thread"
 
 [tool.setuptools.packages.find]
 include = ["emiproc"]  # package names should match these glob patterns (["*"] by default)
@@ -71,4 +75,4 @@ doc = [
     "ipython",
     "matplotlib",
 ]
-dev = ["black", "pytest"]
+dev = ["black", "pytest", "pytest-timeout"]
