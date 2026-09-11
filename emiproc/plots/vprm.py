@@ -1,6 +1,7 @@
 """Plotting functions for VPRM profiles."""
 
 from __future__ import annotations
+from typing import Iterable, Literal, get_args
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,13 +9,15 @@ import numpy as np
 
 from emiproc.profiles.vprm import VPRM_Model, urban_vprm_models
 
+Plots = Literal["meteo", "indices", "emissions", "scaling"]
+
 
 def plot_vprm_params_per_veg_type(
     df: pd.DataFrame,
     df_vprm: pd.DataFrame,
     veg_types: list[str] | None = None,
     model: VPRM_Model | str = VPRM_Model.standard,
-    plots: list[str] = ["meteo", "indices", "emissions", "scaling"],
+    plots: Iterable[Plots] = get_args(Plots),
     group_by: str | None = None,
     ax_indices_lims: tuple[float, float] = (-0.5, 1.1),
 ):
@@ -39,6 +42,7 @@ def plot_vprm_params_per_veg_type(
     :param group_by: If provided, the dataframe will be grouped
         by this temporal frequency before plotting.
         e.g. "%m%H" to get daily profiles for each month.
+    :param ax_indices_lims: y-axis limits for the vegetation indices plot.
     """
 
     model = VPRM_Model(model)
@@ -88,10 +92,10 @@ def plot_vprm_params_per_veg_type(
         is_right_col = vegetation_type == veg_types[-1]
 
         axes_iter = iter(axes)
-        axes_dict = {}
+        axes_dict: dict[Plots, plt.Axes] = {}
         if "meteo" in plots:
 
-            ax_T = next(axes_iter)
+            ax_T: plt.Axes = next(axes_iter)
             axes_dict["meteo"] = ax_T
             ax_T.set_title(vegetation_type)
             l_tg = ax_T.plot(
@@ -152,7 +156,7 @@ def plot_vprm_params_per_veg_type(
 
         # Plot the vegetation indices
         if "indices" in plots:
-            ax_inds = next(axes_iter)
+            ax_inds: plt.Axes = next(axes_iter)
             axes_dict["indices"] = ax_inds
             indices = {
                 "evi": "green",
@@ -203,7 +207,7 @@ def plot_vprm_params_per_veg_type(
 
         # plot the emissions
         if "emissions" in plots:
-            ax_emi = next(axes_iter)
+            ax_emi: plt.Axes = next(axes_iter)
             axes_dict["emissions"] = ax_emi
 
             ax_emi.plot(x, df[(vegetation_type, "resp")], label="resp", alpha=0.7)
@@ -215,7 +219,7 @@ def plot_vprm_params_per_veg_type(
         # Plot the scaling params
 
         if "scaling" in plots:
-            ax_scale = next(axes_iter)
+            ax_scale: plt.Axes = next(axes_iter)
             axes_dict["scaling"] = ax_scale
 
             for param in ["Tscale", "Wscale", "Pscale"]:

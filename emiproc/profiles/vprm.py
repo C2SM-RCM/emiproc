@@ -12,7 +12,7 @@ Various extensions of the VPRM model have been implemented in emiproc.
 from __future__ import annotations
 from enum import Enum
 import logging
-from typing import Iterable, Union
+from typing import Iterable, Literal, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -59,8 +59,8 @@ def interpolate_satellite_index_series_lowess(
 ) -> pd.Series:
     """Interpolate a satellite vegetation index timeseries with LOWESS.
 
-    This is a lightweight NumPy implementation of robust LOWESS smoothing,
-    inspired by the pyVPRM workflow.
+    This uses statsmodels' robust LOWESS implementation and is inspired by
+    the pyVPRM workflow.
 
     :param series: Timeseries to process.
     :param frac: Fraction of observations used in each local regression.
@@ -94,7 +94,7 @@ def interpolate_satellite_index_series_lowess(
         return interpolated
 
     x_all = _series_index_to_numeric(series.index)
-    x_obs = _series_index_to_numeric(observed.index)
+    x_obs = x_all[series.notna().to_numpy()]
     y_obs = observed.to_numpy(dtype=float)
 
     # Standard LOWESS implementation from statsmodels.
@@ -241,13 +241,15 @@ def interpolate_satellite_index_series(
             interpolated = interpolated.bfill().ffill()
         return interpolated
 
-    rolling_mean = np.convolve(
-        observed.to_numpy(dtype=float),
-        np.ones(filter_len, dtype=float) / filter_len,
-        mode="same",
+    rolling_mean = (
+        observed.astype(float)
+        .rolling(window=filter_len, center=True, min_periods=1)
+        .mean()
+        .to_numpy()
     )
-    mask_keep = (observed > rolling_mean * (1 - outlier_threshold)) & (
-        observed < rolling_mean * (1 + outlier_threshold)
+    relative_margin = np.abs(rolling_mean) * outlier_threshold
+    mask_keep = (observed >= rolling_mean - relative_margin) & (
+        observed <= rolling_mean + relative_margin
     )
     if max_filter_duration is not None and isinstance(
         observed.index, (pd.DatetimeIndex, pd.TimedeltaIndex)
@@ -277,7 +279,9 @@ def interpolate_satellite_index_series(
     return interpolated
 
 
-method_mapping = {
+InterpolationMethod = Literal["akima", "lowess", "kalman"]
+
+method_mapping: dict[InterpolationMethod, callable] = {
     "akima": interpolate_satellite_index_series,
     "lowess": interpolate_satellite_index_series_lowess,
     "kalman": interpolate_satellite_index_series_kalman,
@@ -288,11 +292,11 @@ def interpolate_satellite_indices(
     df: pd.DataFrame,
     vegetation_types: Iterable[str] | None = None,
     bands: Iterable[str] = ("evi", "lswi"),
-    interpolation_method: str = "akima",
+    interpolation_method: InterpolationMethod = "akima",
     add_diagnostics: bool = True,
     **kwargs,
 ) -> pd.DataFrame:
-    """Interpolate satellite vegetation index columns in a MultiIndex dataframe.
+    f"""Interpolate satellite vegetation index columns in a MultiIndex dataframe.
 
     This helper processes columns following the ``(vegetation_type, band)``
     convention used by VPRM utilities in emiproc.
@@ -302,7 +306,7 @@ def interpolate_satellite_indices(
         vegetation types that contain requested bands are used.
     :param bands: Index names to interpolate (e.g. ``evi``, ``lswi``).
     :param interpolation_method: Interpolation method key. Available methods:
-        ``akima``, ``lowess``, ``kalman``.
+        {", ".join(method_mapping.keys())}.
     :param add_diagnostics: If True, add ``*_mask`` and ``*_extracted`` columns.
     :param kwargs: Additional keyword arguments passed to
         :py:func:`interpolate_satellite_index_series`.
@@ -310,6 +314,12 @@ def interpolate_satellite_indices(
     """
     if not isinstance(df.columns, pd.MultiIndex):
         raise TypeError("df.columns must be a pandas.MultiIndex")
+
+    if interpolation_method not in method_mapping:
+        raise ValueError(
+            f"Unknown interpolation method '{interpolation_method}'. "
+            f"Available methods: {', '.join(method_mapping.keys())}."
+        )
 
     out_df = df.copy()
     bands = tuple(bands)
@@ -331,13 +341,6 @@ def interpolate_satellite_indices(
             if add_diagnostics:
                 out_df[(vegetation_type, f"{band}_mask")] = extracted.notnull()
                 out_df[(vegetation_type, f"{band}_extracted")] = extracted
-
-            if interpolation_method not in method_mapping:
-                available = ", ".join(sorted(method_mapping.keys()))
-                raise ValueError(
-                    f"Unknown interpolation method '{interpolation_method}'. "
-                    f"Available methods: {available}."
-                )
 
             out_df[column] = method_mapping[interpolation_method](extracted, **kwargs)
 
