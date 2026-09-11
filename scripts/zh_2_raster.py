@@ -7,8 +7,8 @@ It is possible put the rasters inside the swiss inventory as well.
 
 # %%
 # autoreload modules in interactive python
-#%load_ext autoreload
-#%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 # %%
 from datetime import datetime
 from enum import Enum
@@ -56,7 +56,9 @@ from emiproc.inventories.zurich.duck import DuckDBInventory
 
 # %% define some parameters for the output
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 YEAR = 2024
 
@@ -65,7 +67,10 @@ INCLUDE_SWISS_OUTSIDE = True
 
 # Paths to data
 data_dir = Path("/newhome/coli/emiproc/files/ch")
-swiss_data_path = data_dir / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv"
+swiss_data_path = (
+    data_dir
+    / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv"
+)
 outdir = data_dir / "exports"
 mapluft_dir = Path("/newhome/coli/Data/mapluft_kanton")
 duckdbs_dir = Path("/input/CH_EMISSIONS/MapLuft/Emissions/duckdbs")
@@ -73,7 +78,7 @@ duckdbs_dir = Path("/input/CH_EMISSIONS/MapLuft/Emissions/duckdbs")
 
 # Choose here which data file to use
 # Duck db is the new version, it contains all years in one file
-#inv_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
+# inv_file = mapluft_dir / f"mapLuft_{YEAR}_v2024.gdb"
 inv_file = duckdbs_dir / f"emikat_v2026a.db"
 
 # CRS of the output, can be WGS84 or LV95
@@ -81,12 +86,12 @@ OUTPUT_CRS = LV95
 # edge of the raster cells (in meters)
 RASTER_EDGE = 100
 
-# OUTPUT_GRID = "Regular"
-OUTPUT_GRID = "footprints"
+OUTPUT_GRID = "Regular"
+# OUTPUT_GRID = "footprints"
 footprint_file = data_dir / "footprints/zurich_footprint_220713.nc"
 
 
-VERSION = "v3.2"
+VERSION = "v3.3"
 
 # Whether to split the biogenic CO2 and the antropogenic CO2
 SPLIT_BIOGENIC_CO2 = False
@@ -101,7 +106,7 @@ quartier_anlyse_file = quartier_anlyse_dir / "Quartieranalyse_-OGD.gpkg"
 output_unit = Units.KG_PER_YEAR
 
 # Whether to group categories to the GNRF categories
-USE_GNRF = True
+USE_GNRF = False
 
 
 # Whether to split the F category of the GNRF into 4 subcategories for accounting
@@ -110,7 +115,10 @@ SPLIT_GNRF_ROAD_TRANSPORT = False
 
 
 # %% Check some parameters and create the output directory
-weights_dir = outdir / f"weights_files_{OUTPUT_GRID}_{RASTER_EDGE}_{YEAR}_{VERSION}_crs{OUTPUT_CRS}"
+weights_dir = (
+    outdir
+    / f"weights_files_{OUTPUT_GRID}_{RASTER_EDGE}_{YEAR}_{VERSION}_crs{OUTPUT_CRS}"
+)
 weights_dir.mkdir(exist_ok=True, parents=True)
 
 if SPLIT_GNRF_ROAD_TRANSPORT and not USE_GNRF:
@@ -129,19 +137,12 @@ if inv_file.suffix == ".gdb":
 else:
 
     inv = DuckDBInventory(inv_file, year=YEAR)
-    # Convert substances to upper case 
+    # Convert substances to upper case
     rename_dict = {sub.upper(): [sub] for sub in inv.substances if sub != "nox"}
     rename_dict["NOx"] = ["nox"]
     inv = merge_substances(inv, rename_dict)
 
 
-
-
-#%%
-export_to_geopackage(
-    inv, 
-    filepath=inv_file.with_suffix('.gpkg')
-)
 # %%
 def load_zurich_shape(
     zh_raw_file="/newhome/coli/Documents/zurich_footprints/data/Zurich_borders.txt",
@@ -185,8 +186,6 @@ if OUTPUT_GRID == "Regular":
     else:
         raise ValueError("Output CRS not supported")
 
-
-
     # Round the min to be a multiple of the dx
     x_min = dx * floor(x_min / dx)
     y_min = dy * floor(y_min / dy)
@@ -220,7 +219,6 @@ elif OUTPUT_GRID == "footprints":
     ds = ds.assign_coords(datetime=("timestep", datetime))
     # Add georeference to the dataset
     # ds = ds.rio.write_crs("LV95").rio.set_spatial_dims(x_dim="x", y_dim="y")
-
 
     # Get only the cells of the grid where footprint is greater than 0
     x_coords = ds.x_lv95.values
@@ -259,7 +257,7 @@ rasters_inv = remap_inventory(
 # %% change the categories
 if USE_GNRF:
 
-    from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR, ZH_DUCK_2_GNFR 
+    from emiproc.inventories.zurich.gnrf_groups import ZH_2_GNFR, ZH_DUCK_2_GNFR
 
     if isinstance(inv, DuckDBInventory):
         ZH_2_GNFR = ZH_DUCK_2_GNFR
@@ -299,7 +297,8 @@ if USE_GNRF:
 if INCLUDE_SWISS_OUTSIDE:
     data_path = Path("/newhome/coli/emiproc/files/ch")
     inv_ch = SwissRasters(
-        filepath_csv_totals=data_path / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv",
+        filepath_csv_totals=data_path
+        / "CH_emissions_EMIS-Daten_1990-2050_Submission_2024_CO2_biog_NOx_CO2_CH4_CO.csv",
         filepath_point_sources=data_path / "swissprtr-daten-2007-2024.xlsx",
         rasters_dir=data_path / "ekat_gridascii",
         rasters_str_dir=data_path / "ekat_str_gridascii",
@@ -353,18 +352,18 @@ if INCLUDE_SWISS_OUTSIDE:
         load_zurich_shape(),
         keep_outside=True,
         modify_grid=False,
-        #weight_file=weights_dir / "ch_out_zh",
+        # weight_file=weights_dir / "ch_out_zh",
     )
     ch_inside_zh = crop_with_shape(
         groupped_ch,
         load_zurich_shape(),
         keep_outside=False,
         modify_grid=False,
-        #weight_file=weights_dir / "ch_in_zh",
+        # weight_file=weights_dir / "ch_in_zh",
     )
 
 
-# %% Remap the swiss inventory 
+# %% Remap the swiss inventory
 if INCLUDE_SWISS_OUTSIDE:
     ch_outside_zh.to_crs(OUTPUT_CRS)
     remapped_ch_out = remap_inventory(
@@ -441,7 +440,8 @@ if ADD_HUMAN_RESPIRATION:
     remapped_resp = remap_inventory(
         resp_inv,
         grid,
-        weights_file=weights_dir / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}_{quartier_anlyse_dir.stem}_{quartier_anlyse_file.stem}",
+        weights_file=weights_dir
+        / f"resp_weights_{INCLUDE_SWISS_OUTSIDE}_{quartier_anlyse_dir.stem}_{quartier_anlyse_file.stem}",
     )
 
     rasters_inv = add_inventories(rasters_inv, remapped_resp)
@@ -451,18 +451,22 @@ rasters_inv.year = YEAR
 out_path = export_raster_netcdf(
     rasters_inv,
     outdir
-    /  "_".join(
+    / "_".join(
         [
             "zurich",
             "inside_swiss" if INCLUDE_SWISS_OUTSIDE else "cropped",
             "Fsplit" if SPLIT_GNRF_ROAD_TRANSPORT else "",
-            f"{RASTER_EDGE}x{RASTER_EDGE}" if OUTPUT_GRID == "Regular" else "footprints",
+            (
+                f"{RASTER_EDGE}x{RASTER_EDGE}"
+                if OUTPUT_GRID == "Regular"
+                else "footprints"
+            ),
             inv_file.stem,
             VERSION,
             f"crs{OUTPUT_CRS}",
             "rasters.nc",
         ]
-    ) ,
+    ),
     unit=output_unit,
     group_categories=True,
     netcdf_attributes=nc_cf_attributes(
@@ -476,7 +480,9 @@ out_path = export_raster_netcdf(
             " rasterizing all point, line and area sources"
         ),
         additional_attributes={
-            "swiss_coordinate_system_lv95": "https://www.swisstopo.admin.ch/en/knowledge-facts/surveying-geodesy/coordinates/swiss-coordinates.html",
+            "swiss_coordinate_system_lv95": (
+                "https://www.swisstopo.admin.ch/en/knowledge-facts/surveying-geodesy/coordinates/swiss-coordinates.html"
+            ),
             "comment_lv95": (
                 "In original LV95 system, x denote northings and y eastings. They have"
                 " been exchanged here for better compatibility with lon/lat."
@@ -487,26 +493,30 @@ out_path = export_raster_netcdf(
         },
         script=Path(__file__) if "__file__" in globals() else None,
     ),
-    categories_description={
-        "GNFR_A": "Public Power",
-        "GNFR_B": "Industry",
-        "GNFR_C": "Other Stationary Combustion",
-        "GNFR_D": "Fugitives",
-        "GNFR_E": "Solvents",
-        "GNFR_F": "Road Transport",
-        "GNFR_F-cars": "Road Transport - Cars",
-        "GNFR_F-light_duty": "Road Transport - Light Duty Vehicules",
-        "GNFR_F-heavy_duty": "Road Transport - Heavy Duty Vehicules",
-        "GNFR_F-two_wheels": "Road Transport - Two Wheels Vehicles",
-        "GNFR_G": "Shipping",
-        "GNFR_H": "Aviation",
-        "GNFR_I": "OffRoad",
-        "GNFR_J": "Waste",
-        "GNFR_K": "Agriculture Livestock",
-        "GNFR_L": "Agriculture Other",
-        "GNFR_O": "Human Respiration",
-        "GNFR_R": "Others",
-    }
+    categories_description=(
+        {
+            "GNFR_A": "Public Power",
+            "GNFR_B": "Industry",
+            "GNFR_C": "Other Stationary Combustion",
+            "GNFR_D": "Fugitives",
+            "GNFR_E": "Solvents",
+            "GNFR_F": "Road Transport",
+            "GNFR_F-cars": "Road Transport - Cars",
+            "GNFR_F-light_duty": "Road Transport - Light Duty Vehicules",
+            "GNFR_F-heavy_duty": "Road Transport - Heavy Duty Vehicules",
+            "GNFR_F-two_wheels": "Road Transport - Two Wheels Vehicles",
+            "GNFR_G": "Shipping",
+            "GNFR_H": "Aviation",
+            "GNFR_I": "OffRoad",
+            "GNFR_J": "Waste",
+            "GNFR_K": "Agriculture Livestock",
+            "GNFR_L": "Agriculture Other",
+            "GNFR_O": "Human Respiration",
+            "GNFR_R": "Others",
+        }
+        if USE_GNRF
+        else None
+    ),
 )
 print(f"Output written to {out_path}")
 
@@ -517,7 +527,11 @@ plots_dir = out_path.with_suffix(".plots")
 
 if INCLUDE_SWISS_OUTSIDE:
     iterator = zip(
-        [rasters_inv, rescaled_ch, ch_inside_zh, ],
+        [
+            rasters_inv,
+            rescaled_ch,
+            ch_inside_zh,
+        ],
         ["combined", "ch_outside_rescaled", "ch_inside_zh"],
     )
 else:
