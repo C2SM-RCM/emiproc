@@ -1,19 +1,16 @@
 """Read an the input for a gramgral simulation as an inventory."""
 
 from __future__ import annotations
-from enum import Enum, IntEnum
+from enum import IntEnum
 import json
-import logging
 from os import PathLike
 from pathlib import Path
-from typing import Any
-from emiproc.grids import LV95, WGS84
+from emiproc.grids import WGS84
 from emiproc.inventories import Category, Inventory, Substance
-from emiproc.exports.gral import EmissionWriter
 from emiproc.utilities import HOUR_PER_YR
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point, LineString, Polygon
+from shapely.geometry import LineString, Polygon
 
 
 class PointsCols(IntEnum):
@@ -76,6 +73,7 @@ class GralInventory(Inventory):
         emissions_dir: PathLike,
         source_group_mapping: dict[int, tuple[Substance, Category]] | None = None,
         crs: str | int = WGS84,
+        skip_missing: bool = False,
     ) -> None:
 
         emissions_dir = Path(emissions_dir)
@@ -90,15 +88,16 @@ class GralInventory(Inventory):
 
         group_mapping_file = self.path / "source_groups.json"
 
+        self.skip_missing = skip_missing
+
         super().__init__()
 
         # Read the source group mapping
         if source_group_mapping is None:
             if not group_mapping_file.is_file():
-                raise FileNotFoundError(
-                    f"{group_mapping_file=} not found. Please provide"
-                    " 'source_group_mapping' of source groups to substances and"
-                    " categories. Or generate the file."
+                self.logger.warning(
+                    f"{group_mapping_file=} not found."
+                    "source group values will be used as category names."
                 )
             with open(group_mapping_file) as f:
                 source_group_mapping = json.load(f)
@@ -127,9 +126,14 @@ class GralInventory(Inventory):
         self._read_cadastre()
         self._read_portals()
 
-    def _get_sub_cat(self, source_group: int) -> tuple[Substance, Category]:
+    def _get_sub_cat(self, source_group: int) -> tuple[Substance, Category] | None:
         """Get the substance and category for a source group."""
+
+        source_group = int(source_group)
+
         if source_group not in self.source_group_mapping:
+            if self.skip_missing:
+                return None
             raise ValueError(
                 f"{source_group=} not found in {self.source_group_mapping=}"
             )
@@ -174,19 +178,19 @@ class GralInventory(Inventory):
         source_groups = df[df.columns[PointsCols.SOURCE_GROUP]].unique()
 
         for source_group in source_groups:
-            substance, category = self._get_sub_cat(source_group)
+            subcat = self._get_sub_cat(source_group)
+            if subcat is None:
+                continue
+            substance, category = subcat
             mask_source_group = df[df.columns[PointsCols.SOURCE_GROUP]] == source_group
             # Create the GeoDataFrame
             emission_col = df.columns[PointsCols.EMISSION]
             # Select only the emission column renamed to the substance
             emissions_values = (
-                df[mask_source_group]
-                .rename(columns={emission_col: substance})[substance]
-                .to_numpy()
-                .astype(float)
+                df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
             # Convert the units from kg/h to kg/y
-            emissions_values *= HOUR_PER_YR
+            emissions_values = emissions_values * HOUR_PER_YR
             gdf = gpd.GeoDataFrame(
                 {substance: emissions_values},
                 geometry=gpd.points_from_xy(
@@ -210,7 +214,10 @@ class GralInventory(Inventory):
         source_groups = df[df.columns[LinesCols.SOURCE_GROUP]].unique()
 
         for source_group in source_groups:
-            substance, category = self._get_sub_cat(source_group)
+            subcat = self._get_sub_cat(source_group)
+            if subcat is None:
+                continue
+            substance, category = subcat
             self.logger.debug(f"{source_group=}, {substance=}, {category=}")
             mask_source_group = df[df.columns[LinesCols.SOURCE_GROUP]] == source_group
             # Create the GeoDataFrame
@@ -233,13 +240,17 @@ class GralInventory(Inventory):
 
             # Select only the emission column renamed to the substance
             emission_values = (
-                df[mask_source_group]
-                .rename(columns={emission_col: substance})[substance]
-                .to_numpy()
+                df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
+            if gs_lines.crs is not None and gs_lines.crs.is_geographic:
+                raise ValueError(
+                    f"crs {gs_lines.crs} is geographic. "
+                    "Lines emissions need a projected crs in meters to work"
+                )
+
+            line_lengths = gs_lines.length.to_numpy()
             # Convert the units from kg/h/km to kg/y(/shape)
-            line_lenghts = gs_lines.length * 1e-3
-            emission_values *= HOUR_PER_YR * line_lenghts
+            emission_values = emission_values * HOUR_PER_YR * line_lengths * 1e-3
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame
@@ -264,7 +275,10 @@ class GralInventory(Inventory):
         source_groups = df[df.columns[CadastreCols.SOURCE_GROUP]].unique()
         self.logger.debug(f"{source_groups=}")
         for source_group in source_groups:
-            substance, category = self._get_sub_cat(source_group)
+            subcat = self._get_sub_cat(source_group)
+            if subcat is None:
+                continue
+            substance, category = subcat
             self.logger.debug(f"{source_group=}, {substance=}, {category=}")
             mask_source_group = (
                 df[df.columns[CadastreCols.SOURCE_GROUP]] == source_group
@@ -274,22 +288,25 @@ class GralInventory(Inventory):
             # Create geseries with the start points and end points
             df_group = df.loc[mask_source_group]
 
+            half_x_ext = df_group[df.columns[CadastreCols.X_EXTENSION]] / 2.0
+            half_y_ext = df_group[df.columns[CadastreCols.Y_EXTENSION]] / 2.0
+
             gs_sqaures = gpd.GeoSeries(
                 [
                     Polygon(
                         (
-                            (x, y),
-                            (x + x_ext, y),
+                            (x - x_ext, y - y_ext),
+                            (x + x_ext, y - y_ext),
                             (x + x_ext, y + y_ext),
-                            (x, y + y_ext),
-                            (x, y),
+                            (x - x_ext, y + y_ext),
+                            (x - x_ext, y - y_ext),
                         )
                     )
                     for x, y, x_ext, y_ext in zip(
                         df_group[df.columns[CadastreCols.X]],
                         df_group[df.columns[CadastreCols.Y]],
-                        df_group[df.columns[CadastreCols.X_EXTENSION]],
-                        df_group[df.columns[CadastreCols.Y_EXTENSION]],
+                        half_x_ext,
+                        half_y_ext,
                     )
                 ],
                 crs=self._requested_crs,
@@ -298,12 +315,10 @@ class GralInventory(Inventory):
 
             # Select only the emission column renamed to the substance
             emission_values = (
-                df[mask_source_group]
-                .rename(columns={emission_col: substance})[substance]
-                .to_numpy()
+                df.loc[mask_source_group, emission_col].astype(float).to_numpy()
             )
-            # Convert the units from kg/h(/shape?) to kg/y(/shape)
-            emission_values *= HOUR_PER_YR
+            # Convert the units from kg/h(/shape) to kg/y(/shape)
+            emission_values = emission_values * HOUR_PER_YR
 
             self.logger.debug(f"{emission_values=}")
             # Create the GeoDataFrame

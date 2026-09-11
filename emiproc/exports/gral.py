@@ -2,9 +2,10 @@
 
 This module contains functions to prepare emissions for GRAL.
 
-Gral only has one polluant available, but can contain more than one category.
-
-To counter that issue, we make a source group for each substance/category.
+Different pollutants and emission categories can be simulated in a single
+GRAL simulation. They pollutant/category combinations are identified by a
+unique source_group number that can be specified when writing the emissions
+and will be saved as a json file.
 
 
 .. warning:: For PM, it seems that there are some additional parameters:
@@ -13,7 +14,7 @@ To counter that issue, we make a source group for each substance/category.
 
     We don't use them for now.
 
-.. warning:: The current version of emiproc does not support lines and portals.
+.. warning:: The current version of emiproc does not support portals (tunnels).
 
 
 4 types of emissions are supported with their respective files:
@@ -30,12 +31,24 @@ The following methods are applied:
 
 - points: simply write the coordinates and the emission rate
 - lines: write the coordinates of the line and the emission rate
-    The Multi-lines have to be split into single lines, which increases the
+    Multi-lines have to be split into single lines, which increases the
     size of the problem.
 - areas: polygons have to be rasterized into squares before writing them.
 - tunnels: not implemented
 
+.. note:: Information about height
 
+    When GRAL generates the particle's elevation, it checks if the particle is
+    inside a building.
+    If it is the case, the particle will be assigned a new height, just above the
+    building.
+
+    With emiproc you can specify not only the height, but also a
+    `height_over_buildings` if you want the particle to be emitted above the building
+    in the cell.
+    this can be useful for domestic heating, where if you have an emission cell that
+    does not exactly match the building grid, you could enforce the source to be
+    above the building or if no building, at a specific height.
 
 """
 
@@ -50,12 +63,12 @@ from typing import TYPE_CHECKING, Iterable
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from rasterio.enums import MergeAlg
-from rasterio.features import rasterize
-from rasterio.transform import from_bounds
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Point, Polygon
 
-from emiproc.inventories import EmissionInfo, Inventory
+from emiproc.grids import RegularGrid
+from emiproc.regrid import calculate_weights_mapping, weights_remap
+from emiproc.inventories import Category, EmissionInfo, Inventory, Substance
+from emiproc.utils.constants import HOUR_PER_YR
 
 if TYPE_CHECKING:
     # pygg module for gram gral processing
@@ -65,26 +78,43 @@ if TYPE_CHECKING:
 class EmissionWriter:
     def __init__(
         self,
-        path: os.PathLike,
+        path: Path,
         inventory: Inventory,
         grid: GralGrid,
-        # Egde size of the rasterized polygons (crs units)
-        polygon_raster_size: float = 1.0,
+        polygon_raster_size: float,
+        source_groups: dict[tuple[Substance, Category], int] | None,
+        align_to_grid: bool = False,
     ) -> None:
 
         # Path where to write the emissons
-        self.path = Path(path)
+        self.path = path
 
         self.inventory = inventory
         self.grid = grid
         self.polygon_raster_size = polygon_raster_size
+        self.align_to_grid = align_to_grid
 
-        # Maps the (cat/sub) to source groups
-        self.source_groups = {
-            (sub, cat): i * len(self.inventory.categories) + j
-            for i, sub in enumerate(self.inventory.substances)
-            for j, cat in enumerate(self.inventory.categories)
-        }
+        if source_groups is None:
+            # Maps the (cat/sub) to source groups
+            source_groups = {
+                (sub, cat): i * len(self.inventory.categories) + j
+                for i, sub in enumerate(self.inventory.substances)
+                for j, cat in enumerate(self.inventory.categories)
+            }
+        else:
+            # check that all the substances and categories are in the source_groups
+            missing = [
+                (sub, cat)
+                for sub in self.inventory.substances
+                for cat in self.inventory.categories
+                if (sub, cat) not in source_groups
+            ]
+            if any(missing):
+                raise ValueError(
+                    "The source_groups dictionary must contain all the substances"
+                    f" and categories. Missing: {missing}"
+                )
+        self.source_groups = source_groups
 
         self._make_files()
 
@@ -148,14 +178,20 @@ class EmissionWriter:
                 if any(mask_polygons):
                     gdf_polygons = gdf.loc[mask_polygons]
                     self._write_polygons(
-                        gdf_polygons.geometry, gdf_polygons[sub], info, source_group
+                        gdf_polygons.geometry,
+                        gdf_polygons[sub] / HOUR_PER_YR,
+                        info,
+                        source_group,
                     )
 
                 mask_points = gdf.geom_type == "Point"
                 if any(mask_points):
                     gdf_points = gdf.loc[mask_points]
                     self._add_points(
-                        gdf_points.geometry, gdf_points[sub], info, source_group
+                        gdf_points.geometry,
+                        gdf_points[sub] / HOUR_PER_YR,
+                        info,
+                        source_group,
                     )
 
                 mask_lines = gdf.geom_type.isin(["LineString"])
@@ -187,12 +223,13 @@ class EmissionWriter:
                         " are not implemented."
                     )
 
-        # Write all the points as a singl batch
-        pd.concat(self.points_dfs).to_csv(
-            self.file_points,
-            mode="a",
-            index=False,
-        )
+        if self.points_dfs:
+            # Write all the points as a single batch
+            pd.concat(self.points_dfs).to_csv(
+                self.file_points,
+                mode="a",
+                index=False,
+            )
 
     def _add_points(
         self,
@@ -249,7 +286,9 @@ class EmissionWriter:
         # split the emission between the lines based on the length
         line_lengths = np.array([line.length for line in lines])
         line_emission_ratios = line_lengths / line_lengths.sum()
-        line_emissions = line_emission_ratios * emission
+        line_emissions = (
+            line_emission_ratios * emission / line_lengths * 1e3 / HOUR_PER_YR
+        )  # kg/y/m to kg/h/km
 
         for i, (line, line_emission) in enumerate(zip(lines, line_emissions)):
             self._write_staight_line(
@@ -295,38 +334,47 @@ class EmissionWriter:
         """Write a polygon source to the file."""
 
         # Rasterize the polygon on a grid
-        shapes_serie = gpd.GeoSeries(shapes)
+        shapes_serie = gpd.GeoSeries(list(shapes))
         # get polygon bounds
-        minx, miny, maxx, maxy = shapes_serie.total_bounds
+        if not self.align_to_grid:
+            minx, miny, maxx, maxy = shapes_serie.total_bounds
+        else:
+            # Align the bounds to the grid
+            minx, miny, maxx, maxy = (
+                self.grid.xmin,
+                self.grid.ymin,
+                self.grid.xmax,
+                self.grid.ymax,
+            )
+        d = self.polygon_raster_size
         # Create a grid for the rasterization
-        x = np.arange(minx, maxx, self.polygon_raster_size)
-        y = np.arange(miny, maxy, self.polygon_raster_size)
+        grid = RegularGrid(
+            xmin=minx, xmax=maxx, ymin=miny, ymax=maxy, dx=d, dy=d, crs=shapes_serie.crs
+        )
 
-        # Get the emission per cell
-        average_cells_proportion = (self.polygon_raster_size**2) / shapes_serie.area
-        cell_emissions = np.array(emissions) * average_cells_proportion
+        x = grid.centers.x
+        y = grid.centers.y
 
-        # WARNING: this might be not exactly mass convserving
-        rasterized_emissions = rasterize(
-            shapes=zip(shapes, cell_emissions),
-            out_shape=(len(x), len(y)),
-            transform=from_bounds(minx, miny, maxx, maxy, len(x), len(y)),
-            all_touched=False,
-            merge_alg=MergeAlg.add,
-        )[
-            ::-1, :
-        ]  # flip the y axis
+        wm = calculate_weights_mapping(
+            shapes_inv=shapes_serie,
+            shapes_out=grid.gdf.geometry,
+        )
+        cell_emissions = weights_remap(
+            wm,
+            remapped_values=np.array(emissions),
+            output_size=len(grid.gdf),
+        )
 
         # Get the coordinates of the rasterized polygon
-        indices = np.array(np.where(rasterized_emissions)).T
+        indices = np.where(cell_emissions)[0]
 
         # Write the polygon
         with open(self.file_cadastre, "a") as f:
-            for i_x, i_y in indices:
+            for i in indices:
                 f.write(
-                    f"{x[i_x]},{y[i_y]},{info.height},"
-                    f"{self.polygon_raster_size},{self.polygon_raster_size},{info.vertical_extension},"
-                    f"{rasterized_emissions[i_x, i_y]},0,0,0,{source_group},\n"
+                    f"{x[i]},{y[i]},{info.height},"
+                    f"{d},{d},{info.vertical_extension},"
+                    f"{cell_emissions[i]},0,0,0,{source_group}\n"
                 )
 
 
@@ -334,8 +382,10 @@ def export_to_gral(
     inventory: Inventory,
     grid: GralGrid,
     path: os.PathLike,
-    polygon_raster_size: float = 1.0,
-) -> None:
+    polygon_raster_size: float | None = None,
+    source_groups: dict[tuple[Substance, Category], int] | None = None,
+    align_to_grid: bool = False,
+) -> Path:
     """Export an inventory to GRAL.
 
     .. note:: This requires the external python package `pygg` to be installed.
@@ -343,11 +393,31 @@ def export_to_gral(
     :param inventory: Inventory to export.
     :param path: Path where to write the emissions.
     :param grid: Grid to use.
+    :param polygon_raster_size: Edge size of the rasterized polygons (in crs units).
+        if None, the grid resolution will be used.
+    :param source_groups: Optional dictionary mapping (substance, category) to source group.
+    :param align_to_grid: If True, the polygon rasterization will be aligned to the grid.
+
+    :return: Path where the emissions were written.
     """
+    path = Path(path)
+    if not path.is_dir():
+        path.mkdir(parents=True, exist_ok=True)
 
-    writer = EmissionWriter(Path(path), inventory, grid, polygon_raster_size)
+    if polygon_raster_size is None:
+        polygon_raster_size = min(grid.dx, grid.dy)
 
+    writer = EmissionWriter(
+        path,
+        inventory,
+        grid,
+        polygon_raster_size,
+        source_groups=source_groups,
+        align_to_grid=align_to_grid,
+    )
     writer.write_gdfs()
+
+    return path
 
 
 if __name__ == "__main__":
@@ -368,6 +438,9 @@ if __name__ == "__main__":
     from emiproc.inventories import EmissionInfo, Inventory
     from emiproc.tests_utils import TEST_OUTPUTS_DIR
     from emiproc.tests_utils.test_inventories import inv_with_pnt_sources
+
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
     gral_test_inv = inv_with_pnt_sources.copy()
     # Addintg some shapes that should be supported
@@ -405,19 +478,17 @@ if __name__ == "__main__":
 
     grid = GralGrid(
         dz0=1.5,
-        stretch=0.5,
+        ddz=0.5,
         nx=20,
         ny=20,
-        nslice=20,
         sourcegroups="",
         xmin=0,
         xmax=10,
         ymin=0,
         ymax=4,
-        latitude=0,
         crs=inv.crs,
     )
-    grid.building_heights = np.zeros(size=(grid.ny, grid.nx))
+    grid.building_heights = np.zeros(shape=(grid.ny, grid.nx))
 
     inv.emission_infos = {
         "adf": EmissionInfo(),
@@ -427,4 +498,6 @@ if __name__ == "__main__":
         "test": EmissionInfo(),
     }
 
-    export_to_gral(inv, grid, TEST_OUTPUTS_DIR, 1)
+    path = export_to_gral(inv, grid, TEST_OUTPUTS_DIR / "gral", 5.0)
+
+    logger.info(f"GRAL emissions written to {path}")

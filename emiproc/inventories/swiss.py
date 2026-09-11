@@ -48,6 +48,7 @@ class SwissRasters(Inventory):
         rasters_str_dir: PathLike,
         requires_grid: bool = True,
         year: int = 2015,
+        substances: list[Substance] | None = None,
         point_source_correction: dict[
             Category, PointSourceCorrection
         ] = default_point_source_correction,
@@ -59,15 +60,19 @@ class SwissRasters(Inventory):
         :arg filepath_point_sources: Excel file containing point sources.
             See in :py:func:`emiproc.inventories.swiss.read_prtr` for more details.
         :arg rasters_dir: The folder where the rasters are found.
-        :arg rasters_str_dir: The folder where the rasters pro substance are found.
+        :arg rasters_str_dir: The folder where the substance specific rasters are found.
         :arg requires_grid: Whether the grid should be created as well.
-            Creating the shapes for the swiss grid is quite expensive process.
+            Creating the shapes for the swiss grid is quite an expensive process.
             Most of the weights for remapping can be cached so if you
             have them generated already, set that to false.
         :arg year: The year of the inventory that should be used.
             This should be present in the `Emissions_CH.xlsx` file.
             The raster files are the same for all years. Only the scaling
             of the full raster pro substance changes.
+        :arg substances: List of substances to use.
+            If None, all substances in the totals file will be used.
+        :arg point_source_correction: Dictionary with the point source correction method
+            for each category. See :py:class:`PointSourceCorrection` for more details.
         """
         super().__init__()
 
@@ -75,7 +80,7 @@ class SwissRasters(Inventory):
 
         filepath_csv_totals = Path(filepath_csv_totals)
 
-        # Emission data file
+        # Data file with emission totals for different years
         if filepath_csv_totals.is_file():
             total_emission_file = filepath_csv_totals
         else:
@@ -83,7 +88,7 @@ class SwissRasters(Inventory):
                 f"Data path {filepath_csv_totals} is not an existing file or a folder."
             )
 
-        # Load excel sheet with the total emissions (excluding point sources)
+        # Load csv file with total emissions for different years
         df_emissions = pd.read_csv(total_emission_file, comment="#")
 
         # Add indexing column consisting of both grid and species' name
@@ -103,8 +108,21 @@ class SwissRasters(Inventory):
 
         emissions = df_emissions[year_str].copy()
 
-        # List with substance
-        substances = df_emissions["substance"].unique()
+        # List with substances to be used in the inventory.
+        # If None, all substances in the dataset will be used.
+        substances_in_df = df_emissions["substance"].unique()
+        if substances is None:
+            substances = substances_in_df
+        else:
+            missing_substances = set(substances) - set(substances_in_df)
+            if missing_substances:
+                raise ValueError(
+                    f"Substances {missing_substances} not in dataset with {substances_in_df=}."
+                )
+            # remove all entries in df_emissions that are not in the list of substances
+            emissions = emissions[
+                emissions.index.str.split("_").str[1].isin(substances)
+            ]
 
         # ---------------------------------------------------------------------
         # -- Emissions from point sources
@@ -113,7 +131,7 @@ class SwissRasters(Inventory):
         # Load data
         gdfs = read_prtr(filepath_point_sources, year, substances=substances)
 
-        # Remove the total values in the rasters
+        # Remove the total point source values from the rasters to avoid double counting
         for cat, gdf in gdfs.items():
 
             if "CO2" in gdf.columns:
@@ -128,20 +146,22 @@ class SwissRasters(Inventory):
                     point_source_correction[cat]
                     == PointSourceCorrection.IS_ONLY_POINT_SOURCE
                 ):
-                    biog_fracton = 0.0
+                    biog_fraction = 0.0
                 else:
-                    # Get the biogenic fraction in the total emissions
-                    # and apply it to the pointsources
-                    biog_fracton = emissions.loc[catsub_biog] / (
+                    # Get the biogenic fraction from the raster emissions and use it
+                    # to split the CO2 in the point sources assuming the same fraction
+                    biog_fraction = emissions.loc[catsub_biog] / (
                         emissions.loc[catsub_co2] + emissions.loc[catsub_biog]
                     )
-                # Split the CO2 emissions in two
+                # Split the CO2 point source emissions in two
                 base_col = gdf["CO2"].copy()
-                gdf["CO2"] = base_col * (1.0 - biog_fracton)
-                gdf["CO2_biog"] = base_col * biog_fracton
+                gdf["CO2"] = base_col * (1.0 - biog_fraction)
+                gdf["CO2_biog"] = base_col * biog_fraction
 
             totals = gdf.drop(columns=["geometry"]).sum(axis="rows")
             for sub in totals.index:
+                if sub not in substances:
+                    continue
                 catsub = cat + "_" + sub
 
                 if cat not in point_source_correction:
@@ -188,10 +208,7 @@ class SwissRasters(Inventory):
                 else:
                     raise ValueError(f"Unknown correction {correction}")
 
-        # ---------------------------------------------------------------------
-        # -- Grids
-        # ---------------------------------------------------------------------
-
+        # Now process the rasters
         rasters_dir = Path(rasters_dir)
 
         # Grids that depend on substance (road transport)
@@ -222,6 +239,8 @@ class SwissRasters(Inventory):
             assert len(split) > 1
             cat = split[0]
             sub = "_".join(split[1:])
+            if sub not in substances:
+                continue
             if "evstr" in cat:
                 # Grid for non-methane VOCs is named "evstr_nmvoc"
                 subname = sub.lower()
@@ -243,17 +262,11 @@ class SwissRasters(Inventory):
 
         # Compare Raster categories of input emission file with Raster categories of grids
         # Raise error if the two don't agree
-        if not sorted(self.raster_categories) == sorted(rasters_w_emis):
-            missing_raster_files = [
-                r for r in rasters_w_emis if r not in self.raster_categories
-            ]
-            missing_emissions_values = [
-                r for r in self.raster_categories if r not in rasters_w_emis
-            ]
+        missing_rasters = set(rasters_w_emis) - set(self.raster_categories)
+        if missing_rasters:
             raise ValueError(
-                "Raster categories of emission file don't match:"
-                f"\nMissing raster files: {missing_raster_files}"
-                f"\nMissing emissions values: {missing_emissions_values}"
+                f"Raster categories of emission file don't match the raster files in {rasters_dir} and {rasters_str_dir}:"
+                f"\nMissing raster files: {missing_rasters}"
             )
 
         # ---------------------------------------------------------------------
@@ -279,6 +292,9 @@ class SwissRasters(Inventory):
 
         # Loading Raster categories and assigning respective emissions
         for raster_file, category in zip(self.all_raster_files, self.raster_categories):
+            if category not in rasters_w_emis:
+                # If the category is not in the emissions, we don't need to load it
+                continue
             # Apply reshaping to correspond to emiproc grid definition
             _raster_array = self.load_raster(raster_file).T[:, ::-1].reshape(-1)
             if "_" in category:
