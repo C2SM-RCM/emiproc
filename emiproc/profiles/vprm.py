@@ -51,7 +51,7 @@ def _series_index_to_numeric(index: pd.Index) -> np.ndarray:
     return np.arange(len(index), dtype=float)
 
 
-def interpolate_satellite_index_series_lowess(
+def _interpolate_satellite_index_series_lowess(
     series: pd.Series,
     frac: float = 0.1,
     it: int = 3,
@@ -114,7 +114,7 @@ def interpolate_satellite_index_series_lowess(
     return out
 
 
-def interpolate_satellite_index_series_kalman(
+def _interpolate_satellite_index_series_kalman(
     series: pd.Series,
     transition_covariance: float = 0.01,
     observation_covariance: float = 0.05,
@@ -194,7 +194,7 @@ def interpolate_satellite_index_series_kalman(
     return out
 
 
-def interpolate_satellite_index_series(
+def _interpolate_satellite_index_series(
     series: pd.Series,
     filter_len: int = 5,
     outlier_threshold: float = 0.25,
@@ -203,12 +203,8 @@ def interpolate_satellite_index_series(
 ) -> pd.Series:
     """Filter and interpolate a satellite vegetation index timeseries.
 
-    The function matches the original VPRM notebook workflow:
-
-    1. Keep only the observed values of the series.
-    2. Apply a rolling-mean based outlier filter on these observations.
-    3. Put the filtered observations back on the original sparse timeline.
-    4. Interpolate the missing values on the full series.
+    1. Apply a rolling-mean based outlier filter on the observations.
+    2. Interpolate the missing values on the full series.
 
     :param series: Timeseries to process.
     :param filter_len: Window size used for the rolling mean outlier filter.
@@ -282,9 +278,9 @@ def interpolate_satellite_index_series(
 InterpolationMethod = Literal["akima", "lowess", "kalman"]
 
 method_mapping: dict[InterpolationMethod, callable] = {
-    "akima": interpolate_satellite_index_series,
-    "lowess": interpolate_satellite_index_series_lowess,
-    "kalman": interpolate_satellite_index_series_kalman,
+    "akima": _interpolate_satellite_index_series,
+    "lowess": _interpolate_satellite_index_series_lowess,
+    "kalman": _interpolate_satellite_index_series_kalman,
 }
 
 

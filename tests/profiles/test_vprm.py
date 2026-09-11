@@ -11,9 +11,9 @@ import numpy as np
 from emiproc.profiles.vprm import (
     calculate_vprm_emissions,
     calculate_vegetation_indices,
-    interpolate_satellite_index_series_kalman,
-    interpolate_satellite_index_series_lowess,
-    interpolate_satellite_index_series,
+    _interpolate_satellite_index_series_kalman,
+    _interpolate_satellite_index_series_lowess,
+    _interpolate_satellite_index_series,
     interpolate_satellite_indices,
 )
 
@@ -185,7 +185,7 @@ def sparse_deciduous_df():
 
 
 def test_interpolate_satellite_index_series_filters_outlier(sparse_satellite_series):
-    interpolated = interpolate_satellite_index_series(
+    interpolated = _interpolate_satellite_index_series(
         sparse_satellite_series,
         outlier_threshold=0.25,
     )
@@ -209,7 +209,7 @@ def test_interpolate_satellite_indices_dataframe(sparse_deciduous_df):
 
 @pytest.mark.slow
 def test_interpolate_satellite_index_series_lowess(sparse_satellite_series):
-    out = interpolate_satellite_index_series_lowess(
+    out = _interpolate_satellite_index_series_lowess(
         sparse_satellite_series,
         frac=0.4,
         it=2,
@@ -220,7 +220,7 @@ def test_interpolate_satellite_index_series_lowess(sparse_satellite_series):
 
 
 def test_interpolate_satellite_index_series_kalman(sparse_satellite_series):
-    out = interpolate_satellite_index_series_kalman(
+    out = _interpolate_satellite_index_series_kalman(
         sparse_satellite_series,
         transition_covariance=0.02,
         observation_covariance=0.05,
