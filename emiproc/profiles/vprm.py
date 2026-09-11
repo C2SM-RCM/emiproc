@@ -256,7 +256,8 @@ def _interpolate_satellite_index_series(
         next_gap = np.abs(np.roll(timestamps, -1) - timestamps).astype(
             "timedelta64[ns]"
         )
-        prev_gap[0], next_gap[-1] = np.timedelta64("NaT"), np.timedelta64("NaT")
+        nat_times = np.timedelta64("NaT", "ns")
+        prev_gap[0], next_gap[-1] = nat_times, nat_times
         mask_keep |= (prev_gap > threshold) | (next_gap > threshold)
 
     filtered_observed = np.where(mask_keep, observed, np.nan)
