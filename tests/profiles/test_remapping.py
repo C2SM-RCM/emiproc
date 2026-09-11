@@ -1,9 +1,12 @@
-from emiproc.tests_utils import test_inventories, test_grids, temporal_profiles
-import pandas as pd
-from emiproc.regrid import calculate_weights_mapping
-from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
+import pytest
 import xarray as xr
 import numpy as np
+
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.profiles import WeeklyProfile
+from emiproc.tests_utils import test_inventories, test_grids, temporal_profiles
+from emiproc.regrid import calculate_weights_mapping
+from emiproc.profiles.operators import get_weights_of_gdf_profiles, remap_profiles
 
 
 def test_remap_profiles():
@@ -97,3 +100,145 @@ def test_remap_profiles():
         expected_profile,
         err_msg="The profiles should be the same",
     )
+
+
+profiles_test = CompositeTemporalProfiles.from_ratios(
+    np.array(
+        [
+            # Just ones
+            [1] * 7,
+            # Weekend is negative
+            [1] * 5 + [-1] * 2,
+            # Majority is negative, will turn out the same for ratios, because sum to 1
+            [1] * 5 + [-1] * 2,
+        ]
+    ),
+    rescale=True,
+    types=[WeeklyProfile],
+)
+
+profiles_indexes_test = xr.DataArray(
+    np.array([0, 1, 2]),
+    dims=["cell"],
+    coords={"cell": np.arange(3)},
+)
+da_unit_weights = xr.DataArray(
+    np.array([1, 1, 1]),
+    dims=["cell"],
+    coords={"cell": np.arange(3)},
+)
+# Weights of the series with actual emissions
+da_real_weights = xr.DataArray(
+    np.array([7, 3, -3]),
+    dims=["cell"],
+    coords={"cell": np.arange(3)},
+)
+kwargs_test = dict(
+    profiles=profiles_test,
+    profiles_indexes=profiles_indexes_test,
+)
+
+
+def test_remap_same():
+
+    new_profiles, new_indexes = remap_profiles(
+        **kwargs_test,
+        emissions_weights=da_unit_weights,
+        weights_mapping={
+            "output_indexes": np.array([0, 0]),
+            "inv_indexes": np.array([0, 0]),
+            "weights": np.array([1, 1]),
+        },
+    )
+
+    assert np.allclose(
+        new_profiles.ratios[0],
+        profiles_test.ratios[0],
+    )
+
+
+def test_remap_profiles_with_negatives():
+    weights_mapping = {
+        "output_indexes": np.array([0, 0]),
+        "inv_indexes": np.array([0, 1]),
+        "weights": np.array([1, 1]),
+    }
+
+    new_profiles, new_indexes = remap_profiles(
+        **kwargs_test,
+        emissions_weights=da_unit_weights,
+        weights_mapping=weights_mapping,
+    )
+
+    total_expected = np.array([[1 / 7 + 1 / 3] * 5 + [1 / 7 - 1 / 3] * 2])
+
+    np.testing.assert_almost_equal(
+        new_profiles.ratios,
+        # Get to ratios
+        total_expected / np.sum(total_expected),
+        err_msg="The profiles should be the same",
+    )
+
+
+def test_remap_profiles_with_negatives_real():
+    weights_mapping = {
+        "output_indexes": np.array([0, 0]),
+        "inv_indexes": np.array([0, 1]),
+        "weights": np.array([1, 1]),
+    }
+
+    new_profiles, new_indexes = remap_profiles(
+        **kwargs_test,
+        emissions_weights=da_real_weights,
+        weights_mapping=weights_mapping,
+    )
+
+    total_expected = np.array([[1 + 1] * 5 + [1 - 1] * 2])
+
+    np.testing.assert_almost_equal(
+        new_profiles.ratios,
+        # Get to ratios
+        total_expected / np.sum(total_expected),
+        err_msg="The profiles should be the same",
+    )
+
+
+def test_remap_when_total_emission_is_negative():
+    weights_mapping = {
+        "output_indexes": np.array([0, 0]),
+        "inv_indexes": np.array([0, 2]),
+        "weights": np.array([1, 1]),
+    }
+
+    new_profiles, new_indexes = remap_profiles(
+        **kwargs_test,
+        emissions_weights=da_real_weights,
+        weights_mapping=weights_mapping,
+    )
+
+    total_expected = np.array([[1 - 1] * 5 + [1 + 1] * 2])
+
+    np.testing.assert_almost_equal(
+        new_profiles.ratios,
+        # Get to ratios
+        total_expected / np.sum(total_expected),
+        err_msg="The profiles should be the same",
+    )
+
+
+def test_with_negative_and_dont_merge():
+    # test remapping now with the negative profile
+
+    weights_mapping_with_negative = {
+        "output_indexes": np.array([0, 0]),
+        "inv_indexes": np.array([0, 2]),
+        "weights": np.array([1, 2]),
+    }
+
+    with pytest.raises(ValueError):
+        new_profiles, new_indexes = remap_profiles(
+            **kwargs_test,
+            weights_mapping=weights_mapping_with_negative,
+            emissions_weights=da_real_weights,
+            dont_merge=True,
+        )

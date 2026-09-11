@@ -426,11 +426,20 @@ def make_composite_profiles(
         # Loop over each unique profile found
         for array_str in u
     ]
-    logger.debug(f"{extracted_profiles=}")
+    logger.debug(
+        f"{extracted_profiles=}"
+        if len(extracted_profiles) < 10
+        else f"extracted {len(extracted_profiles)} profiles."
+    )
     new_indexes = xr.DataArray(inv, dims=["z"], coords={"z": stacked.z})
 
     # Remove the z dimension from the profiles
     out_indexes = new_indexes.unstack("z")
+
+    # Ensure the types of coordinates is kept, because the unstacking can change the type of the coordinates
+    coords = [coord for coord in out_indexes.coords if coord in indexes.coords]
+    for coord in coords:
+        out_indexes[coord] = out_indexes[coord].astype(indexes[coord].dtype)
 
     return CompositeTemporalProfiles(extracted_profiles), out_indexes
 

@@ -48,6 +48,7 @@ def create_HDD_scaling_factor(
     with a hourly resolution.
 
     :arg serie_T: the timeserie of the temperature (in Celsius)
+        Index should be a DatetimeIndex on hourly frequency. If timezone-aware, its timezone is used when applying temporal profiles.
     :arg heating_profile: the heating profile
     :arg dhw_profile: the domestic hot water profile
     :arg min_heating_T: the minimum temperature for which heating is activated
@@ -66,6 +67,8 @@ def create_HDD_scaling_factor(
     yearly_means = HDD.resample("YE").mean()
     ts_mean = pd.Series(np.nan, index=HDD.index)
     for dt, mean in yearly_means.items():
+        if mean == 0.0:
+            mean = 1.0  # Avoid division by zero, no heating days
         ts_mean.loc[ts_mean.index.year == dt.year] = mean
     # Scale with the yearly means
     annual_HDD = HDD / ts_mean
@@ -80,11 +83,7 @@ def create_HDD_scaling_factor(
         .reindex(hdd_ts.index)
     )
 
-    heating_ts = create_scaling_factors_time_serie(
-        start, end, heating_profile, local_tz="Europe/Zurich"
-    )
-    dhw_ts = create_scaling_factors_time_serie(
-        start, end, dhw_profile, local_tz="Europe/Zurich"
-    )
+    heating_ts = create_scaling_factors_time_serie(start, end, heating_profile)
+    dhw_ts = create_scaling_factors_time_serie(start, end, dhw_profile)
 
     return (1.0 - dhw_scaling) * a_HDD_hourly * heating_ts + dhw_ts * dhw_scaling

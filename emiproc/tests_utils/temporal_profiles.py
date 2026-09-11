@@ -212,6 +212,21 @@ indexes_inv_catsubcell = xr.DataArray(
         "cell": np.arange(5),
     },
 )
+
+indexes_inv_catsubcell_missing_cell = xr.DataArray(
+    data=np.array(
+        [
+            [[1, 1, 1], [-1, -1, -1], [-1, -1, -1]],
+            [[0, 0, 1], [2, 2, 2], [-1, -1, 0]],
+        ]
+    ),
+    dims=["category", "substance", "cell"],
+    coords={
+        "category": ["adf", "liku"],  # omit one category on purpose
+        "substance": ["CH4", "CO2", "NH3"],
+        "cell": [0, 2, 3],  # omit 2 cells on purpose
+    },
+)
 indexes_with_gridded_shapped = xr.DataArray(
     data=np.array([0, 1]),
     dims=["type"],

@@ -411,6 +411,7 @@ activities_to_categories = {
     # 6 - Be- und Verarbeitung von Papier und Holz
     "6.b": "eipro",
     # 8 - Tierische und pflanzliche Produkte aus dem Lebensmittel- und Getränkesektor
+    "8.a": "eipro",
     "8.b.2": "eipro",
     "8.c": "eipro",
     # 9 - Sonstige Tätigkeiten
@@ -439,7 +440,13 @@ def read_prtr(
         Can be used to create the Inventory object.
     """
 
-    df_prtr = pd.read_excel(prtr_file, skiprows=[0, 1, 3])
+    df_prtr = pd.read_excel(prtr_file, skiprows=[1, 2, 3])
+    if not "Source type" in df_prtr.columns:
+        df_prtr = pd.read_excel(prtr_file, skiprows=[0, 1, 3])
+    if not "Source type" in df_prtr.columns:
+        raise ValueError(
+            "Could not find the 'Source type' column in the PRTR file. Please check the header line and how it is read."
+        )
 
     substance_matching = {
         key: value

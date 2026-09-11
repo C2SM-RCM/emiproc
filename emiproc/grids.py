@@ -217,6 +217,8 @@ class RegularGrid(Grid):
     lat_bounds: np.ndarray
     lon_bounds: np.ndarray
 
+    lat_reversed: bool = False
+
     xmin: float
     xmax: float
     ymin: float
@@ -406,7 +408,11 @@ class RegularGrid(Grid):
 
         # Find the indices of the cells that are within the bounding box
         xminind, xmaxind = get_indices(self.lon_bounds, minx, maxx)
-        yminind, ymaxind = get_indices(self.lat_bounds, miny, maxy)
+        yminind, ymaxind = (
+            get_indices(self.lat_bounds, miny, maxy)
+            if not self.lat_reversed
+            else get_indices(self.lat_bounds[::-1], miny, maxy)
+        )
 
         if xminind == xmaxind or yminind == ymaxind:
             raise ValueError("Bounding box does not intersect with grid.")
@@ -459,7 +465,10 @@ class RegularGrid(Grid):
             dys = np.round(dys, decimals=rounding)
 
         if not np.allclose(dxs, dx) or not np.allclose(dys, dy):
-            raise ValueError("The centers are not equally spaced.")
+            raise ValueError(
+                "The centers are not equally spaced. "
+                f"{dx=}, {np.unique(dxs)=}, {dy=}, {np.unique(dys)=}"
+            )
 
         nx = len(x_centers)
         ny = len(y_centers)

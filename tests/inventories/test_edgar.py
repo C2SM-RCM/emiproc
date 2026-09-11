@@ -17,11 +17,13 @@ def download():
     )
 
 
+@pytest.mark.slow
 def test_read(download):
 
     inv = EDGARv8(edgar_test_dir / "*.nc")
 
 
+@pytest.mark.slow
 def test_edgar_auxiliary_profiles(download):
     inv = EDGARv8(edgar_test_dir / "*.nc", use_short_category_names=True)
 

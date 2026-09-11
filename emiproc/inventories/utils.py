@@ -244,7 +244,10 @@ def crop_with_shape(
             new_geometry, weights = geoserie_intersection(
                 polys_gdf.geometry, shape, keep_outside=keep_outside, drop_unused=False
             )
-            mask_non_zero = weights > 0
+
+            # When the main grid is kept, preserve rows with zero emissions
+            # to avoid empty category GeoDataFrames.
+            mask_non_zero = (weights > 0) if modify_grid else slice(None)
             inv_out.add_gdf(
                 cat,
                 gpd.GeoDataFrame(
@@ -474,7 +477,52 @@ def group_substances(
     return out_inv
 
 
-def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
+def gdf_to_gdfs(inv: Inventory) -> Inventory:
+    """Convert the main gdf of an inventory into per-category gdfs.
+
+    :arg inv: The inventory to convert. Its ``gdf`` (if any) is converted.
+        Existing ``gdfs`` are kept unchanged.
+
+    :return: A new inventory with :py:attr:`Inventory.gdf` and
+        :py:attr:`Inventory.grid` set to None.
+    """
+    for profiles_indexes_name in ("v_profiles_indexes", "t_profiles_indexes"):
+        indexes = getattr(inv, profiles_indexes_name)
+        if indexes is not None:  # and "cell" in indexes.dims:
+            raise NotImplementedError(
+                f"Cannot convert {inv} to gdfs: {profiles_indexes_name} is"
+                " defined over the 'cell' dimension, which has no meaning"
+                " anymore once the shared grid is dropped."
+            )
+
+    out_inv = inv.copy(no_gdfs=True)
+    out_inv.gdfs = {key: gdf.copy(deep=True) for key, gdf in inv.gdfs.items()}
+
+    if inv.gdf is not None:
+        geometry = inv.gdf.geometry
+        for cat in inv.categories:
+            cols = [(c, s) for c, s in inv._gdf_columns if c == cat]
+            if not cols:
+                continue
+            cat_gdf = gpd.GeoDataFrame(
+                {s: inv.gdf[(c, s)] for c, s in cols},
+                geometry=geometry,
+                crs=inv.gdf.crs,
+            )
+            out_inv.add_gdf(cat, cat_gdf)
+
+    out_inv.gdf = None
+    out_inv.grid = None
+    out_inv.history.append(f"Converted gdf of {inv} to gdfs.")
+
+    return out_inv
+
+
+def add_inventories(
+    inv: Inventory,
+    other_inv: Inventory,
+    remove_grid: bool = False,
+) -> Inventory:
     """Add inventories together.
 
     The following conditions must be required:
@@ -483,8 +531,14 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
 
     :arg inv: The first inventory.
     :arg other_inv: The second inventory.
+    :arg remove_grid: Remove the grid in the combined inventory.
+        Useful if the two inventories are on different grids.
     """
     logger = logging.getLogger("emiproc.add_inventories")
+
+    if remove_grid:
+        inv = gdf_to_gdfs(inv)
+        other_inv = gdf_to_gdfs(other_inv)
 
     if inv.gdf is None and other_inv.gdf is not None:
         # as we want to put everything on inv.gdf later for simplicity
@@ -494,11 +548,18 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     if (
         inv.gdf is not None
         and other_inv.gdf is not None
-        and not np.all(
-            gpd.GeoSeries.geom_equals(inv.gdf.geometry, other_inv.gdf.geometry)
+        and (
+            len(inv.gdf) != len(other_inv.gdf)
+            or not np.all(
+                gpd.GeoSeries.geom_equals(inv.gdf.geometry, other_inv.gdf.geometry)
+            )
         )
     ):
-        raise ValueError("Grids of the two inventories are not the same.")
+        raise ValueError(
+            "Grids of the two inventories are not the same. Set"
+            " 'remove_grid=True' to merge the two inventories"
+            " anyway by converting their gdf to gdfs."
+        )
 
     if inv.crs != other_inv.crs:
         raise ValueError("CRS of both inventories differ.")
@@ -506,13 +567,6 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
     out_inv = inv.copy(no_gdfs=True)
 
     if inv.gdf is not None and other_inv.gdf is not None:
-        # Check that they somehow have the same grid
-        if not np.all(
-            gpd.GeoSeries.geom_equals(inv.gdf.geometry, other_inv.gdf.geometry)
-        ):
-            raise ValueError(
-                "Grids of the gdf of the two inventories are not the same."
-            )
         # Get the columns for the new gdf
         cols_a = inv._gdf_columns
         cols_b = other_inv._gdf_columns
@@ -919,9 +973,14 @@ def clip_box(
             indexes: xr.DataArray | None = getattr(out_inv, index_name, None)
             if indexes is not None and "cell" in indexes.dims:
                 cell_out = out_gdf.index
+                # Some cell might not be in the indexes, so we need to select only the ones that are
+                mask_cell_in_indexes = cell_out.isin(indexes.cell.values)
+                cell_out = cell_out[mask_cell_in_indexes]
                 indexes = indexes.sel(cell=cell_out)
                 # Reindex the cell dimension
-                indexes = indexes.assign_coords(cell=("cell", np.arange(len(cell_out))))
+                indexes = indexes.assign_coords(
+                    cell=("cell", np.arange(len(out_gdf.index))[mask_cell_in_indexes])
+                )
                 setattr(out_inv, index_name, indexes)
         out_gdf = out_gdf.reset_index(drop=True)
 

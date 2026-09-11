@@ -201,6 +201,75 @@ def netcdf_file_with_monthly_profiles(tmp_path):
 
 
 @pytest.fixture
+def netcdf_file_with_multiple_years(tmp_path):
+    """Create a NetCDF file with 2 years (24 months) of monthly time steps."""
+    file_path = tmp_path / "monthly_raster.nc"
+
+    # Create monthly time values spanning two years
+    time_values = pd.to_datetime(
+        [f"{2023 + m // 12}-{m % 12 + 1:02d}-15" for m in range(0, 24)]
+    )
+
+    emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
+
+    ds = xr.Dataset(
+        data_vars={
+            "CO2_seasonal": (
+                ["time", "lat", "lon"],
+                emission_data,
+                {
+                    "units": "kg/year/cell",
+                    "substance": "CO2",
+                    "category": "seasonal",
+                },
+            ),
+        },
+        coords={
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
+            "time": time_values,
+        },
+    )
+
+    ds.to_netcdf(file_path)
+    return file_path
+
+
+@pytest.fixture
+def netcdf_file_with_unknown_time_profiles(tmp_path):
+    """Create a NetCDF file with bi-monthly time steps (unknown frequency)."""
+    file_path = tmp_path / "monthly_raster.nc"
+
+    # Create time values for each month of a single year
+    time_values = pd.to_datetime(
+        [f"2023-{m//2 + 1:02d}-{15 * (m % 2) + 1:02d}" for m in range(0, 24)]
+    )
+    emission_data = np.random.rand(24, GRID_NY, GRID_NX).astype(np.float32)
+
+    ds = xr.Dataset(
+        data_vars={
+            "CO2_seasonal": (
+                ["time", "lat", "lon"],
+                emission_data,
+                {
+                    "units": "kg/year/cell",
+                    "substance": "CO2",
+                    "category": "seasonal",
+                },
+            ),
+        },
+        coords={
+            "lon": regular_grid.lon_range,
+            "lat": regular_grid.lat_range,
+            "time": time_values,
+        },
+    )
+
+    ds.to_netcdf(file_path)
+    return file_path
+
+
+@pytest.fixture
 def netcdf_file_no_unit_attr(tmp_path):
     """Create a NetCDF file without unit attribute."""
     file_path = tmp_path / "no_unit_raster.nc"
@@ -462,10 +531,38 @@ def test_single_time_step(netcdf_file_with_time):
     assert "heating" in inv.categories
 
 
-def test_multiple_time_steps_requires_profile(netcdf_file_with_monthly_profiles):
+def test_multiple_time_steps_requires_profile(netcdf_file_with_unknown_time_profiles):
     """Test that multiple time steps require a temporal profile."""
     with pytest.raises(ValueError, match="Temporal profile must be provided"):
-        NetcdfRaster(netcdf_file_with_monthly_profiles)
+        NetcdfRaster(netcdf_file_with_unknown_time_profiles)
+
+
+def test_multiple_time_steps_can_guess_monthly_profiles(
+    netcdf_file_with_monthly_profiles,
+):
+    """Test that multiple time steps can be guessed as monthly profiles."""
+    inv = NetcdfRaster(netcdf_file_with_monthly_profiles)
+
+    assert "seasonal" in inv.categories
+    assert inv.t_profiles_groups.types == [MounthsProfile]
+
+
+def test_multiple_year_can_guess_and_select_correct_year(
+    netcdf_file_with_multiple_years,
+):
+    """Test that multiple time steps can be guessed as monthly profiles."""
+    inv = NetcdfRaster(netcdf_file_with_multiple_years, year=2024)
+
+    assert "seasonal" in inv.categories
+    assert inv.t_profiles_groups.types == [MounthsProfile]
+
+
+def test_multiple_year_fails_if_no_year_specified(
+    netcdf_file_with_multiple_years,
+):
+    """Test that multiple time steps can be guessed as monthly profiles."""
+    with pytest.raises(ValueError, match="Multiple years found in the data"):
+        NetcdfRaster(netcdf_file_with_multiple_years)
 
 
 def test_monthly_profiles(netcdf_file_with_monthly_profiles):

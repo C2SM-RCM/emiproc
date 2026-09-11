@@ -49,6 +49,8 @@ GFAS
 GFED
 ^^^^
 
+:py:class:`emiproc.inventories.gfed.GFEDv51`
+
 :py:class:`emiproc.inventories.gfed.GFED4_Inventory`
 
 
@@ -61,7 +63,7 @@ LPJ-GUESS
 Saunois
 ^^^^^^^
 
-:py:class:`emiproc.inventories.saunois.SaunoisInventory`
+:py:class:`emiproc.inventories.saunois.Saunois`
 
 CAMS Regional Air Quality
 ^^^^^^^^^^^^^^^^^^^^^^^^^
