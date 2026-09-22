@@ -695,14 +695,17 @@ def add_profiles(
     profiles1 = CompositeTemporalProfiles(getattr(inv1, profiles_name))
     profiles2 = CompositeTemporalProfiles(getattr(inv2, profiles_name))
 
-    all_types = set(sum([p.types for p in [profiles1, profiles2]], []))
-    # Make sure the profiles have the same types
     if not set(profiles1.types) == set(profiles2.types):
-        # Make the profiles have the same sub-profiles included
-        # This will make scaling factors of 1 when a sub-profile is missing
-        # Careful here, because the types will change the order of position
-        profiles1 = profiles1.broadcast(all_types)
-        profiles2 = profiles2.broadcast(all_types)
+        raise ValueError(
+            "Temporal profiles of both inventories must use the same profile types. "
+            "Please interpolate the temporal profiles to a common temporal "
+            "resolution with "
+            "emiproc.inventories.utils.interpolate_temporal_profiles before "
+            "adding inventories."
+        )
+    common_types = list(profiles1._profiles.keys())
+    profiles1 = profiles1.broadcast(common_types)
+    profiles2 = profiles2.broadcast(common_types)
 
     # Case simple concatenation instead of weighted combination
     if all("category" in ind.coords for ind in [indexes1, indexes2]) and set(

@@ -511,9 +511,7 @@ def plot_inventory(
             min_value, max_value = 0, 0
             x = da.time.values
             if method == "step":
-                x = np.append(
-                    x, x[-1] + pd.to_timedelta(da.time.diff("time").mean().values)
-                )
+                x = np.append(x, x[-1] + da.time.diff("time").mean().values)
             total = np.zeros_like(x, dtype=float)
             for cat in sorted(inv.categories):
                 serie = da.sel(category=cat, substance=sub).values

@@ -1,5 +1,4 @@
-import urllib.request
-from datetime import date, datetime
+from datetime import datetime
 from os import PathLike
 from pathlib import Path
 
@@ -19,32 +18,61 @@ from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.utils import ratios_dataarray_to_profiles
 
 
-def download_gfed5(
+def download_gfedv51(
     data_dir: PathLike,
     year: int,
-    link_template: str = "https://surfdrive.surf.nl/files/index.php/s/VPMEYinPeHtWVxn/download?path=%2Fdaily&files=GFED5_Beta_daily_{year}{month}.nc",
+    # Public credentials, published at
+    # https://www.globalfiredata.org/ancill/GFED5_SFTP_info.txt
+    host: str = "ftp.prd.dip.wur.nl",
+    port: int = 1022,
+    username: str = "sftp0041-1-r",
+    password: str = "akU8%S2Fewr!PspDVBqd&s4Y9L&@C9wCd*B",
+    remote_dir: str = "GFED5/GFED5.1/Daily",
+    filename_template: str = "GFED5.1_daily_{year}-{month}.nc",
 ):
-    """Download the GFED5 files for a given year.
-
-    The files are downloaded in the data_dir folder.
+    """Download the GFED5 monthly files (containing daily data) for a given year via SFTP.
 
     :param data_dir: The directory where to download the files
     :param year: The year to download
-    :param link_template: The template for the download link. The template should contain the year and month placeholders.
+    :param host: SFTP server hostname
+    :param port: SFTP server port
+    :param username: SFTP username
+    :param password: SFTP password
+    :param remote_dir: Remote directory containing the .nc files
+    :param filename_template: Template for the remote filename, with year/month placeholders
     """
+    try:
+        import paramiko
+    except ImportError as e:
+        raise ImportError(
+            "paramiko is required to download the GFED5 files via SFTP."
+            " Please install it using 'pip install paramiko'."
+        ) from e
 
     data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    for month in range(1, 13):
-        link = link_template.format(year=year, month=f"{month:02d}")
-        filename = link.split("=")[-1]
-        filepath = data_dir / filename
+    transport = paramiko.Transport((host, port))
+    try:
+        transport.connect(username=username, password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
         try:
-            urllib.request.urlretrieve(link, filepath)
-        except urllib.error.HTTPError as e:
-            raise ValueError(
-                f"Link {link} does not exist. Maybe the inventory is not available for {year=}."
-            ) from e
+            for month in range(1, 13):
+                filename = filename_template.format(year=year, month=f"{month:02d}")
+                remote_path = f"{remote_dir}/{filename}"
+                local_path = data_dir / filename
+
+                try:
+                    sftp.get(remote_path, str(local_path))
+                except OSError as e:
+                    raise ValueError(
+                        f"File {filename!r} could not be downloaded from {remote_dir!r}. "
+                        f"Maybe the inventory is not available for {year=}."
+                    ) from e
+        finally:
+            sftp.close()
+    finally:
+        transport.close()
 
     print(f"Downloaded gfed5 files for {year=}.")
 
@@ -314,23 +342,24 @@ class GFED4_Inventory(Inventory):
         self.set_profiles(profiles, indices)
 
 
-class GFED5(Inventory):
+class GFEDv51(Inventory):
     """Global Fire Emissions Database.
 
     Global inventory based on satellite data, burned areas, fuel consumption.
 
     https://www.globalfiredata.org/
 
-    You can download the input data for various year using :py:func:`download_gfed5`.
+    You can download the input data for various year using :py:func:`download_gfedv51`.
     """
 
     def __init__(self, file_dir: PathLike, year: int, substances: list[str]):
         super().__init__()
 
+        self.year = year
+
         files_dir = Path(file_dir)
         files = [
-            files_dir / f"GFED5_Beta_daily_{year}{month:02d}.nc"
-            for month in range(1, 13)
+            files_dir / f"GFED5.1_daily_{year}-{month:02d}.nc" for month in range(1, 13)
         ]
 
         # Check that all files exists
@@ -357,15 +386,16 @@ class GFED5(Inventory):
         da_profiles: xr.DataArray = (
             xr.concat(list(profiles.values()), dim="substance")
             .stack(cell=("lon", "lat"))
-            .drop_vars(["lon", "lat"])
+            .drop_vars(["lon", "lat", "cell"])
             .rename({"time": "ratio"})
         )
 
         self.gdf = gpd.GeoDataFrame(
             {
+                # Values are in g / day already summed over the year (per cell,
+                # not per area), so only the g -> kg conversion is needed.
                 ("gfed", sub): da_profiles.sel(substance=sub).sum(dim=["ratio"]).values
-                # Convert from kg/m2 to kg/cell
-                * 1e-3 * self.grid.cell_areas
+                * 1e-3
                 for sub in substances
             },
             geometry=self.grid.gdf.geometry,

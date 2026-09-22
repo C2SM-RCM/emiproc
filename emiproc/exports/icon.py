@@ -255,7 +255,7 @@ def export_icon_oem(
         )
     else:
         # Create a single region for all cells
-        regions_index = xr.zeros_like(t_profiles_indexes, dtype=int).expand_dims(
+        regions_index = t_profiles_indexes.expand_dims(
             {"region": np.array([0], dtype=int)}
         )
         region_of_cell = xr.DataArray(
@@ -498,7 +498,10 @@ def make_icon_time_profiles(
 
         index_sel_dict["region"] = regions.coords["temporal_profile_id"].values
         sf_indexes = profiles_indexes.sel(**index_sel_dict).values
+        missing_profile = sf_indexes == -1
         scaling_factors = scaling_factors[sf_indexes, :]
+        # -1 means no profile is defined: use a constant (flat) profile
+        scaling_factors[missing_profile, :] = 1.0
         # Skip the scaling factors in the three cycles
         sf_counter = 0
         for profile_type in time_profiles.types:
@@ -509,8 +512,13 @@ def make_icon_time_profiles(
 
             if profile_type in [DailyProfile, HoyProfile] and correct_tz_shift:
                 # Shift the scaling factors for the hour of day
-                this_scaling_factors = np.roll(
-                    this_scaling_factors, -regions.coords["tz_shift"].values, axis=1
+                this_scaling_factors = np.stack(
+                    [
+                        np.roll(sf, shift=shift)
+                        for sf, shift in zip(
+                            this_scaling_factors, -regions["tz_shift"].values
+                        )
+                    ]
                 )
 
             dim = profile_name[profile_type]

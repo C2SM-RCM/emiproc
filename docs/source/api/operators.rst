@@ -19,6 +19,8 @@ Inventory Operators
 
 .. autofunction:: emiproc.inventories.utils.drop
 
+.. autofunction:: emiproc.inventories.utils.gdf_to_gdfs
+
 
 
 Avoiding double counting
