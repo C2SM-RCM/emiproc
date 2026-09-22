@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 import collections
+from collections.abc import Mapping
 import itertools
 import json
 import logging
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+from warnings import warn
 
 import geopandas as gpd
 import pandas as pd
@@ -577,6 +579,297 @@ def add_inventories(inv: Inventory, other_inv: Inventory) -> Inventory:
 
     out_inv.history.append(f"Added inventory {other_inv}")
 
+    return out_inv
+
+
+NegativePolicy = Literal["clip", "raise", "allow"]
+
+
+def _resolve_mapping(
+    mapping: Mapping[str, str] | None,
+    values: list,
+) -> dict:
+    """Return a full mapping for ``values``, defaulting to the identity."""
+    resolved = {value: value for value in values}
+    if mapping is not None:
+        for key, value in mapping.items():
+            if key not in resolved:
+                raise ValueError(
+                    f"{key!r} is not present in the inventory to subtract."
+                    f" Available: {sorted(map(str, resolved))}"
+                )
+            resolved[key] = value
+    return resolved
+
+
+def subtract_inventories(
+    inv: Inventory,
+    other_inv: Inventory,
+    category_mapping: Mapping[str, str] | None = None,
+    substance_mapping: Mapping[str, str] | None = None,
+    negative_policy: NegativePolicy = "clip",
+    weights_file: PathLike | None = None,
+    ignore_missing: bool = True,
+) -> Inventory:
+    """Subtract the emissions of ``other_inv`` from ``inv``.
+
+    This is the building block for avoiding **double counting**: when a coarse
+    inventory (ex. :py:class:`~emiproc.inventories.cams_global.CAMSGlobal`)
+    already includes emissions that a more detailed inventory
+    (ex. :py:class:`~emiproc.inventories.corso.CorsoInventory`) reports
+    explicitly, the detailed emissions must be removed from the coarse cells
+    before the two are combined.
+
+    ``other_inv`` is remapped onto the grid of ``inv`` when it is not already
+    on it, so point sources, shaped sources and gridded sources are all
+    supported. Emissions are handled in ``kg/y``, as everywhere in emiproc.
+
+    .. note::
+        This operation is not aggregative but it does read the emission
+        values, so apply it **before** :py:func:`group_categories` or
+        :py:func:`~emiproc.regrid.remap_inventory`, while the categories of
+        both inventories can still be matched.
+
+    .. important::
+        The subtraction is done on the **annual** emissions of ``gdf`` and the
+        temporal profiles of ``inv`` are left untouched. The annual budget is
+        therefore exactly right, but the emissions removed from each time step
+        follow the temporal profile of ``inv``, not the one of ``other_inv``.
+        If the two have very different seasonalities and you need the removal
+        to follow ``other_inv``, split both inventories per time step and
+        subtract them one step at a time.
+
+    :arg inv: The inventory to subtract from. It must have a
+        :py:attr:`~emiproc.inventories.Inventory.gdf`.
+    :arg other_inv: The inventory whose emissions are removed from ``inv``.
+    :arg category_mapping: Maps categories of ``other_inv`` to categories of
+        ``inv``. Categories not given are matched by name.
+    :arg substance_mapping: Maps substances of ``other_inv`` to substances of
+        ``inv``. Substances not given are matched by name.
+    :arg negative_policy: What to do when subtracting produces negative
+        emissions:
+
+        * ``"clip"``: set them to zero and emit a :py:class:`RuntimeWarning`.
+        * ``"raise"``: raise a :py:class:`ValueError`.
+        * ``"allow"``: keep the negative values.
+    :arg weights_file: Optional weights file used when ``other_inv`` has to be
+        remapped. See :py:func:`~emiproc.regrid.remap_inventory`.
+    :arg ignore_missing: Whether ``(category, substance)`` pairs of
+        ``other_inv`` that are absent from ``inv`` should be ignored.
+        If False, a :py:class:`ValueError` is raised for them.
+
+    :return: A copy of ``inv`` with the emissions of ``other_inv`` removed.
+        The result carries a ``subtraction_summary`` attribute reporting what
+        was removed.
+
+    .. warning::
+        Emissions of ``other_inv`` that fall outside the grid of ``inv`` are
+        silently dropped by the remapping, as they cannot be double counted.
+    """
+    from emiproc.regrid import remap_inventory
+
+    logger = logging.getLogger("emiproc.subtract_inventories")
+
+    if negative_policy not in ("clip", "raise", "allow"):
+        raise ValueError(f"{negative_policy=} must be 'clip', 'raise' or 'allow'.")
+    if inv.gdf is None:
+        raise ValueError(
+            "`inv` must be defined on a grid to subtract emissions from it."
+            " Use `remap_inventory` first."
+        )
+    if inv.crs != other_inv.crs:
+        raise ValueError(
+            f"CRS of the inventories differ: {inv.crs} != {other_inv.crs}."
+        )
+
+    # Put the other inventory on the grid of `inv` if it is not already there.
+    same_grid = (
+        other_inv.gdf is not None
+        and not other_inv.gdfs
+        and len(other_inv.gdf) == len(inv.gdf)
+        and bool(
+            np.all(gpd.GeoSeries.geom_equals(inv.gdf.geometry, other_inv.gdf.geometry))
+        )
+    )
+    if same_grid:
+        remapped = other_inv
+    else:
+        logger.debug("Remapping the inventory to subtract on the grid of `inv`.")
+        remapped = remap_inventory(
+            other_inv,
+            inv.grid,
+            weights_file=weights_file,
+            keep_gdfs=False,
+        )
+
+    categories = _resolve_mapping(category_mapping, remapped.categories)
+    substances = _resolve_mapping(substance_mapping, remapped.substances)
+
+    out_inv = inv.copy()
+    target_columns = set(out_inv.gdf.columns)
+
+    requested = collections.defaultdict(float)
+    removed = collections.defaultdict(float)
+    missing: list[tuple] = []
+    negative_values = 0
+    clipped_values = 0
+
+    for category, substance in remapped._gdf_columns:
+        target = (categories[category], substances[substance])
+        values = remapped.gdf[(category, substance)].to_numpy(dtype=float)
+        requested[target] += float(np.nansum(values))
+        if target not in target_columns:
+            missing.append((category, substance))
+            continue
+        original = out_inv.gdf[target].to_numpy(dtype=float)
+        residual = original - np.nan_to_num(values)
+        negative_mask = residual < 0
+        n_negative = int(np.count_nonzero(negative_mask))
+        negative_values += n_negative
+        if n_negative and negative_policy == "raise":
+            largest = float(-residual[negative_mask].min())
+            raise ValueError(
+                f"Subtracting {other_inv} from {inv} creates {n_negative} negative"
+                f" values for {target} (largest deficit {largest:.6g} kg/y)."
+                " Use negative_policy='clip' or 'allow' instead."
+            )
+        if n_negative and negative_policy == "clip":
+            residual = np.maximum(residual, 0.0)
+            clipped_values += n_negative
+        removed[target] += float(np.nansum(original - residual))
+        out_inv.gdf[target] = residual
+
+    if missing:
+        message = (
+            f"{sorted(map(str, missing))} of {other_inv} are not in {inv},"
+            " so nothing was subtracted for them."
+        )
+        if ignore_missing:
+            logger.warning(message)
+        else:
+            raise ValueError(message + " Use `ignore_missing=True` to skip them.")
+
+    if clipped_values:
+        warn(
+            f"Subtracting {other_inv} from {inv} exceeded the available emissions"
+            f" in {clipped_values} cells; those values were clipped to zero."
+            " The emissions removed are smaller than requested, check"
+            " `subtraction_summary` on the returned inventory.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    out_inv.subtraction_summary = {
+        "negative_policy": negative_policy,
+        "negative_values": negative_values,
+        "clipped_values": clipped_values,
+        "missing_columns": [list(map(str, col)) for col in missing],
+        "requested_kg_y": {
+            f"{cat}/{sub}": value for (cat, sub), value in requested.items()
+        },
+        "removed_kg_y": {
+            f"{cat}/{sub}": value for (cat, sub), value in removed.items()
+        },
+    }
+    out_inv.history.append(
+        f"Subtracted {other_inv} ({sum(removed.values()):.6g} of"
+        f" {sum(requested.values()):.6g} kg/y removed, {clipped_values} clipped)"
+    )
+
+    return out_inv
+
+
+def merge_inventories_without_double_counting(
+    coarse_inv: Inventory,
+    detailed_inv: Inventory,
+    category_mapping: Mapping[str, str] | None = None,
+    substance_mapping: Mapping[str, str] | None = None,
+    negative_policy: NegativePolicy = "clip",
+    weights_file: PathLike | None = None,
+    keep_detailed_shapes: bool = True,
+) -> Inventory:
+    """Combine two inventories that describe the same emissions.
+
+    ``detailed_inv`` is assumed to be already included inside ``coarse_inv``.
+    Its emissions are first removed from ``coarse_inv`` with
+    :py:func:`subtract_inventories` and then added back at their own
+    resolution with :py:func:`add_inventories`, so that the total emissions are
+    preserved while the detailed sources keep their own geometry and profiles.
+
+    :arg coarse_inv: The inventory containing everything (ex. a global
+        gridded inventory).
+    :arg detailed_inv: The inventory with the better resolved sources
+        (ex. a point source database) that ``coarse_inv`` already includes.
+    :arg category_mapping: Maps categories of ``detailed_inv`` to categories
+        of ``coarse_inv``. See :py:func:`subtract_inventories`.
+    :arg substance_mapping: Maps substances of ``detailed_inv`` to substances
+        of ``coarse_inv``. See :py:func:`subtract_inventories`.
+    :arg negative_policy: See :py:func:`subtract_inventories`.
+    :arg weights_file: See :py:func:`subtract_inventories`.
+    :arg keep_detailed_shapes: Whether the detailed sources are added back on
+        their own geometries (kept in
+        :py:attr:`~emiproc.inventories.Inventory.gdfs`) or remapped on the
+        grid of ``coarse_inv``.
+
+    :return: The combined inventory.
+    """
+    from emiproc.regrid import remap_inventory
+
+    subtracted = subtract_inventories(
+        coarse_inv,
+        detailed_inv,
+        category_mapping=category_mapping,
+        substance_mapping=substance_mapping,
+        negative_policy=negative_policy,
+        weights_file=weights_file,
+    )
+
+    to_add = detailed_inv
+    if not keep_detailed_shapes:
+        to_add = remap_inventory(
+            detailed_inv, coarse_inv.grid, weights_file=weights_file
+        )
+    if category_mapping is not None or substance_mapping is not None:
+        to_add = _rename_categories_and_substances(
+            to_add, category_mapping, substance_mapping
+        )
+
+    out_inv = add_inventories(subtracted, to_add)
+    out_inv.subtraction_summary = subtracted.subtraction_summary
+    out_inv.history.append(
+        f"Merged {detailed_inv} into {coarse_inv} without double counting"
+    )
+    return out_inv
+
+
+def _rename_categories_and_substances(
+    inv: Inventory,
+    category_mapping: Mapping[str, str] | None,
+    substance_mapping: Mapping[str, str] | None,
+) -> Inventory:
+    """Rename the categories and substances of an inventory."""
+    categories = _resolve_mapping(category_mapping, inv.categories)
+    substances = _resolve_mapping(substance_mapping, inv.substances)
+
+    out_inv = inv.copy()
+    if out_inv.gdf is not None:
+        emission_columns = set(out_inv._gdf_columns)
+        out_inv.gdf.columns = pd.MultiIndex.from_tuples(
+            [
+                (
+                    (categories[cat], substances[sub])
+                    if (cat, sub) in emission_columns
+                    else (cat, sub)
+                )
+                for cat, sub in out_inv.gdf.columns
+            ]
+        )
+    out_inv.gdfs = {
+        categories[cat]: gdf.rename(
+            columns={sub: substances[sub] for sub in gdf.columns if sub in substances}
+        )
+        for cat, gdf in out_inv.gdfs.items()
+    }
     return out_inv
 
 

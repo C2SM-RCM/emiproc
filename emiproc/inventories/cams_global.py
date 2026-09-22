@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from datetime import datetime, timedelta
+from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
 from typing import Literal
@@ -20,7 +21,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from emiproc.grids import BoundingBox, RectilinearGrid, RegularGrid, WGS84
+from emiproc.grids import (
+    BoundingBox,
+    RectilinearGrid,
+    RegularGrid,
+    WGS84,
+    WGS84_NSIDC,
+)
 from emiproc.inventories import Inventory
 from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
 from emiproc.profiles.temporal.profiles import MounthsProfile
@@ -28,6 +35,11 @@ from emiproc.profiles.utils import ratios_dataarray_to_profiles
 from emiproc.utilities import SEC_PER_YR
 
 CAMS_FLUX_UNIT = "kg m-2 s-1"
+
+#: One CAMS-GLOB-ANT file.
+CAMSFile = str | PathLike
+#: One or several CAMS-GLOB-ANT files.
+CAMSFiles = CAMSFile | Sequence[CAMSFile]
 
 DEFAULT_CORSO_SECTOR_MAPPING = {
     "power": "ene",
@@ -73,11 +85,7 @@ VOC_COMPONENT_KEYS = {
     "ISOPRENE",
     "MONOTERPENE",
     "MONOTERPENES",
-    *(
-        key
-        for key, canonical in SUBSTANCE_ALIASES.items()
-        if canonical == "VOCs"
-    ),
+    *(key for key, canonical in SUBSTANCE_ALIASES.items() if canonical == "VOCs"),
 }
 
 
@@ -139,9 +147,7 @@ def _infer_substance(ds: xr.Dataset, variables: list[str], path: Path) -> str:
             return match.group(1).strip()
 
         standard_name = str(ds[variable].attrs.get("standard_name", ""))
-        match = re.search(
-            r"mass_content_of_(.+?)_due_to_emission", standard_name
-        )
+        match = re.search(r"mass_content_of_(.+?)_due_to_emission", standard_name)
         if match:
             return match.group(1).replace("_", " ").strip()
 
@@ -203,9 +209,7 @@ def _time_index_for_date(
     values = np.asarray(ds["time"].values, dtype=float)
     matches = np.flatnonzero(np.isclose(values, offset, rtol=0, atol=1e-6))
     if len(matches) != 1:
-        raise ValueError(
-            f"Date {requested_date:%Y-%m-%d} is not available in {path}."
-        )
+        raise ValueError(f"Date {requested_date:%Y-%m-%d} is not available in {path}.")
     return int(matches[0])
 
 
@@ -266,20 +270,6 @@ class CAMSGlobal(Inventory):
         Every source cell intersecting the box is retained.
     substance:
         Optional species name. It is normally inferred from CAMS metadata.
-    corso_dataset:
-        Optional raw dataset returned by
-        :meth:`emiproc.inventories.corso.CorsoEmissions.get_dataset`. Matching
-        annual CORSO point-source emissions are removed from their CAMS cells.
-    corso_substance:
-        Optional CORSO species prefix or ``*_kty`` variable name. By default it
-        is inferred from the CAMS substance.
-    corso_sector_mapping:
-        Optional additions or overrides to the default mapping from CORSO
-        sectors to CAMS-GLOB-ANT categories.
-    corso_negative_policy:
-        Behavior when CORSO exceeds a monthly CAMS value: ``"clip"`` sets the
-        residual to zero, ``"raise"`` rejects the import, and ``"allow"``
-        retains a negative residual.
     date:
         Optional :class:`datetime.datetime` selecting the applicable monthly
         value or exact daily value. Required for inputs that do not contain 12
@@ -287,17 +277,29 @@ class CAMSGlobal(Inventory):
 
     Notes
     -----
-    ``monthly_flux`` is the authoritative representation and has dimensions
-    ``(time, category, cell)`` in ``kg m-2 s-1``. The standard emiproc ``gdf``
-    stores the equal-month annual mean in ``kg year-1 cell-1`` for compatibility
-    with the :class:`~emiproc.inventories.Inventory` interface.
+    The emissions are stored in the standard emiproc
+    :py:attr:`~emiproc.inventories.Inventory.gdf` in ``kg year-1`` per cell,
+    and the monthly cycle is stored as regular emiproc temporal profiles. Every
+    emiproc operator and exporter therefore works on this inventory, including
+    :py:func:`~emiproc.exports.microhh.export_to_microhh`.
+
+    :py:attr:`monthly_flux` keeps the fluxes exactly as they were read from the
+    CAMS files, in ``kg m-2 s-1`` with dimensions ``(time, category, cell)``.
+    It is provenance of the input file only: emiproc operators modify ``gdf``
+    and the profiles, not ``monthly_flux``, so do not use it after the
+    inventory has been transformed.
+
+    To combine this inventory with an explicit point-source database without
+    counting the same emissions twice, use
+    :py:func:`~emiproc.inventories.utils.merge_inventories_without_double_counting`
+    together with :py:data:`DEFAULT_CORSO_SECTOR_MAPPING` and
+    :py:data:`DEFAULT_CORSO_SUBSTANCE_MAPPING`.
     """
 
     grid: RegularGrid | RectilinearGrid
     monthly_flux: xr.DataArray
     category_descriptions: dict[str, str]
     time_bounds: np.ndarray
-    corso_subtraction_summary: dict[str, float | int | str]
 
     def __init__(
         self,
@@ -305,10 +307,6 @@ class CAMSGlobal(Inventory):
         variables: list[str] | None = None,
         bbox: BoundingBox | None = None,
         substance: str | None = None,
-        corso_dataset: xr.Dataset | None = None,
-        corso_substance: str | None = None,
-        corso_sector_mapping: Mapping[str, str] | None = None,
-        corso_negative_policy: CorsoNegativePolicy = "clip",
         date: datetime | None = None,
     ) -> None:
         path = Path(nc_file)
@@ -414,9 +412,10 @@ class CAMSGlobal(Inventory):
                 interval_starts = pd.date_range(
                     f"{self.year}-01-01", periods=13, freq="MS"
                 )
-                time_coordinates = interval_starts[:-1] + (
-                    interval_starts[1:].values - interval_starts[:-1].values
-                ) / 2
+                time_coordinates = (
+                    interval_starts[:-1]
+                    + (interval_starts[1:].values - interval_starts[:-1].values) / 2
+                )
                 self.time_bounds = np.column_stack(
                     [interval_starts[:-1].values, interval_starts[1:].values]
                 )
@@ -444,20 +443,12 @@ class CAMSGlobal(Inventory):
                 .assign_coords(cell=np.arange(len(self.grid)))
             )
 
-        if corso_dataset is not None:
-            self._subtract_corso_emissions(
-                corso_dataset,
-                corso_substance=corso_substance,
-                sector_mapping=corso_sector_mapping,
-                negative_policy=corso_negative_policy,
-            )
-
         self._rebuild_derived_data()
 
     def _rebuild_derived_data(self) -> None:
         """Rebuild standard inventory data from authoritative monthly fluxes."""
         source_areas = np.asarray(self.grid.cell_areas)
-        annual_mean = self.monthly_flux.mean("time")
+        annual_mean = self.monthly_flux.astype(np.float64).mean("time")
         categories = self.monthly_flux["category"].values.astype(str)
         self.gdf = gpd.GeoDataFrame(
             {
@@ -478,8 +469,12 @@ class CAMSGlobal(Inventory):
             self.t_profiles_indexes = None
             return
 
-        ratios_da = self.monthly_flux.rename({"time": "ratio"}).expand_dims(
-            substance=[self.substance_name]
+        # CAMS files are float32; compute the ratios in double precision so
+        # that the profiles reproduce the input fluxes to float64 accuracy.
+        ratios_da = (
+            self.monthly_flux.astype(np.float64)
+            .rename({"time": "ratio"})
+            .expand_dims(substance=[self.substance_name])
         )
         ratios_da = ratios_da / ratios_da.sum("ratio")
         ratios, indexes = ratios_dataarray_to_profiles(ratios_da.fillna(0.0))
@@ -490,204 +485,194 @@ class CAMSGlobal(Inventory):
             indexes,
         )
 
-    def _subtract_corso_emissions(
-        self,
-        corso_dataset: xr.Dataset,
-        corso_substance: str | None,
-        sector_mapping: Mapping[str, str] | None,
-        negative_policy: CorsoNegativePolicy,
-    ) -> None:
-        """Remove annual-mean CORSO point-source rates from CAMS cells."""
-        if negative_policy not in {"clip", "raise", "allow"}:
-            raise ValueError(
-                "`corso_negative_policy` must be 'clip', 'raise', or 'allow'."
-            )
 
-        required = {"longitude", "latitude"}
-        missing = sorted(required - set(corso_dataset.variables))
-        if missing:
-            raise ValueError(f"CORSO dataset is missing variables: {missing}")
+def _summation_variable(nc_file: CAMSFile) -> str:
+    """Select the one flux variable used when summing multiple files."""
+    return select_cams_global_variable(nc_file)
 
-        coordinate_dims = corso_dataset["longitude"].dims
-        if (
-            len(coordinate_dims) != 1
-            or corso_dataset["latitude"].dims != coordinate_dims
-        ):
-            raise ValueError(
-                "CORSO longitude and latitude must share one source dimension."
-            )
-        source_dim = coordinate_dims[0]
 
-        if corso_substance is None:
-            normalized_substance = re.sub(
-                r"[^A-Z0-9]", "", self.substance_name.upper()
-            )
-            try:
-                corso_substance = DEFAULT_CORSO_SUBSTANCE_MAPPING[
-                    normalized_substance
-                ]
-            except KeyError as exc:
-                raise ValueError(
-                    f"No default CORSO species mapping for CAMS substance "
-                    f"{self.substance_name!r}. Pass `corso_substance=` explicitly."
-                ) from exc
-        corso_substance = corso_substance.lower()
-        emission_variable = (
-            corso_substance
-            if corso_substance.endswith("_kty")
-            else f"{corso_substance}_kty"
-        )
-        if emission_variable not in corso_dataset:
-            raise ValueError(
-                f"CORSO dataset does not contain {emission_variable!r}. "
-                "Expected raw emissions in kilotonnes per year."
-            )
-        if corso_dataset[emission_variable].dims != (source_dim,):
-            raise ValueError(
-                f"CORSO variable {emission_variable!r} must have only the "
-                f"{source_dim!r} dimension."
-            )
-
-        categories = self.monthly_flux["category"].values.astype(str)
-        subtract_from_sum = len(categories) == 1 and categories[0] == "sum"
-        if not subtract_from_sum:
-            if "sector" not in corso_dataset:
-                raise ValueError(
-                    "CORSO dataset must contain 'sector' when CAMS component "
-                    "categories are selected."
-                )
-            if corso_dataset["sector"].dims != (source_dim,):
-                raise ValueError(
-                    f"CORSO variable 'sector' must have only the {source_dim!r} "
-                    "dimension."
-                )
-
-        category_indexes = {category: i for i, category in enumerate(categories)}
-        resolved_sector_mapping = DEFAULT_CORSO_SECTOR_MAPPING.copy()
-        if sector_mapping is not None:
-            resolved_sector_mapping.update(
-                {
-                    str(key).strip().lower(): str(value).strip()
-                    for key, value in sector_mapping.items()
-                }
-            )
-
-        longitudes = np.asarray(corso_dataset["longitude"].values, dtype=float)
-        latitudes = np.asarray(corso_dataset["latitude"].values, dtype=float)
-        emissions_kty = np.asarray(
-            corso_dataset[emission_variable].values, dtype=float
-        )
-        if np.any(emissions_kty[np.isfinite(emissions_kty)] < 0):
-            raise ValueError("CORSO emissions must be non-negative.")
-
-        finite = (
-            np.isfinite(longitudes)
-            & np.isfinite(latitudes)
-            & np.isfinite(emissions_kty)
-        )
-        inside = (
-            finite
-            & (longitudes >= self.grid.xmin)
-            & (longitudes < self.grid.xmax)
-            & (latitudes >= self.grid.ymin)
-            & (latitudes < self.grid.ymax)
+def _validate_summation_compatibility(
+    reference: CAMSGlobal,
+    other: CAMSGlobal,
+    other_file: Path,
+) -> None:
+    """Ensure two selected CAMS inventories describe the same time interval."""
+    errors = []
+    if reference.year != other.year:
+        errors.append(f"year {other.year} != {reference.year}")
+    if not np.array_equal(
+        reference.monthly_flux["time"].values,
+        other.monthly_flux["time"].values,
+    ):
+        errors.append("time coordinates differ")
+    if errors:
+        raise ValueError(
+            f"Cannot sum CAMS inventory {other_file}: " + "; ".join(errors) + "."
         )
 
-        requested_rates = np.zeros(
-            (len(categories), len(self.grid)), dtype=np.float64
+
+def _grids_match(reference: CAMSGlobal, other: CAMSGlobal) -> bool:
+    """Return whether two source grids have identical cells and ordering."""
+    return (
+        reference.grid.crs == other.grid.crs
+        and reference.grid.shape == other.grid.shape
+        and np.allclose(reference.grid.lon_bounds, other.grid.lon_bounds)
+        and np.allclose(reference.grid.lat_bounds, other.grid.lat_bounds)
+    )
+
+
+def _remap_flux_to_inventory_grid(
+    source: CAMSGlobal,
+    target: CAMSGlobal,
+) -> np.ndarray:
+    """Conservatively remap one selected CAMS field to another CAMS grid."""
+    from emiproc.regrid import get_weights_mapping, weights_remap
+
+    source_shapes = source.grid.gdf.geometry.to_crs(WGS84_NSIDC).reset_index(drop=True)
+    target_shapes = target.grid.gdf.geometry.to_crs(WGS84_NSIDC).reset_index(drop=True)
+    source_areas = source_shapes.area.to_numpy()
+    target_areas = target_shapes.area.to_numpy()
+    mapping = get_weights_mapping(
+        None,
+        source_shapes,
+        target_shapes,
+        loop_over_inv_objects=False,
+    )
+    remapped = np.empty(
+        (source.monthly_flux.sizes["time"], len(target.grid)),
+        dtype=np.float64,
+    )
+    for time_index in range(source.monthly_flux.sizes["time"]):
+        source_flux = source.monthly_flux.isel(time=time_index, category=0).values
+        target_rate = weights_remap(
+            mapping,
+            source_flux * source_areas,
+            len(target.grid),
         )
-        mapped_sources = 0
-        unmapped_sources = 0
-        sectors = (
-            np.asarray(corso_dataset["sector"].values).astype(str)
-            if not subtract_from_sum
-            else None
+        remapped[time_index] = target_rate / target_areas
+    return remapped
+
+
+def read_cams_global(
+    nc_files: CAMSFiles,
+    variables: list[str] | None = None,
+    bbox: BoundingBox | None = None,
+    substance: str | None = None,
+    date: datetime | None = None,
+) -> CAMSGlobal:
+    """Read one or several CAMS-GLOB-ANT files as a single inventory.
+
+    A single path (not in a sequence) behaves exactly like
+    :py:class:`CAMSGlobal`, keeping the standard variable selection.
+    A sequence always takes the summation path, even with one element.
+
+    For several paths, the ``sum`` variable is selected from each file when it
+    is present, and otherwise the file must contain exactly one data variable.
+    Those single-variable fluxes are summed after checking that the files
+    describe the same time interval, which makes ``variables`` meaningless and
+    therefore rejected. Files that are not on the same grid are conservatively
+    remapped onto the finest of the input grids before being summed.
+
+    :arg nc_files: One path, or a sequence of paths, to CAMS-GLOB-ANT files.
+    :arg variables: Sector variables to import, only for a single file.
+    :arg bbox: Optional ``(west, south, east, north)`` bounding box in WGS84.
+    :arg substance: Optional species name, normally inferred from the metadata.
+    :arg date: Selects the matching month of a monthly inventory, or the exact
+        day of a daily one. It must be given for inputs that do not contain 12
+        monthly time steps.
+
+    :return: The inventory holding the summed emissions.
+    """
+    if isinstance(nc_files, (str, PathLike)):
+        return CAMSGlobal(
+            nc_files,
+            variables=variables,
+            bbox=bbox,
+            substance=substance,
+            date=date,
         )
-        for source_index in np.flatnonzero(inside & (emissions_kty > 0)):
-            if subtract_from_sum:
-                category = "sum"
-            else:
-                sector = sectors[source_index].strip().lower()
-                category = resolved_sector_mapping.get(sector)
-                if category not in category_indexes:
-                    unmapped_sources += 1
-                    continue
 
-            lon_index = int(
-                np.searchsorted(
-                    self.grid.lon_bounds, longitudes[source_index], side="right"
-                )
-                - 1
-            )
-            lat_index = int(
-                np.searchsorted(
-                    self.grid.lat_bounds, latitudes[source_index], side="right"
-                )
-                - 1
-            )
-            cell_index = lon_index * self.grid.ny + lat_index
-            rate_kg_s = emissions_kty[source_index] * 1_000_000 / SEC_PER_YR
-            requested_rates[category_indexes[category], cell_index] += rate_kg_s
-            mapped_sources += 1
+    paths = [Path(path) for path in nc_files]
+    if not paths:
+        raise ValueError("At least one CAMS inventory file must be provided.")
+    if variables is not None:
+        raise ValueError(
+            "`variables` cannot be provided when the files are given as a"
+            " sequence, because the summation variable is selected from each"
+            " file. Pass a single path to choose the variables yourself."
+        )
 
-        cell_areas = np.asarray(self.grid.cell_areas, dtype=float)
-        requested_flux = requested_rates / cell_areas[None, :]
-        original_flux = np.asarray(self.monthly_flux.values, dtype=np.float64)
-        residual_flux = original_flux - requested_flux[None, :, :]
-        negative_mask = residual_flux < 0
-        clipped_values = int(np.count_nonzero(negative_mask))
-        if clipped_values and negative_policy == "raise":
-            largest_deficit = float(-residual_flux[negative_mask].min())
-            raise ValueError(
-                f"CORSO subtraction would create {clipped_values} negative CAMS "
-                f"values (largest deficit {largest_deficit:.6g} "
-                f"{CAMS_FLUX_UNIT}). Use `corso_negative_policy='clip'` or "
-                "'allow' to choose an explicit alternative."
-            )
-        if negative_policy == "clip":
-            residual_flux = np.maximum(residual_flux, 0.0)
-            if clipped_values:
-                warn(
-                    f"CORSO subtraction exceeded {clipped_values} CAMS "
-                    "time/cell/category values; those residuals were clipped to "
-                    "zero.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+    inventories = [
+        CAMSGlobal(
+            path,
+            variables=[_summation_variable(path)],
+            bbox=bbox,
+            substance=substance,
+            date=date,
+        )
+        for path in paths
+    ]
+    temporal_reference = inventories[0]
+    for path, inventory in zip(paths[1:], inventories[1:]):
+        _validate_summation_compatibility(temporal_reference, inventory, path)
 
-        self.monthly_flux.data = residual_flux
-        actual_removed_rates = (
-            (original_flux - residual_flux) * cell_areas[None, None, :]
-        ).sum(axis=(1, 2))
-        requested_rate = float(requested_rates.sum())
-        self.corso_subtraction_summary = {
-            "emission_variable": emission_variable,
-            "negative_policy": negative_policy,
-            "mapped_sources": mapped_sources,
-            "unmapped_sources": unmapped_sources,
-            "outside_sources": int(np.count_nonzero(finite & ~inside)),
-            "invalid_sources": int(np.count_nonzero(~finite)),
-            "negative_values": clipped_values,
-            "clipped_values": clipped_values if negative_policy == "clip" else 0,
-            "requested_annual_mean_kg_s": requested_rate,
-            "actual_monthly_mean_kg_s": float(actual_removed_rates.mean()),
+    aggregate_substance = resolve_cams_substances(
+        [inventory.source_substance_name for inventory in inventories],
+        override=substance,
+    )
+    reference = min(
+        inventories,
+        key=lambda inventory: float(np.median(inventory.grid.cell_areas)),
+    )
+    summed_values = np.zeros(
+        (reference.monthly_flux.sizes["time"], len(reference.grid)),
+        dtype=np.float64,
+    )
+    remapped_files = 0
+    for inventory in inventories:
+        if _grids_match(reference, inventory):
+            summed_values += inventory.monthly_flux.isel(category=0).values
+        else:
+            summed_values += _remap_flux_to_inventory_grid(inventory, reference)
+            remapped_files += 1
+
+    reference.monthly_flux = (
+        reference.monthly_flux.isel(category=[0])
+        .assign_coords(category=["sum"])
+        .astype(np.float64)
+    )
+    reference.monthly_flux.data = summed_values[:, None, :]
+    reference.substance_name = aggregate_substance
+    reference.monthly_flux.attrs.update(
+        {
+            "long_name": (
+                f"summed {reference.substance_name} emission flux for selected "
+                "time intervals"
+            ),
+            "summed_input_files": len(paths),
         }
-        self.monthly_flux.attrs.update(
-            {
-                "corso_subtracted": "true",
-                "corso_emission_variable": emission_variable,
-                "corso_negative_policy": negative_policy,
-                "corso_requested_annual_mean_kg_s": requested_rate,
-                "corso_actual_monthly_mean_kg_s": float(
-                    actual_removed_rates.mean()
-                ),
-            }
+    )
+    reference.category_descriptions = {
+        "sum": f"Sum of {len(paths)} CAMS global inventory files"
+    }
+    reference.name = f"CAMS_GLOBAL_SUM_{len(paths)}_FILES"
+    reference.source_files = [str(path) for path in paths]
+    reference.source_file_metadata = [
+        (
+            f"{path}: variable={inventory.selected_variables[0]}, "
+            f"source_substance={inventory.source_substance_name}"
         )
-        self.history.append(
-            f"Subtracted CORSO {emission_variable}: "
-            f"{mapped_sources} sources mapped, {unmapped_sources} skipped, "
-            f"{clipped_values if negative_policy == 'clip' else 0} values clipped"
+        for path, inventory in zip(paths, inventories)
+    ]
+    reference.history.append(f"Summed {len(paths)} CAMS global inventory files")
+    if remapped_files:
+        reference.history.append(
+            f"Conservatively remapped {remapped_files} input files to the "
+            "finest CAMS source grid before summation"
         )
+
+    reference._rebuild_derived_data()
+    return reference
 
 
 CAMS_GLOBAL = CAMSGlobal
@@ -698,12 +683,18 @@ CAMS_GLOB_ANT = CAMSGlobal
 
 
 __all__ = [
+    "CAMSFile",
+    "CAMSFiles",
     "CAMSGlobal",
     "CAMS_GLOBAL",
     "CAMSGlobAnt",
     "CAMS_GLOB_ANT",
+    "CAMS_FLUX_UNIT",
+    "DEFAULT_CORSO_SECTOR_MAPPING",
+    "DEFAULT_CORSO_SUBSTANCE_MAPPING",
     "SUBSTANCE_ALIASES",
     "VOC_COMPONENT_KEYS",
+    "read_cams_global",
     "resolve_cams_substances",
     "select_cams_global_variable",
 ]

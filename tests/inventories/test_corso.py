@@ -81,3 +81,112 @@ def test_corso_netcdf_export_and_source_grouping(
     assert dataset["co2"].attrs["units"] == "kg s-1"
     np.testing.assert_allclose(np.sort(dataset["co2"]), [3.0, 4.0])
     assert (tmp_path / "corso.nc").is_file()
+
+
+def test_corso_inventory_is_a_regular_inventory(corso_directory: Path) -> None:
+    """The CORSO database is usable like any other emiproc inventory."""
+    from emiproc.inventories import Inventory
+    from emiproc.inventories.corso import CorsoInventory
+    from emiproc.inventories.utils import get_total_emissions
+
+    inv = CorsoInventory(corso_directory)
+
+    assert isinstance(inv, Inventory)
+    assert sorted(inv.categories) == ["cement", "power"]
+    assert inv.substances == ["CO2"]
+    # Point sources live in `gdfs`, not on a grid.
+    assert inv.gdf is None
+    assert all(geom.geom_type == "Point" for geom in inv.gdfs["power"].geometry)
+
+    # The catalogue holds 1 + 2 + 4 kg/s, converted to kg/y.
+    totals = get_total_emissions(inv)
+    assert totals["CO2"]["__total__"] == pytest.approx(7.0 * SEC_PER_YR)
+    assert totals["CO2"]["power"] == pytest.approx(3.0 * SEC_PER_YR)
+    assert totals["CO2"]["cement"] == pytest.approx(4.0 * SEC_PER_YR)
+
+
+def test_corso_inventory_sets_profiles(corso_directory: Path) -> None:
+    from emiproc.inventories.corso import CorsoInventory
+    from emiproc.profiles.temporal.profiles import (
+        DailyProfile,
+        MounthsProfile,
+        WeeklyProfile,
+    )
+
+    inv = CorsoInventory(corso_directory)
+
+    assert inv.t_profiles_groups is not None
+    assert set(inv.t_profiles_groups.types) == {
+        DailyProfile,
+        WeeklyProfile,
+        MounthsProfile,
+    }
+    assert inv.t_profiles_indexes.dims == ("category", "substance")
+
+    assert inv.v_profiles is not None
+    # Ratios are normalised and the heights are the tops of the layers.
+    np.testing.assert_allclose(inv.v_profiles.ratios.sum(axis=1), 1.0)
+    assert inv.v_profiles.height[0] == pytest.approx(100.0)
+    assert len(inv.v_profiles.height) == inv.v_profiles.ratios.shape[1]
+
+
+def test_corso_inventory_mapping_and_filtering(corso_directory: Path) -> None:
+    from emiproc.inventories.corso import CorsoInventory
+    from emiproc.inventories.utils import get_total_emissions
+
+    mapped = CorsoInventory(
+        corso_directory,
+        categories_mapping={"power": "ene", "cement": "ind"},
+        substances=["CO2"],
+    )
+    assert sorted(mapped.categories) == ["ene", "ind"]
+
+    # Only the two sources around (8.0, 47.0) are inside the box.
+    cropped = CorsoInventory(corso_directory, bbox=(7.5, 8.5, 46.5, 47.5))
+    assert get_total_emissions(cropped)["CO2"]["__total__"] == pytest.approx(
+        3.0 * SEC_PER_YR
+    )
+
+    with pytest.raises(ValueError, match="not in the CORSO catalogue"):
+        CorsoInventory(corso_directory, substances=["CH4"])
+
+
+def test_corso_inventory_can_be_subtracted_from_a_gridded_inventory(
+    corso_directory: Path,
+) -> None:
+    """The end to end double counting workflow."""
+    import geopandas as gpd
+
+    from emiproc.grids import RegularGrid, WGS84
+    from emiproc.inventories import Inventory
+    from emiproc.inventories.corso import CorsoInventory
+    from emiproc.inventories.utils import (
+        get_total_emissions,
+        merge_inventories_without_double_counting,
+    )
+
+    points = CorsoInventory(corso_directory, bbox=(7.5, 8.5, 46.5, 47.5))
+
+    grid = RegularGrid(
+        xmin=7.5, ymin=46.5, xmax=8.5, ymax=47.5, nx=2, ny=2, name="coarse", crs=WGS84
+    )
+    coarse = Inventory.from_gdf(
+        gpd.GeoDataFrame(
+            {("power", "CO2"): np.full(4, 10.0 * SEC_PER_YR)},
+            geometry=grid.gdf.geometry,
+            crs=WGS84,
+        ),
+        name="coarse",
+    )
+    coarse.grid = grid
+
+    before = get_total_emissions(coarse)["CO2"]["__total__"]
+    merged = merge_inventories_without_double_counting(coarse, points)
+
+    # Total unchanged, but the point sources are now resolved individually.
+    assert get_total_emissions(merged)["CO2"]["__total__"] == pytest.approx(before)
+    assert len(merged.gdfs["power"]) == 2
+    # The cell holding the sources lost exactly their emissions.
+    assert merged.gdf[("power", "CO2")].sum() == pytest.approx(
+        before - 3.0 * SEC_PER_YR
+    )

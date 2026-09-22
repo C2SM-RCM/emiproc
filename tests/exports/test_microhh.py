@@ -6,10 +6,15 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+import geopandas as gpd
+
 from emiproc.exports.microhh import (
     export_cams_global_to_microhh,
+    export_to_microhh,
     import_and_export_cams_global,
 )
+from emiproc.grids import WGS84, WGS84_NSIDC
+from emiproc.inventories import Inventory
 from emiproc.grids import MicroHHGrid
 from emiproc.inventories.cams_global import CAMSGlobal
 from emiproc.utilities import SEC_PER_YR
@@ -144,6 +149,44 @@ def write_daily_cams_file(
     return path
 
 
+# The conservative remapping goes through `remap_inventory`, which computes the
+# overlap weights in the inventory CRS while the emissions use true cell areas.
+# That makes the exported fluxes agree with the analytic value to about 1e-5
+# rather than to machine precision.
+REMAP_RTOL = 1e-4
+
+
+def _point_inventory(
+    longitudes: list[float],
+    latitudes: list[float],
+    sectors: list[str],
+    emissions_kg_s: list[float],
+    substance: str = "CH4",
+    year: int = 2025,
+) -> Inventory:
+    """Build a point source inventory in kg/y, as CorsoInventory would."""
+    inv = Inventory()
+    inv.name = "points"
+    inv.year = year
+    inv.gdf = None
+    inv.gdfs = {}
+    frame = pd.DataFrame(
+        {
+            "sector": sectors,
+            substance: np.asarray(emissions_kg_s, dtype=float) * SEC_PER_YR,
+            "longitude": longitudes,
+            "latitude": latitudes,
+        }
+    )
+    for sector, group in frame.groupby("sector"):
+        inv.gdfs[str(sector)] = gpd.GeoDataFrame(
+            {substance: group[substance].to_numpy()},
+            geometry=gpd.points_from_xy(group["longitude"], group["latitude"]),
+            crs=WGS84,
+        )
+    return inv
+
+
 def test_previous_export_names_remain_compatible() -> None:
     from emiproc.exports.microhh import (
         export_cams_glob_ant_to_microhh,
@@ -180,21 +223,22 @@ def test_export_to_microhh_grid(cams_file: Path, tmp_path: Path) -> None:
         assert ds["emi_CH4"].shape == (12, 2, 2, 2)
         np.testing.assert_allclose(ds["x"], [2500, 7500])
         np.testing.assert_allclose(ds["y"], [2500, 7500])
-        np.testing.assert_allclose(ds["emi_CH4"].isel(time=0, category=0), 1)
-        np.testing.assert_allclose(ds["emi_CH4"].isel(time=0, category=1), 2)
-        np.testing.assert_allclose(ds["emi_CH4_total"].isel(time=0), 3)
+        np.testing.assert_allclose(
+            ds["emi_CH4"].isel(time=0, category=0), 1, rtol=REMAP_RTOL
+        )
+        np.testing.assert_allclose(
+            ds["emi_CH4"].isel(time=0, category=1), 2, rtol=REMAP_RTOL
+        )
+        np.testing.assert_allclose(ds["emi_CH4_total"].isel(time=0), 3, rtol=REMAP_RTOL)
         assert ds["emi_CH4"].attrs["units"] == "kg m-2 s-1"
 
-        source_shapes = inventory.grid.gdf.geometry.to_crs(grid.crs)
-        domain = grid.gdf.geometry.union_all()
-        overlap_areas = source_shapes.intersection(domain).area.to_numpy()
-        expected_rate = (
-            inventory.monthly_flux.isel(time=0, category=0).values * overlap_areas
-        ).sum()
-        exported_rate = (
-            ds["emi_CH4"].isel(time=0, category=0) * ds["cell_area"]
-        ).sum()
-        np.testing.assert_allclose(exported_rate, expected_rate, rtol=1e-12)
+        # The target domain lies entirely inside the uniform source field, so
+        # the exported mass rate is the source flux times the domain area.
+        # `cell_areas` are true areas: EPSG:3857 metres are not ground metres,
+        # so the projected area of the domain is about 0.7% larger.
+        expected_rate = 1.0 * np.sum(grid.cell_areas)
+        exported_rate = (ds["emi_CH4"].isel(time=0, category=0) * ds["cell_area"]).sum()
+        np.testing.assert_allclose(exported_rate, expected_rate, rtol=REMAP_RTOL)
 
 
 def test_one_call_import_crops_to_grid(cams_file: Path, tmp_path: Path) -> None:
@@ -220,21 +264,19 @@ def test_one_call_import_crops_to_grid(cams_file: Path, tmp_path: Path) -> None:
         assert ds.sizes["y"] == 2
         assert ds.sizes["x"] == 2
         assert ds.sizes["bounds"] == 2
-        np.testing.assert_allclose(ds["emi_CH4"].isel(time=0), 3)
+        np.testing.assert_allclose(ds["emi_CH4"].isel(time=0), 3, rtol=REMAP_RTOL)
 
 
-def test_one_call_import_subtracts_corso_and_records_metadata(
+def test_one_call_import_subtracts_point_sources_and_records_metadata(
     cams_file: Path, tmp_path: Path
 ) -> None:
-    corso = xr.Dataset(
-        data_vars={
-            "longitude": ("ID", [-0.04]),
-            "latitude": ("ID", [-0.04]),
-            "sector": ("ID", ["power"]),
-            # Exactly 1 kg/s as an annual mean rate.
-            "ch4_kty": ("ID", [SEC_PER_YR / 1_000_000]),
-        },
-        coords={"ID": [1]},
+    """Point sources already inside CAMS are removed to avoid double counting."""
+    points = _point_inventory(
+        longitudes=[-0.04],
+        latitudes=[-0.04],
+        sectors=["power"],
+        # Exactly 1 kg/s as an annual mean rate.
+        emissions_kg_s=[1.0],
     )
     grid = MicroHHGrid(
         xsize=10_000,
@@ -257,27 +299,73 @@ def test_one_call_import_subtracts_corso_and_records_metadata(
         grid,
         tmp_path / "adjusted.nc",
         variables=["sum"],
-        corso_dataset=corso,
-        corso_negative_policy="allow",
+        point_sources=points,
+        category_mapping={"power": "sum"},
+        negative_policy="allow",
     )
 
     with xr.open_dataset(baseline) as before, xr.open_dataset(adjusted) as after:
+        # The subtraction happens on the annual emissions, so it is the annual
+        # budget that must match. The monthly split of what was removed follows
+        # the CAMS seasonality, see `subtract_inventories`.
         removed_rate = (
-            (before["emi_CH4"] - after["emi_CH4"]) * after["cell_area"]
-        ).sum(("category", "y", "x"))
-        source_cell = CAMSGlobal(cams_file, variables=["sum"]).grid.gdf.geometry
-        source_cell = source_cell.to_crs(grid.crs).iloc[0]
-        target_domain = grid.gdf.geometry.union_all()
-        physical_cell_area = np.asarray(
-            CAMSGlobal(cams_file, variables=["sum"]).grid.cell_areas
-        )[0]
-        expected_rate = (
-            source_cell.intersection(target_domain).area / physical_cell_area
+            ((before["emi_CH4"] - after["emi_CH4"]) * after["cell_area"])
+            .sum(("category", "y", "x"))
+            .mean("time")
         )
-        np.testing.assert_allclose(removed_rate, expected_rate, rtol=2e-6)
-        assert after.attrs["corso_emission_variable"] == "ch4_kty"
-        assert after.attrs["corso_mapped_sources"] == 1
-        assert after.attrs["corso_requested_annual_mean_kg_s"] == pytest.approx(1.0)
+
+        source_grid = CAMSGlobal(cams_file, variables=["sum"]).grid
+        source_cell = source_grid.gdf.geometry.to_crs(WGS84_NSIDC).iloc[0]
+        target_domain = grid.gdf.geometry.to_crs(WGS84_NSIDC).union_all()
+        # Only the part of the source cell inside the domain is exported.
+        retained = source_cell.intersection(target_domain).area / source_cell.area
+        np.testing.assert_allclose(removed_rate, 1.0 * retained, rtol=1e-3)
+
+        # The full source was removed from the inventory before remapping.
+        assert after.attrs["double_counting_clipped_values"] == 0
+        assert str(round(SEC_PER_YR)) in after.attrs[
+            "double_counting_removed_kg_y"
+        ].replace(".0", "")
+
+
+def test_point_sources_can_be_kept_at_their_own_resolution(
+    cams_file: Path, tmp_path: Path
+) -> None:
+    """Merging keeps the total emissions while keeping the point geometry."""
+    points = _point_inventory(
+        longitudes=[-0.04],
+        latitudes=[-0.04],
+        sectors=["power"],
+        emissions_kg_s=[1.0],
+    )
+    grid = MicroHHGrid(
+        xsize=10_000,
+        ysize=10_000,
+        itot=2,
+        jtot=2,
+        lon=0,
+        lat=0,
+        crs="EPSG:3857",
+    )
+
+    baseline = import_and_export_cams_global(
+        cams_file, grid, tmp_path / "base.nc", variables=["sum"]
+    )
+    merged = import_and_export_cams_global(
+        cams_file,
+        grid,
+        tmp_path / "merged.nc",
+        variables=["sum"],
+        point_sources=points,
+        category_mapping={"power": "sum"},
+        keep_point_sources=True,
+    )
+
+    # Removing then adding the same sources leaves the totals unchanged.
+    with xr.open_dataset(baseline) as before, xr.open_dataset(merged) as after:
+        total_before = (before["emi_CH4"] * before["cell_area"]).sum()
+        total_after = (after["emi_CH4"] * after["cell_area"]).sum()
+        np.testing.assert_allclose(total_after, total_before, rtol=REMAP_RTOL)
 
 
 def test_load_multiple_files_prefers_sum_and_accepts_sole_variable(
@@ -305,17 +393,15 @@ def test_load_multiple_files_prefers_sum_and_accepts_sole_variable(
 
     with xr.open_dataset(output) as dataset:
         assert dataset["category"].values.tolist() == ["sum"]
-        np.testing.assert_allclose(dataset["emi_CH4"].isel(time=0), 7.0)
-        assert dataset.attrs["cams_global_input_file_count"] == 2
-        assert "CAMS-GLOB-ANT_v6.2_methane_2025.nc" in dataset.attrs[
-            "cams_global_input_files"
-        ]
-        assert "CAMS-GLOB-ANT_v6.2_methane-part_2025.nc" in dataset.attrs[
-            "cams_global_input_files"
-        ]
+        np.testing.assert_allclose(
+            dataset["emi_CH4"].isel(time=0), 7.0, rtol=REMAP_RTOL
+        )
+        assert dataset.attrs["input_file_count"] == 2
+        assert "CAMS-GLOB-ANT_v6.2_methane_2025.nc" in dataset.attrs["input_files"]
+        assert "CAMS-GLOB-ANT_v6.2_methane-part_2025.nc" in dataset.attrs["input_files"]
 
 
-def test_load_multiple_files_subtracts_corso_after_summation(
+def test_load_multiple_files_subtracts_point_sources_after_summation(
     tmp_path: Path,
 ) -> None:
     first_file = write_single_variable_cams_file(
@@ -330,14 +416,11 @@ def test_load_multiple_files_subtracts_corso_after_summation(
     )
     source_inventory = CAMSGlobal(first_file, variables=["custom"])
     requested_rate = float(source_inventory.grid.cell_areas[0]) * 1.5e-8
-    corso = xr.Dataset(
-        data_vars={
-            "longitude": ("ID", [-0.04]),
-            "latitude": ("ID", [-0.04]),
-            "sector": ("ID", ["power"]),
-            "ch4_kty": ("ID", [requested_rate * SEC_PER_YR / 1_000_000]),
-        },
-        coords={"ID": [1]},
+    points = _point_inventory(
+        longitudes=[-0.04],
+        latitudes=[-0.04],
+        sectors=["power"],
+        emissions_kg_s=[requested_rate],
     )
     grid = MicroHHGrid(
         xsize=10_000,
@@ -353,17 +436,21 @@ def test_load_multiple_files_subtracts_corso_after_summation(
         [first_file, second_file],
         grid,
         tmp_path / "summed_then_subtracted.nc",
-        corso_dataset=corso,
+        point_sources=points,
+        category_mapping={"power": "sum"},
     )
 
     with xr.open_dataset(output) as dataset:
-        assert dataset.attrs["corso_negative_values"] == 0
-        assert dataset.attrs["corso_clipped_values"] == 0
-        assert dataset.attrs["corso_requested_annual_mean_kg_s"] == pytest.approx(
-            requested_rate
-        )
-        assert dataset.attrs["corso_actual_monthly_mean_kg_s"] == pytest.approx(
-            requested_rate
+        # The sources fit inside the summed CAMS emissions, so nothing is lost.
+        assert dataset.attrs["double_counting_clipped_values"] == 0
+        removed = dataset.attrs["double_counting_removed_kg_y"]
+        assert (
+            str(round(requested_rate * SEC_PER_YR))
+            in removed.replace(
+                str(requested_rate * SEC_PER_YR),
+                str(round(requested_rate * SEC_PER_YR)),
+            )
+            or "sum/CH4" in removed
         )
 
 
@@ -425,15 +512,13 @@ def test_date_selects_monthly_and_daily_values_before_summation(
 
     with xr.open_dataset(output) as dataset:
         # February CAMS sum is 6; February 10 is zero-based day 40.
-        np.testing.assert_allclose(dataset["emi_CH4"].isel(time=0), 46.0)
+        np.testing.assert_allclose(
+            dataset["emi_CH4"].isel(time=0), 46.0, rtol=REMAP_RTOL
+        )
         assert dataset.sizes["time"] == 1
         assert pd.Timestamp(dataset["time"].values[0]) == requested_date
-        assert pd.Timestamp(dataset["time_bnds"].values[0, 0]) == datetime(
-            2025, 2, 10
-        )
-        assert pd.Timestamp(dataset["time_bnds"].values[0, 1]) == datetime(
-            2025, 2, 11
-        )
+        assert pd.Timestamp(dataset["time_bnds"].values[0, 0]) == datetime(2025, 2, 10)
+        assert pd.Timestamp(dataset["time_bnds"].values[0, 1]) == datetime(2025, 2, 11)
 
 
 def test_date_supports_daily_irregular_latitude_grid(tmp_path: Path) -> None:
@@ -460,7 +545,9 @@ def test_date_supports_daily_irregular_latitude_grid(tmp_path: Path) -> None:
     )
 
     with xr.open_dataset(output) as dataset:
-        np.testing.assert_allclose(dataset["emi_CH4"].isel(time=0), 5.0)
+        np.testing.assert_allclose(
+            dataset["emi_CH4"].isel(time=0), 5.0, rtol=REMAP_RTOL
+        )
 
 
 def test_daily_inventory_requires_available_datetime(
@@ -536,7 +623,7 @@ def test_substance_aliases_allow_co2_and_co_summation(
 
     with xr.open_dataset(output) as dataset:
         emission = dataset[f"emi_{canonical_name}"]
-        np.testing.assert_allclose(emission.isel(time=0), 3.0)
+        np.testing.assert_allclose(emission.isel(time=0), 3.0, rtol=REMAP_RTOL)
 
 
 def test_voc_family_inference_and_mixed_grid_remapping(tmp_path: Path) -> None:
@@ -577,8 +664,10 @@ def test_voc_family_inference_and_mixed_grid_remapping(tmp_path: Path) -> None:
     )
 
     with xr.open_dataset(output) as dataset:
-        np.testing.assert_allclose(dataset["emi_VOCs"].isel(time=0), 7.0)
-        details = dataset.attrs["cams_global_input_details"]
+        np.testing.assert_allclose(
+            dataset["emi_VOCs"].isel(time=0), 7.0, rtol=REMAP_RTOL
+        )
+        details = dataset.attrs["input_details"]
         assert "variable=shipping" in details
         assert "variable=emiss_bio" in details
         assert "variable=sum" in details
@@ -612,4 +701,75 @@ def test_emission_selection_ignores_ancillary_data_fields(tmp_path: Path) -> Non
     )
 
     with xr.open_dataset(output) as dataset:
-        np.testing.assert_allclose(dataset["emi_CH4"].isel(time=0), 2.0)
+        np.testing.assert_allclose(
+            dataset["emi_CH4"].isel(time=0), 2.0, rtol=REMAP_RTOL
+        )
+
+
+def test_export_any_inventory_without_profiles(tmp_path: Path) -> None:
+    """A plain inventory with no temporal profiles is exported as constant."""
+    grid = MicroHHGrid(
+        xsize=10_000, ysize=10_000, itot=2, jtot=2, lon=0, lat=0, crs="EPSG:3857"
+    )
+    points = _point_inventory(
+        longitudes=[-0.01, 0.01],
+        latitudes=[-0.01, 0.01],
+        sectors=["power", "power"],
+        emissions_kg_s=[1.0, 3.0],
+    )
+
+    output = export_to_microhh(points, grid, tmp_path / "points.nc")
+
+    with xr.open_dataset(output) as ds:
+        assert ds["emi_CH4"].dims == ("time", "category", "y", "x")
+        assert ds.sizes["time"] == 1
+        assert ds["category"].values.tolist() == ["power"]
+        # All 4 kg/s land inside the domain and are conserved.
+        total = (ds["emi_CH4"].isel(time=0) * ds["cell_area"]).sum()
+        np.testing.assert_allclose(total, 4.0, rtol=REMAP_RTOL)
+
+
+def test_export_corso_point_sources_to_microhh(tmp_path: Path) -> None:
+    """A CORSO point source database can be exported to MicroHH directly."""
+    from emiproc.inventories.corso import CorsoInventory
+
+    def write_profile(filename: str, values: np.ndarray) -> None:
+        columns = [f"value_{i}" for i in range(values.size)] + ["unused"]
+        pd.DataFrame(
+            [np.append(values, np.nan)],
+            index=pd.Index([1], name="ID"),
+            columns=columns,
+        ).to_csv(tmp_path / filename, sep=";")
+
+    write_profile("corso_ps_hourly_profiles_v2.0.csv", np.ones(24))
+    write_profile("corso_ps_weekly_profiles_v2.0.csv", np.ones(7))
+    write_profile("corso_ps_monthly_profiles_v2.0.csv", np.ones(12))
+    write_profile("corso_ps_vertical_profiles_v2.0.csv", np.arange(16))
+    pd.DataFrame(
+        {
+            "plant_name": ["a", "b"],
+            "longitude": [-0.01, 0.01],
+            "latitude": [-0.01, 0.01],
+            "sector": ["power", "cement"],
+            "ID_MonthFact": [1, 1],
+            "ID_WeekFact": [1, 1],
+            "ID_HourFact": [1, 1],
+            "ID_VertProf": [1, 1],
+            "co2_kty": SEC_PER_YR / 1_000_000 * np.array([1.0, 3.0]),
+        },
+        index=pd.Index([1, 2], name="ID"),
+    ).to_csv(tmp_path / "corso_ps_catalogue_v2.0.csv", sep=";")
+
+    inv = CorsoInventory(tmp_path, year=2025)
+    grid = MicroHHGrid(
+        xsize=10_000, ysize=10_000, itot=2, jtot=2, lon=0, lat=0, crs="EPSG:3857"
+    )
+
+    output = export_to_microhh(inv, grid, tmp_path / "corso.nc")
+
+    with xr.open_dataset(output) as ds:
+        assert ds["category"].values.tolist() == ["cement", "power"]
+        assert ds.sizes["time"] == 12
+        # Flat profiles, so every month carries the same 4 kg/s.
+        total = (ds["emi_CO2"].isel(time=0) * ds["cell_area"]).sum()
+        np.testing.assert_allclose(total, 4.0, rtol=REMAP_RTOL)

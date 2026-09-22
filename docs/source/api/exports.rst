@@ -26,9 +26,23 @@ Exporting
 MicroHH
 -------
 
-.. autofunction:: emiproc.exports.microhh.export_cams_global_to_microhh
+.. autofunction:: emiproc.exports.microhh.export_to_microhh
 
 .. autofunction:: emiproc.exports.microhh.import_and_export_cams_global
+
+:py:func:`~emiproc.exports.microhh.export_to_microhh` accepts **any**
+inventory. It remaps it conservatively on the MicroHH grid and uses its
+temporal profiles to resolve the emissions in time, writing one
+``emi_<substance>`` variable with dimensions ``(time, category, y, x)`` in
+``kg m-2 s-1``. Inventories without temporal profiles are written as constant::
+
+    from emiproc.exports.microhh import export_to_microhh
+    from emiproc.grids import MicroHHGrid
+
+    export_to_microhh(inventory, grid, "emissions_microhh.nc")
+
+``emiproc.exports.microhh.export_cams_global_to_microhh`` is kept as a
+deprecated alias of it.
 
 The convenience interface crops the global file before building cell polygons::
 
@@ -104,27 +118,38 @@ isoprene or monoterpene component files, those are treated as members of the
 requested VOC aggregate. Emiproc sums exactly the files supplied and cannot
 detect chemical double counting, so the caller remains responsible for the
 composition of that list. The output records the selected field and original
-substance label for every input in ``cams_global_input_details``.
+substance label for every input in ``input_details``.
 
-To subtract CORSO point sources before remapping, pass the raw CORSO dataset to
-the same convenience function. With list input, the CAMS files are summed first
-and CORSO is subtracted once from that sum::
+To remove point sources that the CAMS files already contain, pass an inventory
+of them. With list input, the CAMS files are summed first and the point sources
+are subtracted once from that sum::
 
-    from emiproc.inventories.corso import CorsoEmissions
+    from emiproc.inventories.cams_global import DEFAULT_CORSO_SECTOR_MAPPING
+    from emiproc.inventories.corso import CorsoInventory
 
-    corso = CorsoEmissions(
+    corso = CorsoInventory(
         "/capstor/store/cscs/empa/em05/vhess/input_data/corso"
-    ).get_dataset()
+    )
     import_and_export_cams_global(
         "CAMS-GLOB-ANT_v6.2_nitrogen-oxides_2021.nc",
         grid,
         "cams_nox_without_corso.nc",
-        corso_dataset=corso,
+        point_sources=corso,
+        category_mapping=DEFAULT_CORSO_SECTOR_MAPPING,
     )
 
-The current CORSO catalogue has no VOC field. Passing it for a VOC aggregate
-therefore raises an unsupported-substance error instead of silently
-subtracting another species.
+Pass ``keep_point_sources=True`` to add the sources back at their own
+resolution instead of only exporting the remainder, which conserves the total
+emissions. The written file records what was removed in its
+``double_counting_*`` attributes.
+
+The subtraction is done on the annual emissions, so the annual budget is
+exact while the emissions removed from each time step follow the temporal
+profile of the CAMS inventory. See
+:py:func:`~emiproc.inventories.utils.subtract_inventories`.
+
+The current CORSO catalogue has no VOC field, so a VOC aggregate has no point
+sources to subtract.
 
 
 Gral

@@ -5,9 +5,13 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from emiproc.inventories.cams_global import (
-    CAMSGlobal,
-)
+import geopandas as gpd
+
+from emiproc.exports.utils import get_temporally_scaled_array
+from emiproc.grids import WGS84
+from emiproc.inventories import Inventory
+from emiproc.inventories.cams_global import CAMSGlobal
+from emiproc.inventories.utils import subtract_inventories
 from emiproc.utilities import SEC_PER_YR
 
 
@@ -54,23 +58,6 @@ def cams_file(tmp_path: Path) -> Path:
     )
     ds.to_netcdf(path)
     return path
-
-
-@pytest.fixture
-def corso_dataset() -> xr.Dataset:
-    one_kg_per_second_in_kty = SEC_PER_YR / 1_000_000
-    return xr.Dataset(
-        data_vars={
-            "longitude": ("ID", [-0.04, -0.04, 1.0]),
-            "latitude": ("ID", [-0.04, 0.04, 0.0]),
-            "sector": ("ID", ["power", "cement", "power"]),
-            "ch4_kty": (
-                "ID",
-                one_kg_per_second_in_kty * np.array([1.0, 2.0, 4.0]),
-            ),
-        },
-        coords={"ID": [1, 2, 3]},
-    )
 
 
 def test_import_cams_global(cams_file: Path) -> None:
@@ -120,74 +107,142 @@ def test_import_accepts_float32_coordinate_roundoff(tmp_path: Path) -> None:
     assert inventory.grid.dy == pytest.approx(0.1)
 
 
-def test_subtract_corso_converts_units_and_maps_point_to_cell(
-    cams_file: Path, corso_dataset: xr.Dataset
-) -> None:
+def _point_inventory(
+    longitudes: list[float],
+    latitudes: list[float],
+    sectors: list[str],
+    emissions_kg_s: list[float],
+    substance: str = "CH4",
+) -> Inventory:
+    """Build a point source inventory in kg/y, as CorsoInventory would."""
+    inv = Inventory()
+    inv.name = "points"
+    inv.year = 2025
+    inv.gdf = None
+    inv.gdfs = {}
+    frame = pd.DataFrame(
+        {
+            "sector": sectors,
+            substance: np.asarray(emissions_kg_s, dtype=float) * SEC_PER_YR,
+            "longitude": longitudes,
+            "latitude": latitudes,
+        }
+    )
+    for sector, group in frame.groupby("sector"):
+        inv.gdfs[str(sector)] = gpd.GeoDataFrame(
+            {substance: group[substance].to_numpy()},
+            geometry=gpd.points_from_xy(group["longitude"], group["latitude"]),
+            crs=WGS84,
+        )
+    return inv
+
+
+def test_subtract_point_sources_maps_point_to_cell(cams_file: Path) -> None:
+    """The generic operator removes the point emissions from the right cells."""
     original = CAMSGlobal(cams_file)
-    adjusted = CAMSGlobal(
-        cams_file,
-        corso_dataset=corso_dataset,
-        corso_sector_mapping={"cement": "res"},
-        corso_negative_policy="allow",
+    points = _point_inventory(
+        longitudes=[-0.04, -0.04, 1.0],
+        latitudes=[-0.04, 0.04, 0.0],
+        sectors=["power", "cement", "power"],
+        emissions_kg_s=[1.0, 2.0, 4.0],
     )
 
-    areas = np.asarray(adjusted.grid.cell_areas)
-    ene_difference = (
-        original.monthly_flux.sel(category="ene")
-        - adjusted.monthly_flux.sel(category="ene")
+    adjusted = subtract_inventories(
+        original,
+        points,
+        category_mapping={"power": "ene", "cement": "res"},
+        negative_policy="allow",
     )
-    res_difference = (
-        original.monthly_flux.sel(category="res")
-        - adjusted.monthly_flux.sel(category="res")
-    )
-    expected_ene = np.zeros((12, 4))
-    expected_res = np.zeros((12, 4))
-    expected_ene[:, 0] = 1.0 / areas[0]
-    expected_res[:, 1] = 2.0 / areas[1]
-    np.testing.assert_allclose(ene_difference, expected_ene)
-    np.testing.assert_allclose(res_difference, expected_res)
-    assert adjusted.corso_subtraction_summary["mapped_sources"] == 2
-    assert adjusted.corso_subtraction_summary["outside_sources"] == 1
-    assert adjusted.corso_subtraction_summary[
-        "requested_annual_mean_kg_s"
-    ] == pytest.approx(3.0)
+
+    # Only the cells holding a source change, by exactly that source's rate.
+    ene_removed = (
+        original.gdf[("ene", "CH4")] - adjusted.gdf[("ene", "CH4")]
+    ).to_numpy()
+    res_removed = (
+        original.gdf[("res", "CH4")] - adjusted.gdf[("res", "CH4")]
+    ).to_numpy()
+    expected_ene = np.zeros(4)
+    expected_res = np.zeros(4)
+    expected_ene[0] = 1.0 * SEC_PER_YR
+    expected_res[1] = 2.0 * SEC_PER_YR
+    np.testing.assert_allclose(ene_removed, expected_ene, rtol=1e-9)
+    np.testing.assert_allclose(res_removed, expected_res, rtol=1e-9)
+
+    # The third source is outside the CAMS domain and is therefore dropped.
+    summary = adjusted.subtraction_summary
+    assert summary["removed_kg_y"]["ene/CH4"] == pytest.approx(1.0 * SEC_PER_YR)
+    assert summary["clipped_values"] == 0
 
 
-def test_subtract_all_corso_sectors_from_cams_sum(
-    cams_file: Path, corso_dataset: xr.Dataset
-) -> None:
+def test_subtract_all_point_sectors_from_cams_sum(cams_file: Path) -> None:
     original = CAMSGlobal(cams_file, variables=["sum"])
-    adjusted = CAMSGlobal(
-        cams_file,
-        variables=["sum"],
-        corso_dataset=corso_dataset,
-        corso_negative_policy="allow",
+    points = _point_inventory(
+        longitudes=[-0.04, -0.04],
+        latitudes=[-0.04, 0.04],
+        sectors=["power", "cement"],
+        emissions_kg_s=[1.0, 2.0],
     )
 
-    areas = np.asarray(adjusted.grid.cell_areas)
-    difference = original.monthly_flux - adjusted.monthly_flux
-    expected = np.zeros((12, 1, 4))
-    expected[:, 0, 0] = 1.0 / areas[0]
-    expected[:, 0, 1] = 2.0 / areas[1]
-    # Subtracting a small flux from the synthetic O(1) CAMS values incurs
-    # cancellation error in the recovered difference.
-    np.testing.assert_allclose(difference, expected, rtol=1e-6)
+    adjusted = subtract_inventories(
+        original,
+        points,
+        category_mapping={"power": "sum", "cement": "sum"},
+        negative_policy="allow",
+    )
+
+    removed = (original.gdf[("sum", "CH4")] - adjusted.gdf[("sum", "CH4")]).to_numpy()
+    expected = np.zeros(4)
+    expected[0] = 1.0 * SEC_PER_YR
+    expected[1] = 2.0 * SEC_PER_YR
+    np.testing.assert_allclose(removed, expected, rtol=1e-9)
 
 
-def test_corso_negative_policy_clip_and_raise(
-    cams_file: Path, corso_dataset: xr.Dataset
-) -> None:
-    excessive = corso_dataset.isel(ID=[0]).copy(deep=True)
-    excessive["ch4_kty"][:] = 1e20
+def test_negative_policy_clip_and_raise(cams_file: Path) -> None:
+    original = CAMSGlobal(cams_file)
+    excessive = _point_inventory(
+        longitudes=[-0.04],
+        latitudes=[-0.04],
+        sectors=["power"],
+        emissions_kg_s=[1e20],
+    )
 
-    with pytest.warns(RuntimeWarning, match="residuals were clipped"):
-        clipped = CAMSGlobal(cams_file, corso_dataset=excessive)
-    assert np.all(clipped.monthly_flux.sel(category="ene").isel(cell=0) == 0)
-    assert clipped.corso_subtraction_summary["clipped_values"] == 12
+    with pytest.warns(RuntimeWarning, match="clipped to zero"):
+        clipped = subtract_inventories(
+            original, excessive, category_mapping={"power": "ene"}
+        )
+    assert clipped.gdf[("ene", "CH4")].iloc[0] == 0
+    assert clipped.subtraction_summary["clipped_values"] == 1
+    # The summary reports that far less was removed than was requested.
+    assert (
+        clipped.subtraction_summary["removed_kg_y"]["ene/CH4"]
+        < clipped.subtraction_summary["requested_kg_y"]["ene/CH4"]
+    )
 
-    with pytest.raises(ValueError, match="negative CAMS values"):
-        CAMSGlobal(
-            cams_file,
-            corso_dataset=excessive,
-            corso_negative_policy="raise",
+    with pytest.raises(ValueError, match="negative values"):
+        subtract_inventories(
+            original,
+            excessive,
+            category_mapping={"power": "ene"},
+            negative_policy="raise",
+        )
+
+
+def test_profiles_reproduce_the_monthly_fluxes(cams_file: Path) -> None:
+    """gdf + temporal profiles must carry the same information as the input."""
+    inventory = CAMSGlobal(cams_file)
+    areas = np.asarray(inventory.grid.cell_areas)
+
+    da = get_temporally_scaled_array(
+        inventory,
+        pd.date_range("2025-01-01", "2026-01-01", freq="MS", inclusive="left"),
+        sum_over_cells=False,
+    )
+    # kg/y per cell back to the kg m-2 s-1 of the CAMS file.
+    flux = da / SEC_PER_YR / xr.DataArray(areas, dims="cell")
+
+    for category in ("ene", "res"):
+        np.testing.assert_allclose(
+            flux.sel(category=category, substance="CH4").transpose("time", "cell"),
+            inventory.monthly_flux.sel(category=category),
+            rtol=1e-12,
         )

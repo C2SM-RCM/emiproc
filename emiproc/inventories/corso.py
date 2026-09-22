@@ -1,16 +1,39 @@
 """Read and process the CORSO point-source emissions database."""
 
-from collections.abc import Hashable, Iterable
+from __future__ import annotations
+
+import copy as copy_module
+from collections.abc import Hashable, Iterable, Mapping
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional, TypeAlias
 
+import geopandas as gpd
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import xarray as xr
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import squareform
+from shapely.geometry import Point
+
+from emiproc.grids import WGS84
+from emiproc.inventories import Inventory
+from emiproc.profiles.temporal.composite import CompositeTemporalProfiles
+from emiproc.profiles.temporal.profiles import (
+    DailyProfile,
+    MounthsProfile,
+    WeeklyProfile,
+)
+from emiproc.profiles.vertical_profiles import VerticalProfiles
+from emiproc.utils.constants import DAY_PER_YR, SEC_PER_YR
+
+#: Height of each layer of the CORSO vertical profiles, in metres.
+CORSO_VERTICAL_LAYER_HEIGHT = 100.0
+
+#: Conversion from the CORSO catalogue unit (kt/y) to the emiproc unit (kg/y).
+KTY_TO_KG_PER_YEAR = 1e6
+
 
 DateValue: TypeAlias = str | date | datetime | np.datetime64 | pd.Timestamp
 DateValues: TypeAlias = Iterable[DateValue]
@@ -89,9 +112,11 @@ class CorsoEmissions:
         self.df_month = read_csv("corso_ps_monthly_profiles_v2.0.csv", True)
         self.df_vert = read_csv("corso_ps_vertical_profiles_v2.0.csv", True)
 
-
         # Read emissions.
-        if Path(csv_directory / "corso_ps_catalogue_v2.0_with_short_name.csv").exists() and read_short_name:
+        if (
+            Path(csv_directory / "corso_ps_catalogue_v2.0_with_short_name.csv").exists()
+            and read_short_name
+        ):
             self.df_emiss = read_csv("corso_ps_catalogue_v2.0_with_short_name.csv")
         else:
             self.df_emiss = read_csv("corso_ps_catalogue_v2.0.csv")
@@ -239,7 +264,7 @@ class CorsoEmissions:
             emiss_m = emiss_y * prof_month[index_month] / 12.0
 
         # Emission in kg / day.
-        days_per_month = 365.25 / 12
+        days_per_month = DAY_PER_YR / 12
         emiss_d = emiss_m / days_per_month * prof_week[index_day]
 
         # Emission in kg / hour.
@@ -328,9 +353,7 @@ class CorsoEmissions:
                 distance_threshold_m,
             )
 
-        seconds_per_year = 365.25 * 24 * 3600
-        kilotonnes_to_kg = 1_000_000
-        conversion_factor = kilotonnes_to_kg / seconds_per_year
+        conversion_factor = KTY_TO_KG_PER_YEAR / SEC_PER_YR
 
         data_vars = {}
         for column in sources.columns:
@@ -471,3 +494,238 @@ if __name__ == "__main__":
 
 
 __all__ = ["CorsoEmissions", "interp_monthly_values"]
+
+
+class CorsoInventory(Inventory):
+    """The CORSO point-source emission inventory.
+
+    The emissions are read from the CORSO catalogue CSV files and stored as
+    point sources in :py:attr:`~emiproc.inventories.Inventory.gdfs`, one
+    :py:class:`geopandas.GeoDataFrame` per CORSO sector, with the emissions
+    converted to ``kg/y``.
+
+    Being a regular :py:class:`~emiproc.inventories.Inventory`, it can be used
+    with any emiproc operator or exporter. In particular it is meant to be
+    combined with a coarser inventory through
+    :py:func:`~emiproc.inventories.utils.merge_inventories_without_double_counting`
+    so that the point sources are not counted twice.
+
+    The hourly, weekly and monthly CORSO profiles are combined into temporal
+    profiles and the vertical profiles are read as well. As emiproc stores
+    profiles per category and substance rather than per source, the profiles
+    of the individual sources are combined using their emissions as weights.
+    Use :py:class:`CorsoEmissions` directly if you need the profile of one
+    specific source.
+
+    :arg csv_path: Directory containing the CORSO CSV files, or an already
+        created :py:class:`CorsoEmissions` reader.
+    :arg substances: Names of the species to import (ex. ``["CO2", "CH4"]``).
+        By default every ``*_kty`` column of the catalogue is imported.
+        The names are matched case insensitively against the column prefixes
+        and the inventory uses the upper case name as substance.
+    :arg categories_mapping: Maps the CORSO sectors to the category names of
+        the inventory. Sectors that are not given keep their CORSO name.
+        Sectors mapped to ``None`` are dropped.
+    :arg bbox: Optional ``(lon_min, lon_max, lat_min, lat_max)`` box. Only the
+        sources strictly inside it are kept.
+    :arg min_emission: Minimal emission in kt/y required for a source to be
+        imported. See :py:meth:`CorsoEmissions.filter_emissions`.
+    :arg year: The year of the inventory, only used as metadata.
+    :arg group_nearby_sources: Whether sources sharing a plant name and closer
+        than ``distance_threshold_m`` are merged into a single source.
+    :arg distance_threshold_m: Maximal separation of the merged sources.
+    :arg read_short_name: Whether the catalogue with the short names should be
+        preferred. See :py:class:`CorsoEmissions`.
+    """
+
+    def __init__(
+        self,
+        csv_path: str | Path | CorsoEmissions,
+        substances: list[str] | None = None,
+        categories_mapping: Mapping[str, str | None] | None = None,
+        bbox: tuple[float, float, float, float] | None = None,
+        min_emission: Optional[float] = None,
+        year: int | None = None,
+        group_nearby_sources: bool = False,
+        distance_threshold_m: float = 1000.0,
+        read_short_name: bool = True,
+    ) -> None:
+        super().__init__()
+
+        if isinstance(csv_path, CorsoEmissions):
+            reader = copy_module.copy(csv_path)
+            reader.df_emiss = csv_path.df_emiss.copy()
+        else:
+            reader = CorsoEmissions(csv_path, read_short_name=read_short_name)
+
+        self.name = "CORSO"
+        self.year = year
+        self.grid = None
+
+        if bbox is not None or min_emission is not None:
+            lon_min, lon_max, lat_min, lat_max = (
+                bbox if bbox is not None else (-180.0, 180.0, -90.0, 90.0)
+            )
+            reader.filter_emissions(
+                lon_min, lon_max, lat_min, lat_max, min_emission=min_emission
+            )
+
+        sources = reader.df_emiss.reset_index()
+        if group_nearby_sources:
+            emission_columns = [
+                column for column in sources.columns if column.lower().endswith("_kty")
+            ]
+            sources = reader._sum_nearby_sources(
+                sources, emission_columns, distance_threshold_m
+            )
+
+        missing = {"longitude", "latitude", "sector"} - set(sources.columns)
+        if missing:
+            raise ValueError(
+                f"The CORSO catalogue is missing the columns {sorted(missing)}."
+            )
+
+        available = {
+            column[:-4].upper(): column
+            for column in sources.columns
+            if column.lower().endswith("_kty")
+        }
+        if not available:
+            raise ValueError("The CORSO catalogue contains no '*_kty' column.")
+        if substances is None:
+            selected = dict(sorted(available.items()))
+        else:
+            selected = {}
+            for substance in substances:
+                key = str(substance).upper()
+                if key not in available:
+                    raise ValueError(
+                        f"{substance!r} is not in the CORSO catalogue."
+                        f" Available: {sorted(available)}"
+                    )
+                selected[key] = available[key]
+
+        resolved_mapping = {
+            str(sector).strip(): str(sector).strip()
+            for sector in sources["sector"].astype(str)
+        }
+        if categories_mapping is not None:
+            for sector, category in categories_mapping.items():
+                resolved_mapping[str(sector).strip()] = category
+        sources = sources.assign(
+            _category=sources["sector"].astype(str).str.strip().map(resolved_mapping)
+        )
+        sources = sources[sources["_category"].notna()]
+
+        self.gdf = None
+        self.gdfs = {}
+        for category, group in sources.groupby("_category", sort=True):
+            self.gdfs[str(category)] = gpd.GeoDataFrame(
+                {
+                    substance: group[column].astype(float).to_numpy()
+                    * KTY_TO_KG_PER_YEAR
+                    for substance, column in selected.items()
+                },
+                geometry=gpd.points_from_xy(
+                    group["longitude"].astype(float),
+                    group["latitude"].astype(float),
+                ),
+                crs=WGS84,
+            )
+
+        self._set_corso_profiles(reader, sources, selected)
+
+        self.history.append(
+            f"Read {len(sources)} CORSO sources for {sorted(selected)}"
+            f" in {len(self.gdfs)} categories."
+        )
+
+    def _set_corso_profiles(
+        self,
+        reader: CorsoEmissions,
+        sources: pd.DataFrame,
+        selected: Mapping[str, str],
+    ) -> None:
+        """Combine the per source CORSO profiles into emiproc profiles."""
+
+        def profile_of(table: pd.DataFrame, profile_id: Hashable) -> np.ndarray:
+            values = table[table.index == profile_id].to_numpy(dtype=float).flatten()
+            if values.size == 0:
+                raise ValueError(f"CORSO profile {profile_id!r} is not defined.")
+            return values
+
+        def combined(
+            table: pd.DataFrame,
+            id_column: str,
+            group: pd.DataFrame,
+            weights: np.ndarray,
+        ) -> np.ndarray:
+            """Emission weighted mean of the profiles of the sources."""
+            stacked = np.stack(
+                [profile_of(table, source_id) for source_id in group[id_column]]
+            )
+            total = weights.sum()
+            if total <= 0:
+                averaged = stacked.mean(axis=0)
+            else:
+                averaged = (stacked * weights[:, None]).sum(axis=0) / total
+            if not np.isfinite(averaged).all() or averaged.sum() <= 0:
+                return np.full(stacked.shape[1], 1.0 / stacked.shape[1])
+            return averaged / averaged.sum()
+
+        needed = {"ID_MonthFact", "ID_WeekFact", "ID_HourFact", "ID_VertProf"}
+        if needed - set(sources.columns):
+            self.logger.warning(
+                "The CORSO catalogue has no profile columns, profiles are not set."
+            )
+            return
+
+        categories: list[str] = []
+        substances: list[str] = []
+        temporal: list[list] = []
+        vertical: list[np.ndarray] = []
+
+        for category, group in sources.groupby("_category", sort=True):
+            for substance, column in selected.items():
+                weights = group[column].astype(float).to_numpy()
+                weights = np.nan_to_num(weights, nan=0.0)
+                categories.append(str(category))
+                substances.append(substance)
+                temporal.append(
+                    [
+                        MounthsProfile(
+                            combined(reader.df_month, "ID_MonthFact", group, weights)
+                        ),
+                        WeeklyProfile(
+                            combined(reader.df_week, "ID_WeekFact", group, weights)
+                        ),
+                        DailyProfile(
+                            combined(reader.df_hour, "ID_HourFact", group, weights)
+                        ),
+                    ]
+                )
+                vertical.append(combined(reader.df_vert, "ID_VertProf", group, weights))
+
+        if not temporal:
+            return
+
+        unique_categories = sorted(set(categories))
+        unique_substances = sorted(set(substances))
+        indexes = xr.DataArray(
+            np.full((len(unique_categories), len(unique_substances)), -1, dtype=int),
+            dims=("category", "substance"),
+            coords={
+                "category": unique_categories,
+                "substance": unique_substances,
+            },
+        )
+        for position, (category, substance) in enumerate(zip(categories, substances)):
+            indexes.loc[{"category": category, "substance": substance}] = position
+
+        self.set_profiles(CompositeTemporalProfiles(temporal), indexes)
+
+        ratios = np.stack(vertical)
+        heights = (
+            np.arange(1, ratios.shape[1] + 1, dtype=float) * CORSO_VERTICAL_LAYER_HEIGHT
+        )
+        self.set_profiles(VerticalProfiles(ratios, heights), indexes)

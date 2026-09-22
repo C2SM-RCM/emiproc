@@ -1,308 +1,269 @@
-"""Conservative CAMS-GLOB-ANT export to a projected MicroHH grid."""
+"""Export an emiproc inventory to the horizontal grid of MicroHH."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import logging
+from collections.abc import Mapping
 from datetime import datetime
 from os import PathLike
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
+import pandas as pd
 import pyproj
 import xarray as xr
 
+from emiproc import deprecated
 from emiproc.exports.netcdf import nc_cf_attributes
-from emiproc.grids import RegularGrid, WGS84, WGS84_NSIDC
+from emiproc.exports.utils import get_temporally_scaled_array
+from emiproc.grids import RegularGrid, WGS84
+from emiproc.inventories import Category, Inventory, Substance
 from emiproc.inventories.cams_global import (
-    CAMSGlobal,
+    CAMSFiles,
     CAMS_FLUX_UNIT,
-    resolve_cams_substances,
-    select_cams_global_variable,
+    read_cams_global,
 )
-from emiproc.regrid import get_weights_mapping, weights_remap
+from emiproc.inventories.utils import (
+    NegativePolicy,
+    merge_inventories_without_double_counting,
+)
+from emiproc.regrid import remap_inventory
+from emiproc.utils.translators import inv_to_xarray
+from emiproc.utils.constants import SEC_PER_YR
 
-CAMSFile = str | PathLike
-CAMSFiles = CAMSFile | Sequence[CAMSFile]
+logger = logging.getLogger(__name__)
+
+#: Unit of the emissions written in the MicroHH files.
+MICROHH_FLUX_UNIT = CAMS_FLUX_UNIT
 
 
 def _inventory_bbox_for_grid(grid: RegularGrid) -> tuple[float, float, float, float]:
-    """Return the target grid's longitude/latitude bounding box."""
+    """Return the target grid\'s longitude/latitude bounding box."""
     target = grid.gdf.to_crs(WGS84)
     west, south, east, north = target.total_bounds
     return float(west), float(south), float(east), float(north)
 
 
-def _summation_variable(nc_file: CAMSFile) -> str:
-    """Select the one flux variable used when summing multiple files."""
-    return select_cams_global_variable(nc_file)
-
-
-def _validate_summation_compatibility(
-    reference: CAMSGlobal,
-    other: CAMSGlobal,
-    other_file: Path,
-) -> None:
-    """Ensure two selected CAMS inventories describe the same time interval."""
-    errors = []
-    if reference.year != other.year:
-        errors.append(f"year {other.year} != {reference.year}")
-    if not np.array_equal(
-        reference.monthly_flux["time"].values,
-        other.monthly_flux["time"].values,
-    ):
-        errors.append("time coordinates differ")
-    if errors:
+def _default_time_range(inv: Inventory, freq: str) -> pd.DatetimeIndex:
+    """Build a one year time range for the inventory."""
+    if inv.year is None:
         raise ValueError(
-            f"Cannot sum CAMS inventory {other_file}: " + "; ".join(errors) + "."
+            "The inventory has no year, so the time range cannot be inferred."
+            " Give `time_range=` explicitly."
         )
-
-
-def _grids_match(reference: CAMSGlobal, other: CAMSGlobal) -> bool:
-    """Return whether two source grids have identical cells and ordering."""
-    return (
-        reference.grid.crs == other.grid.crs
-        and reference.grid.shape == other.grid.shape
-        and np.allclose(reference.grid.lon_bounds, other.grid.lon_bounds)
-        and np.allclose(reference.grid.lat_bounds, other.grid.lat_bounds)
+    return pd.date_range(
+        start=f"{inv.year}-01-01",
+        end=f"{inv.year + 1}-01-01",
+        freq=freq,
+        inclusive="left",
     )
 
 
-def _remap_flux_to_inventory_grid(
-    source: CAMSGlobal,
-    target: CAMSGlobal,
-) -> np.ndarray:
-    """Conservatively remap one selected CAMS field to another CAMS grid."""
-    source_shapes = source.grid.gdf.geometry.to_crs(WGS84_NSIDC).reset_index(
-        drop=True
-    )
-    target_shapes = target.grid.gdf.geometry.to_crs(WGS84_NSIDC).reset_index(
-        drop=True
-    )
-    source_areas = source_shapes.area.to_numpy()
-    target_areas = target_shapes.area.to_numpy()
-    mapping = get_weights_mapping(
-        None,
-        source_shapes,
-        target_shapes,
-        loop_over_inv_objects=False,
-    )
-    remapped = np.empty(
-        (source.monthly_flux.sizes["time"], len(target.grid)),
-        dtype=np.float64,
-    )
-    for time_index in range(source.monthly_flux.sizes["time"]):
-        source_flux = source.monthly_flux.isel(
-            time=time_index, category=0
-        ).values
-        target_rate = weights_remap(
-            mapping,
-            source_flux * source_areas,
-            len(target.grid),
+def _constant_time_range(inv: Inventory) -> pd.DatetimeIndex:
+    """Return the single time step used for time independent emissions."""
+    if inv.year is None:
+        raise ValueError(
+            "The inventory has no year and no temporal profiles, so the time"
+            " range cannot be inferred. Give `time_range=` explicitly."
         )
-        remapped[time_index] = target_rate / target_areas
-    return remapped
+    return pd.DatetimeIndex([pd.Timestamp(f"{inv.year}-01-01")])
 
 
-def _sum_cams_global_files(
-    nc_files: Sequence[CAMSFile],
-    bbox: tuple[float, float, float, float],
-    substance: str | None,
-    corso_dataset: xr.Dataset | None,
-    corso_substance: str | None,
-    corso_sector_mapping: Mapping[str, str] | None,
-    corso_negative_policy: Literal["clip", "raise", "allow"],
-    date: datetime | None,
-) -> CAMSGlobal:
-    """Load compatible CAMS files, sum their fluxes, then subtract CORSO."""
-    paths = [Path(path) for path in nc_files]
-    if not paths:
-        raise ValueError("At least one CAMS inventory file must be provided.")
-
-    inventories = [
-        CAMSGlobal(
-            path,
-            variables=[_summation_variable(path)],
-            bbox=bbox,
-            substance=substance,
-            date=date,
-        )
-        for path in paths
-    ]
-    temporal_reference = inventories[0]
-    for path, inventory in zip(paths[1:], inventories[1:]):
-        _validate_summation_compatibility(temporal_reference, inventory, path)
-
-    aggregate_substance = resolve_cams_substances(
-        [inventory.source_substance_name for inventory in inventories],
-        override=substance,
-    )
-    reference = min(
-        inventories,
-        key=lambda inventory: float(np.median(inventory.grid.cell_areas)),
-    )
-    summed_values = np.zeros(
-        (reference.monthly_flux.sizes["time"], len(reference.grid)),
-        dtype=np.float64,
-    )
-    remapped_files = 0
-    for inventory in inventories:
-        if _grids_match(reference, inventory):
-            summed_values += inventory.monthly_flux.isel(category=0).values
-        else:
-            summed_values += _remap_flux_to_inventory_grid(inventory, reference)
-            remapped_files += 1
-
-    reference.monthly_flux = (
-        reference.monthly_flux.isel(category=[0])
-        .assign_coords(category=["sum"])
-        .astype(np.float64)
-    )
-    reference.monthly_flux.data = summed_values[:, None, :]
-    reference.substance_name = aggregate_substance
-    reference.monthly_flux.attrs.update(
-        {
-            "long_name": (
-                f"summed {reference.substance_name} emission flux for selected "
-                "time intervals"
-            ),
-            "summed_input_files": len(paths),
-        }
-    )
-    reference.category_descriptions = {
-        "sum": f"Sum of {len(paths)} CAMS global inventory files"
-    }
-    reference.name = f"CAMS_GLOBAL_SUM_{len(paths)}_FILES"
-    reference.source_files = [str(path) for path in paths]
-    reference.source_file_metadata = [
-        (
-            f"{path}: variable={inventory.selected_variables[0]}, "
-            f"source_substance={inventory.source_substance_name}"
-        )
-        for path, inventory in zip(paths, inventories)
-    ]
-    reference.history.append(
-        f"Summed {len(paths)} CAMS global inventory files before CORSO subtraction"
-    )
-    if remapped_files:
-        reference.history.append(
-            f"Conservatively remapped {remapped_files} input files to the "
-            "finest CAMS source grid before summation"
-        )
-
-    if corso_dataset is not None:
-        reference._subtract_corso_emissions(
-            corso_dataset,
-            corso_substance=corso_substance,
-            sector_mapping=corso_sector_mapping,
-            negative_policy=corso_negative_policy,
-        )
-    reference._rebuild_derived_data()
-    return reference
+def _time_bounds(time_range: pd.DatetimeIndex, year: int | None) -> np.ndarray:
+    """Return the ``(n_times, 2)`` averaging intervals of the time steps."""
+    starts = time_range.to_numpy()
+    if len(starts) > 1:
+        last = starts[-1] + (starts[-1] - starts[-2])
+    elif year is not None:
+        last = np.datetime64(f"{year + 1}-01-01", "ns")
+    else:
+        last = starts[-1] + np.timedelta64(1, "D")
+    ends = np.concatenate([starts[1:], [last]])
+    return np.column_stack([starts, ends])
 
 
-def export_cams_global_to_microhh(
-    inventory: CAMSGlobal,
+def export_to_microhh(
+    inv: Inventory,
     grid: RegularGrid,
     output_file: PathLike,
+    time_range: pd.DatetimeIndex | int | None = None,
+    freq: str = "MS",
+    substances: list[Substance] | None = None,
+    categories: list[Category] | None = None,
     weights_file: PathLike | None = None,
     add_total: bool = True,
+    category_descriptions: Mapping[str, str] | None = None,
 ) -> Path:
-    """Conservatively remap monthly CAMS fluxes to a MicroHH NetCDF file.
+    """Export an inventory to a MicroHH emission NetCDF file.
 
-    The output emission variable has dimensions ``(time, category, y, x)`` and
-    units ``kg m-2 s-1``. Source emissions are first converted to ``kg s-1``,
-    distributed using polygon-overlap weights, and divided by target-cell area.
+    The inventory is remapped conservatively onto ``grid`` when it is not
+    already on it, and its temporal profiles are used to resolve the emissions
+    on the time axis. One ``emi_<substance>`` variable is written per
+    substance, with dimensions ``(time, category, y, x)`` and units
+    ``kg m-2 s-1``.
+
+    Any :py:class:`~emiproc.inventories.Inventory` can be exported, so this
+    works for CAMS-GLOB-ANT, TNO, EDGAR, a point-source database such as
+    :py:class:`~emiproc.inventories.corso.CorsoInventory`, or a combination
+    of them built with
+    :py:func:`~emiproc.inventories.utils.merge_inventories_without_double_counting`.
+
+    :arg inv: The inventory to export. It must have temporal profiles.
+    :arg grid: The MicroHH grid, see
+        :py:class:`~emiproc.grids.MicroHHGrid`. It must use a projected CRS.
+    :arg output_file: Path of the NetCDF file to write.
+    :arg time_range: The time steps to write. An integer is read as a year.
+        By default the year of the inventory is used with ``freq``.
+    :arg freq: Frequency of the default time range, monthly by default.
+        See :py:func:`pandas.date_range`.
+    :arg substances: Substances to export, all of them by default.
+    :arg categories: Categories to export, all of them by default.
+    :arg weights_file: Optional file storing the remapping weights.
+        See :py:func:`~emiproc.regrid.remap_inventory`.
+    :arg add_total: Whether to add an ``emi_<substance>_total`` variable
+        holding the sum over the categories.
+    :arg category_descriptions: Optional descriptions of the categories, added
+        to the metadata of the ``category`` coordinate.
+
+    :return: The path of the file written.
+
+    .. note::
+        Emissions are converted from the emiproc unit ``kg/y`` to
+        ``kg m-2 s-1`` using the area of the target cells, so the export is
+        mass conservative up to the cells that fall outside of ``grid``.
     """
     target_crs = pyproj.CRS.from_user_input(grid.crs)
     if target_crs.is_geographic:
         raise ValueError("The target MicroHH grid must use a projected CRS.")
 
-    source_shapes = inventory.grid.gdf.geometry.to_crs(target_crs).reset_index(
-        drop=True
-    )
-    target_shapes = grid.gdf.geometry.to_crs(target_crs).reset_index(drop=True)
-    source_areas = source_shapes.area.to_numpy()
-    target_areas = target_shapes.area.to_numpy()
+    # Remapping copies the inventory, and `Inventory.copy` only keeps the
+    # standard attributes, so read the reader specific metadata beforehand.
+    source_metadata: dict[str, str | float | int] = {}
+    if hasattr(inv, "source_files"):
+        source_metadata["input_file_count"] = len(inv.source_files)
+        source_metadata["input_files"] = " | ".join(inv.source_files)
+    if hasattr(inv, "source_file_metadata"):
+        source_metadata["input_details"] = " | ".join(inv.source_file_metadata)
+    if hasattr(inv, "subtraction_summary"):
+        summary = inv.subtraction_summary
+        source_metadata.update(
+            {
+                "double_counting_negative_policy": str(summary["negative_policy"]),
+                "double_counting_clipped_values": int(summary["clipped_values"]),
+                "double_counting_removed_kg_y": str(summary["removed_kg_y"]),
+                "double_counting_requested_kg_y": str(summary["requested_kg_y"]),
+            }
+        )
+    source_descriptions = dict(getattr(inv, "category_descriptions", {}) or {})
+    source_time_bounds = getattr(inv, "time_bounds", None)
 
-    mapping = get_weights_mapping(
-        Path(weights_file) if weights_file is not None else None,
-        source_shapes,
-        target_shapes,
-        loop_over_inv_objects=False,
+    if getattr(inv, "grid", None) is not grid:
+        logger.debug("Remapping %s on the MicroHH grid.", inv)
+        inv = remap_inventory(inv, grid, weights_file=weights_file)
+
+    has_profiles = (
+        getattr(inv, "t_profiles_groups", None) is not None
+        and getattr(inv, "t_profiles_indexes", None) is not None
     )
 
-    remapped = np.empty(
-        (
-            inventory.monthly_flux.sizes["time"],
-            inventory.monthly_flux.sizes["category"],
-            grid.ny,
-            grid.nx,
+    if time_range is None:
+        time_range = (
+            _default_time_range(inv, freq)
+            if has_profiles
+            else _constant_time_range(inv)
+        )
+    elif isinstance(time_range, (int, np.integer)):
+        time_range = pd.date_range(
+            start=f"{int(time_range)}-01-01",
+            end=f"{int(time_range) + 1}-01-01",
+            freq=freq,
+            inclusive="left",
+        )
+    elif not isinstance(time_range, pd.DatetimeIndex):
+        raise TypeError(
+            f"`time_range` must be a pd.DatetimeIndex or an int, got"
+            f" {type(time_range)}."
+        )
+
+    # kg/y per cell, scaled along the time axis by the temporal profiles.
+    if has_profiles:
+        da = get_temporally_scaled_array(inv, time_range, sum_over_cells=False)
+    else:
+        logger.warning(
+            "%s has no temporal profiles, the emissions are exported as"
+            " constant over the %d time step(s).",
+            inv,
+            len(time_range),
+        )
+        da = inv_to_xarray(inv).expand_dims(time=time_range)
+    # `Inventory.categories` and `.substances` are built from sets, so their
+    # order varies between runs. Sort them to keep the output reproducible.
+    da = da.sel(
+        substance=(
+            sorted(da["substance"].values, key=str)
+            if substances is None
+            else list(substances)
         ),
-        dtype=np.float64,
+        category=(
+            sorted(da["category"].values, key=str)
+            if categories is None
+            else list(categories)
+        ),
     )
-    for time_index in range(inventory.monthly_flux.sizes["time"]):
-        for category_index in range(inventory.monthly_flux.sizes["category"]):
-            source_flux = inventory.monthly_flux.isel(
-                time=time_index, category=category_index
-            ).values
-            target_rate = weights_remap(
-                mapping, source_flux * source_areas, len(target_shapes)
-            )
-            remapped[time_index, category_index] = (
-                target_rate / target_areas
-            ).reshape(grid.shape).T
 
+    target_areas = np.asarray(grid.cell_areas, dtype=float)
+    # kg/y/cell -> kg/s/cell -> kg m-2 s-1
+    da = da / SEC_PER_YR / xr.DataArray(target_areas, dims="cell")
+
+    # Unstack the flat cell dimension onto the 2D grid.
+    nx, ny = grid.shape
+    da = da.assign_coords(
+        x=("cell", np.repeat(np.arange(nx), ny)),
+        y=("cell", np.tile(np.arange(ny), nx)),
+    )
+    da = da.assign_coords(
+        xr.Coordinates.from_pandas_multiindex(
+            pd.MultiIndex.from_arrays([da.x.values, da.y.values], names=["x", "y"]),
+            "cell",
+        )
+    )
+    da = da.unstack("cell").transpose("time", "category", "substance", "y", "x")
+
+    exported_categories = [str(category) for category in da["category"].values]
     x = grid.lon_range - grid.xmin
     y = grid.lat_range - grid.ymin
     projected_x, projected_y = np.meshgrid(grid.lon_range, grid.lat_range)
     to_lonlat = pyproj.Transformer.from_crs(target_crs, WGS84, always_xy=True)
     longitude, latitude = to_lonlat.transform(projected_x, projected_y)
 
-    categories = inventory.monthly_flux["category"].values.astype(str)
-    temporal_label = (
-        "monthly mean"
-        if inventory.monthly_flux.sizes["time"] == 12
-        else "selected-time"
-    )
-    emission_name = f"emi_{inventory.substance_name}"
-    additional_attributes: dict[str, str | float | int] = {
-        "inventory_year": str(inventory.year),
-        "target_grid": grid.name,
-        "emiproc_history": str(inventory.history),
-    }
-    if hasattr(inventory, "source_files"):
-        additional_attributes["cams_global_input_file_count"] = len(
-            inventory.source_files
-        )
-        additional_attributes["cams_global_input_files"] = " | ".join(
-            inventory.source_files
-        )
-    if hasattr(inventory, "source_file_metadata"):
-        additional_attributes["cams_global_input_details"] = " | ".join(
-            inventory.source_file_metadata
-        )
-    if hasattr(inventory, "corso_subtraction_summary"):
-        additional_attributes.update(
+    data_vars = {}
+    for substance in da["substance"].values:
+        values = da.sel(substance=substance).values
+        name = f"emi_{substance}"
+        data_vars[name] = (
+            ("time", "category", "y", "x"),
+            values,
             {
-                f"corso_{key}": value
-                for key, value in inventory.corso_subtraction_summary.items()
-            }
+                "long_name": f"{substance} emission flux",
+                "units": MICROHH_FLUX_UNIT,
+                "substance": str(substance),
+                "grid_mapping": "crs",
+            },
         )
-    ds = xr.Dataset(
-        data_vars={
-            emission_name: (
-                ("time", "category", "y", "x"),
-                remapped,
+        if add_total:
+            data_vars[f"{name}_total"] = (
+                ("time", "y", "x"),
+                values.sum(axis=1),
                 {
-                    "long_name": (
-                        f"{temporal_label} {inventory.substance_name} emission flux"
-                    ),
-                    "units": CAMS_FLUX_UNIT,
-                    "substance": inventory.substance_name,
+                    "long_name": f"total {substance} emission flux",
+                    "units": MICROHH_FLUX_UNIT,
+                    "substance": str(substance),
                     "grid_mapping": "crs",
                 },
-            ),
+            )
+
+    data_vars.update(
+        {
             "cell_area": (
                 ("y", "x"),
                 target_areas.reshape(grid.shape).T,
@@ -320,18 +281,35 @@ def export_cams_global_to_microhh(
             ),
             "time_bnds": (
                 ("time", "bounds"),
-                inventory.time_bounds,
-                {"long_name": "monthly averaging interval"},
+                (
+                    np.asarray(source_time_bounds)
+                    if source_time_bounds is not None
+                    and len(source_time_bounds) == len(time_range)
+                    else _time_bounds(time_range, inv.year)
+                ),
+                {"long_name": "emission averaging interval"},
             ),
             "crs": ((), 0, target_crs.to_cf()),
-        },
+        }
+    )
+
+    additional_attributes: dict[str, str | float | int] = {
+        "target_grid": grid.name,
+        "emiproc_history": str(inv.history),
+    }
+    if inv.year is not None:
+        additional_attributes["inventory_year"] = str(inv.year)
+    additional_attributes.update(source_metadata)
+
+    ds = xr.Dataset(
+        data_vars=data_vars,
         coords={
             "time": (
                 "time",
-                inventory.monthly_flux["time"].values,
+                time_range.to_numpy(),
                 {"standard_name": "time", "bounds": "time_bnds"},
             ),
-            "category": categories,
+            "category": exported_categories,
             "x": (
                 "x",
                 x,
@@ -363,33 +341,26 @@ def export_cams_global_to_microhh(
             "bounds": [0, 1],
         },
         attrs=nc_cf_attributes(
-            title="CAMS-GLOB-ANT emissions on a MicroHH grid",
-            source="CAMS-GLOB-ANT",
-            history=f"Conservatively remapped by emiproc from {inventory.name}.",
+            title="emiproc emissions on a MicroHH grid",
+            source=inv.name,
+            history=f"Remapped and temporally resolved by emiproc from {inv}.",
             additional_attributes=additional_attributes,
         ),
     )
-    ds["category"].attrs = {
-        "long_name": "CAMS-GLOB-ANT emission sector code",
-        "descriptions": "; ".join(
-            f"{cat}: {inventory.category_descriptions[cat]}" for cat in categories
-        ),
-    }
-    if add_total:
-        ds[f"{emission_name}_total"] = ds[emission_name].sum("category")
-        ds[f"{emission_name}_total"].attrs = {
-            "long_name": (
-                f"{temporal_label} total {inventory.substance_name} emission flux"
-            ),
-            "units": CAMS_FLUX_UNIT,
-            "substance": inventory.substance_name,
-            "grid_mapping": "crs",
-        }
+    descriptions = dict(category_descriptions or source_descriptions)
+    ds["category"].attrs = {"long_name": "emission category"}
+    if descriptions:
+        ds["category"].attrs["descriptions"] = "; ".join(
+            f"{category}: {descriptions[category]}"
+            for category in exported_categories
+            if category in descriptions
+        )
 
     output_path = Path(output_file).with_suffix(".nc")
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    reference_year = inv.year if inv.year is not None else time_range[0].year
     time_encoding = {
-        "units": f"seconds since {inventory.year}-01-01 00:00:00",
+        "units": f"seconds since {reference_year}-01-01 00:00:00",
         "calendar": "proleptic_gregorian",
         "dtype": "int64",
     }
@@ -399,84 +370,131 @@ def export_cams_global_to_microhh(
     return output_path
 
 
-def load_cams_global(
+@deprecated("Use `export_to_microhh` instead, it works for any inventory.")
+def export_cams_global_to_microhh(
+    inventory: Inventory,
+    grid: RegularGrid,
+    output_file: PathLike,
+    weights_file: PathLike | None = None,
+    add_total: bool = True,
+) -> Path:
+    """Export a CAMS-GLOB-ANT inventory to a MicroHH file.
+
+    .. deprecated::
+        Use :py:func:`export_to_microhh`, which accepts any inventory.
+    """
+    return export_to_microhh(
+        inventory,
+        grid,
+        output_file,
+        weights_file=weights_file,
+        add_total=add_total,
+    )
+
+
+def import_and_export_cams_global(
     nc_file: CAMSFiles,
     grid: RegularGrid,
     output_file: PathLike,
     variables: list[str] | None = None,
     substance: str | None = None,
     weights_file: PathLike | None = None,
-    corso_dataset: xr.Dataset | None = None,
-    corso_substance: str | None = None,
-    corso_sector_mapping: Mapping[str, str] | None = None,
-    corso_negative_policy: Literal["clip", "raise", "allow"] = "clip",
+    point_sources: Inventory | None = None,
+    category_mapping: Mapping[str, str] | None = None,
+    substance_mapping: Mapping[str, str] | None = None,
+    negative_policy: NegativePolicy = "clip",
     date: datetime | None = None,
+    keep_point_sources: bool = False,
 ) -> Path:
-    """Crop, import, remap, and export CAMS-GLOB-ANT files.
+    """Read CAMS-GLOB-ANT files and export them on a MicroHH grid.
 
-    A scalar path retains the standard :class:`CAMSGlobal` variable-selection
-    behavior. For a sequence of paths, ``sum`` is selected from each file when
-    present; otherwise the file must contain exactly one data variable. Those
-    single-variable fluxes are summed after compatibility validation. The
-    ``variables`` argument is consequently not accepted with multiple-file
-    input.
+    This is a convenience wrapper over the standard emiproc pipeline:
+    :py:func:`~emiproc.inventories.cams_global.read_cams_global` to read,
+    :py:func:`~emiproc.inventories.utils.merge_inventories_without_double_counting`
+    to remove the emissions already described by ``point_sources``, and
+    :py:func:`export_to_microhh` to write. Call these three yourself when you
+    need to apply other operators in between.
 
-    ``date`` selects the matching month from monthly inventories and the exact
-    day from daily shipping or oceanic inventories. It must be provided for
-    inputs that do not contain 12 monthly time steps.
+    :arg nc_file: One path, or several paths, to CAMS-GLOB-ANT files.
+        See :py:func:`~emiproc.inventories.cams_global.read_cams_global`.
+    :arg grid: The MicroHH grid to export to.
+    :arg output_file: Path of the NetCDF file to write.
+    :arg variables: Sector variables to import, only for a single file.
+    :arg substance: Optional species name, normally inferred from the metadata.
+    :arg weights_file: Optional file storing the remapping weights.
+    :arg point_sources: Optional inventory of sources that CAMS already
+        includes, ex. :py:class:`~emiproc.inventories.corso.CorsoInventory`.
+        Its emissions are removed from the CAMS cells so that they are not
+        counted twice.
+    :arg category_mapping: Maps the categories of ``point_sources`` to the CAMS
+        categories, ex.
+        :py:data:`~emiproc.inventories.cams_global.DEFAULT_CORSO_SECTOR_MAPPING`.
+    :arg substance_mapping: Maps the substances of ``point_sources`` to the
+        CAMS substances.
+    :arg negative_policy: What to do when the point sources exceed the CAMS
+        emissions of a cell. See
+        :py:func:`~emiproc.inventories.utils.subtract_inventories`.
+    :arg date: Selects the matching month or day of the CAMS input.
+    :arg keep_point_sources: Whether the point sources are added back to the
+        inventory after having been removed from the CAMS cells. When False
+        (the default) only the CAMS emissions that the point sources do not
+        already describe are exported.
 
-    When ``corso_dataset`` is provided, its raw annual point-source emissions
-    are subtracted from the corresponding CAMS cells after all CAMS files have
-    been summed and before conservative remapping. See
-    :class:`emiproc.inventories.cams_global.CAMSGlobal` for species mapping,
-    sector mapping, and negative-residual behavior.
+    :return: The path of the file written.
     """
-    bbox = _inventory_bbox_for_grid(grid)
-    if isinstance(nc_file, Sequence) and not isinstance(nc_file, (str, bytes)):
-        if variables is not None:
-            raise ValueError(
-                "`variables` cannot be provided with a sequence of CAMS files; "
-                "each file uses 'sum' or its sole data variable."
+    inv = read_cams_global(
+        nc_file,
+        variables=variables,
+        bbox=_inventory_bbox_for_grid(grid),
+        substance=substance,
+        date=date,
+    )
+
+    if point_sources is not None:
+        if keep_point_sources:
+            inv = merge_inventories_without_double_counting(
+                inv,
+                point_sources,
+                category_mapping=category_mapping,
+                substance_mapping=substance_mapping,
+                negative_policy=negative_policy,
+                weights_file=weights_file,
             )
-        inventory = _sum_cams_global_files(
-            nc_file,
-            bbox=bbox,
-            substance=substance,
-            corso_dataset=corso_dataset,
-            corso_substance=corso_substance,
-            corso_sector_mapping=corso_sector_mapping,
-            corso_negative_policy=corso_negative_policy,
-            date=date,
-        )
-    else:
-        selected_variables = variables
-        if date is not None and selected_variables is None:
-            selected_variables = [_summation_variable(nc_file)]
-        inventory = CAMSGlobal(
-            nc_file,
-            variables=selected_variables,
-            bbox=bbox,
-            substance=substance,
-            corso_dataset=corso_dataset,
-            corso_substance=corso_substance,
-            corso_sector_mapping=corso_sector_mapping,
-            corso_negative_policy=corso_negative_policy,
-            date=date,
-        )
-    return export_cams_global_to_microhh(
-        inventory, grid, output_file, weights_file=weights_file
+        else:
+            from emiproc.inventories.utils import subtract_inventories
+
+            inv = subtract_inventories(
+                inv,
+                point_sources,
+                category_mapping=category_mapping,
+                substance_mapping=substance_mapping,
+                negative_policy=negative_policy,
+                weights_file=weights_file,
+            )
+
+    return export_to_microhh(
+        inv,
+        grid,
+        output_file,
+        # A `date` selects one single time step out of the CAMS input.
+        time_range=None if date is None else pd.DatetimeIndex([date]),
+        weights_file=weights_file,
     )
 
 
-# Public convenience name plus compatibility aliases for the former inventory
-# name.
-import_and_export_cams_global = load_cams_global
+#: Deprecated alias of :py:func:`import_and_export_cams_global`.
+load_cams_global = import_and_export_cams_global
+
+
+#: Deprecated aliases kept from the former CAMS-GLOB-ANT specific module.
 export_cams_glob_ant_to_microhh = export_cams_global_to_microhh
-load_cams_glob_ant = load_cams_global
-import_and_export_cams_glob_ant = load_cams_global
+load_cams_glob_ant = import_and_export_cams_global
+import_and_export_cams_glob_ant = import_and_export_cams_global
 
 
 __all__ = [
+    "MICROHH_FLUX_UNIT",
+    "export_to_microhh",
     "export_cams_global_to_microhh",
     "import_and_export_cams_global",
     "load_cams_global",
