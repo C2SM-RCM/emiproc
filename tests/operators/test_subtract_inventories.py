@@ -198,3 +198,25 @@ def test_target_must_be_gridded() -> None:
 def test_unknown_policy_is_rejected(gridded: Inventory) -> None:
     with pytest.raises(ValueError, match="must be 'clip', 'raise' or 'allow'"):
         subtract_inventories(gridded, _points([1.0]), negative_policy="nope")
+
+
+def test_mapping_may_cover_categories_that_are_absent(gridded: Inventory) -> None:
+    """A shared mapping is a lookup table, not an assertion.
+
+    ``DEFAULT_CORSO_SECTOR_MAPPING`` names every CORSO sector, but a cropped
+    inventory usually holds only some of them.
+    """
+    out = subtract_inventories(
+        gridded,
+        _points([50.0]),
+        category_mapping={
+            "power": "ene",
+            "cement": "ind",
+            "absent_sector": "ene",
+        },
+        substance_mapping={"co2": "CO2", "absent_substance": "CO2"},
+    )
+
+    np.testing.assert_allclose(
+        out.gdf[("ene", "CO2")].to_numpy(), [50.0, 200.0, 300.0, 400.0]
+    )

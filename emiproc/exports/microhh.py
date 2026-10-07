@@ -451,6 +451,16 @@ def import_and_export_cams_global(
     )
 
     if point_sources is not None:
+        # The two remappings (point sources onto the CAMS grid, then CAMS onto
+        # the MicroHH grid) must not share a weights file: `get_weights_mapping`
+        # caches by file name without checking that the shapes still match.
+        point_weights_file = (
+            None
+            if weights_file is None
+            else Path(weights_file)
+            .with_suffix(".npz")
+            .with_stem(Path(weights_file).stem + "_point_sources")
+        )
         if keep_point_sources:
             inv = merge_inventories_without_double_counting(
                 inv,
@@ -458,7 +468,7 @@ def import_and_export_cams_global(
                 category_mapping=category_mapping,
                 substance_mapping=substance_mapping,
                 negative_policy=negative_policy,
-                weights_file=weights_file,
+                weights_file=point_weights_file,
             )
         else:
             from emiproc.inventories.utils import subtract_inventories
@@ -469,7 +479,7 @@ def import_and_export_cams_global(
                 category_mapping=category_mapping,
                 substance_mapping=substance_mapping,
                 negative_policy=negative_policy,
-                weights_file=weights_file,
+                weights_file=point_weights_file,
             )
 
     return export_to_microhh(

@@ -643,13 +643,20 @@ def _resolve_mapping(
     """Return a full mapping for ``values``, defaulting to the identity."""
     resolved = {value: value for value in values}
     if mapping is not None:
+        unused = []
         for key, value in mapping.items():
             if key not in resolved:
-                raise ValueError(
-                    f"{key!r} is not present in the inventory to subtract."
-                    f" Available: {sorted(map(str, resolved))}"
-                )
+                # A mapping may cover more than one inventory, ex. the default
+                # CORSO sector mapping when the domain holds only some sectors.
+                unused.append(key)
+                continue
             resolved[key] = value
+        if unused:
+            logging.getLogger("emiproc.subtract_inventories").debug(
+                "%s of the given mapping are not in the inventory to subtract,"
+                " they are ignored.",
+                sorted(map(str, unused)),
+            )
     return resolved
 
 

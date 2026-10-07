@@ -773,3 +773,37 @@ def test_export_corso_point_sources_to_microhh(tmp_path: Path) -> None:
         # Flat profiles, so every month carries the same 4 kg/s.
         total = (ds["emi_CO2"].isel(time=0) * ds["cell_area"]).sum()
         np.testing.assert_allclose(total, 4.0, rtol=REMAP_RTOL)
+
+
+def test_point_source_remapping_uses_its_own_weights_file(
+    cams_file: Path, tmp_path: Path
+) -> None:
+    """The two remappings must not share a weights file.
+
+    ``get_weights_mapping`` caches by file name without checking that the
+    shapes still match, so reusing one file would silently apply the CAMS to
+    MicroHH weights to the point sources.
+    """
+    grid = MicroHHGrid(
+        xsize=10_000, ysize=10_000, itot=2, jtot=2, lon=0, lat=0, crs="EPSG:3857"
+    )
+    weights = tmp_path / "weights.npz"
+
+    import_and_export_cams_global(
+        cams_file,
+        grid,
+        tmp_path / "out.nc",
+        variables=["sum"],
+        weights_file=weights,
+        point_sources=_point_inventory(
+            longitudes=[-0.04],
+            latitudes=[-0.04],
+            sectors=["power"],
+            emissions_kg_s=[1.0],
+        ),
+        category_mapping={"power": "sum"},
+    )
+
+    written = sorted(p.name for p in tmp_path.glob("*.npz"))
+    assert "weights.npz" in written
+    assert any("point_sources" in name for name in written), written
