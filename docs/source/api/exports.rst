@@ -148,6 +148,37 @@ exact while the emissions removed from each time step follow the temporal
 profile of the CAMS inventory. See
 :py:func:`~emiproc.inventories.utils.subtract_inventories`.
 
+When several CAMS files are summed, the result holds the single category
+``sum``, and the categories of the point sources are all mapped onto it
+because there is nothing finer to subtract them from. ``category_mapping`` is
+then not needed. If a mapping ever matches nothing at all, a
+:py:class:`RuntimeWarning` is raised rather than leaving the emissions counted
+twice silently.
+
+Rebuilding only what changed
+----------------------------
+
+Both functions take ``overwrite``. With the default ``overwrite=False``, an
+output built from the same inputs is kept and returned without doing the work
+again, and one built from anything different is replaced::
+
+    # Builds the file.
+    import_and_export_cams_global(files, grid, "cams_nox_microhh.nc")
+    # Returns immediately, the file is already up to date.
+    import_and_export_cams_global(files, grid, "cams_nox_microhh.nc")
+
+The inputs are identified by a fingerprint stored in the output, see
+:py:func:`~emiproc.exports.utils.make_fingerprint`. For
+:py:func:`~emiproc.exports.microhh.import_and_export_cams_global` it covers the
+CAMS files (by path, size and modification time), the grid, the point sources
+and every option, and it is checked before the CAMS files are read. Pass
+``overwrite=True`` to rebuild unconditionally.
+
+Outputs are written through
+:py:func:`~emiproc.exports.utils.write_netcdf`, which replaces the file
+atomically. Rewriting an output that is still open elsewhere, a notebook that
+did not close it for instance, therefore works.
+
 The current CORSO catalogue has no VOC field, so a VOC aggregate has no point
 sources to subtract.
 
@@ -156,3 +187,19 @@ Gral
 ----
 .. automodule:: emiproc.exports.gral
     :members:
+
+
+Export helpers
+--------------
+
+.. autofunction:: emiproc.exports.utils.get_temporally_scaled_array
+
+.. autofunction:: emiproc.exports.utils.make_fingerprint
+
+.. autofunction:: emiproc.exports.utils.file_fingerprint
+
+.. autofunction:: emiproc.exports.utils.read_fingerprint
+
+.. autofunction:: emiproc.exports.utils.is_up_to_date
+
+.. autofunction:: emiproc.exports.utils.write_netcdf

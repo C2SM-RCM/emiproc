@@ -15,7 +15,14 @@ import xarray as xr
 
 from emiproc import deprecated
 from emiproc.exports.netcdf import nc_cf_attributes
-from emiproc.exports.utils import get_temporally_scaled_array
+from emiproc.exports.utils import (
+    FINGERPRINT_ATTRIBUTE,
+    file_fingerprint,
+    get_temporally_scaled_array,
+    is_up_to_date,
+    make_fingerprint,
+    write_netcdf,
+)
 from emiproc.grids import RegularGrid, WGS84
 from emiproc.inventories import Category, Inventory, Substance
 from emiproc.inventories.cams_global import (
@@ -25,6 +32,7 @@ from emiproc.inventories.cams_global import (
 )
 from emiproc.inventories.utils import (
     NegativePolicy,
+    get_total_emissions,
     merge_inventories_without_double_counting,
 )
 from emiproc.regrid import remap_inventory
@@ -82,6 +90,41 @@ def _time_bounds(time_range: pd.DatetimeIndex, year: int | None) -> np.ndarray:
     return np.column_stack([starts, ends])
 
 
+def _grid_fingerprint(grid: RegularGrid) -> dict:
+    """Everything of the grid that changes the written file."""
+    return {
+        "name": grid.name,
+        "crs": str(grid.crs),
+        "nx": int(grid.nx),
+        "ny": int(grid.ny),
+        "dx": float(grid.dx),
+        "dy": float(grid.dy),
+        "xmin": float(grid.xmin),
+        "ymin": float(grid.ymin),
+    }
+
+
+def _inventory_fingerprint(inv: Inventory) -> dict:
+    """Identify the emissions of an inventory without writing them out."""
+    totals = get_total_emissions(inv)
+    return {
+        "name": inv.name,
+        "year": inv.year,
+        "categories": sorted(map(str, inv.categories)),
+        "substances": sorted(map(str, inv.substances)),
+        "totals_kg_y": totals,
+        "has_t_profiles": getattr(inv, "t_profiles_groups", None) is not None,
+        "has_v_profiles": getattr(inv, "v_profiles", None) is not None,
+    }
+
+
+def _time_range_fingerprint(time_range) -> object:
+    """A time range given as an index, a year, or not given at all."""
+    if time_range is None or isinstance(time_range, (int, np.integer)):
+        return time_range
+    return [pd.Timestamp(t).isoformat() for t in time_range]
+
+
 def export_to_microhh(
     inv: Inventory,
     grid: RegularGrid,
@@ -93,6 +136,8 @@ def export_to_microhh(
     weights_file: PathLike | None = None,
     add_total: bool = True,
     category_descriptions: Mapping[str, str] | None = None,
+    overwrite: bool = False,
+    fingerprint: str | None = None,
 ) -> Path:
     """Export an inventory to a MicroHH emission NetCDF file.
 
@@ -124,8 +169,17 @@ def export_to_microhh(
         holding the sum over the categories.
     :arg category_descriptions: Optional descriptions of the categories, added
         to the metadata of the ``category`` coordinate.
+    :arg overwrite: Whether the output must be rebuilt even when it is already
+        up to date. When False (the default), an existing file built from the
+        same inputs is kept and simply returned, and one built from different
+        inputs is replaced. See :py:func:`~emiproc.exports.utils.make_fingerprint`.
+    :arg fingerprint: Optional fingerprint of the inputs, stored in the output
+        and used for the check above. By default it is computed from ``inv``,
+        ``grid`` and the arguments of this function. Pass it when the caller
+        knows about inputs that this function cannot see, such as the files an
+        inventory was read from.
 
-    :return: The path of the file written.
+    :return: The path of the file written, or of the up to date file found.
 
     .. note::
         Emissions are converted from the emiproc unit ``kg/y`` to
@@ -135,6 +189,25 @@ def export_to_microhh(
     target_crs = pyproj.CRS.from_user_input(grid.crs)
     if target_crs.is_geographic:
         raise ValueError("The target MicroHH grid must use a projected CRS.")
+
+    output_path = Path(output_file).with_suffix(".nc")
+    if fingerprint is None:
+        fingerprint = make_fingerprint(
+            {
+                "exporter": "emiproc.exports.microhh.export_to_microhh",
+                "inventory": _inventory_fingerprint(inv),
+                "grid": _grid_fingerprint(grid),
+                "time_range": _time_range_fingerprint(time_range),
+                "freq": freq,
+                "substances": substances,
+                "categories": categories,
+                "add_total": add_total,
+                "category_descriptions": category_descriptions,
+            }
+        )
+    if not overwrite and is_up_to_date(output_path, fingerprint):
+        logger.info("%s is already up to date, keeping it.", output_path)
+        return output_path
 
     # Remapping copies the inventory, and `Inventory.copy` only keeps the
     # standard attributes, so read the reader specific metadata beforehand.
@@ -296,6 +369,7 @@ def export_to_microhh(
     additional_attributes: dict[str, str | float | int] = {
         "target_grid": grid.name,
         "emiproc_history": str(inv.history),
+        FINGERPRINT_ATTRIBUTE: fingerprint,
     }
     if inv.year is not None:
         additional_attributes["inventory_year"] = str(inv.year)
@@ -356,8 +430,6 @@ def export_to_microhh(
             if category in descriptions
         )
 
-    output_path = Path(output_file).with_suffix(".nc")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     reference_year = inv.year if inv.year is not None else time_range[0].year
     time_encoding = {
         "units": f"seconds since {reference_year}-01-01 00:00:00",
@@ -366,8 +438,7 @@ def export_to_microhh(
     }
     ds["time"].encoding.update(time_encoding)
     ds["time_bnds"].encoding.update(time_encoding)
-    ds.to_netcdf(output_path)
-    return output_path
+    return write_netcdf(ds, output_path)
 
 
 @deprecated("Use `export_to_microhh` instead, it works for any inventory.")
@@ -405,6 +476,7 @@ def import_and_export_cams_global(
     negative_policy: NegativePolicy = "clip",
     date: datetime | None = None,
     keep_point_sources: bool = False,
+    overwrite: bool = False,
 ) -> Path:
     """Read CAMS-GLOB-ANT files and export them on a MicroHH grid.
 
@@ -439,9 +511,48 @@ def import_and_export_cams_global(
         inventory after having been removed from the CAMS cells. When False
         (the default) only the CAMS emissions that the point sources do not
         already describe are exported.
+    :arg overwrite: Whether the output must be rebuilt even when it is already
+        up to date. When False (the default), an existing file built from the
+        same CAMS files, grid, point sources and options is kept and returned
+        without reading the CAMS files again, and one built from anything
+        different is replaced. The CAMS files are identified by their path,
+        size and modification time.
 
-    :return: The path of the file written.
+    :return: The path of the file written, or of the up to date file found.
+
+    .. note::
+        When several CAMS files are summed, the result holds the single
+        category ``"sum"``. The categories of ``point_sources`` are then all
+        mapped onto it, as there is nothing finer to subtract them from, and
+        ``category_mapping`` is not needed.
     """
+    output_path = Path(output_file).with_suffix(".nc")
+    paths = (
+        [Path(nc_file)]
+        if isinstance(nc_file, (str, PathLike))
+        else [Path(path) for path in nc_file]
+    )
+    fingerprint = make_fingerprint(
+        {
+            "exporter": "emiproc.exports.microhh.import_and_export_cams_global",
+            "cams_files": [file_fingerprint(path) for path in paths],
+            "summed": not isinstance(nc_file, (str, PathLike)),
+            "grid": _grid_fingerprint(grid),
+            "variables": variables,
+            "substance": substance,
+            "date": date,
+            "point_sources": (
+                None if point_sources is None else _inventory_fingerprint(point_sources)
+            ),
+            "category_mapping": category_mapping,
+            "substance_mapping": substance_mapping,
+            "negative_policy": negative_policy,
+            "keep_point_sources": keep_point_sources,
+        }
+    )
+    if not overwrite and is_up_to_date(output_path, fingerprint):
+        logger.info("%s is already up to date, keeping it.", output_path)
+        return output_path
     inv = read_cams_global(
         nc_file,
         variables=variables,
@@ -451,6 +562,22 @@ def import_and_export_cams_global(
     )
 
     if point_sources is not None:
+        if list(inv.categories) == ["sum"]:
+            # Summed CAMS files hold one single category, so there is nothing
+            # finer to subtract the point sources from. This is what the CAMS
+            # specific subtraction used to do before it became an operator.
+            summed_mapping = {category: "sum" for category in point_sources.categories}
+            if category_mapping is not None and set(
+                category_mapping.values()
+            ).isdisjoint(inv.categories):
+                logger.info(
+                    "The CAMS files were summed into the single category"
+                    " 'sum', so `category_mapping` is ignored and every"
+                    " category of %s is subtracted from it.",
+                    point_sources,
+                )
+            category_mapping = summed_mapping
+
         # The two remappings (point sources onto the CAMS grid, then CAMS onto
         # the MicroHH grid) must not share a weights file: `get_weights_mapping`
         # caches by file name without checking that the shapes still match.
@@ -485,10 +612,12 @@ def import_and_export_cams_global(
     return export_to_microhh(
         inv,
         grid,
-        output_file,
+        output_path,
         # A `date` selects one single time step out of the CAMS input.
         time_range=None if date is None else pd.DatetimeIndex([date]),
         weights_file=weights_file,
+        overwrite=True,
+        fingerprint=fingerprint,
     )
 
 

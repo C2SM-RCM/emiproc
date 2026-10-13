@@ -807,6 +807,19 @@ def subtract_inventories(
         else:
             raise ValueError(message + " Use `ignore_missing=True` to skip them.")
 
+    if not removed and requested:
+        # Nothing matched at all: almost always a wrong category or substance
+        # mapping, which would silently leave the emissions counted twice.
+        warn(
+            f"Nothing was subtracted from {inv}: none of the"
+            f" (category, substance) of {other_inv} match it."
+            f" Categories available: {sorted(map(str, inv.categories))},"
+            f" substances: {sorted(map(str, inv.substances))}."
+            " Check `category_mapping` and `substance_mapping`.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     if clipped_values:
         warn(
             f"Subtracting {other_inv} from {inv} exceeded the available emissions"

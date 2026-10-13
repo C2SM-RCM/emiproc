@@ -807,3 +807,119 @@ def test_point_source_remapping_uses_its_own_weights_file(
     written = sorted(p.name for p in tmp_path.glob("*.npz"))
     assert "weights.npz" in written
     assert any("point_sources" in name for name in written), written
+
+
+def _microhh_grid(itot: int = 2) -> MicroHHGrid:
+    return MicroHHGrid(
+        xsize=10_000,
+        ysize=10_000,
+        itot=itot,
+        jtot=itot,
+        lon=0,
+        lat=0,
+        crs="EPSG:3857",
+    )
+
+
+def test_up_to_date_output_is_kept(cams_file: Path, tmp_path: Path) -> None:
+    """A second identical call must not rebuild the file."""
+    out = tmp_path / "cams.nc"
+    first = import_and_export_cams_global(
+        cams_file, _microhh_grid(), out, variables=["sum"]
+    )
+    stamp = first.stat().st_mtime_ns
+
+    again = import_and_export_cams_global(
+        cams_file, _microhh_grid(), out, variables=["sum"]
+    )
+
+    assert again == first
+    assert again.stat().st_mtime_ns == stamp, "the file was rebuilt"
+
+
+def test_overwrite_forces_a_rebuild(cams_file: Path, tmp_path: Path) -> None:
+    out = tmp_path / "cams.nc"
+    first = import_and_export_cams_global(
+        cams_file, _microhh_grid(), out, variables=["sum"]
+    )
+    stamp = first.stat().st_mtime_ns
+
+    again = import_and_export_cams_global(
+        cams_file, _microhh_grid(), out, variables=["sum"], overwrite=True
+    )
+
+    assert again.stat().st_mtime_ns != stamp
+
+
+def test_changed_inputs_replace_the_output(cams_file: Path, tmp_path: Path) -> None:
+    """A file built from other inputs is replaced, not reused."""
+    out = tmp_path / "cams.nc"
+    import_and_export_cams_global(cams_file, _microhh_grid(2), out, variables=["sum"])
+    with xr.open_dataset(out) as ds:
+        assert ds["emi_CH4"].shape[-1] == 2
+
+    # A different grid must invalidate the cached file.
+    import_and_export_cams_global(cams_file, _microhh_grid(4), out, variables=["sum"])
+    with xr.open_dataset(out) as ds:
+        assert ds["emi_CH4"].shape[-1] == 4
+
+    # So must different point sources.
+    import_and_export_cams_global(
+        cams_file,
+        _microhh_grid(4),
+        out,
+        variables=["sum"],
+        point_sources=_point_inventory(
+            longitudes=[-0.04],
+            latitudes=[-0.04],
+            sectors=["power"],
+            emissions_kg_s=[1.0],
+        ),
+    )
+    with xr.open_dataset(out) as ds:
+        assert "double_counting_removed_kg_y" in ds.attrs
+
+
+def test_output_can_be_rewritten_while_open(cams_file: Path, tmp_path: Path) -> None:
+    """An open handle must not block the rewrite, see `write_netcdf`."""
+    out = tmp_path / "cams.nc"
+    import_and_export_cams_global(cams_file, _microhh_grid(), out, variables=["sum"])
+
+    held = xr.open_dataset(out)
+    _ = held["emi_CH4"].values
+    try:
+        import_and_export_cams_global(
+            cams_file, _microhh_grid(), out, variables=["sum"], overwrite=True
+        )
+    finally:
+        held.close()
+
+
+def test_summed_cams_subtracts_every_point_source_category(
+    cams_file: Path, tmp_path: Path
+) -> None:
+    """Summed CAMS files hold one 'sum' category to subtract from.
+
+    `DEFAULT_CORSO_SECTOR_MAPPING` targets ene/ind/ref, which do not exist
+    there, so the mapping must be redirected onto 'sum' instead of silently
+    subtracting nothing.
+    """
+    from emiproc.inventories.cams_global import DEFAULT_CORSO_SECTOR_MAPPING
+
+    points = _point_inventory(
+        longitudes=[-0.04],
+        latitudes=[-0.04],
+        sectors=["power"],
+        emissions_kg_s=[1.0],
+    )
+    out = import_and_export_cams_global(
+        [cams_file],  # a sequence always takes the summation path
+        _microhh_grid(),
+        tmp_path / "summed.nc",
+        point_sources=points,
+        category_mapping=DEFAULT_CORSO_SECTOR_MAPPING,
+    )
+
+    with xr.open_dataset(out) as ds:
+        assert ds["category"].values.tolist() == ["sum"]
+        assert "sum/CH4" in ds.attrs["double_counting_removed_kg_y"]

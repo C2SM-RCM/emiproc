@@ -1,5 +1,13 @@
 from __future__ import annotations
+import hashlib
+import json
 import logging
+import os
+from collections.abc import Mapping
+from datetime import datetime
+from os import PathLike
+from pathlib import Path
+from typing import Any
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -259,3 +267,104 @@ def _scale_emission_temporally_sum_total_first(
         )
 
     return da_out
+
+
+#: Global attribute holding the fingerprint of the inputs an export was built
+#: from. See :py:func:`make_fingerprint`.
+FINGERPRINT_ATTRIBUTE = "emiproc_fingerprint"
+
+
+def _jsonify(value: Any) -> Any:
+    """Convert a value to something `json` can serialize deterministically."""
+    if isinstance(value, Mapping):
+        return {str(k): _jsonify(v) for k, v in sorted(value.items(), key=str)}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        values = [_jsonify(v) for v in value]
+        return (
+            sorted(values, key=str) if isinstance(value, (set, frozenset)) else values
+        )
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, np.generic):
+        return _jsonify(value.item())
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return pd.Timestamp(value).isoformat()
+    if isinstance(value, pd.DatetimeIndex):
+        return [t.isoformat() for t in value]
+    if isinstance(value, np.ndarray):
+        return _jsonify(value.tolist())
+    if isinstance(value, float):
+        # Avoid rebuilding because of the last bit of a float.
+        return round(value, 10)
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    return str(value)
+
+
+def make_fingerprint(payload: Mapping[str, Any]) -> str:
+    """Return a stable fingerprint of the inputs an export is built from.
+
+    The payload is serialized deterministically and hashed, so that two calls
+    that would write the same file produce the same fingerprint. Store it in
+    the output with :py:data:`FINGERPRINT_ATTRIBUTE` and read it back with
+    :py:func:`read_fingerprint` to know whether a file has to be rebuilt.
+
+    :arg payload: The values that determine the content of the output.
+
+    :return: The fingerprint, a hexadecimal digest.
+    """
+    serialized = json.dumps(_jsonify(payload), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def file_fingerprint(path: PathLike) -> dict[str, Any]:
+    """Return the identity of an input file, for :py:func:`make_fingerprint`.
+
+    The file is not read: only its path, size and modification time are used.
+    """
+    path = Path(path)
+    stat = path.stat()
+    return {"path": str(path), "size": stat.st_size, "mtime": stat.st_mtime}
+
+
+def read_fingerprint(path: PathLike) -> str | None:
+    """Return the fingerprint stored in a NetCDF file, if it has one.
+
+    Returns None when the file does not exist, cannot be opened, or was not
+    written with a fingerprint.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        with xr.open_dataset(path) as ds:
+            value = ds.attrs.get(FINGERPRINT_ATTRIBUTE)
+    except Exception:
+        # A truncated or unreadable file simply has to be rebuilt.
+        logging.getLogger(__name__).debug("Could not read %s, rebuilding.", path)
+        return None
+    return None if value is None else str(value)
+
+
+def is_up_to_date(path: PathLike, fingerprint: str) -> bool:
+    """Whether a NetCDF file was built from the given inputs."""
+    return read_fingerprint(path) == fingerprint
+
+
+def write_netcdf(ds: xr.Dataset, path: PathLike, **kwargs) -> Path:
+    """Write a dataset, replacing the file atomically.
+
+    The dataset is written next to the target and then moved onto it, so that
+    an existing file that is still open elsewhere (a notebook that did not
+    close it, for example) does not make the write fail, and so that an
+    interrupted write cannot leave a half written file behind.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        ds.to_netcdf(temporary, **kwargs)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path

@@ -220,3 +220,14 @@ def test_mapping_may_cover_categories_that_are_absent(gridded: Inventory) -> Non
     np.testing.assert_allclose(
         out.gdf[("ene", "CO2")].to_numpy(), [50.0, 200.0, 300.0, 400.0]
     )
+
+
+def test_warns_loudly_when_nothing_matches(gridded: Inventory) -> None:
+    """A wrong mapping would otherwise leave the emissions counted twice."""
+    with pytest.warns(RuntimeWarning, match="Nothing was subtracted"):
+        subtract_inventories(
+            gridded,
+            _points([50.0]),
+            category_mapping={"power": "does_not_exist"},
+            substance_mapping={"co2": "CO2"},
+        )
