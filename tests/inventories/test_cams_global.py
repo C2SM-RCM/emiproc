@@ -246,3 +246,75 @@ def test_profiles_reproduce_the_monthly_fluxes(cams_file: Path) -> None:
             inventory.monthly_flux.sel(category=category),
             rtol=1e-12,
         )
+
+
+def _species_file(
+    tmp_path: Path, species: str, flux: float, molecular_weight: float
+) -> Path:
+    path = tmp_path / f"CAMS-GLOB-ANT_v6.2_{species}_2025.nc"
+    xr.Dataset(
+        data_vars={
+            "sum": (
+                ("time", "lat", "lon"),
+                np.full((12, 2, 2), flux, dtype=np.float32),
+                {
+                    "units": "kg m-2 s-1",
+                    "long_name": f"Emissions of {species} for sum of sectors",
+                    "molecular_weight": np.float32(molecular_weight),
+                    "molecular_weight_units": "g mole-1",
+                },
+            )
+        },
+        coords={
+            "time": ("time", np.arange(12), {"units": "months since 2025-01-01"}),
+            "lat": [-0.05, 0.05],
+            "lon": [-0.05, 0.05],
+        },
+    ).to_netcdf(path)
+    return path
+
+
+def test_lumping_weights_sum_by_moles(tmp_path: Path) -> None:
+    from emiproc.inventories.cams_global import read_cams_global
+
+    propene = _species_file(tmp_path, "propene", 42.0, 42.0)
+    toluene = _species_file(tmp_path, "toluene", 92.0, 92.0)
+    files = [toluene, propene]
+
+    # 1 mol of propene + 0.5 * 1 mol of toluene, expressed as kg of propene.
+    expected = (1.0 + 0.5) * 42.0
+    by_mapping = read_cams_global(
+        files, substance="VOCs", lumping_weights={"propene": 1.0, "toluene": 0.5}
+    )
+    by_sequence = read_cams_global(files, substance="VOCs", lumping_weights=[0.5, 1])
+
+    for inventory in (by_mapping, by_sequence):
+        assert inventory.molecular_weight == 42.0
+        np.testing.assert_allclose(inventory.monthly_flux.values, expected)
+        np.testing.assert_allclose(
+            inventory.gdf[("sum", "VOCs")].to_numpy(),
+            expected * SEC_PER_YR * inventory.grid.cell_areas,
+        )
+
+    explicit = read_cams_global(
+        files,
+        substance="VOCs",
+        lumping_weights={"propene": 1.0, "toluene": 0.5},
+        lumped_molecular_weight=21.0,
+    )
+    np.testing.assert_allclose(explicit.monthly_flux.values, expected / 2)
+
+
+def test_lumping_weights_errors(tmp_path: Path) -> None:
+    from emiproc.inventories.cams_global import read_cams_global
+
+    files = [
+        _species_file(tmp_path, "propene", 1.0, 42.0),
+        _species_file(tmp_path, "toluene", 1.0, 92.0),
+    ]
+    with pytest.raises(ValueError, match="No lumping weight"):
+        read_cams_global(files, substance="VOCs", lumping_weights={"propene": 1.0})
+    with pytest.raises(ValueError, match="lumping weights for 2 files"):
+        read_cams_global(files, substance="VOCs", lumping_weights=[1.0])
+    with pytest.raises(ValueError, match="lumped_molecular_weight"):
+        read_cams_global(files, substance="VOCs", lumping_weights=[0.5, 0.5])

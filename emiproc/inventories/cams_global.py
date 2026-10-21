@@ -8,9 +8,8 @@ model-specific export functions live in :mod:`emiproc.exports`.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta
-from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
 from typing import Literal
@@ -40,6 +39,9 @@ CAMS_FLUX_UNIT = "kg m-2 s-1"
 CAMSFile = str | PathLike
 #: One or several CAMS-GLOB-ANT files.
 CAMSFiles = CAMSFile | Sequence[CAMSFile]
+#: Molar weights of the summed files, either one per file in the order of the
+#: files, or a mapping from the species (ex. ``"propene"``), file name or path.
+LumpingWeights = Mapping[str, float] | Iterable[float]
 
 DEFAULT_CORSO_SECTOR_MAPPING = {
     "power": "ene",
@@ -213,6 +215,34 @@ def _time_index_for_date(
     return int(matches[0])
 
 
+def _read_molecular_weight(
+    ds: xr.Dataset,
+    variables: list[str],
+    path: Path,
+) -> float | None:
+    """Return the molar mass (g/mol) stored on the selected CAMS variables."""
+    weights = set()
+    for variable in variables:
+        value = ds[variable].attrs.get("molecular_weight")
+        if value is None:
+            continue
+        unit = str(ds[variable].attrs.get("molecular_weight_units", "g mole-1"))
+        if unit.replace(" ", "") not in {"gmole-1", "gmol-1", "g/mol", "g/mole"}:
+            raise ValueError(
+                f"CAMS variable {variable!r} of {path} has unsupported molecular"
+                f" weight units {unit!r}; expected 'g mole-1'."
+            )
+        weights.add(float(value))
+    if not weights:
+        return None
+    if len(weights) > 1:
+        raise ValueError(
+            f"The selected variables of {path} have different molecular weights:"
+            f" {sorted(weights)}."
+        )
+    return weights.pop()
+
+
 def _validate_flux_variable(da: xr.DataArray, variable: str) -> None:
     required_dims = {"time", "lat", "lon"}
     if not required_dims.issubset(da.dims):
@@ -300,6 +330,9 @@ class CAMSGlobal(Inventory):
     monthly_flux: xr.DataArray
     category_descriptions: dict[str, str]
     time_bounds: np.ndarray
+    #: Molar mass of the substance in g/mol, from the ``molecular_weight``
+    #: attribute of the CAMS variables, or None when the file has none.
+    molecular_weight: float | None
 
     def __init__(
         self,
@@ -364,6 +397,7 @@ class CAMSGlobal(Inventory):
             )
             self.substance_name = _canonical_substance(self.source_substance_name)
             self.selected_variables = list(selected)
+            self.molecular_weight = _read_molecular_weight(source_ds, selected, path)
 
             ds = source_ds[selected]
             if time_index is not None:
@@ -553,12 +587,51 @@ def _remap_flux_to_inventory_grid(
     return remapped
 
 
+def _file_species(path: Path) -> str | None:
+    """Return the species part of a CAMS file name, ex. ``propene``."""
+    match = re.match(
+        r"CAMS-GLOB-[A-Z]+_v[^_]+_(.+)_\d{4}\.nc$", path.name, flags=re.IGNORECASE
+    )
+    return None if match is None else match.group(1)
+
+
+def _resolve_lumping_weights(
+    paths: list[Path],
+    lumping_weights: LumpingWeights,
+) -> list[float]:
+    """Return the lumping weight of each file, in the order of ``paths``."""
+    if not isinstance(lumping_weights, Mapping):
+        weights = [float(weight) for weight in lumping_weights]
+        if len(weights) != len(paths):
+            raise ValueError(
+                f"Got {len(weights)} lumping weights for {len(paths)} files. Pass"
+                " one weight per file, in the order of the files, or a mapping"
+                " from the species name (ex. 'propene') to its weight."
+            )
+        return weights
+
+    weights = []
+    for path in paths:
+        keys = [str(path), path.name, path.stem, _file_species(path)]
+        key = next((key for key in keys if key in lumping_weights), None)
+        if key is None:
+            raise ValueError(
+                f"No lumping weight given for {path}. The keys of"
+                " `lumping_weights` must be the species name (ex. 'propene'),"
+                " the file name or the file path."
+            )
+        weights.append(float(lumping_weights[key]))
+    return weights
+
+
 def read_cams_global(
     nc_files: CAMSFiles,
     variables: list[str] | None = None,
     bbox: BoundingBox | None = None,
     substance: str | None = None,
     date: datetime | None = None,
+    lumping_weights: LumpingWeights | None = None,
+    lumped_molecular_weight: float | None = None,
 ) -> CAMSGlobal:
     """Read one or several CAMS-GLOB-ANT files as a single inventory.
 
@@ -580,9 +653,26 @@ def read_cams_global(
     :arg date: Selects the matching month of a monthly inventory, or the exact
         day of a daily one. It must be given for inputs that do not contain 12
         monthly time steps.
+    :arg lumping_weights: Optional molar weights to lump the files into one
+        surrogate species. Each file is converted to moles with the
+        ``molecular_weight`` attribute of its variable, multiplied by its
+        weight and summed, and the sum is converted back to mass with
+        ``lumped_molecular_weight``. Either one weight per file, in the order
+        of ``nc_files``, or a mapping from the species of the file name
+        (ex. ``"propene"`` for ``CAMS-GLOB-ANT_v6.2_propene_2023.nc``), the
+        file name or the file path to its weight. Without weights the files
+        are summed by mass.
+    :arg lumped_molecular_weight: Molar mass (g/mol) of the lumped species,
+        used to convert the weighted moles back to ``kg``. By default the
+        molar mass of the file with a weight of exactly 1 is used, which is the
+        reference species when the weights are relative rate constants.
 
     :return: The inventory holding the summed emissions.
     """
+    if lumping_weights is not None and isinstance(nc_files, (str, PathLike)):
+        nc_files = [nc_files]
+    if lumped_molecular_weight is not None and lumping_weights is None:
+        raise ValueError("`lumped_molecular_weight` requires `lumping_weights`.")
     if isinstance(nc_files, (str, PathLike)):
         return CAMSGlobal(
             nc_files,
@@ -624,17 +714,53 @@ def read_cams_global(
         inventories,
         key=lambda inventory: float(np.median(inventory.grid.cell_areas)),
     )
+    # Scale factor of each file applied before summation: 1 for a sum by mass,
+    # or kg -> mol -> weighted mol -> kg of the lumped species.
+    if lumping_weights is None:
+        weights = None
+        scale_factors = [1.0] * len(inventories)
+    else:
+        weights = _resolve_lumping_weights(paths, lumping_weights)
+        missing = [
+            str(path)
+            for path, inventory in zip(paths, inventories)
+            if inventory.molecular_weight is None
+        ]
+        if missing:
+            raise ValueError(
+                "Lumping by moles needs the 'molecular_weight' attribute of the"
+                " CAMS variables, which is missing in: " + ", ".join(missing)
+            )
+        if lumped_molecular_weight is None:
+            reference_weights = {
+                inventory.molecular_weight
+                for weight, inventory in zip(weights, inventories)
+                if weight == 1.0
+            }
+            if len(reference_weights) != 1:
+                raise ValueError(
+                    "Cannot infer the molar mass of the lumped species, as not"
+                    " exactly one species has a lumping weight of 1. Pass"
+                    " `lumped_molecular_weight=` (g/mol)."
+                )
+            lumped_molecular_weight = reference_weights.pop()
+        scale_factors = [
+            weight * lumped_molecular_weight / inventory.molecular_weight
+            for weight, inventory in zip(weights, inventories)
+        ]
+
     summed_values = np.zeros(
         (reference.monthly_flux.sizes["time"], len(reference.grid)),
         dtype=np.float64,
     )
     remapped_files = 0
-    for inventory in inventories:
+    for inventory, scale_factor in zip(inventories, scale_factors):
         if _grids_match(reference, inventory):
-            summed_values += inventory.monthly_flux.isel(category=0).values
+            values = inventory.monthly_flux.isel(category=0).values.astype(np.float64)
         else:
-            summed_values += _remap_flux_to_inventory_grid(inventory, reference)
+            values = _remap_flux_to_inventory_grid(inventory, reference)
             remapped_files += 1
+        summed_values += scale_factor * values
 
     reference.monthly_flux = (
         reference.monthly_flux.isel(category=[0])
@@ -661,10 +787,33 @@ def read_cams_global(
         (
             f"{path}: variable={inventory.selected_variables[0]}, "
             f"source_substance={inventory.source_substance_name}"
+            + (
+                ""
+                if weights is None
+                else f", molecular_weight={inventory.molecular_weight:g},"
+                f" lumping_weight={weight:g}"
+            )
         )
-        for path, inventory in zip(paths, inventories)
+        for path, inventory, weight in zip(
+            paths, inventories, weights or [None] * len(paths)
+        )
     ]
-    reference.history.append(f"Summed {len(paths)} CAMS global inventory files")
+    if weights is None:
+        # A sum by mass of different species has no molar mass.
+        molecular_weights = {inventory.molecular_weight for inventory in inventories}
+        reference.molecular_weight = (
+            molecular_weights.pop() if len(molecular_weights) == 1 else None
+        )
+        reference.history.append(f"Summed {len(paths)} CAMS global inventory files")
+    else:
+        reference.molecular_weight = lumped_molecular_weight
+        reference.monthly_flux.attrs.update(
+            {"molecular_weight": lumped_molecular_weight, "lumped_by_moles": 1}
+        )
+        reference.history.append(
+            f"Lumped {len(paths)} CAMS global inventory files by moles with"
+            f" weights, as {lumped_molecular_weight:g} g/mol"
+        )
     if remapped_files:
         reference.history.append(
             f"Conservatively remapped {remapped_files} input files to the "
@@ -690,6 +839,7 @@ __all__ = [
     "CAMSGlobAnt",
     "CAMS_GLOB_ANT",
     "CAMS_FLUX_UNIT",
+    "LumpingWeights",
     "DEFAULT_CORSO_SECTOR_MAPPING",
     "DEFAULT_CORSO_SUBSTANCE_MAPPING",
     "SUBSTANCE_ALIASES",

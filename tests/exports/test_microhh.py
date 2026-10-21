@@ -809,6 +809,39 @@ def test_point_source_remapping_uses_its_own_weights_file(
     assert any("point_sources" in name for name in written), written
 
 
+def test_load_multiple_files_with_lumping_weights(tmp_path: Path) -> None:
+    files = []
+    for species, molecular_weight in [("propene", 42.0), ("toluene", 92.0)]:
+        path = write_single_variable_cams_file(
+            tmp_path / f"CAMS-GLOB-ANT_v6.2_{species}_2025.nc",
+            value=molecular_weight,
+            variable="sum",
+            substance_label=species,
+        )
+        with xr.open_dataset(path, decode_times=False) as dataset:
+            dataset = dataset.load()
+        dataset["sum"].attrs["molecular_weight"] = molecular_weight
+        dataset["sum"].attrs["molecular_weight_units"] = "g mole-1"
+        dataset.to_netcdf(path)
+        files.append(path)
+
+    output = import_and_export_cams_global(
+        files,
+        _microhh_grid(),
+        tmp_path / "lumped.nc",
+        substance="VOCs",
+        lumping_weights={"propene": 1.0, "toluene": 0.5},
+    )
+
+    with xr.open_dataset(output) as dataset:
+        # 1 mol propene + 0.5 * 1 mol toluene, as kg of propene.
+        np.testing.assert_allclose(
+            dataset["emi_VOCs_total"].isel(time=0), 1.5 * 42.0, rtol=REMAP_RTOL
+        )
+        assert dataset["emi_VOCs"].attrs["molecular_weight"] == 42.0
+        assert "lumping_weight=0.5" in dataset.attrs["input_details"]
+
+
 def _microhh_grid(itot: int = 2) -> MicroHHGrid:
     return MicroHHGrid(
         xsize=10_000,

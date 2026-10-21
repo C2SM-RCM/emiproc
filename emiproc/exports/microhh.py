@@ -28,6 +28,7 @@ from emiproc.inventories import Category, Inventory, Substance
 from emiproc.inventories.cams_global import (
     CAMSFiles,
     CAMS_FLUX_UNIT,
+    LumpingWeights,
     read_cams_global,
 )
 from emiproc.inventories.utils import (
@@ -227,6 +228,10 @@ def export_to_microhh(
                 "double_counting_requested_kg_y": str(summary["requested_kg_y"]),
             }
         )
+    if getattr(inv, "molecular_weight", None) is not None and len(inv.substances) == 1:
+        molecular_weight = float(inv.molecular_weight)
+    else:
+        molecular_weight = None
     source_descriptions = dict(getattr(inv, "category_descriptions", {}) or {})
     source_time_bounds = getattr(inv, "time_bounds", None)
 
@@ -313,26 +318,24 @@ def export_to_microhh(
     for substance in da["substance"].values:
         values = da.sel(substance=substance).values
         name = f"emi_{substance}"
+        attrs = {
+            "units": MICROHH_FLUX_UNIT,
+            "substance": str(substance),
+            "grid_mapping": "crs",
+        }
+        if molecular_weight is not None:
+            attrs["molecular_weight"] = molecular_weight
+            attrs["molecular_weight_units"] = "g mole-1"
         data_vars[name] = (
             ("time", "category", "y", "x"),
             values,
-            {
-                "long_name": f"{substance} emission flux",
-                "units": MICROHH_FLUX_UNIT,
-                "substance": str(substance),
-                "grid_mapping": "crs",
-            },
+            {"long_name": f"{substance} emission flux", **attrs},
         )
         if add_total:
             data_vars[f"{name}_total"] = (
                 ("time", "y", "x"),
                 values.sum(axis=1),
-                {
-                    "long_name": f"total {substance} emission flux",
-                    "units": MICROHH_FLUX_UNIT,
-                    "substance": str(substance),
-                    "grid_mapping": "crs",
-                },
+                {"long_name": f"total {substance} emission flux", **attrs},
             )
 
     data_vars.update(
@@ -477,6 +480,8 @@ def import_and_export_cams_global(
     date: datetime | None = None,
     keep_point_sources: bool = False,
     overwrite: bool = False,
+    lumping_weights: LumpingWeights | None = None,
+    lumped_molecular_weight: float | None = None,
 ) -> Path:
     """Read CAMS-GLOB-ANT files and export them on a MicroHH grid.
 
@@ -517,6 +522,11 @@ def import_and_export_cams_global(
         without reading the CAMS files again, and one built from anything
         different is replaced. The CAMS files are identified by their path,
         size and modification time.
+    :arg lumping_weights: Optional molar weights to lump the CAMS files into
+        one surrogate species, see
+        :py:func:`~emiproc.inventories.cams_global.read_cams_global`.
+    :arg lumped_molecular_weight: Molar mass (g/mol) of the lumped species,
+        see :py:func:`~emiproc.inventories.cams_global.read_cams_global`.
 
     :return: The path of the file written, or of the up to date file found.
 
@@ -532,6 +542,13 @@ def import_and_export_cams_global(
         if isinstance(nc_file, (str, PathLike))
         else [Path(path) for path in nc_file]
     )
+    if lumping_weights is not None:
+        # Iterate the weights once, they may be a view or a generator.
+        lumping_weights = (
+            dict(lumping_weights)
+            if isinstance(lumping_weights, Mapping)
+            else [float(weight) for weight in lumping_weights]
+        )
     fingerprint = make_fingerprint(
         {
             "exporter": "emiproc.exports.microhh.import_and_export_cams_global",
@@ -548,6 +565,8 @@ def import_and_export_cams_global(
             "substance_mapping": substance_mapping,
             "negative_policy": negative_policy,
             "keep_point_sources": keep_point_sources,
+            "lumping_weights": lumping_weights,
+            "lumped_molecular_weight": lumped_molecular_weight,
         }
     )
     if not overwrite and is_up_to_date(output_path, fingerprint):
@@ -559,6 +578,8 @@ def import_and_export_cams_global(
         bbox=_inventory_bbox_for_grid(grid),
         substance=substance,
         date=date,
+        lumping_weights=lumping_weights,
+        lumped_molecular_weight=lumped_molecular_weight,
     )
 
     if point_sources is not None:
